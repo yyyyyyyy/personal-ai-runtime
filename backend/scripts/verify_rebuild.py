@@ -9,10 +9,15 @@ violation that must block CI.
 
 import os
 import sys
+from pathlib import Path
+
+# Running as `python scripts/verify_rebuild.py` puts scripts/ on sys.path, not backend/.
+_BACKEND_ROOT = Path(__file__).resolve().parent.parent
+if str(_BACKEND_ROOT) not in sys.path:
+    sys.path.insert(0, str(_BACKEND_ROOT))
 
 os.environ.setdefault("LLM_API_KEY", "test-key")
 
-from pathlib import Path
 from typing import Any
 
 from app.core.runtime.kernel import Kernel
