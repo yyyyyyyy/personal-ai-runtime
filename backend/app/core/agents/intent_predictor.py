@@ -7,9 +7,23 @@ from datetime import datetime
 
 from app.store.database import db
 
+PLANNING_KEYWORDS = ("规划", "计划", "安排", "下周", "plan", "schedule", "roadmap")
+REVIEW_KEYWORDS = ("复盘", "总结", "回顾", "review", "reflect")
+
 
 class IntentPredictor:
     """Predicts user intent based on context patterns for proactive assistance."""
+
+    def classify_message(self, message: str) -> dict:
+        """Classify a chat message intent for routing."""
+        text = message.lower().strip()
+        if any(k in message or k in text for k in PLANNING_KEYWORDS):
+            return {"intent": "planning", "confidence": 0.85}
+        if any(k in message or k in text for k in REVIEW_KEYWORDS):
+            return {"intent": "review", "confidence": 0.8}
+        if any(w in text for w in ("列文件", "list file", "read file", "打开")):
+            return {"intent": "filesystem", "confidence": 0.75}
+        return {"intent": "general", "confidence": 0.5}
 
     def predict(self) -> dict:
         """Predict the most likely user intent right now."""

@@ -62,33 +62,22 @@ class Brain:
                 yield {"type": "error", "content": "Tool call loop timed out."}
                 return
 
-            # Call LLM
+            # Call LLM (with multi-provider fallback)
             llm_start = time.time()
             try:
-                response = await self.client.chat.completions.create(
-                    model=self.provider.model,
-                    messages=messages,
-                    tools=mcp_hub.get_tool_defs_for_llm(),
-                    tool_choice="auto",
-                    temperature=settings.llm_temperature,
-                    max_tokens=settings.llm_max_tokens,
-                    stream=True,
-                )
+                response, client, used_provider = await self._create_llm_stream(messages)
             except Exception as e:
-                telemetry.record_llm_call(LLMCallRecord(
-                    provider=self.provider.name,
-                    model=self.provider.model,
-                    latency_ms=(time.time() - llm_start) * 1000,
-                    success=False,
-                    error_message=str(e),
-                ))
                 yield {"type": "error", "content": f"LLM API error: {str(e)}"}
                 return
+            if used_provider.name != self.provider.name:
+                self.client, self.provider = client, used_provider
 
             # Collect streaming response
             assistant_content = ""
             tool_calls_data: list[dict] = []
-            current_tool_call = {"index": -1, "id": "", "function_name": "", "arguments": ""}
+            current_tool_call: dict[str, int | str] = {
+                "index": -1, "id": "", "function_name": "", "arguments": "",
+            }
 
             async for chunk in response:
                 delta = chunk.choices[0].delta if chunk.choices else None
@@ -105,7 +94,7 @@ class Brain:
                     for tc in delta.tool_calls:
                         if tc.index is not None and tc.index != current_tool_call["index"]:
                             # New tool call
-                            if current_tool_call["index"] >= 0:
+                            if int(current_tool_call["index"]) >= 0:
                                 tool_calls_data.append(dict(current_tool_call))
                             current_tool_call = {
                                 "index": tc.index,
@@ -122,7 +111,7 @@ class Brain:
                                 current_tool_call["arguments"] += tc.function.arguments
 
             # Finalize last tool call
-            if current_tool_call["index"] >= 0:
+            if int(current_tool_call["index"]) >= 0:
                 tool_calls_data.append(dict(current_tool_call))
 
             # Record LLM call
@@ -148,7 +137,7 @@ class Brain:
             yield {"type": "tool_call_start", "tool_calls": tool_calls_data}
 
             # Add assistant message with tool calls to messages
-            assistant_msg = {"role": "assistant", "content": assistant_content or None}
+            assistant_msg: dict = {"role": "assistant", "content": assistant_content or None}
             tc_for_msg = []
             for tc in tool_calls_data:
                 tc_for_msg.append({
@@ -285,6 +274,47 @@ class Brain:
         if content:
             conversation.save_assistant_message(content)
         return content
+
+    async def _create_llm_stream(self, messages: list[dict]):
+        """Try primary LLM provider, then fallbacks."""
+        from openai import AsyncOpenAI
+
+        from app.core.agents.llm_router import LLMProvider
+
+        candidates: list[tuple[AsyncOpenAI, LLMProvider]] = [
+            (self.client, self.provider),
+            *llm_router.get_fallback_clients(),
+        ]
+        last_error: Exception | None = None
+        llm_start = time.time()
+        for client, provider in candidates:
+            try:
+                response = await client.chat.completions.create(  # type: ignore[call-overload]
+                    model=provider.model,
+                    messages=messages,
+                    tools=mcp_hub.get_tool_defs_for_llm(),
+                    tool_choice="auto",
+                    temperature=settings.llm_temperature,
+                    max_tokens=settings.llm_max_tokens,
+                    stream=True,
+                )
+                telemetry.record_llm_call(LLMCallRecord(
+                    provider=provider.name,
+                    model=provider.model,
+                    latency_ms=(time.time() - llm_start) * 1000,
+                    success=True,
+                ))
+                return response, client, provider
+            except Exception as e:
+                last_error = e
+                telemetry.record_llm_call(LLMCallRecord(
+                    provider=provider.name,
+                    model=provider.model,
+                    latency_ms=(time.time() - llm_start) * 1000,
+                    success=False,
+                    error_message=str(e),
+                ))
+        raise last_error or RuntimeError("No LLM provider available")
 
     def _build_messages(self, conversation: ConversationManager, user_message: str) -> list[dict]:
         """Build the messages array for the LLM, including system prompt, context, and history."""

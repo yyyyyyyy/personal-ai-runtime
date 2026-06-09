@@ -171,6 +171,21 @@ export async function getMemoryStats(): Promise<MemoryStats> {
   return res.json();
 }
 
+export interface Notification {
+  id: string;
+  type: string;
+  title: string;
+  content: string;
+  created_at: string;
+  read?: number;
+}
+
+export async function listNotifications(limit = 20): Promise<Notification[]> {
+  const res = await fetch(`${API_BASE}/notifications/?limit=${limit}`);
+  if (!res.ok) throw new Error("Failed to list notifications");
+  return res.json();
+}
+
 export async function getHealth(): Promise<HealthSnapshot> {
   const res = await fetch(`${API_BASE}/telemetry/health`);
   if (!res.ok) throw new Error("Failed to fetch health");

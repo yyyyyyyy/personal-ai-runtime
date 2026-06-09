@@ -10,6 +10,7 @@ import ChatView from "./components/chat/ChatView";
 import GoalsPage from "./pages/Goals";
 import TimelinePage from "./pages/Timeline";
 import DashboardPage from "./pages/Dashboard";
+import { useNotifications } from "./hooks/useNotifications";
 
 const NAV_ITEMS: { id: Page; label: string; icon: string }[] = [
   { id: "chat", label: "对话", icon: "💬" },
@@ -29,6 +30,7 @@ export default function App() {
   } = useChatStore();
 
   const { currentPage, setPage } = useAppStore();
+  const { toasts, dismissToast } = useNotifications();
 
   useEffect(() => {
     loadConversations();
@@ -133,9 +135,23 @@ export default function App() {
         )}
 
         <div className="p-3 border-t border-gray-800 text-xs text-gray-600 text-center mt-auto">
-          v0.4.0
+          v0.9.0
         </div>
       </aside>
+
+      {/* Toast notifications */}
+      <div className="fixed top-4 right-4 z-50 space-y-2 max-w-sm">
+        {toasts.map((t) => (
+          <div
+            key={t.id}
+            className="bg-gray-900 border border-emerald-700/50 rounded-lg p-3 shadow-lg cursor-pointer"
+            onClick={() => dismissToast(t.id)}
+          >
+            <div className="text-sm font-medium text-emerald-400">{t.title}</div>
+            <div className="text-xs text-gray-400 mt-1 line-clamp-2">{t.content}</div>
+          </div>
+        ))}
+      </div>
 
       {/* Main content */}
       <main className="flex-1 flex flex-col min-w-0">

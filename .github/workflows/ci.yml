@@ -42,7 +42,7 @@ jobs:
       - name: Run tests
         run: |
           cd backend
-          python -m pytest tests/ -v --cov=app --cov-report=term
+          python -m pytest tests/ -v --cov=app --cov-report=term -m "not live_llm"
 
       - name: Verify database schema
         run: |

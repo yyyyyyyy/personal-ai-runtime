@@ -2,9 +2,19 @@
 
 from fastapi import APIRouter, HTTPException
 
+from app.core.runtime.agent_orchestrator import agent_orchestrator
 from app.core.runtime.task_engine import task_engine
 
 router = APIRouter(prefix="/api/tasks", tags=["tasks"])
+
+
+@router.post("/plan")
+async def run_planning_task(body: dict):
+    """Run Planner + Critic dynamic agent pipeline for a planning request."""
+    request = body.get("request", "").strip()
+    if not request:
+        raise HTTPException(status_code=400, detail="request is required")
+    return await agent_orchestrator.run_planning_task(request)
 
 
 @router.post("/")

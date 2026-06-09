@@ -65,6 +65,21 @@ class TriggerEngine:
                 suggestions.extend(result)
         return suggestions
 
+    def evaluate_and_notify(self) -> list[dict]:
+        """Evaluate triggers, persist notifications, and push via WebSocket."""
+        from app.core.runtime.notification_bridge import push_notification
+
+        suggestions = self.evaluate_all()
+        notified = []
+        for s in suggestions:
+            content = s.get("content", "")
+            if not content:
+                continue
+            title = f"主动建议 · {s.get('trigger_id', 'trigger')[:8]}"
+            push_notification("suggestion", title, content)
+            notified.append(s)
+        return notified
+
     def _evaluate_trigger(self, trigger: dict) -> list[dict] | None:
         trigger_type = trigger["trigger_type"]
         condition = json.loads(trigger["condition_json"])
@@ -77,14 +92,15 @@ class TriggerEngine:
 
     def _eval_staleness(self, trigger: dict, condition: dict) -> list[dict] | None:
         days = condition.get("days", 7)
-        field = condition.get("field", "goals.last_activity_at")
+        field = condition.get("field", "last_activity_at")
+        col = field.split(".")[-1] if "." in field else field
         action_config = json.loads(trigger.get("action_config", "{}"))
         template = action_config.get("template", "")
 
         suggestions = []
         with db.get_db() as conn:
             rows = conn.execute(
-                f"SELECT * FROM goals WHERE status = 'active' AND {field} < datetime('now', ?)",
+                f"SELECT * FROM goals WHERE status = 'active' AND {col} < datetime('now', ?)",
                 (f"-{days} days",),
             ).fetchall()
 

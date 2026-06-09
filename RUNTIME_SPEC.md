@@ -342,7 +342,7 @@ kernel.kill_agent(handle) -> void                        # emit AgentTerminated
 
 ## 5. 落地优先级（按「Event 先于一切」重排）
 
-> 这覆盖并细化 `PROJECT_REVIEW.md` 的路线图——核心修正：**State/Memory 不先做，Event 先做。**
+> 核心原则：**State/Memory 不先做，Event 先做。**（P0–P4 路线图已在 v0.9.0 落地。）
 
 ### P0 · 真相与边界
 ```text

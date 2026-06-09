@@ -4,11 +4,14 @@ import {
   getToolSummary,
   getMemoryStats,
   getHealth,
+  listNotifications,
   type CostSummary,
   type ToolSummaryItem,
   type MemoryStats,
   type HealthSnapshot,
+  type Notification,
 } from "../api/client";
+import { useNotifications } from "../hooks/useNotifications";
 
 function StatCard({ label, value, unit, color }: { label: string; value: string | number; unit?: string; color?: string }) {
   return (
@@ -60,23 +63,27 @@ export default function DashboardPage() {
   const [tools, setTools] = useState<ToolSummaryItem[]>([]);
   const [memory, setMemory] = useState<MemoryStats | null>(null);
   const [health, setHealth] = useState<HealthSnapshot | null>(null);
+  const [notifications, setNotifications] = useState<Notification[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const { liveNotifications } = useNotifications();
 
   const fetchData = async () => {
     setLoading(true);
     setError("");
     try {
-      const [costData, toolData, memData, healthData] = await Promise.all([
+      const [costData, toolData, memData, healthData, notifData] = await Promise.all([
         getCostSummary(7),
         getToolSummary(7),
         getMemoryStats(),
         getHealth(),
+        listNotifications(10).catch(() => []),
       ]);
       setCost(costData);
       setTools(toolData);
       setMemory(memData);
       setHealth(healthData);
+      setNotifications(notifData);
     } catch (e) {
       setError("无法连接到后端服务，请确认后端已启动");
     } finally {
@@ -188,6 +195,23 @@ export default function DashboardPage() {
               </div>
             </div>
           </div>
+        </div>
+
+        {/* Proactive suggestions */}
+        <div className="bg-gray-900 border border-gray-800 rounded-xl p-5 mb-6">
+          <h3 className="text-sm font-medium text-gray-300 mb-3">主动建议 & 通知</h3>
+          {[...liveNotifications, ...notifications].length > 0 ? (
+            <div className="space-y-2">
+              {[...liveNotifications, ...notifications].slice(0, 8).map((n, i) => (
+                <div key={`${n.id}-${i}`} className="p-3 bg-gray-800/50 rounded-lg">
+                  <div className="text-sm text-emerald-400">{n.title}</div>
+                  <div className="text-xs text-gray-400 mt-1">{n.content}</div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-gray-600 text-sm text-center py-4">暂无主动建议（触发器每 30 分钟评估一次）</p>
+          )}
         </div>
 
         {/* Tool Success Rate */}

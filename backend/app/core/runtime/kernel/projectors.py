@@ -284,3 +284,49 @@ def _on_task_status_changed(event: Event, conn) -> None:
         "UPDATE tasks SET status = ?, updated_at = ? WHERE id = ?",
         (status, event.ts, event.aggregate_id),
     )
+
+
+# --- Action projection -------------------------------------------------------
+# The `actions` table is the read model for goal sub-actions.
+
+_OWNED_TABLES["action"] = ["actions"]
+
+
+@projector("ActionCreated")
+def _on_action_created(event: Event, conn) -> None:
+    p = event.payload
+    conn.execute(
+        """INSERT OR REPLACE INTO actions
+           (id, goal_id, title, status, executable_plan, created_at, completed_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?)""",
+        (
+            event.aggregate_id,
+            p.get("goal_id", ""),
+            p.get("title", ""),
+            p.get("status", "pending"),
+            p.get("executable_plan"),
+            p.get("created_at", event.ts),
+            p.get("completed_at"),
+        ),
+    )
+
+
+@projector("ActionUpdated")
+def _on_action_updated(event: Event, conn) -> None:
+    p = event.payload
+    updatable = ("title", "status", "executable_plan", "completed_at")
+    fields = [k for k in updatable if k in p]
+    if not fields:
+        return
+    set_clause = ", ".join(f"{k} = ?" for k in fields)
+    params = [p[k] for k in fields]
+    params.append(event.aggregate_id)
+    conn.execute(
+        f"UPDATE actions SET {set_clause} WHERE id = ?",
+        params,
+    )
+
+
+@projector("ActionDeleted")
+def _on_action_deleted(event: Event, conn) -> None:
+    conn.execute("DELETE FROM actions WHERE id = ?", (event.aggregate_id,))

@@ -96,6 +96,30 @@ def init_scheduler_v2():
         replace_existing=True,
     )
 
+    _scheduler.add_job(
+        _run_trigger_evaluation,
+        CronTrigger(minute="*/30"),
+        id="trigger_evaluation",
+        name="触发器评估",
+        replace_existing=True,
+    )
+
+    _scheduler.add_job(
+        _run_memory_decay,
+        CronTrigger(hour=3, minute=0),
+        id="memory_decay",
+        name="记忆衰减",
+        replace_existing=True,
+    )
+
+    _scheduler.add_job(
+        _run_world_model_snapshot,
+        CronTrigger(day_of_week="sun", hour=6, minute=0),
+        id="world_model_snapshot",
+        name="世界模型快照",
+        replace_existing=True,
+    )
+
     # Sync to database
     _sync_v2_schedules_to_db()
 
@@ -137,10 +161,40 @@ def _sync_v2_schedules_to_db():
 def _run_morning_brief():
     try:
         from app.product.morning_brief import generate_morning_brief
-        generate_morning_brief()
+        brief = generate_morning_brief()
+        if brief:
+            from app.core.runtime.notification_bridge import push_notification
+            push_notification("brief", brief["title"], brief["content"])
         _update_v2_last_run("morning_brief")
     except Exception as e:
         print(f"Morning brief error: {e}")
+
+
+def _run_trigger_evaluation():
+    try:
+        from app.core.runtime.trigger_engine import trigger_engine
+        trigger_engine.evaluate_and_notify()
+        _update_v2_last_run("trigger_evaluation")
+    except Exception as e:
+        print(f"Trigger evaluation error: {e}")
+
+
+def _run_memory_decay():
+    try:
+        from app.core.runtime.memory_decay import run_memory_decay
+        run_memory_decay()
+        _update_v2_last_run("memory_decay")
+    except Exception as e:
+        print(f"Memory decay error: {e}")
+
+
+def _run_world_model_snapshot():
+    try:
+        from app.core.agents.world_model import world_model
+        world_model.refresh_snapshot()
+        _update_v2_last_run("world_model_snapshot")
+    except Exception as e:
+        print(f"World model snapshot error: {e}")
 
 
 def _run_daily_review():

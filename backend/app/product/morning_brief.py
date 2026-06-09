@@ -42,7 +42,14 @@ def generate_morning_brief() -> dict | None:
     if not top_priorities and not deadlines:
         return None
 
-    str(uuid.uuid4())
+    # Idempotent: skip if today's brief already exists
+    with db.get_db() as conn:
+        existing = conn.execute(
+            "SELECT id, title, content FROM notifications WHERE type = 'brief' AND date(created_at) = date('now') LIMIT 1"
+        ).fetchone()
+        if existing:
+            return dict(existing)
+
     title = f"晨间简报 - {now.strftime('%Y-%m-%d %A')}"
 
     content_lines = ["# ☀️ 晨间简报", f"日期: {now.strftime('%Y年%m月%d日 %A')}", ""]
@@ -70,7 +77,6 @@ def generate_morning_brief() -> dict | None:
 
     content = "\n".join(content_lines)
 
-    # Create notification
     notification_id = str(uuid.uuid4())
     with db.get_db() as conn:
         conn.execute(

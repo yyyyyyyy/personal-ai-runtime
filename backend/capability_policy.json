@@ -1,0 +1,29 @@
+{
+  "auto_allow": [
+    "get_current_time",
+    "read_file",
+    "list_directory",
+    "search_files",
+    "web_search",
+    "fetch_url",
+    "list_calendar_events",
+    "get_upcoming_events",
+    "check_inbox",
+    "open_web_page",
+    "search_and_extract",
+    "get_clipboard",
+    "ocr_image",
+    "git_status",
+    "git_log",
+    "git_diff",
+    "telegram_updates"
+  ],
+  "needs_user": [
+    "write_file",
+    "add_calendar_event",
+    "send_email",
+    "shell_exec",
+    "telegram_send"
+  ],
+  "forbidden": []
+}

@@ -7,7 +7,9 @@ from fastapi.responses import StreamingResponse
 
 from app.core.agents.brain import Brain
 from app.core.agents.conversation import ConversationAPI, ConversationManager
+from app.core.agents.intent_predictor import intent_predictor
 from app.core.harness.mcp_hub import mcp_hub
+from app.core.runtime.agent_orchestrator import agent_orchestrator
 from app.core.runtime.kernel_instance import kernel
 from app.store.database import db
 
@@ -72,6 +74,30 @@ async def send_message(conv_id: str, body: dict):
     content = body.get("content", "")
     if not content.strip():
         raise HTTPException(status_code=400, detail="Message content is required")
+
+    intent = intent_predictor.classify_message(content)
+    if intent.get("intent") == "planning" and intent.get("confidence", 0) >= 0.8:
+
+        async def plan_stream():
+            try:
+                result = await agent_orchestrator.run_planning_task(content)
+                conversation = ConversationManager(conversation_id=conv_id)
+                conversation.save_user_message(content)
+                conversation.save_assistant_message(result["summary"])
+                yield f"data: {json.dumps({'type': 'text_delta', 'content': result['summary']})}\n\n"
+                yield f"data: {json.dumps({'type': 'done'})}\n\n"
+            except Exception as e:
+                yield f"data: {json.dumps({'type': 'error', 'content': str(e)})}\n\n"
+
+        return StreamingResponse(
+            plan_stream(),
+            media_type="text/event-stream",
+            headers={
+                "Cache-Control": "no-cache",
+                "Connection": "keep-alive",
+                "X-Accel-Buffering": "no",
+            },
+        )
 
     brain = Brain()
     conversation = ConversationManager(conversation_id=conv_id)

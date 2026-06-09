@@ -1,10 +1,13 @@
-"""System API — health checks, LLM providers, and system info."""
+"""System API — health checks, LLM providers, data sovereignty, and system info."""
 
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 
 from app.core.agents.llm_router import llm_router
+from app.product.digital_legacy import digital_legacy
 
 router = APIRouter(prefix="/api/system", tags=["system"])
+
+DESTROY_CONFIRM = "DESTROY_ALL_DATA"
 
 
 @router.get("/health")
@@ -13,7 +16,7 @@ async def health_check():
     return {
         "status": "ok",
         "service": "personal-ai-os",
-        "version": "0.8.0",
+        "version": "0.9.0",
     }
 
 
@@ -46,3 +49,29 @@ async def system_info():
         "memories": mem_count,
         "llm_providers": len(llm_router.list_providers()),
     }
+
+
+@router.post("/export")
+async def export_all_data():
+    """Export complete personal data snapshot as JSON."""
+    return digital_legacy.export_all()
+
+
+@router.post("/import")
+async def import_all_data(body: dict):
+    """Import personal data snapshot. Requires confirm code when not read_only."""
+    snapshot = body.get("data")
+    if not snapshot:
+        raise HTTPException(status_code=400, detail="Missing 'data' field")
+    read_only = body.get("read_only", True)
+    if not read_only and body.get("confirm") != "DESTROY_AND_IMPORT":
+        raise HTTPException(status_code=400, detail="Set confirm='DESTROY_AND_IMPORT' for write import")
+    return digital_legacy.import_all(snapshot, read_only=read_only)
+
+
+@router.delete("/data")
+async def destroy_all_data(body: dict):
+    """Destroy all local data. Requires confirm code."""
+    if body.get("confirm") != DESTROY_CONFIRM:
+        raise HTTPException(status_code=400, detail=f"confirm must be '{DESTROY_CONFIRM}'")
+    return digital_legacy.destroy_all()

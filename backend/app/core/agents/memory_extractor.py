@@ -24,9 +24,40 @@ class MemoryExtractor:
         if extract_fn is not None:
             self._extract = extract_fn
         else:
-            from app.core.agents.local_llm import local_llm
+            self._extract = self._default_extract
 
-            self._extract = local_llm.extract_memories
+    async def _default_extract(self, conversation_text: str) -> list[str]:
+        from app.config import settings
+        from app.core.agents.local_llm import local_llm
+
+        if settings.memory_extractor == "cloud":
+            return await self._cloud_extract(conversation_text)
+        facts = await local_llm.extract_memories(conversation_text)
+        if facts:
+            return facts
+        if settings.llm_api_key:
+            return await self._cloud_extract(conversation_text)
+        return []
+
+    async def _cloud_extract(self, conversation_text: str) -> list[str]:
+        from app.core.agents.llm_router import llm_router
+
+        client, provider = llm_router.get_client()
+        prompt = (
+            "Extract key facts about the user from this conversation. "
+            "One fact per line, no bullets.\n\n" + conversation_text[:3000]
+        )
+        try:
+            response = await client.chat.completions.create(
+                model=provider.model,
+                messages=[{"role": "user", "content": prompt}],
+                max_tokens=200,
+                temperature=0.3,
+            )
+            text = response.choices[0].message.content or ""
+            return [line.strip("- ").strip() for line in text.split("\n") if line.strip()]
+        except Exception:
+            return []
 
     async def extract_and_store(
         self,

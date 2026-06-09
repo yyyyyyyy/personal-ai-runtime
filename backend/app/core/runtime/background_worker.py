@@ -1,15 +1,11 @@
-"""Background Worker — executes long-running background tasks asynchronously.
-
-Handles tasks like "research ski destinations" that take hours,
-updating progress as they run.
-"""
+"""Background Worker — executes long-running background tasks via Kernel."""
 
 import asyncio
 import json
 import uuid
 from datetime import datetime
 
-from app.core.harness.mcp_hub import mcp_hub
+from app.core.runtime.kernel_instance import kernel
 from app.store.database import db
 
 
@@ -64,10 +60,14 @@ class BackgroundWorker:
             for i, step in enumerate(steps):
                 tool_name = step.get("tool", "web_search")
                 params = step.get("params", {"query": task["user_request"]})
-                try:
-                    await mcp_hub.invoke_tool(tool_name, params)
-                except Exception:
-                    pass
+                cap = await kernel.invoke_capability(
+                    name=tool_name,
+                    args=params,
+                    actor="background",
+                )
+                if cap["status"] == "pending":
+                    self._update_status(task_id, "waiting_approval", progress=0.1 + (0.8 * i / max(len(steps), 1)))
+                    return
 
                 progress = 0.1 + (0.8 * (i + 1) / max(len(steps), 1))
                 self._update_status(task_id, "running", progress=progress)

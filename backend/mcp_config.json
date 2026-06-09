@@ -14,5 +14,28 @@
       "enabled": true
     }
   ],
-  "external_servers": []
+  "external_servers": [
+    {
+      "name": "example_external",
+      "type": "stdio",
+      "enabled": false,
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-everything"],
+      "tools": [
+        {
+          "name": "external_echo",
+          "description": "Echo arguments via external MCP server (example stub).",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "message": {"type": "string", "description": "Message to echo"}
+            },
+            "required": ["message"]
+          },
+          "mock_response": "echo ok",
+          "requires_confirmation": false
+        }
+      ]
+    }
+  ]
 }

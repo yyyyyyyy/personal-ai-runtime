@@ -65,7 +65,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="Personal AI OS",
     description="Your second brain and execution engine — Runtime Foundation",
-    version="0.8.0",
+    version="0.9.0",
     lifespan=lifespan,
 )
 
@@ -102,7 +102,7 @@ async def seed_triggers():
 
 @app.get("/")
 async def root():
-    return {"message": "Personal AI OS is running", "version": "0.8.0"}
+    return {"message": "Personal AI OS is running", "version": "0.9.0"}
 
 
 @app.websocket("/ws")

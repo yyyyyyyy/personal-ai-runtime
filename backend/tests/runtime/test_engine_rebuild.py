@@ -26,7 +26,6 @@ class TestEngineRebuildConsistency:
     def test_memory_engine_rebuild(self, tmp_path, monkeypatch):
         k, db = make_kernel(tmp_path)
         monkeypatch.setattr("app.core.agents.memory_engine.kernel", k)
-        monkeypatch.setattr("app.core.agents.memory_engine.db", db)
         monkeypatch.setattr(
             "app.core.agents.memory_engine.vector_store.add_memory",
             lambda content, metadata, memory_id: f"emb_{memory_id}",

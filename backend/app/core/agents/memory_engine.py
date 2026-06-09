@@ -8,7 +8,6 @@ ChromaDB is a derived search index updated alongside projection events.
 import uuid
 
 from app.core.runtime.kernel_instance import kernel
-from app.store.database import db
 from app.store.vector import vector_store
 
 
@@ -49,7 +48,7 @@ class MemoryEngine:
 
     def search_relevant_memories(self, query: str, n_results: int = 5) -> list[dict]:
         """Semantic search for memories relevant to the current context."""
-        return vector_store.search_memories(query, n_results=n_results)
+        return kernel.recall_memory(query, k=n_results)
 
     def retrieve_context_string(self, query: str, max_memories: int = 3) -> str:
         """Build a context string from relevant memories for injection into the LLM prompt."""
@@ -63,19 +62,11 @@ class MemoryEngine:
         return "\n".join(lines)
 
     def list_memories(self, category: str | None = None, limit: int = 50) -> list[dict]:
-        """List stored memories, optionally filtered by category (read-only projection)."""
-        with db.get_db() as conn:
-            if category:
-                rows = conn.execute(
-                    "SELECT * FROM memories WHERE category = ? ORDER BY created_at DESC LIMIT ?",
-                    (category, limit),
-                ).fetchall()
-            else:
-                rows = conn.execute(
-                    "SELECT * FROM memories ORDER BY created_at DESC LIMIT ?",
-                    (limit,),
-                ).fetchall()
-        return [dict(r) for r in rows]
+        """List stored memories via Kernel read ABI."""
+        filters: dict = {"limit": limit}
+        if category:
+            filters["category"] = category
+        return kernel.query_state("memories", **filters)
 
     def delete_memory(self, memory_id: str, actor: str = "user") -> None:
         """Delete a memory via Kernel event + ChromaDB index."""

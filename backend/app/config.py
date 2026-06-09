@@ -31,6 +31,11 @@ class Settings:
     mcp_config_path: str = os.getenv(
         "MCP_CONFIG_PATH", str(BASE_DIR / "backend" / "mcp_config.json")
     )
+    capability_policy_path: str = os.getenv(
+        "CAPABILITY_POLICY_PATH", str(BASE_DIR / "backend" / "capability_policy.json")
+    )
+    memory_extractor: str = os.getenv("MEMORY_EXTRACTOR", "ollama")  # ollama | cloud
+    sensitive_ops_local: bool = os.getenv("SENSITIVE_OPS_LOCAL", "false").lower() == "true"
 
     # Conversation settings
     max_recent_messages: int = 50  # sliding window size

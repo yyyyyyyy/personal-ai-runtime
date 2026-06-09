@@ -26,7 +26,7 @@ class TestBoundaryGuard:
 
     def test_violation_detected(self, tmp_path):
         """A deliberate violation outside kernel/ must fail the guard."""
-        fake_app = tmp_path / "app" / "evil"
+        fake_app = tmp_path / "app" / "api" / "evil"
         fake_app.mkdir(parents=True)
         bad_file = fake_app / "bad.py"
         bad_file.write_text('conn.execute("INSERT INTO goals (id) VALUES (?)", ("x",))', encoding="utf-8")

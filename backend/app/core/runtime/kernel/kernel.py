@@ -62,6 +62,7 @@ class Kernel:
             db = global_db
         self._db = db
         self._subscribers: list[tuple[dict, Subscriber]] = []
+        self._active_agents: dict[str, dict] = {}
         self._ensure_schema()
 
     def _ensure_schema(self) -> None:
@@ -225,6 +226,41 @@ class Kernel:
                     "SELECT * FROM tasks ORDER BY created_at ASC"
                 ).fetchall()
             return [dict(r) for r in rows]
+        if selector == "actions":
+            goal_id = filters.get("goal_id")
+            action_id = filters.get("id")
+            with self._db.get_db() as conn:
+                if action_id:
+                    row = conn.execute(
+                        "SELECT * FROM actions WHERE id = ?", (action_id,)
+                    ).fetchone()
+                    return [dict(row)] if row else []
+                if goal_id:
+                    rows = conn.execute(
+                        "SELECT * FROM actions WHERE goal_id = ? ORDER BY created_at ASC",
+                        (goal_id,),
+                    ).fetchall()
+                else:
+                    rows = conn.execute(
+                        "SELECT * FROM actions ORDER BY created_at ASC LIMIT ?",
+                        (filters.get("limit", 100),),
+                    ).fetchall()
+            return [dict(r) for r in rows]
+        if selector == "memories":
+            category = filters.get("category")
+            limit = filters.get("limit", 50)
+            with self._db.get_db() as conn:
+                if category:
+                    rows = conn.execute(
+                        "SELECT * FROM memories WHERE category = ? ORDER BY confidence DESC, created_at DESC LIMIT ?",
+                        (category, limit),
+                    ).fetchall()
+                else:
+                    rows = conn.execute(
+                        "SELECT * FROM memories ORDER BY confidence DESC, created_at DESC LIMIT ?",
+                        (limit,),
+                    ).fetchall()
+            return [dict(r) for r in rows]
         raise ValueError(f"Unknown state selector: {selector!r}")
 
     def recall_memory(self, query: str, k: int = 5) -> list[dict]:
@@ -293,12 +329,45 @@ class Kernel:
         """
         args = args or {}
         from app.core.harness.mcp_hub import mcp_hub
+        from app.core.runtime.capability_policy import capability_policy
+        from app.core.runtime.sensitive_router import sensitive_router
 
         tool = mcp_hub.get_tool(name)
         if tool is None:
             return {"status": "error", "error": f"Unknown capability: {name}"}
 
-        risk = "high" if mcp_hub.needs_confirmation(name) else "low"
+        # Agent isolation: check allowed_capabilities whitelist
+        if actor.startswith("agent:"):
+            agent_id = actor.split(":", 1)[1]
+            agent_ctx = self._active_agents.get(agent_id)
+            if agent_ctx:
+                allowed = agent_ctx.get("allowed_capabilities", ["*"])
+                if "*" not in allowed and name not in allowed:
+                    self.emit_event(
+                        type="CapabilityDenied",
+                        aggregate_type="capability",
+                        aggregate_id=f"cap_{name}",
+                        payload={"name": name, "reason": "agent_not_authorized"},
+                        actor=actor,
+                        correlation_id=correlation_id,
+                    )
+                    return {"status": "error", "error": f"Agent not authorized for: {name}"}
+
+        policy_risk = capability_policy.risk_for(name, mcp_hub.needs_confirmation(name))
+        if policy_risk == "forbidden":
+            self.emit_event(
+                type="CapabilityDenied",
+                aggregate_type="capability",
+                aggregate_id=f"cap_{name}",
+                payload={"name": name, "reason": "forbidden_by_policy"},
+                actor=actor,
+                correlation_id=correlation_id,
+            )
+            return {"status": "error", "error": f"Capability forbidden: {name}"}
+
+        risk = sensitive_router.elevated_risk(name, args) or (
+            "high" if policy_risk == "high" else "low"
+        )
         approval = self.request_approval(
             action=name,
             risk=risk,
@@ -408,6 +477,7 @@ class Kernel:
         task_ref: str,
         actor: str = "kernel",
         correlation_id: str | None = None,
+        allowed_capabilities: list[str] | None = None,
     ) -> dict:
         """Spawn a temporary agent to work on a task. Emits AgentSpawned.
         The agent is ephemeral — it must be kill_agent'd after completing.
@@ -431,7 +501,13 @@ class Kernel:
             actor=actor,
             correlation_id=correlation_id,
         )
-        return {"agent_id": agent_id, "task_ref": task_ref, "spec": spec}
+        handle = {"agent_id": agent_id, "task_ref": task_ref, "spec": spec}
+        self._active_agents[agent_id] = {
+            "spec": spec,
+            "task_ref": task_ref,
+            "allowed_capabilities": allowed_capabilities or ["*"],
+        }
+        return handle
 
     def kill_agent(
         self,
@@ -463,6 +539,7 @@ class Kernel:
             actor=actor,
             correlation_id=correlation_id,
         )
+        self._active_agents.pop(agent_id, None)
 
     # --- Replay / rebuild ----------------------------------------------------
 

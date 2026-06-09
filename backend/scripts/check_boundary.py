@@ -11,9 +11,15 @@ import re
 import sys
 from pathlib import Path
 
-PROJECTION_TABLES = ("goals", "approvals", "tasks", "memories", "event_log")
+PROJECTION_TABLES = ("goals", "actions", "approvals", "tasks", "memories", "event_log")
 # Paths are relative to backend/app (the scan root).
 ALLOWED_PREFIX = Path("core/runtime/kernel")
+# User Space directories that must never write projection tables directly.
+USER_SPACE_PREFIXES = (
+    Path("api"),
+    Path("core/agents"),
+    Path("core/runtime"),  # except kernel/ (handled by ALLOWED_PREFIX skip)
+)
 
 # Match SQL DML against projection tables (string literals in execute() calls).
 DML_PATTERN = re.compile(
@@ -28,6 +34,12 @@ def scan_app_root(app_root: Path) -> list[tuple[Path, int, str, str]]:
     for path in sorted(app_root.rglob("*.py")):
         rel = path.relative_to(app_root)
         if rel.parts[: len(ALLOWED_PREFIX.parts)] == ALLOWED_PREFIX.parts:
+            continue
+        # Only enforce User Space boundary on api/ and agents/ (and runtime outside kernel/)
+        in_user_space = any(
+            rel.parts[: len(p.parts)] == p.parts for p in USER_SPACE_PREFIXES
+        )
+        if not in_user_space:
             continue
         try:
             text = path.read_text(encoding="utf-8")

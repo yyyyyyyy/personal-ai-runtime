@@ -46,7 +46,6 @@ async def create_goal(body: dict):
         actor="user",
     )
 
-    # Legacy event recorder — kept for compatibility, not as write source.
     event_recorder.record(Event(
         type="goal_created",
         summary=f"Goal created: {title}",
@@ -73,19 +72,9 @@ async def get_goal(goal_id: str):
     if not goals:
         raise HTTPException(status_code=404, detail="Goal not found")
     goal = goals[0]
-
-    # Get sub-actions (still in scope of legacy actions CRUD)
-    with db.get_db() as conn:
-        actions = conn.execute(
-            "SELECT * FROM actions WHERE goal_id = ? ORDER BY created_at ASC",
-            (goal_id,),
-        ).fetchall()
-    goal["actions"] = [dict(a) for a in actions]
-
-    # Get related events
+    goal["actions"] = kernel.query_state("actions", goal_id=goal_id)
     events = event_recorder.get_events_for_goal(goal_id, limit=10)
     goal["events"] = events
-
     return goal
 
 
@@ -105,7 +94,6 @@ async def update_goal(goal_id: str, body: dict):
     if not changed:
         return goal
 
-    # Emit GoalCompleted when status transitions to 'completed'
     if changed.get("status") == "completed":
         kernel.emit_event(
             type="GoalCompleted",
@@ -123,7 +111,6 @@ async def update_goal(goal_id: str, body: dict):
             actor="user",
         )
 
-    # Legacy event recorder
     if "status" in changed:
         event_recorder.record(Event(
             type="goal_status_changed",
@@ -137,20 +124,23 @@ async def update_goal(goal_id: str, body: dict):
 @router.delete("/{goal_id}")
 async def delete_goal(goal_id: str):
     """Delete a goal and its sub-actions."""
+    for action in kernel.query_state("actions", goal_id=goal_id):
+        kernel.emit_event(
+            type="ActionDeleted",
+            aggregate_type="action",
+            aggregate_id=action["id"],
+            actor="user",
+        )
     kernel.emit_event(
         type="GoalDeleted",
         aggregate_type="goal",
         aggregate_id=goal_id,
         actor="user",
     )
-    # Delete sub-actions (still direct DB — actions not yet event-sourced)
-    with db.get_db() as conn:
-        conn.execute("DELETE FROM actions WHERE goal_id = ?", (goal_id,))
     return {"status": "ok"}
 
 
-# --- Actions CRUD ------------------------------------------------------------
-# Note: Actions still use direct DB access. They are out of scope for T1.
+# --- Actions CRUD (event-sourced via Kernel) ---------------------------------
 
 @router.post("/{goal_id}/actions")
 async def create_action(goal_id: str, body: dict):
@@ -166,13 +156,18 @@ async def create_action(goal_id: str, body: dict):
     action_id = str(uuid.uuid4())
     now = datetime.utcnow().isoformat()
 
-    with db.get_db() as conn:
-        conn.execute(
-            "INSERT INTO actions (id, goal_id, title, status, created_at) VALUES (?, ?, ?, 'pending', ?)",
-            (action_id, goal_id, title, now),
-        )
-
-    # Touch the parent goal through the Kernel (no direct goals write here).
+    kernel.emit_event(
+        type="ActionCreated",
+        aggregate_type="action",
+        aggregate_id=action_id,
+        payload={
+            "goal_id": goal_id,
+            "title": title,
+            "status": "pending",
+            "created_at": now,
+        },
+        actor="user",
+    )
     kernel.emit_event("GoalTouched", "goal", goal_id, actor="user")
 
     event_recorder.record(Event(
@@ -181,7 +176,8 @@ async def create_action(goal_id: str, body: dict):
         goal_id=goal_id,
     ))
 
-    return {"id": action_id, "goal_id": goal_id, "title": title, "status": "pending"}
+    actions = kernel.query_state("actions", id=action_id)
+    return actions[0] if actions else {"id": action_id, "goal_id": goal_id, "title": title, "status": "pending"}
 
 
 @router.put("/{goal_id}/actions/{action_id}")
@@ -189,31 +185,32 @@ async def update_action(goal_id: str, action_id: str, body: dict):
     """Update an action's status or title."""
     status = body.get("status")
     title = body.get("title")
+    payload: dict = {}
 
-    now = datetime.utcnow().isoformat()
     if status:
-        completed_at = now if status == "completed" else None
-        with db.get_db() as conn:
-            conn.execute(
-                "UPDATE actions SET status = ?, completed_at = ? WHERE id = ? AND goal_id = ?",
-                (status, completed_at, action_id, goal_id),
-            )
-
-        # Touch the parent goal through the Kernel (no direct goals write here).
-        kernel.emit_event("GoalTouched", "goal", goal_id, actor="user")
-
-        event_recorder.record(Event(
-            type="action_status_changed",
-            summary=f"Action status -> {status}",
-            goal_id=goal_id,
-        ))
+        payload["status"] = status
+        if status == "completed":
+            payload["completed_at"] = datetime.utcnow().isoformat()
 
     if title:
-        with db.get_db() as conn:
-            conn.execute(
-                "UPDATE actions SET title = ? WHERE id = ? AND goal_id = ?",
-                (title, action_id, goal_id),
-            )
+        payload["title"] = title
+
+    if payload:
+        kernel.emit_event(
+            type="ActionUpdated",
+            aggregate_type="action",
+            aggregate_id=action_id,
+            payload=payload,
+            actor="user",
+        )
+        kernel.emit_event("GoalTouched", "goal", goal_id, actor="user")
+
+        if status:
+            event_recorder.record(Event(
+                type="action_status_changed",
+                summary=f"Action status -> {status}",
+                goal_id=goal_id,
+            ))
 
     return {"status": "ok"}
 
@@ -221,13 +218,16 @@ async def update_action(goal_id: str, action_id: str, body: dict):
 @router.delete("/{goal_id}/actions/{action_id}")
 async def delete_action(goal_id: str, action_id: str):
     """Delete an action."""
-    with db.get_db() as conn:
-        conn.execute("DELETE FROM actions WHERE id = ? AND goal_id = ?", (action_id, goal_id))
+    kernel.emit_event(
+        type="ActionDeleted",
+        aggregate_type="action",
+        aggregate_id=action_id,
+        actor="user",
+    )
     return {"status": "ok"}
 
 
-# --- Priority & Stagnation ---------------------------------------------------
-# Read-only complex queries — still use db until kernel supports SQL functions.
+# --- Priority & Stagnation (read-only queries) -------------------------------
 
 @router.get("/priorities/sorted")
 async def get_prioritized_goals():
@@ -257,6 +257,5 @@ async def get_stagnant_goals(days: int = 3):
 
 
 def _get_goal(goal_id: str) -> dict | None:
-    with db.get_db() as conn:
-        row = conn.execute("SELECT * FROM goals WHERE id = ?", (goal_id,)).fetchone()
-    return dict(row) if row else None
+    goals = kernel.query_state("goals", id=goal_id)
+    return goals[0] if goals else None

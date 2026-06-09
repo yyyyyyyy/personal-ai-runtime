@@ -40,6 +40,7 @@ class MCPHub:
     def __init__(self):
         self._tools: dict[str, ToolDef] = {}
         self._register_all_tools()
+        self._load_external_servers()
 
     def _register_all_tools(self):
         self._register_time_tools()
@@ -395,6 +396,51 @@ class MCPHub:
             handler=handle_get_updates,
             is_async=True,
         ))
+
+    def _load_external_servers(self) -> None:
+        """Load tools from mcp_config.json external_servers section."""
+        import os
+        from pathlib import Path
+
+        config_path = os.getenv("MCP_CONFIG_PATH", "")
+        if not config_path or not Path(config_path).is_file():
+            from app.config import settings
+            config_path = settings.mcp_config_path
+        path = Path(config_path)
+        if not path.is_file():
+            return
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError):
+            return
+
+        for server in data.get("external_servers", []):
+            if not server.get("enabled", True):
+                continue
+            for tool_def in server.get("tools", []):
+                name = tool_def.get("name")
+                if not name:
+                    continue
+
+                def _make_handler(tname: str, response_template: str):
+                    def handler(**kwargs) -> str:
+                        return json.dumps({
+                            "tool": tname,
+                            "server": server.get("name", "external"),
+                            "args": kwargs,
+                            "result": response_template,
+                        })
+                    return handler
+
+                template = tool_def.get("mock_response", f"External tool {name} executed")
+                self.register_tool(ToolDef(
+                    name=name,
+                    description=tool_def.get("description", f"External MCP tool: {name}"),
+                    parameters=tool_def.get("parameters", {"type": "object", "properties": {}}),
+                    handler=_make_handler(name, template),
+                    is_async=False,
+                    requires_confirmation=tool_def.get("requires_confirmation", False),
+                ))
 
     def register_tool(self, tool: ToolDef):
         self._tools[tool.name] = tool

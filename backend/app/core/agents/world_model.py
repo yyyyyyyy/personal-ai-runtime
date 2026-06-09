@@ -13,6 +13,18 @@ from app.store.database import db
 class WorldModel:
     """30-day rolling user life snapshot for context injection."""
 
+    def __init__(self):
+        self._cached_snapshot: dict | None = None
+
+    def refresh_snapshot(self) -> dict:
+        self._cached_snapshot = self.build_snapshot()
+        return self._cached_snapshot
+
+    def get_snapshot(self) -> dict:
+        if self._cached_snapshot is None:
+            self._cached_snapshot = self.build_snapshot()
+        return self._cached_snapshot
+
     def build_snapshot(self) -> dict:
         """Build the current world state snapshot."""
         now = datetime.utcnow()
@@ -34,7 +46,7 @@ class WorldModel:
                 (thirty_days_ago,),
             ).fetchone()["c"]
 
-        events_by_type = {}
+        events_by_type: dict[str, int] = {}
         for e in recent_events:
             t = dict(e)["type"]
             events_by_type[t] = events_by_type.get(t, 0) + 1
@@ -57,7 +69,7 @@ class WorldModel:
 
     def to_prompt_context(self) -> str:
         """Convert snapshot to a system prompt appendix."""
-        snapshot = self.build_snapshot()
+        snapshot = self.get_snapshot()
 
         lines = ["## Current Life Snapshot (last 30 days)"]
         lines.append(f"- Active Goals: {snapshot['health']['active_goals']}")

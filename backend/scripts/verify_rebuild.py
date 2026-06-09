@@ -42,6 +42,10 @@ SAMPLE_SCENARIO: list[tuple[str, str, str, dict[str, Any]]] = [
     }),
     ("TaskStatusChanged", "task", "t1", {"status": "running"}),
     ("TaskCompleted", "task", "t1", {}),
+    # Actions
+    ("ActionCreated", "action", "act1", {"goal_id": "g2", "title": "Do thing", "status": "pending"}),
+    ("ActionUpdated", "action", "act1", {"status": "completed"}),
+    ("ActionDeleted", "action", "act1", {}),
 ]
 
 
@@ -59,7 +63,7 @@ def main():
     db = Database(db_path=str(db_path))
     k = Kernel(db=db)
 
-    tables = ["goals", "approvals", "memories", "tasks"]
+    tables = ["goals", "actions", "approvals", "memories", "tasks"]
 
     # 1. Emit sample scenario
     for evt in SAMPLE_SCENARIO:

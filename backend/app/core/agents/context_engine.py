@@ -11,6 +11,7 @@ Context is NOT chat history. It represents the user's current most important sta
 from dataclasses import dataclass
 
 from app.core.agents.memory_engine import memory_engine
+from app.core.agents.world_model import world_model
 from app.core.telemetry.event_recorder import event_recorder
 from app.store.database import db
 
@@ -24,6 +25,7 @@ class Context:
     recent_events: list[dict]
     relevant_memories: str  # pre-formatted string
     recent_reviews: list[dict]
+    world_snapshot: str = ""
 
     def to_system_prompt_appendix(self) -> str:
         """Build the context appendix for the system prompt."""
@@ -57,6 +59,9 @@ class Context:
             review = self.recent_reviews[0]
             sections.append(f"## 最近复盘\n{review['content'][:500]}")
 
+        if self.world_snapshot:
+            sections.append(self.world_snapshot)
+
         return "\n\n".join(sections) if sections else ""
 
 
@@ -81,6 +86,7 @@ class ContextEngine:
             recent_events=recent_events,
             relevant_memories=relevant_memories,
             recent_reviews=recent_reviews,
+            world_snapshot=world_model.to_prompt_context(),
         )
 
     def _get_active_goals(self) -> list[dict]:
