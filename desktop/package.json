@@ -1,0 +1,32 @@
+{
+  "name": "personal-ai-os-desktop",
+  "version": "0.7.0",
+  "description": "Personal AI OS Desktop Client",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "build": "electron-builder"
+  },
+  "dependencies": {
+    "electron": "^33.0.0",
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "electron-builder": "^25.0.0"
+  },
+  "build": {
+    "appId": "com.personalaios.desktop",
+    "productName": "Personal AI OS",
+    "files": [
+      "main.js",
+      "preload.js",
+      "icon.png"
+    ],
+    "mac": {
+      "category": "public.app-category.productivity"
+    },
+    "win": {
+      "target": "nsis"
+    }
+  }
+}

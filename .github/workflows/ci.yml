@@ -1,0 +1,103 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          cd backend
+          pip install -r requirements.txt
+
+      - name: Python syntax check
+        run: |
+          cd backend
+          python -m compileall app/ -q
+
+      - name: Verify database schema
+        run: |
+          cd backend
+          python -c "
+          import os
+          os.environ['LLM_API_KEY'] = 'test-key'
+          from app.store.database import db
+          required = ['conversations','messages','goals','actions','events','memories','reviews','notifications','schedules','activity_log','documents']
+          with db.get_db() as conn:
+              tables = {t['name'] for t in conn.execute('SELECT name FROM sqlite_master WHERE type=\"table\"').fetchall()}
+              missing = [t for t in required if t not in tables]
+              assert not missing, f'Missing tables: {missing}'
+              assert conn.execute('PRAGMA foreign_keys').fetchone()[0] == 1, 'Foreign keys OFF'
+              print(f'OK: {len(required)} tables, FK=ON')
+          "
+
+      - name: Verify MCP tools
+        run: |
+          cd backend
+          python -c "
+          import os
+          os.environ['LLM_API_KEY'] = 'test-key'
+          from app.core.mcp_hub import mcp_hub
+          tools = mcp_hub.get_tool_defs_for_llm()
+          expected = {'get_current_time','read_file','write_file','list_directory','search_files','web_search','fetch_url'}
+          actual = {t['function']['name'] for t in tools}
+          assert actual == expected, f'Mismatch: {actual}'
+          assert mcp_hub.needs_confirmation('write_file') == True
+          assert mcp_hub.is_async('web_search') == True
+          print(f'OK: {len(tools)} tools registered')
+          "
+
+      - name: Verify API routes load
+        run: |
+          cd backend
+          python -c "
+          import os
+          os.environ['LLM_API_KEY'] = 'test-key'
+          from app.main import app
+          routes = [r.path for r in app.routes if hasattr(r, 'path')]
+          endpoints = [
+              '/api/chat/conversations',
+              '/api/goals/',
+              '/api/memory/memories',
+              '/api/knowledge/documents',
+              '/api/reviews/',
+              '/api/notifications/',
+              '/api/system/health',
+              '/api/events/',
+          ]
+          for ep in endpoints:
+              assert any(r.startswith(ep) for r in routes), f'Missing: {ep}'
+          print(f'OK: {len(endpoints)} API modules loaded')
+          "
+
+  frontend:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install dependencies
+        run: |
+          cd frontend
+          npm ci
+
+      - name: TypeScript check
+        run: |
+          cd frontend
+          npx tsc --noEmit
