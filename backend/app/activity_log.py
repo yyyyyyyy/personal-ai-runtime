@@ -4,7 +4,7 @@ NOT used for event sourcing or state projection. All business state lives in SQL
 """
 
 import json
-from datetime import datetime
+
 from app.store.database import db
 
 

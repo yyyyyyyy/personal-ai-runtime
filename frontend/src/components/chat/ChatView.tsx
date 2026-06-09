@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { getMessages, sendMessage } from "../../api/client";
+import { getMessages, sendMessage, resolveApproval } from "../../api/client";
 import type { Message, StreamEvent } from "../../api/client";
 import MessageItem from "./MessageItem";
+import ConfirmationDialog from "./ConfirmationDialog";
 
 interface Props {
   conversationId: string;
@@ -11,6 +12,17 @@ interface ToolResult {
   tool_name: string;
   tool_call_id: string;
   content: string;
+}
+
+interface PendingConfirmation {
+  toolCall: {
+    index: number;
+    id: string;
+    function_name: string;
+    arguments: string;
+  };
+  approvalId: string;
+  assistantMsgId: string;
 }
 
 interface DisplayMessage {
@@ -98,6 +110,7 @@ export default function ChatView({ conversationId }: Props) {
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [streamingContent, setStreamingContent] = useState("");
+  const [pendingConfirmation, setPendingConfirmation] = useState<PendingConfirmation | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
@@ -204,6 +217,18 @@ export default function ChatView({ conversationId }: Props) {
           )
         );
         setStreamingContent("");
+      } else if (event.type === "confirmation_required" && event.tool_name && event.approval_id) {
+        // Show confirmation dialog and pause
+        setPendingConfirmation({
+          toolCall: {
+            index: 0,
+            id: event.tool_call_id || "",
+            function_name: event.tool_name,
+            arguments: JSON.stringify(event.tool_args || {}),
+          },
+          approvalId: event.approval_id,
+          assistantMsgId: assistantMsg.id,
+        });
       }
     };
 
@@ -246,11 +271,117 @@ export default function ChatView({ conversationId }: Props) {
     }
   };
 
+  const handleConfirm = async () => {
+    if (!pendingConfirmation) return;
+    const pc = pendingConfirmation;
+    setPendingConfirmation(null);
+
+    try {
+      const res = await resolveApproval(
+        pc.approvalId,
+        "approve",
+        pc.toolCall.function_name,
+        JSON.parse(pc.toolCall.arguments || "{}"),
+        conversationId,
+        pc.toolCall.id,
+      );
+      // Append the resolved tool result and follow-up assistant reply
+      setMessages((prev) => {
+        const updated = prev.map((m) => {
+          if (m.id === pc.assistantMsgId) {
+            const existing = m.toolResults || [];
+            return {
+              ...m,
+              isStreaming: false,
+              toolResults: res.result
+                ? [
+                    ...existing,
+                    {
+                      tool_name: pc.toolCall.function_name,
+                      tool_call_id: pc.toolCall.id,
+                      content: res.result,
+                    },
+                  ]
+                : existing,
+            };
+          }
+          return m;
+        });
+        if (res.assistant_message) {
+          updated.push({
+            id: `assistant-followup-${Date.now()}`,
+            role: "assistant",
+            content: res.assistant_message,
+            isStreaming: false,
+          });
+        }
+        return updated;
+      });
+    } catch {
+      // Error handled silently
+    }
+  };
+
+  const handleDeny = async () => {
+    if (!pendingConfirmation) return;
+    const pc = pendingConfirmation;
+    setPendingConfirmation(null);
+
+    try {
+      const res = await resolveApproval(
+        pc.approvalId,
+        "deny",
+        pc.toolCall.function_name,
+        JSON.parse(pc.toolCall.arguments || "{}"),
+        conversationId,
+        pc.toolCall.id,
+      );
+      setMessages((prev) => {
+        const updated = prev.map((m) => {
+          if (m.id === pc.assistantMsgId) {
+            const existing = m.toolResults || [];
+            return {
+              ...m,
+              isStreaming: false,
+              toolResults: [
+                ...existing,
+                {
+                  tool_name: pc.toolCall.function_name,
+                  tool_call_id: pc.toolCall.id,
+                  content: JSON.stringify({ status: "denied", reason: "User denied the operation" }),
+                },
+              ],
+            };
+          }
+          return m;
+        });
+        if (res.assistant_message) {
+          updated.push({
+            id: `assistant-followup-${Date.now()}`,
+            role: "assistant",
+            content: res.assistant_message,
+            isStreaming: false,
+          });
+        }
+        return updated;
+      });
+    } catch {
+      // Error handled silently
+    }
+  };
+
   return (
     <div className="flex-1 flex flex-col min-h-0">
       {/* Messages area */}
       <div className="flex-1 overflow-y-auto px-4 py-4">
         <div className="max-w-3xl mx-auto space-y-4">
+          {pendingConfirmation && (
+            <ConfirmationDialog
+              toolCall={pendingConfirmation.toolCall}
+              onConfirm={handleConfirm}
+              onDeny={handleDeny}
+            />
+          )}
           {messages.map((msg) => (
             <MessageItem key={msg.id} message={msg} />
           ))}

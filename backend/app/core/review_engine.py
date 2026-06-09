@@ -8,9 +8,8 @@ import json
 import uuid
 from datetime import datetime, timedelta
 
+from app.core.agents.memory_engine import memory_engine
 from app.store.database import db
-from app.core.event_recorder import event_recorder
-from app.core.memory_engine import memory_engine
 
 
 class ReviewEngine:
@@ -205,7 +204,7 @@ class ReviewEngine:
         if "停滞目标" in content:
             insights.append("存在停滞目标，需要关注")
         if "已完成目标" in content:
-            insights.append(f"有已完成的目标")
+            insights.append("有已完成的目标")
         return insights
 
     def list_reviews(self, limit: int = 10) -> list[dict]:

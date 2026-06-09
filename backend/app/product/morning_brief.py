@@ -1,11 +1,10 @@
 """Morning Brief generator — creates a daily morning brief for the user."""
 
-import json
 import uuid
 from datetime import datetime
 
+from app.core.telemetry.event_recorder import Event, event_recorder
 from app.store.database import db
-from app.core.event_recorder import event_recorder
 
 
 def generate_morning_brief() -> dict | None:
@@ -18,22 +17,22 @@ def generate_morning_brief() -> dict | None:
     # Get active goals sorted by priority
     with db.get_db() as conn:
         goals = conn.execute(
-            """SELECT * FROM goals WHERE status = 'active' 
+            """SELECT * FROM goals WHERE status = 'active'
                ORDER BY importance * urgency DESC LIMIT 5"""
         ).fetchall()
         goals = [dict(g) for g in goals]
 
         # Get stagnant goals
         stagnant = conn.execute(
-            """SELECT * FROM goals WHERE status = 'active' 
+            """SELECT * FROM goals WHERE status = 'active'
                AND last_activity_at < datetime('now', '-3 days')"""
         ).fetchall()
         stagnant = [dict(s) for s in stagnant]
 
         # Get imminent deadlines (within 3 days)
         deadlines = conn.execute(
-            """SELECT * FROM goals WHERE status = 'active' 
-               AND deadline IS NOT NULL 
+            """SELECT * FROM goals WHERE status = 'active'
+               AND deadline IS NOT NULL
                AND deadline BETWEEN datetime('now') AND datetime('now', '+3 days')
                ORDER BY deadline ASC"""
         ).fetchall()
@@ -43,7 +42,7 @@ def generate_morning_brief() -> dict | None:
     if not top_priorities and not deadlines:
         return None
 
-    brief_id = str(uuid.uuid4())
+    str(uuid.uuid4())
     title = f"晨间简报 - {now.strftime('%Y-%m-%d %A')}"
 
     content_lines = ["# ☀️ 晨间简报", f"日期: {now.strftime('%Y年%m月%d日 %A')}", ""]
@@ -79,7 +78,7 @@ def generate_morning_brief() -> dict | None:
             (notification_id, title, content, now.isoformat()),
         )
 
-    event_recorder.record(event_recorder.Event(
+    event_recorder.record(Event(
         type="morning_brief",
         summary=f"Morning brief generated: {len(top_priorities)} priorities",
         payload={"top_priorities": [g["title"] for g in top_priorities]},

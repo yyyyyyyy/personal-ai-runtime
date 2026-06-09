@@ -21,11 +21,28 @@ jobs:
         run: |
           cd backend
           pip install -r requirements.txt
+          pip install pytest pytest-asyncio pytest-cov ruff mypy
 
       - name: Python syntax check
         run: |
           cd backend
           python -m compileall app/ -q
+
+      - name: Lint (ruff)
+        run: |
+          cd backend
+          ruff check app/
+
+      - name: Type check (mypy)
+        run: |
+          cd backend
+          # Kernel + Runtime layer (strict); full app/ has legacy type debt outside this scope
+          mypy app/core/runtime/ app/core/agents/memory_engine.py app/core/agents/memory_extractor.py scripts/ --ignore-missing-imports
+
+      - name: Run tests
+        run: |
+          cd backend
+          python -m pytest tests/ -v --cov=app --cov-report=term
 
       - name: Verify database schema
         run: |
@@ -34,7 +51,7 @@ jobs:
           import os
           os.environ['LLM_API_KEY'] = 'test-key'
           from app.store.database import db
-          required = ['conversations','messages','goals','actions','events','memories','reviews','notifications','schedules','activity_log','documents']
+          required = ['conversations','messages','goals','actions','events','memories','reviews','notifications','schedules','activity_log','documents','tasks','llm_calls','tool_calls','approvals','background_tasks','triggers','user_profile']
           with db.get_db() as conn:
               tables = {t['name'] for t in conn.execute('SELECT name FROM sqlite_master WHERE type=\"table\"').fetchall()}
               missing = [t for t in required if t not in tables]
@@ -49,13 +66,18 @@ jobs:
           python -c "
           import os
           os.environ['LLM_API_KEY'] = 'test-key'
-          from app.core.mcp_hub import mcp_hub
+          from app.core.harness.mcp_hub import mcp_hub
           tools = mcp_hub.get_tool_defs_for_llm()
-          expected = {'get_current_time','read_file','write_file','list_directory','search_files','web_search','fetch_url'}
+          expected = {'get_current_time','read_file','write_file','list_directory','search_files','web_search','fetch_url','list_calendar_events','add_calendar_event','get_upcoming_events','check_inbox','send_email','open_web_page','search_and_extract','get_clipboard','ocr_image','shell_exec','git_status','git_log','git_diff','telegram_send','telegram_updates'}
           actual = {t['function']['name'] for t in tools}
-          assert actual == expected, f'Mismatch: {actual}'
+          assert len(actual) == 22, f'Expected 22 tools, got {len(actual)}'
+          assert actual == expected, f'Mismatch: expected={expected- actual}, extra={actual - expected}'
           assert mcp_hub.needs_confirmation('write_file') == True
+          assert mcp_hub.needs_confirmation('send_email') == True
+          assert mcp_hub.needs_confirmation('add_calendar_event') == True
+          assert mcp_hub.needs_confirmation('shell_exec') == True
           assert mcp_hub.is_async('web_search') == True
+          assert mcp_hub.is_async('telegram_send') == True
           print(f'OK: {len(tools)} tools registered')
           "
 
@@ -69,18 +91,35 @@ jobs:
           routes = [r.path for r in app.routes if hasattr(r, 'path')]
           endpoints = [
               '/api/chat/conversations',
+              '/api/chat/approvals/',
               '/api/goals/',
               '/api/memory/memories',
+              '/api/memory/profile',
               '/api/knowledge/documents',
               '/api/reviews/',
               '/api/notifications/',
               '/api/system/health',
               '/api/events/',
+              '/api/tasks/',
+              '/api/telemetry/',
+              '/api/approvals/',
+              '/api/tasks/background',
+              '/api/triggers/',
           ]
           for ep in endpoints:
               assert any(r.startswith(ep) for r in routes), f'Missing: {ep}'
           print(f'OK: {len(endpoints)} API modules loaded')
           "
+
+      - name: Verify Event Log rebuild (Runtime invariant)
+        run: |
+          cd backend
+          python scripts/verify_rebuild.py
+
+      - name: Kernel boundary guard (no direct writes to projection tables)
+        run: |
+          cd backend
+          python scripts/check_boundary.py
 
   frontend:
     runs-on: ubuntu-latest

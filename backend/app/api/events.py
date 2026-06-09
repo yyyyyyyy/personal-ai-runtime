@@ -1,7 +1,8 @@
 """Events API — query the event log."""
 
 from fastapi import APIRouter
-from app.core.event_recorder import event_recorder
+
+from app.core.telemetry.event_recorder import event_recorder
 
 router = APIRouter(prefix="/api/events", tags=["events"])
 

@@ -16,7 +16,6 @@ from apscheduler.triggers.cron import CronTrigger
 
 from app.store.database import db
 
-
 _scheduler = BackgroundScheduler()
 
 
@@ -148,8 +147,8 @@ def _run_deadline_alert():
         with db.get_db() as conn:
             # Goals with deadlines in 1 or 3 days
             deadlines = conn.execute(
-                """SELECT * FROM goals WHERE status = 'active' 
-                   AND deadline IS NOT NULL 
+                """SELECT * FROM goals WHERE status = 'active'
+                   AND deadline IS NOT NULL
                    AND date(deadline) IN (date('now', '+1 days'), date('now', '+3 days'))
                    ORDER BY deadline ASC"""
             ).fetchall()

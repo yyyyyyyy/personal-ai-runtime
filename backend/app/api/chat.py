@@ -1,11 +1,14 @@
 """Chat API — conversation and message endpoints with SSE streaming."""
 
 import json
+
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
 
-from app.core.conversation import ConversationAPI, ConversationManager
-from app.core.brain import Brain
+from app.core.agents.brain import Brain
+from app.core.agents.conversation import ConversationAPI, ConversationManager
+from app.core.harness.mcp_hub import mcp_hub
+from app.core.runtime.kernel_instance import kernel
 from app.store.database import db
 
 router = APIRouter(prefix="/api/chat", tags=["chat"])
@@ -89,3 +92,66 @@ async def send_message(conv_id: str, body: dict):
             "X-Accel-Buffering": "no",
         },
     )
+
+
+@router.post("/approvals/{approval_id}/resolve")
+async def resolve_approval(approval_id: str, body: dict):
+    """Resolve a pending approval and execute the capability if approved."""
+    decision = body.get("decision", "deny")
+    tool_name = body.get("tool_name", "")
+    tool_args = body.get("tool_args", {})
+    conv_id = body.get("conv_id", "")
+    tool_call_id = body.get("tool_call_id", "")
+
+    if decision == "approve":
+        kernel.emit_event(
+            type="ApprovalGranted",
+            aggregate_type="approval",
+            aggregate_id=approval_id,
+            payload={"action": tool_name, "reason": "user_approved"},
+            actor="user",
+        )
+        # Execute the capability via mcp_hub (handles sync/async + telemetry).
+        tool = mcp_hub.get_tool(tool_name)
+        if tool is not None:
+            result_str = await mcp_hub.invoke_tool(tool_name, tool_args)
+            kernel.emit_event(
+                type="CapabilityInvoked",
+                aggregate_type="capability",
+                aggregate_id=f"cap_{tool_name}",
+                payload={"name": tool_name, "result_summary": str(result_str)[:200]},
+                actor="user",
+            )
+        else:
+            result_str = json.dumps({"status": "error", "error": f"Unknown tool: {tool_name}"})
+
+        # Persist tool result (sole tool message for this call_id)
+        db.add_message(
+            conv_id=conv_id,
+            role="tool",
+            content=result_str,
+            tool_call_id=tool_call_id,
+        )
+        brain = Brain()
+        conversation = ConversationManager(conversation_id=conv_id)
+        assistant_message = await brain.continue_after_tool_result(conversation)
+        return {"status": "success", "result": result_str, "assistant_message": assistant_message}
+    else:
+        kernel.emit_event(
+            type="ApprovalDenied",
+            aggregate_type="approval",
+            aggregate_id=approval_id,
+            payload={"action": tool_name, "reason": "user_denied"},
+            actor="user",
+        )
+        result_str = json.dumps({"status": "denied", "reason": "User denied the operation"})
+        db.add_message(
+            conv_id=conv_id,
+            role="tool",
+            content=result_str,
+            tool_call_id=tool_call_id,
+        )
+        brain = Brain()
+        conversation = ConversationManager(conversation_id=conv_id)
+        assistant_message = await brain.continue_after_tool_result(conversation)
+        return {"status": "denied", "assistant_message": assistant_message}

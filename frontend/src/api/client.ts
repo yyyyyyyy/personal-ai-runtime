@@ -114,10 +114,90 @@ export interface StreamEvent {
   tool_name?: string;
   tool_args?: Record<string, unknown>;
   tool_call_id?: string;
+  approval_id?: string;
   tool_calls?: Array<{
     index: number;
     id: string;
     function_name: string;
     arguments: string;
   }>;
+}
+
+// --- Telemetry API ---
+
+export interface CostSummary {
+  total_calls: number;
+  total_prompt_tokens: number;
+  total_completion_tokens: number;
+  total_cost: number;
+  avg_latency_ms: number;
+  failed_calls: number;
+}
+
+export interface ToolSummaryItem {
+  tool_name: string;
+  total_calls: number;
+  failed_calls: number;
+  avg_latency_ms: number;
+}
+
+export interface MemoryStats {
+  total_memories: number;
+  categories: Record<string, number>;
+  recent_7d: number;
+}
+
+export interface HealthSnapshot {
+  task_queue_length: number;
+  llm_failure_rate_24h: number;
+  tool_failure_rate_24h: number;
+}
+
+export async function getCostSummary(days: number = 7): Promise<CostSummary> {
+  const res = await fetch(`${API_BASE}/telemetry/cost/summary?days=${days}`);
+  if (!res.ok) throw new Error("Failed to fetch cost summary");
+  return res.json();
+}
+
+export async function getToolSummary(days: number = 7): Promise<ToolSummaryItem[]> {
+  const res = await fetch(`${API_BASE}/telemetry/tool-summary?days=${days}`);
+  if (!res.ok) throw new Error("Failed to fetch tool summary");
+  return res.json();
+}
+
+export async function getMemoryStats(): Promise<MemoryStats> {
+  const res = await fetch(`${API_BASE}/telemetry/memory/stats`);
+  if (!res.ok) throw new Error("Failed to fetch memory stats");
+  return res.json();
+}
+
+export async function getHealth(): Promise<HealthSnapshot> {
+  const res = await fetch(`${API_BASE}/telemetry/health`);
+  if (!res.ok) throw new Error("Failed to fetch health");
+  return res.json();
+}
+
+// --- Approval API ---
+
+export async function resolveApproval(
+  approvalId: string,
+  decision: "approve" | "deny",
+  toolName: string,
+  toolArgs: Record<string, unknown>,
+  convId: string,
+  toolCallId: string
+): Promise<{ status: string; result?: string; assistant_message?: string }> {
+  const res = await fetch(`${API_BASE}/chat/approvals/${approvalId}/resolve`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      decision,
+      tool_name: toolName,
+      tool_args: toolArgs,
+      conv_id: convId,
+      tool_call_id: toolCallId,
+    }),
+  });
+  if (!res.ok) throw new Error("Failed to resolve approval");
+  return res.json();
 }

@@ -2,10 +2,17 @@
 
 import os
 from pathlib import Path
+
 from dotenv import load_dotenv
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 load_dotenv(BASE_DIR / ".env")
+
+# Disable ChromaDB internal telemetry to avoid posthog compatibility issues
+os.environ.setdefault("ANONYMIZED_TELEMETRY", "False")
+
+# Suppress tokenizers warning from ChromaDB embedding function
+os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
 
 
 class Settings:

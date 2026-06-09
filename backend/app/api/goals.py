@@ -5,13 +5,14 @@ from datetime import datetime
 
 from fastapi import APIRouter, HTTPException
 
+from app.core.runtime.kernel_instance import kernel
+from app.core.telemetry.event_recorder import Event, event_recorder
 from app.store.database import db
-from app.core.event_recorder import event_recorder, Event
 
 router = APIRouter(prefix="/api/goals", tags=["goals"])
 
 
-# --- Goal CRUD ---
+# --- Goal CRUD ---------------------------------------------------------------
 
 @router.post("/")
 async def create_goal(body: dict):
@@ -21,7 +22,7 @@ async def create_goal(body: dict):
         raise HTTPException(status_code=400, detail="Title is required")
 
     goal_id = str(uuid.uuid4())
-    now = datetime.utcnow()
+    now = datetime.utcnow().isoformat()
 
     description = body.get("description", "")
     importance = float(body.get("importance", 0.5))
@@ -29,15 +30,23 @@ async def create_goal(body: dict):
     deadline = body.get("deadline")
     parent_id = body.get("parent_id")
 
-    with db.get_db() as conn:
-        conn.execute(
-            """INSERT INTO goals (id, title, description, status, importance, urgency, deadline, 
-               parent_id, created_at, updated_at, last_activity_at)
-               VALUES (?, ?, ?, 'active', ?, ?, ?, ?, ?, ?, ?)""",
-            (goal_id, title, description, importance, urgency, deadline, parent_id,
-             now.isoformat(), now.isoformat(), now.isoformat()),
-        )
+    kernel.emit_event(
+        type="GoalCreated",
+        aggregate_type="goal",
+        aggregate_id=goal_id,
+        payload={
+            "title": title,
+            "description": description,
+            "importance": importance,
+            "urgency": urgency,
+            "deadline": deadline,
+            "parent_id": parent_id,
+            "created_at": now,
+        },
+        actor="user",
+    )
 
+    # Legacy event recorder — kept for compatibility, not as write source.
     event_recorder.record(Event(
         type="goal_created",
         summary=f"Goal created: {title}",
@@ -51,28 +60,21 @@ async def create_goal(body: dict):
 @router.get("/")
 async def list_goals(status: str | None = None, limit: int = 50):
     """List all goals, optionally filtered by status."""
-    with db.get_db() as conn:
-        if status:
-            rows = conn.execute(
-                "SELECT * FROM goals WHERE status = ? ORDER BY importance DESC, created_at DESC LIMIT ?",
-                (status, limit),
-            ).fetchall()
-        else:
-            rows = conn.execute(
-                "SELECT * FROM goals ORDER BY importance DESC, created_at DESC LIMIT ?",
-                (limit,),
-            ).fetchall()
-    return [dict(r) for r in rows]
+    filters: dict[str, object] = {"limit": limit}
+    if status:
+        filters["status"] = status
+    return kernel.query_state("goals", **filters)
 
 
 @router.get("/{goal_id}")
 async def get_goal(goal_id: str):
     """Get a goal with its actions and events."""
-    goal = _get_goal(goal_id)
-    if not goal:
+    goals = kernel.query_state("goals", id=goal_id)
+    if not goals:
         raise HTTPException(status_code=404, detail="Goal not found")
+    goal = goals[0]
 
-    # Get sub-actions
+    # Get sub-actions (still in scope of legacy actions CRUD)
     with db.get_db() as conn:
         actions = conn.execute(
             "SELECT * FROM actions WHERE goal_id = ? ORDER BY created_at ASC",
@@ -95,32 +97,37 @@ async def update_goal(goal_id: str, body: dict):
         raise HTTPException(status_code=404, detail="Goal not found")
 
     updatable = ["title", "description", "status", "progress", "importance", "urgency", "deadline", "parent_id"]
-    fields = []
-    params = []
-
+    changed = {}
     for key in updatable:
         if key in body:
-            fields.append(f"{key} = ?")
-            params.append(body[key])
+            changed[key] = body[key]
 
-    if not fields:
+    if not changed:
         return goal
 
-    fields.append("updated_at = ?")
-    fields.append("last_activity_at = ?")
-    now = datetime.utcnow().isoformat()
-    params.extend([now, now, goal_id])
-
-    with db.get_db() as conn:
-        conn.execute(
-            f"UPDATE goals SET {', '.join(fields)} WHERE id = ?",
-            params,
+    # Emit GoalCompleted when status transitions to 'completed'
+    if changed.get("status") == "completed":
+        kernel.emit_event(
+            type="GoalCompleted",
+            aggregate_type="goal",
+            aggregate_id=goal_id,
+            payload=changed,
+            actor="user",
+        )
+    else:
+        kernel.emit_event(
+            type="GoalUpdated",
+            aggregate_type="goal",
+            aggregate_id=goal_id,
+            payload=changed,
+            actor="user",
         )
 
-    if "status" in body:
+    # Legacy event recorder
+    if "status" in changed:
         event_recorder.record(Event(
             type="goal_status_changed",
-            summary=f"Goal '{goal['title']}' status -> {body['status']}",
+            summary=f"Goal '{goal['title']}' status -> {changed['status']}",
             goal_id=goal_id,
         ))
 
@@ -130,13 +137,20 @@ async def update_goal(goal_id: str, body: dict):
 @router.delete("/{goal_id}")
 async def delete_goal(goal_id: str):
     """Delete a goal and its sub-actions."""
+    kernel.emit_event(
+        type="GoalDeleted",
+        aggregate_type="goal",
+        aggregate_id=goal_id,
+        actor="user",
+    )
+    # Delete sub-actions (still direct DB — actions not yet event-sourced)
     with db.get_db() as conn:
         conn.execute("DELETE FROM actions WHERE goal_id = ?", (goal_id,))
-        conn.execute("DELETE FROM goals WHERE id = ?", (goal_id,))
     return {"status": "ok"}
 
 
-# --- Actions CRUD ---
+# --- Actions CRUD ------------------------------------------------------------
+# Note: Actions still use direct DB access. They are out of scope for T1.
 
 @router.post("/{goal_id}/actions")
 async def create_action(goal_id: str, body: dict):
@@ -157,10 +171,9 @@ async def create_action(goal_id: str, body: dict):
             "INSERT INTO actions (id, goal_id, title, status, created_at) VALUES (?, ?, ?, 'pending', ?)",
             (action_id, goal_id, title, now),
         )
-        conn.execute(
-            "UPDATE goals SET last_activity_at = ?, updated_at = ? WHERE id = ?",
-            (now, now, goal_id),
-        )
+
+    # Touch the parent goal through the Kernel (no direct goals write here).
+    kernel.emit_event("GoalTouched", "goal", goal_id, actor="user")
 
     event_recorder.record(Event(
         type="action_created",
@@ -185,10 +198,9 @@ async def update_action(goal_id: str, action_id: str, body: dict):
                 "UPDATE actions SET status = ?, completed_at = ? WHERE id = ? AND goal_id = ?",
                 (status, completed_at, action_id, goal_id),
             )
-            conn.execute(
-                "UPDATE goals SET last_activity_at = ?, updated_at = ? WHERE id = ?",
-                (now, now, goal_id),
-            )
+
+        # Touch the parent goal through the Kernel (no direct goals write here).
+        kernel.emit_event("GoalTouched", "goal", goal_id, actor="user")
 
         event_recorder.record(Event(
             type="action_status_changed",
@@ -214,16 +226,17 @@ async def delete_action(goal_id: str, action_id: str):
     return {"status": "ok"}
 
 
-# --- Priority & Stagnation ---
+# --- Priority & Stagnation ---------------------------------------------------
+# Read-only complex queries — still use db until kernel supports SQL functions.
 
 @router.get("/priorities/sorted")
 async def get_prioritized_goals():
     """Get goals sorted by priority (importance x urgency x stagnation_time)."""
     with db.get_db() as conn:
         rows = conn.execute(
-            """SELECT *, 
+            """SELECT *,
                (importance * urgency * (julianday('now') - julianday(COALESCE(last_activity_at, created_at)))) as priority_score
-               FROM goals WHERE status = 'active' 
+               FROM goals WHERE status = 'active'
                ORDER BY priority_score DESC LIMIT 20"""
         ).fetchall()
     return [dict(r) for r in rows]
@@ -234,9 +247,9 @@ async def get_stagnant_goals(days: int = 3):
     """Get goals that haven't been updated in the specified number of days."""
     with db.get_db() as conn:
         rows = conn.execute(
-            """SELECT * FROM goals 
-               WHERE status = 'active' 
-               AND last_activity_at < datetime('now', ?) 
+            """SELECT * FROM goals
+               WHERE status = 'active'
+               AND last_activity_at < datetime('now', ?)
                ORDER BY last_activity_at ASC""",
             (f"-{days} days",),
         ).fetchall()

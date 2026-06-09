@@ -1,10 +1,10 @@
 """Knowledge Base API — import documents and perform RAG-based Q&A."""
 
 import uuid
-import json
 from datetime import datetime
 
 from fastapi import APIRouter, HTTPException, UploadFile
+
 from app.store.database import db
 from app.store.vector import vector_store
 

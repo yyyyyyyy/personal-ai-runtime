@@ -1,0 +1,81 @@
+"""T4 acceptance test: Memory as derived decaying belief with rebuild support."""
+
+import os
+
+os.environ.setdefault("LLM_API_KEY", "test-key")
+
+
+from app.core.runtime.kernel import Kernel
+from app.store.database import Database
+
+
+def make_kernel(tmp_path):
+    db = Database(db_path=str(tmp_path / "t4.db"))
+    return Kernel(db=db), db
+
+
+class TestMemoryBelief:
+    def test_memory_derived_and_rebuild(self, tmp_path):
+        k, _ = make_kernel(tmp_path)
+        k.emit_event("MemoryDerived", "memory", "m1", {
+            "category": "preference", "content": "User prefers Rust", "confidence": 0.8,
+        }, actor="extractor")
+        k.emit_event("MemoryDerived", "memory", "m2", {
+            "category": "fact", "content": "User lives in Beijing", "confidence": 0.9,
+        }, actor="extractor")
+
+        # Rebuild and verify
+        k.rebuild("memory")
+        with k._db.get_db() as conn:
+            rows = conn.execute("SELECT * FROM memories ORDER BY created_at").fetchall()
+        assert len(rows) == 2
+        by_id = {r["id"]: dict(r) for r in rows}
+        assert by_id["m1"]["confidence"] == 0.8
+        assert by_id["m2"]["content"] == "User lives in Beijing"
+
+    def test_memory_decayed_lowers_confidence(self, tmp_path):
+        k, _ = make_kernel(tmp_path)
+        k.emit_event("MemoryDerived", "memory", "m1", {
+            "category": "preference", "content": "User likes coffee", "confidence": 0.7,
+        }, actor="extractor")
+        k.emit_event("MemoryDecayed", "memory", "m1", {"confidence": 0.2}, actor="scheduler")
+
+        with k._db.get_db() as conn:
+            row = conn.execute("SELECT * FROM memories WHERE id = ?", ("m1",)).fetchone()
+        assert dict(row)["confidence"] == 0.2
+        assert dict(row)["decayed_at"] is not None
+
+    def test_memory_revoked_zeroes_confidence(self, tmp_path):
+        k, _ = make_kernel(tmp_path)
+        k.emit_event("MemoryDerived", "memory", "m1", {
+            "category": "fact", "content": "User works at Company X", "confidence": 0.6,
+        }, actor="extractor")
+        k.emit_event("MemoryRevoked", "memory", "m1", {}, actor="extractor")
+
+        with k._db.get_db() as conn:
+            row = conn.execute("SELECT * FROM memories WHERE id = ?", ("m1",)).fetchone()
+        assert dict(row)["confidence"] == 0.0
+
+    def test_rebuild_memory_projection(self, tmp_path):
+        k, _ = make_kernel(tmp_path)
+        k.emit_event("MemoryDerived", "memory", "m1", {
+            "category": "preference", "content": "Rust", "confidence": 0.8,
+        }, actor="extractor")
+        k.emit_event("MemoryDerived", "memory", "m2", {
+            "category": "fact", "content": "Beijing", "confidence": 0.9,
+        }, actor="extractor")
+        k.emit_event("MemoryDecayed", "memory", "m1", {"confidence": 0.3}, actor="scheduler")
+
+        before = []
+        with k._db.get_db() as conn:
+            before = [dict(r) for r in conn.execute("SELECT * FROM memories ORDER BY created_at").fetchall()]
+
+        k.rebuild("memory")
+
+        after = []
+        with k._db.get_db() as conn:
+            after = [dict(r) for r in conn.execute("SELECT * FROM memories ORDER BY created_at").fetchall()]
+
+        assert before == after, "memory projection must be byte-identical after rebuild"
+        assert len(after) == 2
+        assert [m["confidence"] for m in after] == [0.3, 0.9]

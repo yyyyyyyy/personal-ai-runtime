@@ -1,6 +1,7 @@
 """Notifications API — list, mark as read, and get notifications."""
 
 from fastapi import APIRouter
+
 from app.store.database import db
 
 router = APIRouter(prefix="/api/notifications", tags=["notifications"])

@@ -5,9 +5,30 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.api import (
+    approvals,
+    background_tasks,
+    chat,
+    events,
+    goals,
+    knowledge,
+    memory,
+    notifications,
+    reviews,
+    system,
+    tasks,
+    telemetry_api,
+    triggers,
+)
 from app.config import settings
-from app.api import chat, system, memory, events, knowledge, goals, reviews, notifications
+from app.core.runtime.background_worker import background_worker
+from app.core.runtime.event_bus import event_bus
+from app.core.runtime.scheduler_v2 import init_scheduler_v2, shutdown_scheduler_v2
+from app.core.runtime.state_manager import state_manager
 from app.core.scheduler import init_scheduler, shutdown_scheduler
+
+# Wire StateManager to EventBus
+state_manager._event_bus = event_bus
 
 # WebSocket connection manager for real-time notifications
 _ws_connections: list[WebSocket] = []
@@ -16,9 +37,24 @@ _ws_connections: list[WebSocket] = []
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Startup and shutdown events."""
+    # Start Event Bus
+    await event_bus.start()
+
+    # Initialize both schedulers (old + v2, side by side during migration)
     init_scheduler()
+    init_scheduler_v2()
+
+    # Start background worker
+    await background_worker.start()
+
     yield
+
+    # Shutdown
+    await background_worker.stop()
+    shutdown_scheduler_v2()
     shutdown_scheduler()
+    await event_bus.stop()
+
     for ws in _ws_connections:
         try:
             await ws.close()
@@ -28,8 +64,8 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="Personal AI OS",
-    description="Your second brain and execution engine",
-    version="0.4.0",
+    description="Your second brain and execution engine — Runtime Foundation",
+    version="0.8.0",
     lifespan=lifespan,
 )
 
@@ -51,11 +87,22 @@ app.include_router(knowledge.router)
 app.include_router(goals.router)
 app.include_router(reviews.router)
 app.include_router(notifications.router)
+app.include_router(tasks.router)
+app.include_router(telemetry_api.router)
+app.include_router(approvals.router)
+app.include_router(background_tasks.router)
+app.include_router(triggers.router)
+
+# Seed built-in triggers
+@app.on_event("startup")
+async def seed_triggers():
+    from app.core.runtime.trigger_engine import trigger_engine
+    trigger_engine.seed_builtin_triggers()
 
 
 @app.get("/")
 async def root():
-    return {"message": "Personal AI OS is running", "version": "0.4.0"}
+    return {"message": "Personal AI OS is running", "version": "0.8.0"}
 
 
 @app.websocket("/ws")

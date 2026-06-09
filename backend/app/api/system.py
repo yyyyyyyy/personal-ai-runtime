@@ -1,7 +1,8 @@
 """System API — health checks, LLM providers, and system info."""
 
 from fastapi import APIRouter
-from app.core.llm_router import llm_router
+
+from app.core.agents.llm_router import llm_router
 
 router = APIRouter(prefix="/api/system", tags=["system"])
 
@@ -12,7 +13,7 @@ async def health_check():
     return {
         "status": "ok",
         "service": "personal-ai-os",
-        "version": "0.7.0",
+        "version": "0.8.0",
     }
 
 

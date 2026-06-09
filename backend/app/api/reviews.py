@@ -1,11 +1,12 @@
 """Reviews API — query and trigger reviews."""
 
 from fastapi import APIRouter
+
 from app.core.review_engine import review_engine
-from app.product.morning_brief import generate_morning_brief
 from app.product.daily_review import generate_daily_review
-from app.product.weekly_review import generate_weekly_review
 from app.product.monthly_review import generate_monthly_review
+from app.product.morning_brief import generate_morning_brief
+from app.product.weekly_review import generate_weekly_review
 
 router = APIRouter(prefix="/api/reviews", tags=["reviews"])
 

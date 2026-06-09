@@ -1,7 +1,9 @@
-"""Memory API — manage long-term memories."""
+"""Memory API — manage long-term memories and user profile."""
 
 from fastapi import APIRouter, HTTPException
-from app.core.memory_engine import memory_engine
+
+from app.core.agents.memory_engine import memory_engine
+from app.core.agents.memory_v2 import user_profile
 
 router = APIRouter(prefix="/api/memory", tags=["memory"])
 
@@ -52,3 +54,18 @@ async def update_memory(memory_id: str, body: dict):
 
     memory_engine.update_memory(memory_id, content, category=category)
     return {"status": "ok"}
+
+
+# --- User Profile endpoints (Memory v2) ---
+
+@router.get("/profile")
+async def get_profile():
+    """Get the structured user profile."""
+    return user_profile.get_profile()
+
+
+@router.post("/profile/refresh")
+async def refresh_profile():
+    """Recalculate time decay and refresh profile confidence scores."""
+    user_profile.refresh_all()
+    return {"status": "ok", "profile": user_profile.get_profile()}

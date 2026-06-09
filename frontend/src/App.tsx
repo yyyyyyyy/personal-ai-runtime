@@ -9,11 +9,13 @@ import {
 import ChatView from "./components/chat/ChatView";
 import GoalsPage from "./pages/Goals";
 import TimelinePage from "./pages/Timeline";
+import DashboardPage from "./pages/Dashboard";
 
 const NAV_ITEMS: { id: Page; label: string; icon: string }[] = [
   { id: "chat", label: "对话", icon: "💬" },
   { id: "goals", label: "目标", icon: "🎯" },
   { id: "timeline", label: "时间线", icon: "📅" },
+  { id: "dashboard", label: "仪表盘", icon: "📊" },
 ];
 
 export default function App() {
@@ -162,6 +164,7 @@ export default function App() {
         )}
         {currentPage === "goals" && <GoalsPage />}
         {currentPage === "timeline" && <TimelinePage />}
+        {currentPage === "dashboard" && <DashboardPage />}
       </main>
     </div>
   );

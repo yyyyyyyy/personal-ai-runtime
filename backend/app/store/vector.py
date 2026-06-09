@@ -1,10 +1,30 @@
 """ChromaDB vector store management for semantic search and memory."""
 
+import os
 import uuid
-import chromadb
-from chromadb.config import Settings as ChromaSettings
 
-from app.config import settings
+# Suppress ChromaDB telemetry before the chromadb import touches posthog
+os.environ.setdefault("ANONYMIZED_TELEMETRY", "False")
+os.environ.setdefault("CHROMA_TELEMETRY_IMPL", "none")
+os.environ.setdefault("CHROMA_TELEMETRY_ENABLED", "false")
+
+# Monkey-patch posthog to prevent capture() signature incompatibility
+import posthog  # noqa: E402
+
+_original_capture = posthog.capture
+
+def _safe_capture(*args, **kwargs):
+    try:
+        return _original_capture(*args, **kwargs)
+    except TypeError:
+        return None
+
+posthog.capture = _safe_capture
+
+import chromadb  # noqa: E402
+from chromadb.config import Settings as ChromaSettings  # noqa: E402
+
+from app.config import settings  # noqa: E402
 
 
 class VectorStore:
