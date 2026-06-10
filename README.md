@@ -1,12 +1,13 @@
 # Personal AI OS
 
-本地优先的个人 AI 运行时：带上下文的对话、目标管理、记忆沉淀、工具执行与审批治理。
+本地优先的个人 AI 运行时：带上下文的对话、目标管理、记忆沉淀、智能收件箱、工具执行与审批治理。
 
 ## 环境要求
 
 - Python 3.12+
 - Node.js 20+
 - （可选）Ollama — 本地记忆抽取与敏感操作路由
+- （可选）Gmail 应用专用密码 — 智能收件箱（IMAP 读信 / SMTP 发信）
 - （可选）Docker & Docker Compose — 容器化启动
 
 ## 快速开始
@@ -16,7 +17,10 @@
 ```bash
 cp .env.example .env
 # 编辑 .env，至少设置 LLM_API_KEY（DeepSeek 等 OpenAI 兼容 API）
+# 使用收件箱功能时，另配 EMAIL_USER / EMAIL_PASS（Gmail 应用专用密码）
 ```
+
+完整变量说明见 [.env.example](.env.example)。
 
 ### 2. 方式 A：Makefile（推荐日常开发）
 
@@ -59,40 +63,49 @@ cd frontend
 npm run dev
 ```
 
-## 环境变量说明
+## 环境变量（常用）
 
 | 变量 | 说明 | 默认值 |
 |------|------|--------|
 | `LLM_API_KEY` | 主 LLM API Key（必填） | — |
 | `LLM_BASE_URL` | API 地址 | `https://api.deepseek.com/v1` |
 | `LLM_MODEL` | 模型名 | `deepseek-chat` |
+| `MAX_TOOL_ITERATIONS` | 单条消息内工具调用轮次上限 | `10` |
+| `EMAIL_USER` / `EMAIL_PASS` | Gmail 收件箱（应用专用密码） | — |
 | `OLLAMA_BASE_URL` | 本地 Ollama（记忆抽取） | `http://localhost:11434/v1` |
 | `MEMORY_EXTRACTOR` | 记忆抽取后端：`ollama` 或 `cloud` | `ollama` |
 | `CORS_ORIGINS` | 允许的前端源 | `http://localhost:5173,http://localhost:5174` |
-| `MCP_CONFIG_PATH` | 外部 MCP 服务器配置 | `./backend/mcp_config.json` |
 
-完整列表见 [.env.example](.env.example)。
+其余变量见 [.env.example](.env.example)。
 
 ## 常用命令
 
 ```bash
-make test          # backend pytest + frontend tsc
-make test-backend  # 仅后端测试
-make test-frontend # 仅前端类型检查
-make boundary      # Kernel 边界守卫（governed 表 bypass → CI 失败）
-make boundary-inventory  # 全仓 bypass 清单（当前应为 0）
-make boundary-strict   # 零债务模式（与 CI 一致）
-make rebuild-verify # Event Log 重建验证
+make test              # backend pytest + frontend tsc
+make test-backend      # 仅后端测试
+make test-frontend     # 仅前端类型检查
+make boundary          # Kernel 边界守卫（与 CI 一致）
+make boundary-inventory # 全仓 bypass 清单
+make boundary-strict   # 零债务模式（allowlist 非空时失败）
+make rebuild-verify    # Event Log 重建验证
+make belief-verify     # Pattern + Belief 管线验证
 ```
+
+CI 还额外运行 ruff、mypy、schema 校验、MCP 工具注册校验等，见 [.github/workflows/ci.yml](.github/workflows/ci.yml)。
 
 ## 功能概览
 
 | 页面 | 能力 |
 |------|------|
-| Chat | 带记忆/目标上下文的对话，工具调用，高风险操作审批 |
+| Chat | 带记忆/目标上下文的对话，23 个 MCP 工具，高风险操作审批 |
+| Inbox | 邮件轮询、分类、摘要；对话中也可 `check_inbox` 查信 |
 | Goals | 目标与行动管理，停滞检测 |
 | Dashboard | 系统状态与主动建议 |
 | Timeline | 活动与事件时间线 |
+
+**后端 API（无独立前端页）：** Knowledge（文档导入与 RAG）、Telemetry、Triggers 等 — 见 `/docs`。
+
+**后台服务（启动时自动运行）：** Pattern Aggregator（活动模式检测）、Belief Engine（定时反思）、Inbox 轮询（每 15 分钟）。
 
 ## 测试审批流程
 
@@ -121,35 +134,23 @@ curl -X POST http://localhost:8000/api/system/import -d '{"confirm":"DESTROY_AND
 **对话一直「思考中」**  
 检查 `LLM_API_KEY` 是否有效，查看后端终端错误日志。
 
-**ChromaDB 首次启动慢**  
-首次运行会下载 embedding 模型，属正常现象。
+**查邮件缺了已读邮件**  
+对话工具 `check_inbox` 默认返回最近邮件（含已读）；后台 Inbox 轮询仅抓未读新邮件。
+
+**ChromaDB 首次启动慢 / 日志里 embedding ID 警告**  
+首次运行会下载 embedding 模型；Chroma 的 `Add/Delete of existing/nonexisting embedding ID` 为内部 WAL 警告，一般可忽略。
 
 ## 架构
 
 ```
 User → Runtime Kernel (Event Log / State / Permissions)
          ├─ Agents (Brain, Planner, Critic — ephemeral)
-         ├─ Capabilities (MCP Tools)
+         ├─ Capabilities (23 MCP Tools)
+         ├─ Apps (Inbox, Brief, Review, …)
          └─ Storage (SQLite + ChromaDB, 本地)
 ```
 
-架构契约详见 [RUNTIME_SPEC.md](RUNTIME_SPEC.md)。
-
-### Runtime Status（W5 — Runtime Closure）
-
-| 指标 | 状态 |
-|------|------|
-| Boundary Debt | **0**（`make boundary --strict`） |
-| Read Surface Validation | **PASS** |
-| ABI expansion during validation | **0** |
-
-**Validated apps:** Morning Brief · Review · Dashboard · Deadline Alert
-
-**Closure（闭合性）：** 写路径 `verify_rebuild`（Event → State）；读路径 `query_state` + `read_events`（State → App）；边界 `check_boundary`（App ↛ governed DB）。四类读模型均未逼出新 ABI。
-
-**Scope（职责边界）：** Runtime = Facts；App = Interpretation。Brief / Dashboard / Review 迁移中未出现 `query_brief()` 等产品语义 API — Runtime 不保存业务含义。
-
-W6+ 考卷：**Closure 是否稳定？Scope 是否漂移？**（Knowledge 接入后，Runtime 是否仍不知道 Chunk / 周报 / 洞察语义？）
+架构契约与 W5 闭合性验证详见 [RUNTIME_SPEC.md](RUNTIME_SPEC.md)。
 
 ## 版本
 
