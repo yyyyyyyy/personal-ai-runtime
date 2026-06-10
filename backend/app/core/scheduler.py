@@ -9,7 +9,7 @@ Handles:
 """
 
 import uuid
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
@@ -144,14 +144,28 @@ def _run_monthly_review():
 def _run_deadline_alert():
     """Check for imminent deadlines and create alerts."""
     try:
+        today_utc = datetime.utcnow().date()
+        target_dates = {today_utc + timedelta(days=offset) for offset in (1, 3)}
+
         with db.get_db() as conn:
-            # Goals with deadlines in 1 or 3 days
             deadlines = conn.execute(
                 """SELECT * FROM goals WHERE status = 'active'
                    AND deadline IS NOT NULL
                    AND date(deadline) IN (date('now', '+1 days'), date('now', '+3 days'))
                    ORDER BY deadline ASC"""
             ).fetchall()
+
+        # Filter in Python with UTC dates for consistency when date() parsing differs
+        filtered = []
+        for goal in deadlines:
+            goal = dict(goal)
+            try:
+                deadline_date = datetime.fromisoformat(goal["deadline"]).date()
+            except ValueError:
+                continue
+            if deadline_date in target_dates:
+                filtered.append(goal)
+        deadlines = filtered
 
         for goal in deadlines:
             goal = dict(goal)

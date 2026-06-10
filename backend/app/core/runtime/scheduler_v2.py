@@ -224,18 +224,21 @@ def _run_monthly_review():
         print(f"Monthly review error: {e}")
 
 
+def _deadline_target_dates() -> set:
+    """UTC calendar dates for +1 and +3 day deadline alerts (matches legacy SQL)."""
+    today_utc = datetime.utcnow().date()
+    return {today_utc + timedelta(days=offset) for offset in (1, 3)}
+
+
 def _run_deadline_alert():
     try:
-        from datetime import date
-
         candidates = kernel.query_state(
             "goals",
             status="active",
             has_deadline=True,
             limit=500,
         )
-        today = date.today()
-        target_dates = {today + timedelta(days=offset) for offset in (1, 3)}
+        target_dates = _deadline_target_dates()
 
         deadlines = []
         for goal in candidates:

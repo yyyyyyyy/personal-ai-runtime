@@ -13,11 +13,14 @@ plus `rebuild`, which proves the core invariant:
 from __future__ import annotations
 
 import json
+import logging
 import uuid
 from typing import Any, Callable
 
 from . import projectors
 from .event import Event
+
+logger = logging.getLogger(__name__)
 
 # Append-only, ordered, immutable Event Log.
 # `seq` is a monotonic ordinal (the source of truth for ordering — not `ts`).
@@ -132,34 +135,47 @@ class Kernel:
             # consistent with the Event that produced it.
             event = event.with_seq(seq)
             projectors.apply(event, conn)
-            self._sync_memory_index(event, conn)
 
+        self._sync_memory_index(event)
         self._dispatch(event)
         return event
 
-    def _sync_memory_index(self, event: Event, conn) -> None:
-        """Keep ChromaDB as a derived index of memory projection events."""
+    def _sync_memory_index(self, event: Event) -> None:
+        """Keep ChromaDB as a derived index of memory projection events.
+
+        Runs after the SQL transaction commits so Chroma failures cannot roll
+        back governed memory events or projections.
+        """
         if event.type not in ("MemoryDerived", "MemoryUpdated", "MemoryDeleted"):
             return
-        from app.store.vector import vector_store
+        try:
+            from app.store.vector import vector_store
 
-        if event.type == "MemoryDeleted":
+            if event.type == "MemoryDeleted":
+                vector_store.delete_memory(event.aggregate_id)
+                return
+
+            p = event.payload
             vector_store.delete_memory(event.aggregate_id)
-            return
-
-        p = event.payload
-        vector_store.delete_memory(event.aggregate_id)
-        category = p.get("category", "general")
-        content = p.get("content", "")
-        embedding_id = vector_store.add_memory(
-            content=content,
-            metadata={"category": category, "source": p.get("source", "")},
-            memory_id=event.aggregate_id,
-        )
-        conn.execute(
-            "UPDATE memories SET embedding_id = ? WHERE id = ?",
-            (embedding_id, event.aggregate_id),
-        )
+            category = p.get("category", "general")
+            content = p.get("content", "")
+            embedding_id = vector_store.add_memory(
+                content=content,
+                metadata={"category": category, "source": p.get("source", "")},
+                memory_id=event.aggregate_id,
+            )
+            with self._db.get_db() as conn:
+                conn.execute(
+                    "UPDATE memories SET embedding_id = ? WHERE id = ?",
+                    (embedding_id, event.aggregate_id),
+                )
+        except Exception as exc:
+            logger.warning(
+                "Memory index sync failed for %s (%s): %s",
+                event.aggregate_id,
+                event.type,
+                exc,
+            )
 
     def read_events(
         self,
@@ -787,7 +803,8 @@ class Kernel:
                 conn.execute(f"DELETE FROM {table}")
             for event in events:
                 projectors.apply(event, conn)
-                self._sync_memory_index(event, conn)
+        for event in events:
+            self._sync_memory_index(event)
         return len(events)
 
     def rebuild_all(self) -> dict[str, int]:
