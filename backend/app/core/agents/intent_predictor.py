@@ -5,7 +5,7 @@ Uses time, recent events, and calendar context to pre-fetch tools/memories.
 
 from datetime import datetime
 
-from app.store.database import db
+from app.core.runtime.kernel_instance import kernel
 
 PLANNING_KEYWORDS = ("规划", "计划", "安排", "下周", "plan", "schedule", "roadmap")
 REVIEW_KEYWORDS = ("复盘", "总结", "回顾", "review", "reflect")
@@ -31,7 +31,6 @@ class IntentPredictor:
         hour = now.hour
         weekday = now.strftime("%A")
 
-        # Time-based heuristics
         if 6 <= hour < 9:
             intent = "morning_brief"
             confidence = 0.8
@@ -45,14 +44,22 @@ class IntentPredictor:
             intent = "general"
             confidence = 0.4
 
-        # Check for context signals (stagnant goals, upcoming deadlines)
-        with db.get_db() as conn:
-            stagnant = conn.execute(
-                "SELECT COUNT(*) as c FROM goals WHERE status = 'active' AND last_activity_at < datetime('now', '-3 days')"
-            ).fetchone()["c"]
-            deadlines = conn.execute(
-                "SELECT COUNT(*) as c FROM goals WHERE deadline BETWEEN datetime('now') AND datetime('now', '+2 days')"
-            ).fetchone()["c"]
+        stagnant = len(
+            kernel.query_state(
+                "goals",
+                status="active",
+                last_activity_older_than_days=3,
+                limit=500,
+            )
+        )
+        deadlines = len(
+            kernel.query_state(
+                "goals",
+                status="active",
+                deadline_within_days=2,
+                limit=500,
+            )
+        )
 
         if stagnant > 0:
             return {"intent": "check_stagnant_goals", "confidence": 0.9, "stagnant_count": stagnant}
@@ -64,17 +71,20 @@ class IntentPredictor:
     def pre_fetch(self, predicted_intent: str) -> dict:
         """Pre-fetch data that the user is likely to need."""
         data = {}
-        with db.get_db() as conn:
-            if predicted_intent in ("morning_brief", "check_stagnant_goals"):
-                rows = conn.execute(
-                    "SELECT * FROM goals WHERE status = 'active' ORDER BY importance DESC LIMIT 3"
-                ).fetchall()
-                data["top_goals"] = [dict(r) for r in rows]
-            if predicted_intent == "check_deadlines":
-                rows = conn.execute(
-                    "SELECT * FROM goals WHERE deadline BETWEEN datetime('now') AND datetime('now', '+2 days')"
-                ).fetchall()
-                data["upcoming_deadlines"] = [dict(r) for r in rows]
+        if predicted_intent in ("morning_brief", "check_stagnant_goals"):
+            data["top_goals"] = kernel.query_state(
+                "goals",
+                status="active",
+                limit=3,
+                order="importance_desc_only",
+            )
+        if predicted_intent == "check_deadlines":
+            data["upcoming_deadlines"] = kernel.query_state(
+                "goals",
+                status="active",
+                deadline_within_days=2,
+                limit=50,
+            )
         return data
 
 

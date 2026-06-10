@@ -6,10 +6,8 @@ All agents share this model. Task projection writes go through the Kernel.
 import json
 import uuid
 
-from app.core.runtime.event_bus import EventType, event_bus
 from app.core.runtime.kernel_instance import kernel
 from app.core.runtime.state_manager import TaskStatus, state_manager
-from app.store.database import db
 
 
 class TaskEngine:
@@ -37,41 +35,29 @@ class TaskEngine:
             task_id=task_id,
         )
 
-        event_bus.publish(
-            EventType.TASK_CREATED,
-            {
-                "task_id": task_id,
-                "name": name,
-                "parent_goal_id": parent_goal_id,
-                "parent_task_id": parent_task_id,
-            },
-        )
-
         task = self.get_task(task_id)
         if task is None:
             raise RuntimeError(f"Task {task_id} not found after creation")
         return task
 
     def get_task(self, task_id: str) -> dict | None:
-        with db.get_db() as conn:
-            row = conn.execute("SELECT * FROM tasks WHERE id = ?", (task_id,)).fetchone()
-        return dict(row) if row else None
+        rows = kernel.query_state("tasks", id=task_id)
+        return rows[0] if rows else None
 
     def get_subtasks(self, parent_task_id: str) -> list[dict]:
-        with db.get_db() as conn:
-            rows = conn.execute(
-                "SELECT * FROM tasks WHERE parent_task_id = ? ORDER BY priority DESC, created_at ASC",
-                (parent_task_id,),
-            ).fetchall()
-        return [dict(r) for r in rows]
+        return kernel.query_state(
+            "tasks",
+            parent_task_id=parent_task_id,
+            order="priority_desc",
+        )
 
     def get_tasks_for_goal(self, goal_id: str) -> list[dict]:
-        with db.get_db() as conn:
-            rows = conn.execute(
-                "SELECT * FROM tasks WHERE parent_goal_id = ? AND parent_task_id IS NULL ORDER BY priority DESC",
-                (goal_id,),
-            ).fetchall()
-        return [dict(r) for r in rows]
+        return kernel.query_state(
+            "tasks",
+            parent_goal_id=goal_id,
+            root_only=True,
+            order="priority_desc",
+        )
 
     def get_task_tree(self, goal_id: str) -> list[dict]:
         """Get the full task tree for a goal, with nested subtasks."""
@@ -104,25 +90,16 @@ class TaskEngine:
 
         kernel.change_task_status(task_id, new_status, actor="user")
 
-        if to_status == TaskStatus.COMPLETED:
-            event_bus.publish(EventType.TASK_COMPLETED, {"task_id": task_id, "name": task["name"]})
-        elif to_status == TaskStatus.FAILED:
-            event_bus.publish(EventType.TASK_FAILED, {"task_id": task_id, "name": task["name"]})
-
         return self.get_task(task_id)
 
     def list_tasks(self, status: str | None = None, limit: int = 50) -> list[dict]:
-        with db.get_db() as conn:
-            if status:
-                rows = conn.execute(
-                    "SELECT * FROM tasks WHERE status = ? ORDER BY priority DESC, created_at DESC LIMIT ?",
-                    (status, limit),
-                ).fetchall()
-            else:
-                rows = conn.execute(
-                    "SELECT * FROM tasks ORDER BY created_at DESC LIMIT ?", (limit,)
-                ).fetchall()
-        return [dict(r) for r in rows]
+        filters: dict[str, object] = {"limit": limit}
+        if status:
+            filters["status"] = status
+            filters["order"] = "priority_desc_created_desc"
+        else:
+            filters["order"] = "created_at_desc"
+        return kernel.query_state("tasks", **filters)
 
     def are_dependencies_met(self, task_id: str) -> bool:
         """Check if all dependencies of this task are completed."""

@@ -8,6 +8,7 @@ import uuid
 from datetime import datetime
 
 from app.core.runtime.event_bus import EventType, event_bus
+from app.core.runtime.kernel_instance import kernel
 from app.store.database import db
 
 
@@ -92,20 +93,18 @@ class TriggerEngine:
 
     def _eval_staleness(self, trigger: dict, condition: dict) -> list[dict] | None:
         days = condition.get("days", 7)
-        field = condition.get("field", "last_activity_at")
-        col = field.split(".")[-1] if "." in field else field
         action_config = json.loads(trigger.get("action_config", "{}"))
         template = action_config.get("template", "")
 
         suggestions = []
-        with db.get_db() as conn:
-            rows = conn.execute(
-                f"SELECT * FROM goals WHERE status = 'active' AND {col} < datetime('now', ?)",
-                (f"-{days} days",),
-            ).fetchall()
+        rows = kernel.query_state(
+            "goals",
+            status="active",
+            last_activity_older_than_days=days,
+            limit=100,
+        )
 
-        for row in rows:
-            goal = dict(row)
+        for goal in rows:
             msg = template.replace("{goal_title}", goal.get("title", ""))
             suggestions.append({
                 "trigger_id": trigger["id"],

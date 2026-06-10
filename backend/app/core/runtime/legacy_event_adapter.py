@@ -1,0 +1,154 @@
+"""Map Runtime event_log entries to legacy events-table shape for API/UI consumers."""
+
+from __future__ import annotations
+
+import json
+from datetime import datetime, timedelta
+
+from app.core.runtime.kernel.event import Event
+
+_LEGACY_TYPE: dict[str, str] = {
+    "GoalCreated": "goal_created",
+    "GoalUpdated": "goal_status_changed",
+    "GoalCompleted": "goal_status_changed",
+    "GoalDeleted": "goal_deleted",
+    "ActionCreated": "action_created",
+    "ActionUpdated": "action_status_changed",
+    "ActionDeleted": "action_deleted",
+    "CapabilityInvoked": "tool_call",
+    "ApprovalRequested": "approval_requested",
+    "ApprovalGranted": "approval_granted",
+    "ApprovalDenied": "approval_denied",
+    "TaskCreated": "task_created",
+    "TaskCompleted": "task_completed",
+    "TaskFailed": "task_failed",
+    "TaskStatusChanged": "task_status_changed",
+    "MemoryDerived": "memory_derived",
+}
+
+_LEGACY_TO_KERNEL: dict[str, list[str]] = {}
+for _kernel_type, _legacy_type in _LEGACY_TYPE.items():
+    _LEGACY_TO_KERNEL.setdefault(_legacy_type, []).append(_kernel_type)
+
+# Application-layer events still stored in legacy `events` table (W4 out of scope).
+_APPLICATION_EVENT_TYPES = frozenset({"conversation", "morning_brief"})
+
+
+def _goal_id_for(event: Event) -> str | None:
+    if event.aggregate_type == "goal":
+        return event.aggregate_id
+    if event.aggregate_type == "action":
+        return event.payload.get("goal_id")
+    return event.payload.get("goal_id")
+
+
+def _summary_for(event: Event) -> str:
+    p = event.payload
+    t = event.type
+    if t == "GoalCreated":
+        return f"Goal created: {p.get('title', '')}"
+    if t in ("GoalUpdated", "GoalCompleted"):
+        return f"Goal status -> {p.get('status', t)}"
+    if t == "ActionCreated":
+        return f"Action created: {p.get('title', '')}"
+    if t == "ActionUpdated":
+        return f"Action status -> {p.get('status', '')}"
+    if t == "CapabilityInvoked":
+        return f"Tool called: {p.get('name', '')}"
+    if t == "ApprovalRequested":
+        return f"Approval requested: {p.get('action', '')}"
+    if t == "ApprovalGranted":
+        return f"Approval granted: {p.get('action', '')}"
+    if t == "ApprovalDenied":
+        return f"Approval denied: {p.get('action', '')}"
+    if t == "TaskCreated":
+        return f"Task created: {p.get('name', '')}"
+    if t in ("TaskCompleted", "TaskFailed", "TaskStatusChanged"):
+        return f"Task {p.get('status', t)}: {event.aggregate_id}"
+    if t == "MemoryDerived":
+        return f"Memory derived: {str(p.get('content', ''))[:60]}"
+    return f"{t}: {event.aggregate_id}"
+
+
+def to_legacy_dict(event: Event) -> dict:
+    """Convert a Kernel Event to legacy `events` table row shape."""
+    legacy_type = _LEGACY_TYPE.get(event.type, event.type.lower())
+    payload = event.payload or {}
+    return {
+        "id": event.id,
+        "type": legacy_type,
+        "summary": _summary_for(event),
+        "goal_id": _goal_id_for(event),
+        "payload": json.dumps(payload) if payload else None,
+        "timestamp": event.ts,
+    }
+
+
+def _merge_by_timestamp(*groups: list[dict], limit: int) -> list[dict]:
+    merged = [row for group in groups for row in group]
+    merged.sort(key=lambda r: r.get("timestamp", ""), reverse=True)
+    return merged[:limit]
+
+
+def _application_legacy_events(*, days: int, limit: int, event_type: str | None = None) -> list[dict]:
+    from app.core.telemetry.event_recorder import event_recorder
+
+    if event_type:
+        if event_type not in _APPLICATION_EVENT_TYPES:
+            return []
+        return event_recorder.get_events_by_type(event_type, limit=limit)
+
+    recent = event_recorder.get_recent_events(days=days, limit=limit * 2)
+    return [row for row in recent if row.get("type") in _APPLICATION_EVENT_TYPES][:limit]
+
+
+def goal_legacy_events(goal_id: str, *, limit: int = 20) -> list[dict]:
+    """Goal-scoped events from event_log (goal + related actions)."""
+    from app.core.runtime.kernel_instance import kernel
+
+    goal_ev = kernel.read_events(
+        aggregate_type="goal", aggregate_id=goal_id, order="desc", limit=limit
+    )
+    action_ev = kernel.read_events(
+        aggregate_type="action",
+        payload_goal_id=goal_id,
+        order="desc",
+        limit=limit,
+    )
+    combined = sorted(goal_ev + action_ev, key=lambda e: e.seq or 0, reverse=True)[:limit]
+    return [to_legacy_dict(e) for e in combined]
+
+
+def recent_legacy_events(
+    read_fn,
+    *,
+    days: int = 7,
+    limit: int = 50,
+    event_type: str | None = None,
+    goal_id: str | None = None,
+    include_application: bool = True,
+) -> list[dict]:
+    """Read from event_log via kernel.read_events and return legacy rows."""
+    if event_type in _APPLICATION_EVENT_TYPES:
+        return _application_legacy_events(days=days, limit=limit, event_type=event_type)
+
+    since_ts = (datetime.utcnow() - timedelta(days=days)).isoformat()
+    filters: dict = {"since_ts": since_ts, "limit": limit, "order": "desc"}
+    if event_type:
+        kernel_types = _LEGACY_TO_KERNEL.get(event_type, [event_type])
+        if len(kernel_types) == 1:
+            filters["type"] = kernel_types[0]
+        else:
+            filters["types"] = kernel_types
+
+    events = read_fn(**filters)
+    rows = [to_legacy_dict(e) for e in events]
+
+    if goal_id:
+        rows = [r for r in rows if r.get("goal_id") == goal_id]
+
+    if include_application and event_type is None and goal_id is None:
+        app_rows = _application_legacy_events(days=days, limit=limit)
+        rows = _merge_by_timestamp(rows, app_rows, limit=limit)
+
+    return rows[:limit]

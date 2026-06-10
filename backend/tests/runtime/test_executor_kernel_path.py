@@ -20,7 +20,6 @@ async def test_write_file_produces_approval_event(kernel, monkeypatch):
     from app.core.runtime.kernel_instance import kernel as global_kernel
 
     monkeypatch.setattr(exec_mod, "kernel", kernel)
-    monkeypatch.setattr(exec_mod, "db", kernel._db)
     monkeypatch.setattr("app.core.runtime.kernel_instance.kernel", kernel)
 
     kernel.emit_event("GoalCreated", "goal", "g1", {"title": "G"}, actor="user")

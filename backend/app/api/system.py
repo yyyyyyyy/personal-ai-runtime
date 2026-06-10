@@ -32,14 +32,16 @@ async def list_llm_providers():
 @router.get("/info")
 async def system_info():
     """Get system information."""
+    from app.core.runtime.kernel_instance import kernel
     from app.store.database import db
 
     with db.get_db() as conn:
         conv_count = conn.execute("SELECT COUNT(*) as c FROM conversations").fetchone()["c"]
         msg_count = conn.execute("SELECT COUNT(*) as c FROM messages").fetchone()["c"]
-        goal_count = conn.execute("SELECT COUNT(*) as c FROM goals").fetchone()["c"]
         event_count = conn.execute("SELECT COUNT(*) as c FROM events").fetchone()["c"]
-        mem_count = conn.execute("SELECT COUNT(*) as c FROM memories").fetchone()["c"]
+
+    goal_count = len(kernel.query_state("goals", limit=10000))
+    mem_count = len(kernel.query_state("memories", limit=10000))
 
     return {
         "conversations": conv_count,

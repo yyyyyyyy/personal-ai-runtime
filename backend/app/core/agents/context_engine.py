@@ -12,7 +12,8 @@ from dataclasses import dataclass
 
 from app.core.agents.memory_engine import memory_engine
 from app.core.agents.world_model import world_model
-from app.core.telemetry.event_recorder import event_recorder
+from app.core.runtime.kernel_instance import kernel
+from app.core.runtime.legacy_event_adapter import recent_legacy_events
 from app.store.database import db
 
 
@@ -76,7 +77,7 @@ class ContextEngine:
         """
         active_goals = self._get_active_goals()
         pending_actions = self._get_pending_actions()
-        recent_events = event_recorder.get_recent_events(days=7, limit=20)
+        recent_events = recent_legacy_events(kernel.read_events, days=7, limit=20)
         relevant_memories = memory_engine.retrieve_context_string(user_message)
         recent_reviews = self._get_recent_reviews()
 
@@ -90,18 +91,20 @@ class ContextEngine:
         )
 
     def _get_active_goals(self) -> list[dict]:
-        with db.get_db() as conn:
-            rows = conn.execute(
-                "SELECT * FROM goals WHERE status = 'active' ORDER BY importance DESC, urgency DESC LIMIT 3"
-            ).fetchall()
-        return [dict(r) for r in rows]
+        return kernel.query_state(
+            "goals",
+            status="active",
+            limit=3,
+            order="importance_urgency_desc",
+        )
 
     def _get_pending_actions(self) -> list[dict]:
-        with db.get_db() as conn:
-            rows = conn.execute(
-                "SELECT * FROM actions WHERE status = 'pending' ORDER BY created_at ASC LIMIT 5"
-            ).fetchall()
-        return [dict(r) for r in rows]
+        return kernel.query_state(
+            "actions",
+            status="pending",
+            limit=5,
+            order="created_at_asc",
+        )
 
     def _get_recent_reviews(self) -> list[dict]:
         with db.get_db() as conn:

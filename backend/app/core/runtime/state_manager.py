@@ -29,10 +29,7 @@ _TRANSITIONS: dict[TaskStatus, set[TaskStatus]] = {
 
 
 class StateManager:
-    """Validates and performs state transitions. Publishes events on transition."""
-
-    def __init__(self, event_bus=None):
-        self._event_bus = event_bus
+    """Validates and performs state transitions."""
 
     def validate_transition(self, from_status: TaskStatus, to_status: TaskStatus) -> bool:
         """Check if a transition is allowed."""
@@ -44,20 +41,8 @@ class StateManager:
         return True
 
     def transition(self, entity_id: str, entity_type: str, from_status: TaskStatus, to_status: TaskStatus) -> TaskStatus:
-        """Perform a validated state transition and publish event."""
+        """Perform a validated state transition."""
         self.validate_transition(from_status, to_status)
-
-        if self._event_bus:
-            self._event_bus.publish(
-                "StateTransition",
-                {
-                    "entity_id": entity_id,
-                    "entity_type": entity_type,
-                    "from": from_status.value,
-                    "to": to_status.value,
-                },
-            )
-
         return to_status
 
     @staticmethod

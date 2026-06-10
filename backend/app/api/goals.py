@@ -6,8 +6,7 @@ from datetime import datetime
 from fastapi import APIRouter, HTTPException
 
 from app.core.runtime.kernel_instance import kernel
-from app.core.telemetry.event_recorder import Event, event_recorder
-from app.store.database import db
+from app.core.runtime.legacy_event_adapter import goal_legacy_events
 
 router = APIRouter(prefix="/api/goals", tags=["goals"])
 
@@ -46,13 +45,6 @@ async def create_goal(body: dict):
         actor="user",
     )
 
-    event_recorder.record(Event(
-        type="goal_created",
-        summary=f"Goal created: {title}",
-        goal_id=goal_id,
-        payload={"title": title, "importance": importance, "urgency": urgency},
-    ))
-
     return _get_goal(goal_id)
 
 
@@ -73,8 +65,7 @@ async def get_goal(goal_id: str):
         raise HTTPException(status_code=404, detail="Goal not found")
     goal = goals[0]
     goal["actions"] = kernel.query_state("actions", goal_id=goal_id)
-    events = event_recorder.get_events_for_goal(goal_id, limit=10)
-    goal["events"] = events
+    goal["events"] = goal_legacy_events(goal_id, limit=10)
     return goal
 
 
@@ -110,13 +101,6 @@ async def update_goal(goal_id: str, body: dict):
             payload=changed,
             actor="user",
         )
-
-    if "status" in changed:
-        event_recorder.record(Event(
-            type="goal_status_changed",
-            summary=f"Goal '{goal['title']}' status -> {changed['status']}",
-            goal_id=goal_id,
-        ))
 
     return _get_goal(goal_id)
 
@@ -170,12 +154,6 @@ async def create_action(goal_id: str, body: dict):
     )
     kernel.emit_event("GoalTouched", "goal", goal_id, actor="user")
 
-    event_recorder.record(Event(
-        type="action_created",
-        summary=f"Action created: {title}",
-        goal_id=goal_id,
-    ))
-
     actions = kernel.query_state("actions", id=action_id)
     return actions[0] if actions else {"id": action_id, "goal_id": goal_id, "title": title, "status": "pending"}
 
@@ -205,13 +183,6 @@ async def update_action(goal_id: str, action_id: str, body: dict):
         )
         kernel.emit_event("GoalTouched", "goal", goal_id, actor="user")
 
-        if status:
-            event_recorder.record(Event(
-                type="action_status_changed",
-                summary=f"Action status -> {status}",
-                goal_id=goal_id,
-            ))
-
     return {"status": "ok"}
 
 
@@ -229,31 +200,42 @@ async def delete_action(goal_id: str, action_id: str):
 
 # --- Priority & Stagnation (read-only queries) -------------------------------
 
+def _goal_priority_score(goal: dict) -> float:
+    """Match legacy SQL: importance * urgency * days since last activity."""
+    from datetime import datetime
+
+    importance = float(goal.get("importance") or 0)
+    urgency = float(goal.get("urgency") or 0)
+    activity_at = goal.get("last_activity_at") or goal.get("created_at")
+    if not activity_at:
+        return 0.0
+    try:
+        activity_dt = datetime.fromisoformat(activity_at)
+    except ValueError:
+        return importance * urgency
+    days_stale = max((datetime.utcnow() - activity_dt).total_seconds() / 86400.0, 0.0)
+    return importance * urgency * days_stale
+
+
 @router.get("/priorities/sorted")
 async def get_prioritized_goals():
     """Get goals sorted by priority (importance x urgency x stagnation_time)."""
-    with db.get_db() as conn:
-        rows = conn.execute(
-            """SELECT *,
-               (importance * urgency * (julianday('now') - julianday(COALESCE(last_activity_at, created_at)))) as priority_score
-               FROM goals WHERE status = 'active'
-               ORDER BY priority_score DESC LIMIT 20"""
-        ).fetchall()
-    return [dict(r) for r in rows]
+    goals = kernel.query_state("goals", status="active", limit=500)
+    scored = [{**g, "priority_score": _goal_priority_score(g)} for g in goals]
+    scored.sort(key=lambda g: g["priority_score"], reverse=True)
+    return scored[:20]
 
 
 @router.get("/stagnant")
 async def get_stagnant_goals(days: int = 3):
     """Get goals that haven't been updated in the specified number of days."""
-    with db.get_db() as conn:
-        rows = conn.execute(
-            """SELECT * FROM goals
-               WHERE status = 'active'
-               AND last_activity_at < datetime('now', ?)
-               ORDER BY last_activity_at ASC""",
-            (f"-{days} days",),
-        ).fetchall()
-    return [dict(r) for r in rows]
+    return kernel.query_state(
+        "goals",
+        status="active",
+        last_activity_older_than_days=days,
+        order="last_activity_asc",
+        limit=500,
+    )
 
 
 def _get_goal(goal_id: str) -> dict | None:

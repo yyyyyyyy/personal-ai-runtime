@@ -88,17 +88,26 @@ def _on_goal_updated(event: Event, conn) -> None:
         "urgency",
         "deadline",
         "parent_id",
+        "last_activity_at",
     )
     fields = [k for k in updatable if k in p]
     if not fields:
         return
     set_clause = ", ".join(f"{k} = ?" for k in fields)
     params = [p[k] for k in fields]
-    params += [event.ts, event.ts, event.aggregate_id]
-    conn.execute(
-        f"UPDATE goals SET {set_clause}, updated_at = ?, last_activity_at = ? WHERE id = ?",
-        params,
-    )
+    params.append(event.ts)
+    if "last_activity_at" in fields:
+        params.append(event.aggregate_id)
+        conn.execute(
+            f"UPDATE goals SET {set_clause}, updated_at = ? WHERE id = ?",
+            params,
+        )
+    else:
+        params += [event.ts, event.aggregate_id]
+        conn.execute(
+            f"UPDATE goals SET {set_clause}, updated_at = ?, last_activity_at = ? WHERE id = ?",
+            params,
+        )
 
 
 @projector("GoalCompleted")

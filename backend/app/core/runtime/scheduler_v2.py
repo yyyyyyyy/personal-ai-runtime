@@ -5,12 +5,13 @@ The old scheduler.py continues to run in parallel during migration.
 """
 
 import uuid
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
 
 from app.core.runtime.event_bus import EventType, event_bus
+from app.core.runtime.kernel_instance import kernel
 from app.store.database import db
 
 _scheduler = BackgroundScheduler()
@@ -19,15 +20,14 @@ _scheduler = BackgroundScheduler()
 async def _on_task_completed(event_type: str, payload: dict):
     """Dependency trigger: when a task completes, check if dependents can start."""
     task_id = payload.get("task_id", "")
-    with db.get_db() as conn:
-        rows = conn.execute(
-            "SELECT * FROM tasks WHERE dependencies_json LIKE ? AND status = 'pending'",
-            (f"%{task_id}%",),
-        ).fetchall()
+    rows = kernel.query_state(
+        "tasks",
+        status="pending",
+        depends_on_task=task_id,
+    )
 
     from app.core.runtime.task_engine import task_engine
-    for row in rows:
-        task = dict(row)
+    for task in rows:
         if task_engine.are_dependencies_met(task["id"]):
             task_engine.update_task_status(task["id"], "running")
 
@@ -226,16 +226,29 @@ def _run_monthly_review():
 
 def _run_deadline_alert():
     try:
-        with db.get_db() as conn:
-            deadlines = conn.execute(
-                """SELECT * FROM goals WHERE status = 'active'
-                   AND deadline IS NOT NULL
-                   AND date(deadline) IN (date('now', '+1 days'), date('now', '+3 days'))
-                   ORDER BY deadline ASC"""
-            ).fetchall()
+        from datetime import date
+
+        candidates = kernel.query_state(
+            "goals",
+            status="active",
+            has_deadline=True,
+            limit=500,
+        )
+        today = date.today()
+        target_dates = {today + timedelta(days=offset) for offset in (1, 3)}
+
+        deadlines = []
+        for goal in candidates:
+            if not goal.get("deadline"):
+                continue
+            try:
+                deadline_date = datetime.fromisoformat(goal["deadline"]).date()
+            except ValueError:
+                continue
+            if deadline_date in target_dates:
+                deadlines.append(goal)
 
         for goal in deadlines:
-            goal = dict(goal)
             delta = datetime.fromisoformat(goal["deadline"]) - datetime.utcnow()
             days_left = delta.days
 

@@ -27,10 +27,10 @@ class TestEngineRebuildConsistency:
         k, db = make_kernel(tmp_path)
         monkeypatch.setattr("app.core.agents.memory_engine.kernel", k)
         monkeypatch.setattr(
-            "app.core.agents.memory_engine.vector_store.add_memory",
+            "app.store.vector.vector_store.add_memory",
             lambda content, metadata, memory_id: f"emb_{memory_id}",
         )
-        monkeypatch.setattr("app.core.agents.memory_engine.vector_store.delete_memory", lambda _id: None)
+        monkeypatch.setattr("app.store.vector.vector_store.delete_memory", lambda _id: None)
 
         engine = MemoryEngine()
         mid = engine.store_memory("User likes tea", category="preference", actor="user")
@@ -45,7 +45,6 @@ class TestEngineRebuildConsistency:
     def test_task_engine_rebuild(self, tmp_path, monkeypatch):
         k, db = make_kernel(tmp_path)
         monkeypatch.setattr("app.core.runtime.task_engine.kernel", k)
-        monkeypatch.setattr("app.core.runtime.task_engine.db", db)
 
         engine = TaskEngine()
         parent = engine.create_task(name="Parent", description="root")
@@ -64,7 +63,6 @@ class TestEngineRebuildConsistency:
     def test_approval_engine_rebuild(self, tmp_path, monkeypatch):
         k, db = make_kernel(tmp_path)
         monkeypatch.setattr("app.core.runtime.approval_engine.kernel", k)
-        monkeypatch.setattr("app.core.runtime.approval_engine.db", db)
 
         engine = ApprovalEngine()
         req = engine.request_approval("write_file", params={"path": "/tmp/x"}, proposed_by="brain")

@@ -132,19 +132,49 @@ class Kernel:
             # consistent with the Event that produced it.
             event = event.with_seq(seq)
             projectors.apply(event, conn)
+            self._sync_memory_index(event, conn)
 
         self._dispatch(event)
         return event
+
+    def _sync_memory_index(self, event: Event, conn) -> None:
+        """Keep ChromaDB as a derived index of memory projection events."""
+        if event.type not in ("MemoryDerived", "MemoryUpdated", "MemoryDeleted"):
+            return
+        from app.store.vector import vector_store
+
+        if event.type == "MemoryDeleted":
+            vector_store.delete_memory(event.aggregate_id)
+            return
+
+        p = event.payload
+        vector_store.delete_memory(event.aggregate_id)
+        category = p.get("category", "general")
+        content = p.get("content", "")
+        embedding_id = vector_store.add_memory(
+            content=content,
+            metadata={"category": category, "source": p.get("source", "")},
+            memory_id=event.aggregate_id,
+        )
+        conn.execute(
+            "UPDATE memories SET embedding_id = ? WHERE id = ?",
+            (embedding_id, event.aggregate_id),
+        )
 
     def read_events(
         self,
         aggregate_type: str | None = None,
         aggregate_id: str | None = None,
         type: str | None = None,
+        types: list[str] | None = None,
         correlation_id: str | None = None,
         since_seq: int = 0,
+        since_ts: str | None = None,
+        payload_goal_id: str | None = None,
+        limit: int | None = None,
+        order: str = "asc",
     ) -> list[Event]:
-        """Read the log in order (pull). Foundation for replay, projection, audit."""
+        """Read the log (pull). Foundation for replay, projection, audit."""
         clauses = ["seq > ?"]
         params: list[Any] = [since_seq]
         if aggregate_type is not None:
@@ -153,16 +183,29 @@ class Kernel:
         if aggregate_id is not None:
             clauses.append("aggregate_id = ?")
             params.append(aggregate_id)
-        if type is not None:
+        if types:
+            placeholders = ",".join("?" * len(types))
+            clauses.append(f"type IN ({placeholders})")
+            params.extend(types)
+        elif type is not None:
             clauses.append("type = ?")
             params.append(type)
+        if payload_goal_id is not None:
+            clauses.append("json_extract(payload, '$.goal_id') = ?")
+            params.append(payload_goal_id)
         if correlation_id is not None:
             clauses.append("correlation_id = ?")
             params.append(correlation_id)
+        if since_ts is not None:
+            clauses.append("ts >= ?")
+            params.append(since_ts)
         where = " AND ".join(clauses)
+        order_sql = "seq DESC" if order == "desc" else "seq ASC"
+        limit_sql = f" LIMIT {int(limit)}" if limit is not None else ""
         with self._db.get_db() as conn:
             rows = conn.execute(
-                f"SELECT * FROM event_log WHERE {where} ORDER BY seq ASC", params
+                f"SELECT * FROM event_log WHERE {where} ORDER BY {order_sql}{limit_sql}",
+                params,
             ).fetchall()
         return [Event.from_row(r) for r in rows]
 
@@ -200,68 +243,217 @@ class Kernel:
         Kept deliberately small — selectors expand as projections are added.
         """
         if selector == "goals":
-            goal_id = filters.get("id")
-            status = filters.get("status")
-            limit = filters.get("limit", 50)
-            with self._db.get_db() as conn:
-                if goal_id:
-                    row = conn.execute(
-                        "SELECT * FROM goals WHERE id = ?", (goal_id,)
-                    ).fetchone()
-                    return [dict(row)] if row else []
-                if status:
-                    rows = conn.execute(
-                        "SELECT * FROM goals WHERE status = ? ORDER BY importance DESC, created_at DESC LIMIT ?",
-                        (status, limit),
-                    ).fetchall()
-                else:
-                    rows = conn.execute(
-                        "SELECT * FROM goals ORDER BY importance DESC, created_at DESC LIMIT ?",
-                        (limit,),
-                    ).fetchall()
-            return [dict(r) for r in rows]
+            return self._query_goals(filters)
         if selector == "tasks":
-            with self._db.get_db() as conn:
-                rows = conn.execute(
-                    "SELECT * FROM tasks ORDER BY created_at ASC"
-                ).fetchall()
-            return [dict(r) for r in rows]
+            return self._query_tasks(filters)
+        if selector == "approvals":
+            return self._query_approvals(filters)
         if selector == "actions":
-            goal_id = filters.get("goal_id")
-            action_id = filters.get("id")
-            with self._db.get_db() as conn:
-                if action_id:
-                    row = conn.execute(
-                        "SELECT * FROM actions WHERE id = ?", (action_id,)
-                    ).fetchone()
-                    return [dict(row)] if row else []
-                if goal_id:
-                    rows = conn.execute(
-                        "SELECT * FROM actions WHERE goal_id = ? ORDER BY created_at ASC",
-                        (goal_id,),
-                    ).fetchall()
-                else:
-                    rows = conn.execute(
-                        "SELECT * FROM actions ORDER BY created_at ASC LIMIT ?",
-                        (filters.get("limit", 100),),
-                    ).fetchall()
-            return [dict(r) for r in rows]
+            return self._query_actions(filters)
         if selector == "memories":
-            category = filters.get("category")
-            limit = filters.get("limit", 50)
-            with self._db.get_db() as conn:
-                if category:
-                    rows = conn.execute(
-                        "SELECT * FROM memories WHERE category = ? ORDER BY confidence DESC, created_at DESC LIMIT ?",
-                        (category, limit),
-                    ).fetchall()
-                else:
-                    rows = conn.execute(
-                        "SELECT * FROM memories ORDER BY confidence DESC, created_at DESC LIMIT ?",
-                        (limit,),
-                    ).fetchall()
-            return [dict(r) for r in rows]
+            return self._query_memories(filters)
         raise ValueError(f"Unknown state selector: {selector!r}")
+
+    def _query_goals(self, filters: dict[str, Any]) -> list[dict]:
+        goal_id = filters.get("id")
+        status = filters.get("status")
+        limit = filters.get("limit", 50)
+        order = filters.get("order", "importance_desc")
+        last_activity_older_than_days = filters.get("last_activity_older_than_days")
+        deadline_within_days = filters.get("deadline_within_days")
+        updated_since = filters.get("updated_since")
+        has_deadline = filters.get("has_deadline")
+
+        order_clauses = {
+            "importance_desc": "importance DESC, created_at DESC",
+            "importance_urgency_desc": "importance DESC, urgency DESC",
+            "last_activity_asc": "last_activity_at ASC",
+            "importance_desc_only": "importance DESC",
+        }
+        order_sql = order_clauses.get(order, order_clauses["importance_desc"])
+
+        with self._db.get_db() as conn:
+            if goal_id:
+                row = conn.execute("SELECT * FROM goals WHERE id = ?", (goal_id,)).fetchone()
+                return [dict(row)] if row else []
+
+            clauses: list[str] = []
+            params: list[Any] = []
+            if status is not None:
+                clauses.append("status = ?")
+                params.append(status)
+            if last_activity_older_than_days is not None:
+                clauses.append("last_activity_at < datetime('now', ?)")
+                params.append(f"-{int(last_activity_older_than_days)} days")
+            if deadline_within_days is not None:
+                clauses.append(
+                    "deadline IS NOT NULL AND deadline BETWEEN datetime('now') AND datetime('now', ?)"
+                )
+                params.append(f"+{int(deadline_within_days)} days")
+            if updated_since is not None:
+                clauses.append("updated_at >= ?")
+                params.append(updated_since)
+            if has_deadline:
+                clauses.append("deadline IS NOT NULL")
+
+            where = f" WHERE {' AND '.join(clauses)}" if clauses else ""
+            params.append(limit)
+            rows = conn.execute(
+                f"SELECT * FROM goals{where} ORDER BY {order_sql} LIMIT ?",
+                params,
+            ).fetchall()
+        return [dict(r) for r in rows]
+
+    def _query_actions(self, filters: dict[str, Any]) -> list[dict]:
+        goal_id = filters.get("goal_id")
+        action_id = filters.get("id")
+        status = filters.get("status")
+        limit = filters.get("limit", 100)
+        order = filters.get("order", "created_at_asc")
+
+        order_clauses = {
+            "created_at_asc": "created_at ASC",
+            "created_at_desc": "created_at DESC",
+        }
+        order_sql = order_clauses.get(order, order_clauses["created_at_asc"])
+
+        with self._db.get_db() as conn:
+            if action_id:
+                row = conn.execute("SELECT * FROM actions WHERE id = ?", (action_id,)).fetchone()
+                return [dict(row)] if row else []
+
+            clauses: list[str] = []
+            params: list[Any] = []
+            if goal_id is not None:
+                clauses.append("goal_id = ?")
+                params.append(goal_id)
+            if status is not None:
+                clauses.append("status = ?")
+                params.append(status)
+
+            where = f" WHERE {' AND '.join(clauses)}" if clauses else ""
+            params.append(limit)
+            rows = conn.execute(
+                f"SELECT * FROM actions{where} ORDER BY {order_sql} LIMIT ?",
+                params,
+            ).fetchall()
+        return [dict(r) for r in rows]
+
+    def _query_tasks(self, filters: dict[str, Any]) -> list[dict]:
+        task_id = filters.get("id")
+        status = filters.get("status")
+        parent_goal_id = filters.get("parent_goal_id")
+        parent_task_id = filters.get("parent_task_id")
+        root_only = filters.get("root_only")
+        depends_on_task = filters.get("depends_on_task")
+        limit = filters.get("limit")
+        order = filters.get("order", "created_at_asc")
+
+        order_clauses = {
+            "created_at_asc": "created_at ASC",
+            "created_at_desc": "created_at DESC",
+            "priority_desc": "priority DESC, created_at ASC",
+            "priority_desc_created_desc": "priority DESC, created_at DESC",
+        }
+        order_sql = order_clauses.get(order, order_clauses["created_at_asc"])
+
+        with self._db.get_db() as conn:
+            if task_id:
+                row = conn.execute("SELECT * FROM tasks WHERE id = ?", (task_id,)).fetchone()
+                return [dict(row)] if row else []
+
+            clauses: list[str] = []
+            params: list[Any] = []
+            if status is not None:
+                clauses.append("status = ?")
+                params.append(status)
+            if parent_goal_id is not None:
+                clauses.append("parent_goal_id = ?")
+                params.append(parent_goal_id)
+            if parent_task_id is not None:
+                clauses.append("parent_task_id = ?")
+                params.append(parent_task_id)
+            if root_only:
+                clauses.append("parent_task_id IS NULL")
+            if depends_on_task is not None:
+                clauses.append("dependencies_json LIKE ?")
+                params.append(f"%{depends_on_task}%")
+
+            where = f" WHERE {' AND '.join(clauses)}" if clauses else ""
+            limit_sql = f" LIMIT {int(limit)}" if limit is not None else ""
+            rows = conn.execute(
+                f"SELECT * FROM tasks{where} ORDER BY {order_sql}{limit_sql}",
+                params,
+            ).fetchall()
+        return [dict(r) for r in rows]
+
+    def _query_approvals(self, filters: dict[str, Any]) -> list[dict]:
+        approval_id = filters.get("id")
+        status = filters.get("status")
+        limit = filters.get("limit", 50)
+
+        with self._db.get_db() as conn:
+            if approval_id:
+                row = conn.execute(
+                    "SELECT * FROM approvals WHERE id = ?", (approval_id,)
+                ).fetchone()
+                return [dict(row)] if row else []
+            if status is not None:
+                rows = conn.execute(
+                    "SELECT * FROM approvals WHERE status = ? ORDER BY created_at DESC LIMIT ?",
+                    (status, limit),
+                ).fetchall()
+            else:
+                rows = conn.execute(
+                    "SELECT * FROM approvals ORDER BY created_at DESC LIMIT ?",
+                    (limit,),
+                ).fetchall()
+        return [dict(r) for r in rows]
+
+    def _query_memories(self, filters: dict[str, Any]) -> list[dict]:
+        memory_id = filters.get("id")
+        category = filters.get("category")
+        confidence_gt = filters.get("confidence_gt")
+        confidence_lt = filters.get("confidence_lt")
+        decay_eligible = filters.get("decay_eligible")
+        limit = filters.get("limit", 50)
+
+        with self._db.get_db() as conn:
+            if memory_id:
+                row = conn.execute(
+                    "SELECT * FROM memories WHERE id = ?", (memory_id,)
+                ).fetchone()
+                return [dict(row)] if row else []
+
+            clauses: list[str] = []
+            params: list[Any] = []
+            if category is not None:
+                clauses.append("category = ?")
+                params.append(category)
+            if confidence_gt is not None:
+                clauses.append("confidence > ?")
+                params.append(confidence_gt)
+            if confidence_lt is not None:
+                clauses.append("confidence < ?")
+                params.append(confidence_lt)
+            if decay_eligible:
+                clauses.append(
+                    "(decayed_at IS NULL OR decayed_at < datetime('now', '-7 days'))"
+                )
+
+            where = f" WHERE {' AND '.join(clauses)}" if clauses else ""
+            params.append(limit)
+            rows = conn.execute(
+                f"SELECT * FROM memories{where} ORDER BY confidence DESC, created_at DESC LIMIT ?",
+                params,
+            ).fetchall()
+        return [dict(r) for r in rows]
+
+    def list_capability_definitions(self) -> list[dict]:
+        """Read-only capability metadata for LLM tool schemas (User Space ABI)."""
+        from app.core.harness.mcp_hub import mcp_hub
+
+        return mcp_hub.get_tool_defs_for_llm()
 
     def recall_memory(self, query: str, k: int = 5) -> list[dict]:
         """Semantic recall from derived memories (projected from MemoryDerived events).
@@ -313,6 +505,42 @@ class Kernel:
         else:
             return {"status": "pending", "approval_id": approval_id, "reason": "needs_user_confirmation"}
 
+    def grant_approval(
+        self,
+        approval_id: str,
+        action: str = "",
+        actor: str = "user",
+        reason: str = "",
+        correlation_id: str | None = None,
+    ) -> None:
+        """Record an approval grant on the governed approval projection."""
+        self.emit_event(
+            type="ApprovalGranted",
+            aggregate_type="approval",
+            aggregate_id=approval_id,
+            payload={"action": action, "reason": reason},
+            actor=actor,
+            correlation_id=correlation_id,
+        )
+
+    def deny_approval(
+        self,
+        approval_id: str,
+        action: str = "",
+        actor: str = "user",
+        reason: str = "",
+        correlation_id: str | None = None,
+    ) -> None:
+        """Record an approval denial on the governed approval projection."""
+        self.emit_event(
+            type="ApprovalDenied",
+            aggregate_type="approval",
+            aggregate_id=approval_id,
+            payload={"action": action, "reason": reason},
+            actor=actor,
+            correlation_id=correlation_id,
+        )
+
     async def invoke_capability(
         self,
         name: str,
@@ -320,6 +548,7 @@ class Kernel:
         actor: str = "system",
         correlation_id: str | None = None,
         caused_by: str | None = None,
+        pre_approved: bool = False,
     ) -> dict:
         """Invoke a capability through the Kernel, with approval gating.
 
@@ -365,33 +594,34 @@ class Kernel:
             )
             return {"status": "error", "error": f"Capability forbidden: {name}"}
 
-        risk = sensitive_router.elevated_risk(name, args) or (
-            "high" if policy_risk == "high" else "low"
-        )
-        approval = self.request_approval(
-            action=name,
-            risk=risk,
-            ctx={"args": args},
-            actor=actor,
-            correlation_id=correlation_id,
-        )
-
-        if approval["status"] != "approved":
-            self.emit_event(
-                type="CapabilityDeferred",
-                aggregate_type="capability",
-                aggregate_id=f"cap_{name}",
-                payload={
-                    "name": name,
-                    "args_summary": str(args)[:200],
-                    "reason": approval.get("reason", "needs_user_confirmation"),
-                    "approval_id": approval["approval_id"],
-                },
+        if not pre_approved:
+            risk = sensitive_router.elevated_risk(name, args) or (
+                "high" if policy_risk == "high" else "low"
+            )
+            approval = self.request_approval(
+                action=name,
+                risk=risk,
+                ctx={"args": args},
                 actor=actor,
-                caused_by=caused_by,
                 correlation_id=correlation_id,
             )
-            return {"status": "pending", "approval_id": approval["approval_id"]}
+
+            if approval["status"] != "approved":
+                self.emit_event(
+                    type="CapabilityDeferred",
+                    aggregate_type="capability",
+                    aggregate_id=f"cap_{name}",
+                    payload={
+                        "name": name,
+                        "args_summary": str(args)[:200],
+                        "reason": approval.get("reason", "needs_user_confirmation"),
+                        "approval_id": approval["approval_id"],
+                    },
+                    actor=actor,
+                    caused_by=caused_by,
+                    correlation_id=correlation_id,
+                )
+                return {"status": "pending", "approval_id": approval["approval_id"]}
 
         # Auto-allowed or pre-granted: execute the tool (mcp_hub handles
         # sync/async dispatch and telemetry; it is properly typed as async).
@@ -557,6 +787,7 @@ class Kernel:
                 conn.execute(f"DELETE FROM {table}")
             for event in events:
                 projectors.apply(event, conn)
+                self._sync_memory_index(event, conn)
         return len(events)
 
     def rebuild_all(self) -> dict[str, int]:

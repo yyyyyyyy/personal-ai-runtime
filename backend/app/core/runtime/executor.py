@@ -2,10 +2,7 @@
 
 import json
 
-from app.core.runtime.event_bus import EventType, event_bus
 from app.core.runtime.kernel_instance import kernel
-from app.core.telemetry.event_recorder import Event, event_recorder
-from app.store.database import db
 
 
 class Executor:
@@ -13,12 +10,11 @@ class Executor:
 
     async def execute_action(self, action_id: str) -> dict:
         """Execute an action's executable_plan, recording each step result as an event."""
-        with db.get_db() as conn:
-            row = conn.execute("SELECT * FROM actions WHERE id = ?", (action_id,)).fetchone()
-        if not row:
+        rows = kernel.query_state("actions", id=action_id)
+        if not rows:
             return {"error": "Action not found"}
 
-        action = dict(row)
+        action = rows[0]
         plan_str = action.get("executable_plan")
         if not plan_str:
             return {"error": "No executable plan defined"}
@@ -61,29 +57,12 @@ class Executor:
                 "result_preview": str(tool_result)[:500],
             })
 
-            event_recorder.record(Event(
-                type="execution_step",
-                summary=f"Step {i}: {tool_name} ({step_status})",
-                payload={
-                    "action_id": action_id,
-                    "step_index": i,
-                    "tool": tool_name,
-                    "status": step_status,
-                },
-            ))
-
             previous_output = {f"step_{i}_output": str(tool_result)[:1000]}
 
             if step_status == "failed" and not step.get("continue_on_error"):
                 break
             if step_status == "pending":
                 break
-
-        event_bus.publish(EventType.TASK_COMPLETED, {
-            "task_id": f"action-{action_id}",
-            "name": f"Executed action: {action.get('title', '')}",
-            "step_results": results,
-        })
 
         return {
             "action_id": action_id,

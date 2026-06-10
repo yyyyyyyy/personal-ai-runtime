@@ -23,12 +23,9 @@ from app.api import (
 from app.config import settings
 from app.core.runtime.background_worker import background_worker
 from app.core.runtime.event_bus import event_bus
+from app.core.runtime.kernel_event_bridge import register_kernel_event_bridge
 from app.core.runtime.scheduler_v2 import init_scheduler_v2, shutdown_scheduler_v2
-from app.core.runtime.state_manager import state_manager
 from app.core.scheduler import init_scheduler, shutdown_scheduler
-
-# Wire StateManager to EventBus
-state_manager._event_bus = event_bus
 
 # WebSocket connection manager for real-time notifications
 _ws_connections: list[WebSocket] = []
@@ -37,8 +34,9 @@ _ws_connections: list[WebSocket] = []
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Startup and shutdown events."""
-    # Start Event Bus
+    # Start Event Bus and wire Kernel → Bus bridge before scheduler subscriptions
     await event_bus.start()
+    register_kernel_event_bridge()
 
     # Initialize both schedulers (old + v2, side by side during migration)
     init_scheduler()

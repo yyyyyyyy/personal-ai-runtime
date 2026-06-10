@@ -2,13 +2,12 @@
 
 Memories are NOT raw data. They are refined insights from Events and conversations.
 All writes to the `memories` projection go through the Kernel (MemoryDerived/Updated/Deleted).
-ChromaDB is a derived search index updated alongside projection events.
+ChromaDB is a derived search index maintained by the Kernel after projection.
 """
 
 import uuid
 
 from app.core.runtime.kernel_instance import kernel
-from app.store.vector import vector_store
 
 
 class MemoryEngine:
@@ -22,14 +21,8 @@ class MemoryEngine:
         actor: str = "user",
         confidence: float = 0.5,
     ) -> str:
-        """Store a memory via Kernel event + ChromaDB index."""
+        """Store a memory via Kernel event; Chroma index syncs in Kernel Space."""
         memory_id = str(uuid.uuid4())
-
-        embedding_id = vector_store.add_memory(
-            content=content,
-            metadata={"category": category, "source": source or ""},
-            memory_id=memory_id,
-        )
 
         kernel.emit_event(
             type="MemoryDerived",
@@ -39,7 +32,6 @@ class MemoryEngine:
                 "category": category,
                 "content": content,
                 "source": source or "",
-                "embedding_id": embedding_id,
                 "confidence": confidence,
             },
             actor=actor,
@@ -69,8 +61,7 @@ class MemoryEngine:
         return kernel.query_state("memories", **filters)
 
     def delete_memory(self, memory_id: str, actor: str = "user") -> None:
-        """Delete a memory via Kernel event + ChromaDB index."""
-        vector_store.delete_memory(memory_id)
+        """Delete a memory via Kernel event; Chroma index syncs in Kernel Space."""
         kernel.emit_event(
             type="MemoryDeleted",
             aggregate_type="memory",
@@ -85,14 +76,8 @@ class MemoryEngine:
         category: str | None = None,
         actor: str = "user",
     ) -> None:
-        """Update an existing memory via Kernel event + refresh vector index."""
-        vector_store.delete_memory(memory_id)
-        embedding_id = vector_store.add_memory(
-            content=content,
-            metadata={"category": category or "fact"},
-            memory_id=memory_id,
-        )
-        payload: dict = {"content": content, "embedding_id": embedding_id}
+        """Update an existing memory via Kernel event; Chroma index syncs in Kernel Space."""
+        payload: dict = {"content": content}
         if category is not None:
             payload["category"] = category
         kernel.emit_event(

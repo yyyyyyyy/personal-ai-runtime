@@ -13,7 +13,6 @@ from app.core.agents.context_engine import context_engine
 from app.core.agents.conversation import ConversationManager
 from app.core.agents.llm_router import llm_router
 from app.core.agents.memory_extractor import memory_extractor
-from app.core.harness.mcp_hub import mcp_hub
 from app.core.runtime.kernel_instance import kernel
 from app.core.telemetry.event_recorder import Event, event_recorder
 from app.core.telemetry.telemetry import LLMCallRecord, telemetry
@@ -213,17 +212,6 @@ class Brain:
                 # Persist tool result
                 conversation.save_tool_result(tool_result, tc["id"])
 
-                # Record tool call event
-                event_recorder.record(Event(
-                    type="tool_call",
-                    summary=f"Tool called: {tool_name}",
-                    payload={
-                        "tool_name": tool_name,
-                        "arguments": tool_args,
-                        "result_preview": tool_result[:200],
-                    },
-                ))
-
             tool_iterations += 1
             if tool_iterations >= settings.max_tool_iterations:
                 # Save any text content the LLM produced in the final iteration
@@ -292,7 +280,7 @@ class Brain:
                 response = await client.chat.completions.create(  # type: ignore[call-overload]
                     model=provider.model,
                     messages=messages,
-                    tools=mcp_hub.get_tool_defs_for_llm(),
+                    tools=kernel.list_capability_definitions(),
                     tool_choice="auto",
                     temperature=settings.llm_temperature,
                     max_tokens=settings.llm_max_tokens,

@@ -21,14 +21,12 @@ async def test_high_risk_capability_pending_then_approve(kernel):
     assert cap["status"] == "pending"
     approval_id = cap["approval_id"]
 
-    k.emit_event(
-        "ApprovalGranted", "approval", approval_id,
-        payload={"action": "write_file", "reason": "user_approved"},
-        actor="user",
-    )
+    k.grant_approval(approval_id, action="write_file", actor="user", reason="user_approved")
     cap2 = await k.invoke_capability(
-        "write_file", {"path": "/tmp/x", "content": "hi"}, actor="user",
+        "write_file",
+        {"path": "/tmp/x", "content": "hi"},
+        actor="user",
         correlation_id="retry",
+        pre_approved=True,
     )
-    # After manual grant, still needs new approval in current kernel design
-    assert cap2["status"] in ("pending", "success", "error")
+    assert cap2["status"] == "success"

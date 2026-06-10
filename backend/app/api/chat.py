@@ -8,7 +8,6 @@ from fastapi.responses import StreamingResponse
 from app.core.agents.brain import Brain
 from app.core.agents.conversation import ConversationAPI, ConversationManager
 from app.core.agents.intent_predictor import intent_predictor
-from app.core.harness.mcp_hub import mcp_hub
 from app.core.runtime.agent_orchestrator import agent_orchestrator
 from app.core.runtime.kernel_instance import kernel
 from app.store.database import db
@@ -130,26 +129,25 @@ async def resolve_approval(approval_id: str, body: dict):
     tool_call_id = body.get("tool_call_id", "")
 
     if decision == "approve":
-        kernel.emit_event(
-            type="ApprovalGranted",
-            aggregate_type="approval",
-            aggregate_id=approval_id,
-            payload={"action": tool_name, "reason": "user_approved"},
+        kernel.grant_approval(
+            approval_id,
+            action=tool_name,
             actor="user",
+            reason="user_approved",
         )
-        # Execute the capability via mcp_hub (handles sync/async + telemetry).
-        tool = mcp_hub.get_tool(tool_name)
-        if tool is not None:
-            result_str = await mcp_hub.invoke_tool(tool_name, tool_args)
-            kernel.emit_event(
-                type="CapabilityInvoked",
-                aggregate_type="capability",
-                aggregate_id=f"cap_{tool_name}",
-                payload={"name": tool_name, "result_summary": str(result_str)[:200]},
-                actor="user",
-            )
+        cap_result = await kernel.invoke_capability(
+            name=tool_name,
+            args=tool_args,
+            actor="user",
+            pre_approved=True,
+        )
+        if cap_result["status"] == "success":
+            result_str = cap_result["result"]
         else:
-            result_str = json.dumps({"status": "error", "error": f"Unknown tool: {tool_name}"})
+            result_str = json.dumps({
+                "status": cap_result.get("status", "error"),
+                "error": cap_result.get("error", "unknown"),
+            })
 
         # Persist tool result (sole tool message for this call_id)
         db.add_message(
@@ -163,12 +161,11 @@ async def resolve_approval(approval_id: str, body: dict):
         assistant_message = await brain.continue_after_tool_result(conversation)
         return {"status": "success", "result": result_str, "assistant_message": assistant_message}
     else:
-        kernel.emit_event(
-            type="ApprovalDenied",
-            aggregate_type="approval",
-            aggregate_id=approval_id,
-            payload={"action": tool_name, "reason": "user_denied"},
+        kernel.deny_approval(
+            approval_id,
+            action=tool_name,
             actor="user",
+            reason="user_denied",
         )
         result_str = json.dumps({"status": "denied", "reason": "User denied the operation"})
         db.add_message(

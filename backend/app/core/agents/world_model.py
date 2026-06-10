@@ -7,7 +7,8 @@ Injected into Planner's system prompt on every call.
 import json
 from datetime import datetime, timedelta
 
-from app.store.database import db
+from app.core.runtime.kernel_instance import kernel
+from app.core.runtime.legacy_event_adapter import to_legacy_dict
 
 
 class WorldModel:
@@ -30,41 +31,37 @@ class WorldModel:
         now = datetime.utcnow()
         thirty_days_ago = (now - timedelta(days=30)).isoformat()
 
-        with db.get_db() as conn:
-            active_goals = conn.execute(
-                "SELECT title, status, deadline FROM goals WHERE status = 'active'"
-            ).fetchall()
+        active_goals = kernel.query_state("goals", status="active", limit=500)
+        all_goals = kernel.query_state("goals", limit=500)
+        completed_recently = kernel.query_state(
+            "goals",
+            status="completed",
+            updated_since=thirty_days_ago,
+            limit=500,
+        )
 
-            recent_events = conn.execute(
-                "SELECT type, summary, timestamp FROM events WHERE timestamp >= ? ORDER BY timestamp DESC LIMIT 50",
-                (thirty_days_ago,),
-            ).fetchall()
-
-            goal_count = conn.execute("SELECT COUNT(*) as c FROM goals").fetchone()["c"]
-            completed_count = conn.execute(
-                "SELECT COUNT(*) as c FROM goals WHERE status = 'completed' AND updated_at >= ?",
-                (thirty_days_ago,),
-            ).fetchone()["c"]
-
+        recent_kernel_events = kernel.read_events(
+            since_ts=thirty_days_ago, limit=50, order="desc"
+        )
         events_by_type: dict[str, int] = {}
-        for e in recent_events:
-            t = dict(e)["type"]
+        for e in recent_kernel_events:
+            t = to_legacy_dict(e)["type"]
             events_by_type[t] = events_by_type.get(t, 0) + 1
 
         return {
             "timestamp": now.isoformat(),
             "health": {
                 "active_goals": len(active_goals),
-                "completed_recently": completed_count,
-                "total_goals": goal_count,
+                "completed_recently": len(completed_recently),
+                "total_goals": len(all_goals),
             },
             "work": {
-                "goals_with_deadline": len([g for g in active_goals if dict(g).get("deadline")]),
+                "goals_with_deadline": len([g for g in active_goals if g.get("deadline")]),
                 "recent_activity_types": events_by_type,
             },
-            "summary": f"Active goals: {len(active_goals)}. " +
-                       f"Completed recently: {completed_count}. " +
-                       f"Recent events: {sum(events_by_type.values())}.",
+            "summary": f"Active goals: {len(active_goals)}. "
+            + f"Completed recently: {len(completed_recently)}. "
+            + f"Recent events: {sum(events_by_type.values())}.",
         }
 
     def to_prompt_context(self) -> str:

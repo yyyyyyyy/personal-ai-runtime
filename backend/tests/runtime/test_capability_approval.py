@@ -69,6 +69,28 @@ class TestCapabilityApproval:
         assert row["status"] == "approved"
         assert row["action"] == "get_current_time"
 
+    async def test_pre_approved_skips_new_approval(self, tmp_path):
+        k, _ = make_kernel(tmp_path)
+        pending = await k.invoke_capability(
+            "write_file", {"path": "/tmp/x", "content": "hi"}, actor="user", correlation_id="pre",
+        )
+        assert pending["status"] == "pending"
+        approval_id = pending["approval_id"]
+
+        k.grant_approval(approval_id, action="write_file", actor="user", reason="user_ok")
+        result = await k.invoke_capability(
+            "write_file",
+            {"path": "/tmp/x", "content": "hi"},
+            actor="user",
+            correlation_id="pre_exec",
+            pre_approved=True,
+        )
+        assert result["status"] == "success"
+        events = k.read_events(correlation_id="pre_exec")
+        types = [e.type for e in events]
+        assert "ApprovalRequested" not in types
+        assert "CapabilityInvoked" in types
+
     async def test_rebuild_approval_projection(self, tmp_path):
         k, _ = make_kernel(tmp_path)
         await k.invoke_capability("get_current_time", {}, actor="user", correlation_id="c_reb")

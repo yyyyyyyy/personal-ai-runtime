@@ -22,9 +22,10 @@ class TestMemoryExtractor:
         k = Kernel(db=db)
         monkeypatch.setattr("app.core.agents.memory_engine.kernel", k)
         monkeypatch.setattr(
-            "app.core.agents.memory_engine.vector_store.add_memory",
+            "app.store.vector.vector_store.add_memory",
             lambda content, metadata, memory_id: f"emb_{memory_id}",
         )
+        monkeypatch.setattr("app.store.vector.vector_store.delete_memory", lambda _id: None)
 
         extractor = MemoryExtractor(extract_fn=stub_extract)
         stored = await extractor.extract_and_store("User said they like Python")
