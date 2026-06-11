@@ -1,10 +1,23 @@
-"""Multi-turn conversation management with sliding window strategy."""
+"""Multi-turn conversation management with sliding window strategy.
+
+All writes go through Kernel events (Conversation* / MessageAppended).
+The conversations and messages tables are projections, not source of truth.
+"""
+
+from __future__ import annotations
 
 import json
-from dataclasses import dataclass
+import uuid
+from dataclasses import dataclass, field
+from datetime import UTC, datetime
 
 from app.config import settings
+from app.core.runtime.kernel_instance import kernel as default_kernel
 from app.store.database import db
+
+
+def _now() -> str:
+    return datetime.now(UTC).isoformat()
 
 
 @dataclass
@@ -12,6 +25,10 @@ class ConversationManager:
     """Manages conversation lifecycle, message persistence, and context window."""
 
     conversation_id: str
+    kernel: object = field(default=None, repr=False)
+
+    def _k(self):
+        return self.kernel or default_kernel
 
     def get_history(self) -> list[dict]:
         """Get recent messages within the sliding window."""
@@ -29,16 +46,36 @@ class ConversationManager:
             result.append(item)
         return result
 
-    def save_message(self, role: str, content: str, tool_calls: list | None = None, tool_call_id: str | None = None) -> dict:
-        """Persist a message to the database."""
-        tc_json = json.dumps(tool_calls) if tool_calls else None
-        return db.add_message(
-            conv_id=self.conversation_id,
-            role=role,
-            content=content,
-            tool_calls=tc_json,
-            tool_call_id=tool_call_id,
+    def save_message(
+        self,
+        role: str,
+        content: str,
+        tool_calls: list | None = None,
+        tool_call_id: str | None = None,
+    ) -> dict:
+        """Persist a message via MessageAppended event."""
+        msg_id = str(uuid.uuid4())
+        tc_json = tool_calls if tool_calls is None else tool_calls
+        self._k().emit_event(
+            "MessageAppended",
+            "conversation",
+            self.conversation_id,
+            payload={
+                "message_id": msg_id,
+                "role": role,
+                "content": content,
+                "tool_calls": tc_json,
+                "tool_call_id": tool_call_id,
+                "created_at": _now(),
+            },
+            actor="user",
         )
+        return db.get_message(msg_id) or {
+            "id": msg_id,
+            "conversation_id": self.conversation_id,
+            "role": role,
+            "content": content,
+        }
 
     def save_user_message(self, content: str) -> dict:
         return self.save_message(role="user", content=content)
@@ -58,8 +95,23 @@ class ConversationAPI:
     """Stateless API for conversation CRUD operations."""
 
     @staticmethod
-    def create(title: str | None = None) -> dict:
-        return db.create_conversation(title=title)
+    def create(title: str | None = None, *, kernel=None) -> dict:
+        k = kernel or default_kernel
+        conv_id = str(uuid.uuid4())
+        now = _now()
+        k.emit_event(
+            "ConversationCreated",
+            "conversation",
+            conv_id,
+            payload={"title": title or "New Conversation", "created_at": now},
+            actor="user",
+        )
+        return db.get_conversation(conv_id) or {
+            "id": conv_id,
+            "title": title or "New Conversation",
+            "created_at": now,
+            "updated_at": now,
+        }
 
     @staticmethod
     def get(conv_id: str) -> dict | None:
@@ -70,9 +122,30 @@ class ConversationAPI:
         return db.list_conversations(limit=limit)
 
     @staticmethod
-    def delete(conv_id: str):
-        db.delete_conversation(conv_id)
+    def delete(conv_id: str, *, kernel=None):
+        k = kernel or default_kernel
+        k.emit_event(
+            "ConversationDeleted",
+            "conversation",
+            conv_id,
+            payload={},
+            actor="user",
+        )
 
     @staticmethod
-    def update(conv_id: str, title: str | None = None, summary: str | None = None):
-        db.update_conversation(conv_id, title=title, summary=summary)
+    def update(conv_id: str, title: str | None = None, summary: str | None = None, *, kernel=None):
+        k = kernel or default_kernel
+        payload: dict = {}
+        if title is not None:
+            payload["title"] = title
+        if summary is not None:
+            payload["summary"] = summary
+        if not payload:
+            return
+        k.emit_event(
+            "ConversationUpdated",
+            "conversation",
+            conv_id,
+            payload=payload,
+            actor="user",
+        )

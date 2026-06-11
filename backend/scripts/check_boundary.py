@@ -18,7 +18,16 @@ import sys
 from pathlib import Path
 from typing import TextIO
 
-PROJECTION_TABLES = ("goals", "actions", "approvals", "tasks", "memories", "event_log")
+PROJECTION_TABLES = (
+    "goals",
+    "actions",
+    "approvals",
+    "tasks",
+    "memories",
+    "messages",
+    "conversations",
+    "event_log",
+)
 KERNEL_PREFIX = Path("core/runtime/kernel")
 HARNESS_PREFIX = Path("core/harness")
 
@@ -61,9 +70,14 @@ def _capability_subsystem_file(rel: Path) -> bool:
     }
 
 
+def _is_store_layer(rel: Path) -> bool:
+    """database.py is the projection read layer (SELECT-only for governed tables)."""
+    return rel == Path("store/database.py")
+
+
 def _in_scan_scope(rel: Path) -> bool:
-    """User Space: all app/ code except Kernel Space."""
-    return not _is_kernel_space(rel)
+    """User Space: all app/ code except Kernel Space and store read layer."""
+    return not _is_kernel_space(rel) and not _is_store_layer(rel)
 
 
 def scan_app_root(app_root: Path) -> list[tuple[Path, int, str, str, str]]:

@@ -51,6 +51,20 @@ SAMPLE_SCENARIO: list[tuple[str, str, str, dict[str, Any]]] = [
     ("ActionCreated", "action", "act1", {"goal_id": "g2", "title": "Do thing", "status": "pending"}),
     ("ActionUpdated", "action", "act1", {"status": "completed"}),
     ("ActionDeleted", "action", "act1", {}),
+    # Conversations
+    ("ConversationCreated", "conversation", "conv1", {"title": "Rebuild chat"}),
+    (
+        "MessageAppended",
+        "conversation",
+        "conv1",
+        {
+            "message_id": "msg1",
+            "role": "user",
+            "content": "Hello rebuild",
+            "tool_calls": None,
+            "tool_call_id": None,
+        },
+    ),
 ]
 
 
@@ -68,7 +82,7 @@ def main():
     db = Database(db_path=str(db_path))
     k = Kernel(db=db)
 
-    tables = ["goals", "actions", "approvals", "memories", "tasks"]
+    tables = ["goals", "actions", "approvals", "memories", "tasks", "conversations", "messages"]
 
     # 1. Emit sample scenario
     for evt in SAMPLE_SCENARIO:

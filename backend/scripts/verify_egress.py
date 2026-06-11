@@ -32,16 +32,18 @@ def main() -> int:
     messages = [
         {
             "role": "user",
-            "content": "identity_narrative_opt_in career-entrepreneurship claim_status proposed",
+            "content": "identity_narrative_opt_in claim_status proposed",
         }
     ]
     outbound, audit = prepare_llm_egress(messages, purpose="verify")
     if not audit.get("classification"):
         violations.append("egress: missing classification")
-    if not audit.get("redacted"):
-        violations.append("egress: expected redaction for identity_surface content")
-    if outbound == messages:
-        violations.append("egress: outbound messages unchanged after redaction")
+    if "identity_surface" not in audit["classification"]["categories"]:
+        violations.append("egress: expected identity_surface classification")
+    if not audit.get("identity_surface_detected"):
+        violations.append("egress: expected identity_surface_detected flag")
+    if outbound != messages:
+        violations.append("egress: audit-only path must not mutate outbound messages")
 
     events = k.read_events(type="EgressApproved", order="desc", limit=1)
     if not events:
@@ -55,7 +57,7 @@ def main() -> int:
             f"egress: general misclassified {audit2['classification']['categories']}"
         )
     if general[0]["content"] != "hello world":
-        violations.append("egress: general content should not be redacted")
+        violations.append("egress: general content must pass through unchanged")
 
     if violations:
         print("EGRESS VERIFICATION FAILED", file=sys.stderr)

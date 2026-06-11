@@ -57,7 +57,11 @@ def test_legacy_adapter_maps_conversation_type(tmp_path):
     assert "hello" in legacy["summary"]
 
 
-def test_conversation_turn_proposes_trajectory_links(tmp_path):
+def test_conversation_turn_proposes_trajectory_links(tmp_path, monkeypatch):
+    from app.config import settings
+
+    monkeypatch.setattr(settings, "experimental_trajectory_enabled", True)
+
     k = Kernel(db=Database(db_path=str(tmp_path / "conv3.db")))
     import app.core.runtime.kernel_instance as ki
     import app.store.database as db_mod

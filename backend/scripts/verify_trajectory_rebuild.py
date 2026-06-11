@@ -17,7 +17,7 @@ if str(_BACKEND_ROOT) not in sys.path:
 os.environ.setdefault("LLM_API_KEY", "test-key")
 
 from app.core.runtime.kernel import Kernel
-from app.core.runtime.trajectory.engine import (
+from app.experimental.trajectory.engine import (
     _collect_trajectory_links_materialized,
     _collect_trajectory_links_virtual,
     link_event,

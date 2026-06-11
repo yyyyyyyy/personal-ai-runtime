@@ -4,9 +4,9 @@
 >
 > 它不是 API 设计，也不是实现计划。`RUNTIME_SPEC.md` 冻结 7 Primitive；`HUMAN_RUNTIME_CONSTITUTION.md` 冻结权力结构；本文档冻结 **Meaning 层的本体分工**。
 >
-> 状态：**v0.1 — Ratified** ｜ 适配基线：backend v0.9.0 ｜ 不修改 `RUNTIME_SPEC.md` 之 Primitive 冻结声明
+> 状态：**v0.1 — Experimental** ｜ 适配基线：backend v0.9.0 ｜ 实现见 `backend/app/experimental/`
 >
-> 依赖：[`HUMAN_RUNTIME_CONSTITUTION.md`](../HUMAN_RUNTIME_CONSTITUTION.md)（Ratified）、[`EPISTEMIC_CLOSURE_RFC.md`](EPISTEMIC_CLOSURE_RFC.md) v0.1 Ratified
+> 依赖：[`HUMAN_RUNTIME_CONSTITUTION.md`](../HUMAN_RUNTIME_CONSTITUTION.md)（Draft）、[`EPISTEMIC_CLOSURE_RFC.md`](EPISTEMIC_CLOSURE_RFC.md) v0.1 Experimental
 >
 > 被引用：`TRAJECTORY_RFC.md`、`IDENTITY_RFC.md`
 

@@ -22,6 +22,9 @@ from .event import Event
 
 logger = logging.getLogger(__name__)
 
+# Core aggregates whose projection tables are snapshotted for incremental rebuild.
+PROJECTION_SNAPSHOT_AGGREGATES = ("goal", "task", "memory", "conversation")
+
 # ── Schema DDL (fallback for custom-DB tests & pre-Alembic envs) ───────────
 
 EVENT_LOG_SCHEMA = """
@@ -47,6 +50,15 @@ CREATE TRIGGER IF NOT EXISTS event_log_no_update
 CREATE TRIGGER IF NOT EXISTS event_log_no_delete
     BEFORE DELETE ON event_log
     BEGIN SELECT RAISE(ABORT, 'event_log is append-only: DELETE forbidden'); END;
+"""
+
+PROJECTION_CHECKPOINTS_SCHEMA = """
+CREATE TABLE IF NOT EXISTS projection_checkpoints (
+    aggregate_type   TEXT PRIMARY KEY,
+    last_applied_seq INTEGER NOT NULL,
+    snapshot_json    TEXT NOT NULL,
+    created_at       TEXT NOT NULL
+);
 """
 
 TRAJECTORY_LINKS_SCHEMA = """
@@ -87,6 +99,9 @@ class Kernel:
             db = global_db
         self._db = db
         self._subscribers: list[tuple[dict, Subscriber]] = []
+        # Process-local ephemeral agent registry — NOT authoritative.
+        # Used only for in-flight capability isolation; lost on restart and not
+        # reconstructible from the Event Log. Do not rely on it across requests.
         self._active_agents: dict[str, dict] = {}
         self._ensure_schema()
 
@@ -103,6 +118,7 @@ class Kernel:
         with self._db.get_db() as conn:
             conn.executescript(EVENT_LOG_SCHEMA)
             conn.executescript(TRAJECTORY_LINKS_SCHEMA)
+            conn.executescript(PROJECTION_CHECKPOINTS_SCHEMA)
             for stmt in MEMORIES_LEGACY_DDL:
                 try:
                     conn.execute(stmt)
@@ -718,9 +734,17 @@ class Kernel:
             return {"status": "error", "error": f"Capability forbidden: {name}"}
 
         if not pre_approved:
+            from app.core.runtime.taint import is_write_class_tool, taint_registry
+
             risk = sensitive_router.elevated_risk(name, args) or (
                 "high" if policy_risk == "high" else "low"
             )
+            if (
+                correlation_id
+                and taint_registry.is_tainted(correlation_id)
+                and is_write_class_tool(name)
+            ):
+                risk = "high"
             approval = self.request_approval(
                 action=name,
                 risk=risk,
@@ -833,8 +857,12 @@ class Kernel:
         allowed_capabilities: list[str] | None = None,
     ) -> dict:
         """Spawn a temporary agent to work on a task. Emits AgentSpawned.
+
         The agent is ephemeral — it must be kill_agent'd after completing.
         `spec` identifies the agent type (e.g. "planner", "critic", "brain").
+
+        `_active_agents` tracks allowed_capabilities for the spawned agent only
+        for the current process lifetime; the whitelist does not survive restart.
         """
         agent_id = f"agent_{uuid.uuid4().hex}"
         # Mark task as started
@@ -870,7 +898,10 @@ class Kernel:
         correlation_id: str | None = None,
     ) -> None:
         """Destroy an ephemeral agent and complete its task.
+
         Emits AgentTerminated and TaskCompleted (or TaskFailed).
+        Removes the agent from the non-authoritative in-process `_active_agents`
+        map; this state is not persisted to the Event Log.
         """
         agent_id = handle["agent_id"]
         task_ref = handle["task_ref"]
@@ -894,15 +925,233 @@ class Kernel:
         )
         self._active_agents.pop(agent_id, None)
 
+    # --- Export / import (data sovereignty) ----------------------------------
+
+    _PROJECTION_TABLES = (
+        "goals",
+        "actions",
+        "tasks",
+        "memories",
+        "approvals",
+        "patterns",
+        "trajectory_links",
+    )
+
+    def _drop_event_log_guards(self, conn) -> None:
+        conn.execute("DROP TRIGGER IF EXISTS event_log_no_update")
+        conn.execute("DROP TRIGGER IF EXISTS event_log_no_delete")
+
+    def _ensure_event_log_guards(self, conn) -> None:
+        conn.execute(
+            """CREATE TRIGGER IF NOT EXISTS event_log_no_update
+               BEFORE UPDATE ON event_log
+               BEGIN SELECT RAISE(ABORT, 'event_log is append-only: UPDATE forbidden'); END"""
+        )
+        conn.execute(
+            """CREATE TRIGGER IF NOT EXISTS event_log_no_delete
+               BEFORE DELETE ON event_log
+               BEGIN SELECT RAISE(ABORT, 'event_log is append-only: DELETE forbidden'); END"""
+        )
+
+    def export_event_log_rows(self) -> list[dict[str, Any]]:
+        """Export full event_log for lossless snapshot (payload as stored JSON string)."""
+        with self._db.get_db() as conn:
+            rows = conn.execute("SELECT * FROM event_log ORDER BY seq ASC").fetchall()
+        return [dict(r) for r in rows]
+
+    def import_event_log_rows(
+        self,
+        rows: list[dict[str, Any]],
+        *,
+        rebuild_projections: bool = True,
+    ) -> int:
+        """Bulk-import events preserving seq/id; optionally rebuild all projections."""
+        with self._db.get_db() as conn:
+            self._drop_event_log_guards(conn)
+            for table in self._PROJECTION_TABLES:
+                conn.execute(f"DELETE FROM {table}")
+            conn.execute("DELETE FROM event_log")
+
+            for row in sorted(rows, key=lambda r: int(r["seq"])):
+                payload = row.get("payload")
+                if isinstance(payload, dict):
+                    payload = json.dumps(payload)
+                conn.execute(
+                    """INSERT INTO event_log
+                       (seq, id, type, aggregate_type, aggregate_id, actor, payload,
+                        caused_by, correlation_id, ts)
+                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                    (
+                        int(row["seq"]),
+                        row["id"],
+                        row["type"],
+                        row["aggregate_type"],
+                        row["aggregate_id"],
+                        row["actor"],
+                        payload,
+                        row.get("caused_by"),
+                        row.get("correlation_id"),
+                        row["ts"],
+                    ),
+                )
+
+            max_seq = max((int(r["seq"]) for r in rows), default=0)
+            conn.execute("DELETE FROM sqlite_sequence WHERE name = 'event_log'")
+            if max_seq > 0:
+                conn.execute(
+                    "INSERT INTO sqlite_sequence (name, seq) VALUES ('event_log', ?)",
+                    (max_seq,),
+                )
+            self._ensure_event_log_guards(conn)
+
+        if rebuild_projections:
+            self.rebuild_all()
+            from app.core.runtime.trajectory.engine import rebuild_trajectory_links
+
+            rebuild_trajectory_links(self)
+            for event in self.read_events(
+                types=["MemoryDerived", "MemoryUpdated", "MemoryDeleted", "BeliefFormed"]
+            ):
+                self._sync_memory_index(event)
+        return len(rows)
+
+    def table_counts(self, tables: tuple[str, ...]) -> dict[str, int]:
+        """Kernel-space row counts for sovereignty verification."""
+        out: dict[str, int] = {}
+        with self._db.get_db() as conn:
+            for table in tables:
+                row = conn.execute(f"SELECT COUNT(*) AS c FROM {table}").fetchone()
+                out[table] = int(row["c"])
+        return out
+
+    def bootstrap_chat_from_snapshot(
+        self,
+        conversations: list[dict[str, Any]],
+        messages: list[dict[str, Any]],
+        event_rows: list[dict[str, Any]],
+    ) -> dict[str, int]:
+        """Emit chat events for legacy snapshots missing Conversation*/MessageAppended."""
+        has_chat_events = any(
+            r.get("type") in {
+                "ConversationCreated",
+                "ConversationUpdated",
+                "ConversationDeleted",
+                "MessageAppended",
+            }
+            for r in event_rows
+        )
+        if has_chat_events:
+            return {"conversations": 0, "messages": 0}
+
+        conv_count = 0
+        msg_count = 0
+        for conv in conversations:
+            self.emit_event(
+                "ConversationCreated",
+                "conversation",
+                conv["id"],
+                payload={
+                    "title": conv.get("title", "New Conversation"),
+                    "summary": conv.get("summary"),
+                    "created_at": conv.get("created_at"),
+                },
+                actor="import",
+            )
+            conv_count += 1
+
+        for msg in messages:
+            tool_calls = msg.get("tool_calls")
+            if tool_calls is not None and isinstance(tool_calls, str):
+                try:
+                    tool_calls = json.loads(tool_calls)
+                except json.JSONDecodeError:
+                    pass
+            self.emit_event(
+                "MessageAppended",
+                "conversation",
+                msg["conversation_id"],
+                payload={
+                    "message_id": msg["id"],
+                    "role": msg["role"],
+                    "content": msg.get("content", ""),
+                    "tool_calls": tool_calls,
+                    "tool_call_id": msg.get("tool_call_id"),
+                    "created_at": msg.get("created_at"),
+                },
+                actor="import",
+            )
+            msg_count += 1
+
+        return {"conversations": conv_count, "messages": msg_count}
+
+    def export_chat_rows(self) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+        """Export conversation/message projections (denormalized backup)."""
+        with self._db.get_db() as conn:
+            conversations = [
+                dict(r)
+                for r in conn.execute(
+                    "SELECT * FROM conversations ORDER BY created_at ASC"
+                ).fetchall()
+            ]
+            messages = [
+                dict(r)
+                for r in conn.execute(
+                    "SELECT * FROM messages ORDER BY created_at ASC"
+                ).fetchall()
+            ]
+        return conversations, messages
+
     # --- Replay / rebuild ----------------------------------------------------
 
-    def rebuild(self, aggregate_type: str) -> int:
-        """Wipe the projection(s) for an aggregate type and rebuild from the Event
-        Log. Returns the number of events replayed.
+    def _restore_table_snapshot(self, conn, table: str, rows: list[dict[str, Any]]) -> None:
+        if not rows:
+            return
+        columns = list(rows[0].keys())
+        placeholders = ",".join("?" * len(columns))
+        col_sql = ",".join(columns)
+        for row in rows:
+            conn.execute(
+                f"INSERT OR REPLACE INTO {table} ({col_sql}) VALUES ({placeholders})",
+                [row[c] for c in columns],
+            )
 
-        This is the proof of the Runtime's core property: State is fully derived
-        from the immutable Event Log. The Event Log itself is never touched here.
-        """
+    def save_projection_snapshot(self, aggregate_type: str) -> dict[str, Any]:
+        """Persist projection tables + last_applied_seq for incremental rebuild."""
+        from datetime import UTC, datetime
+
+        tables = projectors.owned_tables(aggregate_type)
+        events = self.read_events(aggregate_type=aggregate_type)
+        last_seq = max((int(e.seq) for e in events if e.seq is not None), default=0)
+
+        snapshot: dict[str, list[dict[str, Any]]] = {}
+        with self._db.get_db() as conn:
+            for table in tables:
+                snapshot[table] = [
+                    dict(r) for r in conn.execute(f"SELECT * FROM {table}").fetchall()
+                ]
+            conn.execute(
+                """INSERT OR REPLACE INTO projection_checkpoints
+                   (aggregate_type, last_applied_seq, snapshot_json, created_at)
+                   VALUES (?, ?, ?, ?)""",
+                (
+                    aggregate_type,
+                    last_seq,
+                    json.dumps(snapshot),
+                    datetime.now(UTC).isoformat(),
+                ),
+            )
+        return {"aggregate_type": aggregate_type, "last_applied_seq": last_seq}
+
+    def save_projection_snapshots(
+        self,
+        aggregate_types: tuple[str, ...] | list[str] | None = None,
+    ) -> list[dict[str, Any]]:
+        """Persist checkpoints for one or more aggregates (default: core set)."""
+        types = aggregate_types or PROJECTION_SNAPSHOT_AGGREGATES
+        return [self.save_projection_snapshot(agg) for agg in types]
+
+    def rebuild(self, aggregate_type: str) -> int:
+        """Rebuild projection from Event Log (incremental when checkpoint exists)."""
         if aggregate_type == "trajectory":
             from app.core.runtime.trajectory.engine import rebuild_trajectory_links
 
@@ -911,13 +1160,34 @@ class Kernel:
         tables = projectors.owned_tables(aggregate_type)
         events = self.read_events(aggregate_type=aggregate_type)
         with self._db.get_db() as conn:
-            for table in tables:
+            checkpoint = conn.execute(
+                "SELECT last_applied_seq, snapshot_json FROM projection_checkpoints WHERE aggregate_type = ?",
+                (aggregate_type,),
+            ).fetchone()
+
+            delete_order = list(reversed(tables))
+            for table in delete_order:
                 conn.execute(f"DELETE FROM {table}")
+
+            last_seq = 0
+            if checkpoint:
+                last_seq = int(checkpoint["last_applied_seq"])
+                snapshot = json.loads(checkpoint["snapshot_json"])
+                for table in tables:
+                    self._restore_table_snapshot(conn, table, snapshot.get(table, []))
+
+            replayed = 0
             for event in events:
+                if event.seq is not None and int(event.seq) <= last_seq:
+                    continue
                 projectors.apply(event, conn)
+                replayed += 1
+
         for event in events:
+            if checkpoint and event.seq is not None and int(event.seq) <= last_seq:
+                continue
             self._sync_memory_index(event)
-        return len(events)
+        return replayed if checkpoint else len(events)
 
     def rebuild_all(self) -> dict[str, int]:
         """Rebuild all registered aggregate types. Returns {type: count}."""

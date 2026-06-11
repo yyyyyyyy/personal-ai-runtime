@@ -41,14 +41,17 @@ def record_conversation_turn(
         correlation_id=correlation_id,
     )
 
-    from app.core.runtime.trajectory.suggester import trajectory_suggester
+    from app.config import settings
 
-    text = f"User: {user_message}\nAssistant: {assistant_message}".strip()
-    trajectory_suggester.schedule_after_conversation(
-        event.seq,
-        text,
-        source=conversation_id,
-    )
+    if settings.experimental_trajectory_enabled:
+        from app.experimental.trajectory.suggester import trajectory_suggester
+
+        text = f"User: {user_message}\nAssistant: {assistant_message}".strip()
+        trajectory_suggester.schedule_after_conversation(
+            event.seq,
+            text,
+            source=conversation_id,
+        )
     return event
 
 

@@ -1,9 +1,8 @@
 """SQLite database management with Alembic-powered schema initialization."""
 
+import json
 import sqlite3
-import uuid
 from contextlib import contextmanager
-from datetime import UTC, datetime
 from pathlib import Path
 
 from app.config import settings
@@ -267,14 +266,10 @@ class Database:
     # --- Conversation methods ---
 
     def create_conversation(self, title: str | None = None) -> dict:
-        conv_id = str(uuid.uuid4())
-        now = datetime.now(UTC).isoformat()
-        with self.get_db() as conn:
-            conn.execute(
-                "INSERT INTO conversations (id, title, created_at, updated_at) VALUES (?, ?, ?, ?)",
-                (conv_id, title or "New Conversation", now, now),
-            )
-        return self.get_conversation(conv_id)
+        """Deprecated: use ConversationAPI.create() (Kernel event path)."""
+        from app.core.agents.conversation import ConversationAPI
+
+        return ConversationAPI.create(title=title)
 
     def get_conversation(self, conv_id: str) -> dict | None:
         with self.get_db() as conn:
@@ -292,26 +287,16 @@ class Database:
         return [dict(r) for r in rows]
 
     def update_conversation(self, conv_id: str, title: str | None = None, summary: str | None = None):
-        now = datetime.now(UTC).isoformat()
-        fields = ["updated_at = ?"]
-        params = [now]
-        if title is not None:
-            fields.append("title = ?")
-            params.append(title)
-        if summary is not None:
-            fields.append("summary = ?")
-            params.append(summary)
-        params.append(conv_id)
-        with self.get_db() as conn:
-            conn.execute(
-                f"UPDATE conversations SET {', '.join(fields)} WHERE id = ?",
-                params,
-            )
+        """Deprecated: use ConversationAPI.update() (Kernel event path)."""
+        from app.core.agents.conversation import ConversationAPI
+
+        ConversationAPI.update(conv_id, title=title, summary=summary)
 
     def delete_conversation(self, conv_id: str):
-        with self.get_db() as conn:
-            conn.execute("DELETE FROM messages WHERE conversation_id = ?", (conv_id,))
-            conn.execute("DELETE FROM conversations WHERE id = ?", (conv_id,))
+        """Deprecated: use ConversationAPI.delete() (Kernel event path)."""
+        from app.core.agents.conversation import ConversationAPI
+
+        ConversationAPI.delete(conv_id)
 
     # --- Message methods ---
 
@@ -323,18 +308,22 @@ class Database:
         tool_calls: str | None = None,
         tool_call_id: str | None = None,
     ) -> dict:
-        msg_id = str(uuid.uuid4())
-        now = datetime.now(UTC).isoformat()
-        with self.get_db() as conn:
-            conn.execute(
-                "INSERT INTO messages (id, conversation_id, role, content, tool_calls, tool_call_id, created_at) "
-                "VALUES (?, ?, ?, ?, ?, ?, ?)",
-                (msg_id, conv_id, role, content, tool_calls, tool_call_id, now),
-            )
-            conn.execute(
-                "UPDATE conversations SET updated_at = ? WHERE id = ?", (now, conv_id)
-            )
-        return self.get_message(msg_id)
+        """Deprecated: use ConversationManager.save_message() (Kernel event path)."""
+        from app.core.agents.conversation import ConversationManager
+
+        parsed_tool_calls = None
+        if tool_calls:
+            try:
+                parsed_tool_calls = json.loads(tool_calls)
+            except (json.JSONDecodeError, TypeError):
+                parsed_tool_calls = tool_calls
+        mgr = ConversationManager(conv_id)
+        return mgr.save_message(
+            role=role,
+            content=content,
+            tool_calls=parsed_tool_calls,
+            tool_call_id=tool_call_id,
+        )
 
     def get_message(self, msg_id: str) -> dict | None:
         with self.get_db() as conn:

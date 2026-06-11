@@ -4,11 +4,11 @@
 > **① Runtime Primitive（对象模型）** 和 **② Kernel Boundary（边界）**，最后才是 **③ Kernel ABI**。
 > 顺序不能反——先有严格定义的对象，API 才有意义；否则半年后会陷入「先写 API → 改 API → 兼容 API → 背历史包袱」。
 >
-> 状态：**v1.0 — FROZEN（对象模型已冻结）** ｜ 适配代码基线：backend **v0.9.0**
+> 状态：**v1.0 — Draft（底座聚焦阶段，冻结暂停）** ｜ 适配代码基线：backend **v0.9.0**
 >
-> 冻结声明：7 个 Primitive、1 条 Boundary、1 组 ABI 已收敛完成，**不再新增 Primitive、不再加 Layer、不再扩 Runtime 概念**。
+> **底座聚焦（2026-06）：** v1.0 冻结声明暂停。当前优先补齐 Event 底座（无损导出、对话纳入 Event Log、投影快照）。7 Primitive / Boundary / ABI 仍为设计参考，但允许为实现需要演进。
 > v1.0 相对 v0.1 仅吸收三处外科级微调：①`subject` → `aggregate_type + aggregate_id` ②`caused_by` 增补 `correlation_id` ③ABI 新增 `subscribe_events`。
-> **v0.9.0：** W1–W4 实现已完成；`verify_rebuild.py` 验证 Event → State 重建。规格变更需 RFC（见 Governance Charter）。
+> **v0.9.0：** W1–W4 实现已完成；`verify_rebuild.py` 验证 Event → State 重建。规格重大变更建议走 RFC（见 Governance Charter），但不再强制修宪。
 
 ---
 

@@ -1,7 +1,7 @@
 # Epistemic Closure · RFC v0.1
 
 > 定义 Meaning 层「解释闭环」的闭合条件，与向上生成禁止、G5、Egress 信任链的关系。  
-> 状态：**v0.1 — Ratified** ｜ 适配基线：backend v0.9.0  
+> 状态：**v0.1 — Experimental** ｜ 适配基线：backend v0.9.0  
 > 依赖：[`MEANING_ONTOLOGY.md`](MEANING_ONTOLOGY.md) §3、`verify_meaning_dag.py`
 
 ---

@@ -2,7 +2,7 @@
 
 > 本文档定义 **Identity Projection** 的本体地位、合成输入、叙事诚实性原则，以及 `verify_identity` 验收方向。
 >
-> 状态：**v0.1 — Ratified（N1–N5 + P0–P6 + I-F/W）** ｜ 适配基线：backend v0.9.0  
+> 状态：**v0.1 — Experimental（N1–N5 + P0–P6 + I-F/W）** ｜ 适配基线：backend v0.9.0 ｜ 实现见 `backend/app/experimental/`  
 > 不新增 Runtime Primitive；不创建 `identity` 存储表或 `users.profile` 式字段。
 >
 > 依赖：

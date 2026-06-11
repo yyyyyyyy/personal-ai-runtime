@@ -1,8 +1,9 @@
 # Egress · RFC v0.1
 
-> LLM API 出站裁决与审计（宪法 §3 Data 边界第一刀）。  
-> 状态：**v0.1 — Ratified（LLM only）** ｜ email/telegram 出站留待 v0.2  
-> 实现：`backend/app/core/runtime/egress/egress_gate.py`
+> LLM API 出站审计日志（宪法 §3 Data 边界第一刀）。  
+> 状态：**v0.1 — Experimental（出站审计，非 PII 脱敏边界）** ｜ email/telegram 出站留待 v0.2  
+> 实现：`backend/app/core/runtime/egress/egress_gate.py`  
+> 威胁模型：见 [`THREAT_MODEL.md`](../THREAT_MODEL.md) — 出站内容不经此模块脱敏。
 
 ---
 
@@ -24,10 +25,10 @@
 EgressApproved {
   purpose:      string   // chat_stream | review_narrative | ...
   classification: {
-    categories: string[]  // identity_surface | memory_context | general
+    categories: string[]  // identity_surface | memory_context | trajectory_context | general
     message_count, char_count
   }
-  redacted:     bool
+  identity_surface_detected: bool
 }
 ```
 
@@ -35,10 +36,10 @@ EgressApproved {
 
 ## §3 — 策略
 
-1. **分类** — `classify_llm_payload()` 扫描 messages 合并文本  
-2. **Redact** — `identity_surface` 命中时替换敏感 marker 为 `[redacted]`  
-3. **审计** — 每次出站前 `emit_event(EgressApproved)`  
-4. **默认允许** — v0.1 不阻断，仅 redact + audit（阻断策略 v0.2）
+1. **分类** — `classify_llm_payload()` 扫描 messages 合并文本（启发式字段名，非 NER）  
+2. **透传** — v0.1 **不修改** outbound messages；不做 redact / 脱敏  
+3. **审计** — 每次出站前 `emit_event(EgressApproved)` 记录分类与体量  
+4. **默认允许** — v0.1 不阻断，仅 audit（阻断策略 v0.2）
 
 ## §4 — 验收
 
@@ -46,4 +47,4 @@ EgressApproved {
 
 ---
 
-*See also: [`HUMAN_RUNTIME_CONSTITUTION.md`](../HUMAN_RUNTIME_CONSTITUTION.md) §3, [`EPISTEMIC_CLOSURE_RFC.md`](EPISTEMIC_CLOSURE_RFC.md).*
+*See also: [`HUMAN_RUNTIME_CONSTITUTION.md`](../HUMAN_RUNTIME_CONSTITUTION.md) §3, [`EPISTEMIC_CLOSURE_RFC.md`](EPISTEMIC_CLOSURE_RFC.md), [`THREAT_MODEL.md`](../THREAT_MODEL.md).*

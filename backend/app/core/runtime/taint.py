@@ -1,0 +1,79 @@
+"""Untrusted content taint tracking for Prompt Injection mitigation.
+
+When external content (inbox, web fetch, browser) enters the agent context,
+subsequent write-class capability invocations in the same correlation chain
+MUST require user approval.
+"""
+
+from __future__ import annotations
+
+import threading
+from typing import Any
+
+# Tools that ingest untrusted external content into the agent context.
+EXTERNAL_INGESTION_TOOLS = frozenset({
+    "check_inbox",
+    "read_inbox_email",
+    "web_search",
+    "fetch_url",
+    "search_and_extract",
+    "open_web_page",
+    "read_web_page",
+    "browse_url",
+})
+
+# Tools that mutate the host or exfiltrate data — never auto-allow when tainted.
+WRITE_CLASS_TOOLS = frozenset({
+    "write_file",
+    "delete_file",
+    "run_shell_command",
+    "execute_command",
+    "send_email",
+    "reply_email",
+    "git_commit",
+    "git_push",
+    "create_calendar_event",
+})
+
+
+class TaintRegistry:
+    """Thread-local taint marks keyed by correlation_id."""
+
+    def __init__(self) -> None:
+        self._local = threading.local()
+
+    def _store(self) -> dict[str, dict[str, Any]]:
+        if not hasattr(self._local, "marks"):
+            self._local.marks = {}
+        return self._local.marks
+
+    def mark(self, correlation_id: str | None, *, source: str, reason: str = "") -> None:
+        if not correlation_id:
+            return
+        self._store()[correlation_id] = {
+            "source": source,
+            "reason": reason or source,
+        }
+
+    def is_tainted(self, correlation_id: str | None) -> bool:
+        if not correlation_id:
+            return False
+        return correlation_id in self._store()
+
+    def clear(self, correlation_id: str | None) -> None:
+        if correlation_id:
+            self._store().pop(correlation_id, None)
+
+    def clear_all(self) -> None:
+        self._store().clear()
+
+
+taint_registry = TaintRegistry()
+
+
+def is_external_ingestion_tool(name: str) -> bool:
+    return name in EXTERNAL_INGESTION_TOOLS
+
+
+def is_write_class_tool(name: str) -> bool:
+    return name in WRITE_CLASS_TOOLS

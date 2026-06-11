@@ -2,10 +2,10 @@
 
 > 本文档定义 **Trajectory** 在 Personal Reality Runtime 中的本体地位、与 Event 的关系、以及 **Integrity** 的保护对象。
 >
-> 状态：**v0.1 — Ratified（§0–§1 + P0–P7 实现）** ｜ 适配基线：backend v0.9.0  
-> 不修改：`RUNTIME_SPEC.md` v1.0 之 7 Primitive 冻结声明
+> 状态：**v0.1 — Experimental（§0–§1 + P0–P7 实现）** ｜ 适配基线：backend v0.9.0  
+> 实现见 `backend/app/experimental/`
 >
-> 依赖：`MEANING_ONTOLOGY.md` v0.1 Ratified、[`HUMAN_RUNTIME_CONSTITUTION.md`](../HUMAN_RUNTIME_CONSTITUTION.md)
+> 依赖：`MEANING_ONTOLOGY.md` v0.1 Experimental、[`HUMAN_RUNTIME_CONSTITUTION.md`](../HUMAN_RUNTIME_CONSTITUTION.md)
 > 关联：`IDENTITY_RFC.md`、`verify_trajectory` / `verify_trajectory_rebuild`
 
 ---

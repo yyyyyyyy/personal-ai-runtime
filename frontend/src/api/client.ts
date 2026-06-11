@@ -240,6 +240,20 @@ export interface MemoriesGrouped {
   projection_note: string;
 }
 
+export interface SystemInfo {
+  conversations: number;
+  messages: number;
+  goals: number;
+  memories: number;
+  experimental_trajectory_enabled: boolean;
+}
+
+export async function fetchSystemInfo(): Promise<SystemInfo> {
+  const res = await fetch(`${API_BASE}/system/info`);
+  if (!res.ok) throw new Error("Failed to fetch system info");
+  return res.json();
+}
+
 export async function listMemoriesGrouped(): Promise<MemoriesGrouped> {
   const res = await fetch(`${API_BASE}/memory/memories/grouped`);
   if (!res.ok) throw new Error("Failed to list memories");

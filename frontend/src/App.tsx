@@ -5,6 +5,7 @@ import {
   listConversations,
   createConversation,
   deleteConversation,
+  fetchSystemInfo,
 } from "./api/client";
 import ChatView from "./components/chat/ChatView";
 import GoalsPage from "./pages/Goals";
@@ -35,12 +36,32 @@ export default function App() {
     removeConversation,
   } = useChatStore();
 
-  const { currentPage, setPage } = useAppStore();
+  const {
+    currentPage,
+    setPage,
+    experimentalTrajectoryEnabled,
+    setExperimentalTrajectoryEnabled,
+  } = useAppStore();
   const { toasts, dismissToast } = useNotifications();
+
+  const visibleNavItems = NAV_ITEMS.filter(
+    (item) => item.id !== "trajectories" || experimentalTrajectoryEnabled
+  );
 
   useEffect(() => {
     loadConversations();
-  }, []);
+    fetchSystemInfo()
+      .then((info) => setExperimentalTrajectoryEnabled(info.experimental_trajectory_enabled))
+      .catch(() => {
+        // Backend may not be running
+      });
+  }, [setExperimentalTrajectoryEnabled]);
+
+  useEffect(() => {
+    if (!experimentalTrajectoryEnabled && currentPage === "trajectories") {
+      setPage("chat");
+    }
+  }, [experimentalTrajectoryEnabled, currentPage, setPage]);
 
   const loadConversations = async () => {
     try {
@@ -82,7 +103,7 @@ export default function App() {
 
         {/* Navigation */}
         <nav className="px-2 py-2 border-b border-gray-800">
-          {NAV_ITEMS.map((item) => (
+          {visibleNavItems.map((item) => (
             <button
               key={item.id}
               onClick={() => setPage(item.id)}
@@ -188,7 +209,9 @@ export default function App() {
         {currentPage === "inbox" && <InboxPage />}
         {currentPage === "timeline" && <TimelinePage />}
         {currentPage === "memories" && <MemoriesPage />}
-        {currentPage === "trajectories" && <TrajectoriesPage />}
+        {experimentalTrajectoryEnabled && currentPage === "trajectories" && (
+          <TrajectoriesPage />
+        )}
         {currentPage === "dashboard" && <DashboardPage />}
       </main>
     </div>

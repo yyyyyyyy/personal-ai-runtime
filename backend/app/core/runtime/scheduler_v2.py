@@ -130,6 +130,14 @@ def init_scheduler_v2():
     )
 
     _scheduler.add_job(
+        _run_projection_snapshots,
+        CronTrigger(hour=4, minute=0),
+        id="projection_snapshots",
+        name="投影快照",
+        replace_existing=True,
+    )
+
+    _scheduler.add_job(
         _run_inbox_poll,
         CronTrigger(minute="*/15"),
         id="inbox_poll",
@@ -220,6 +228,16 @@ def _run_world_model_snapshot():
         _update_v2_last_run("world_model_snapshot")
     except Exception as e:
         print(f"World model snapshot error: {e}")
+
+
+def _run_projection_snapshots():
+    """Persist projection checkpoints for incremental rebuild (low-frequency)."""
+    try:
+        results = kernel.save_projection_snapshots()
+        print(f"Projection snapshots saved for {len(results)} aggregates")
+        _update_v2_last_run("projection_snapshots")
+    except Exception as e:
+        print(f"Projection snapshot error: {e}")
 
 
 def _run_inbox_poll():

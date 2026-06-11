@@ -1,5 +1,6 @@
 """Integration test: Trajectory API routes."""
 
+import importlib
 import os
 
 import pytest
@@ -14,14 +15,19 @@ def client(tmp_path, monkeypatch):
     monkeypatch.setenv("SQLITE_PATH", db_path)
     monkeypatch.setenv("DATA_DIR", str(tmp_path))
     monkeypatch.setenv("VECTOR_DIR", str(tmp_path / "vectors"))
+    monkeypatch.setenv("EXPERIMENTAL_TRAJECTORY_ENABLED", "true")
 
     from app.store.database import Database
 
     Database._instance = None
 
-    from app.main import app
+    import app.config
+    import app.main as main_module
 
-    return TestClient(app)
+    importlib.reload(app.config)
+    importlib.reload(main_module)
+
+    return TestClient(main_module.app)
 
 
 def test_list_trajectories_and_pending_links(client):

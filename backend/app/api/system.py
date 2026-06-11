@@ -2,6 +2,7 @@
 
 from fastapi import APIRouter, HTTPException
 
+from app.config import settings
 from app.core.agents.llm_router import llm_router
 from app.product.digital_legacy import digital_legacy
 
@@ -35,21 +36,24 @@ async def system_info():
     from app.core.runtime.kernel_instance import kernel
     from app.store.database import db
 
+    counts = kernel.table_counts(("conversations", "messages", "event_log"))
     with db.get_db() as conn:
-        conv_count = conn.execute("SELECT COUNT(*) as c FROM conversations").fetchone()["c"]
-        msg_count = conn.execute("SELECT COUNT(*) as c FROM messages").fetchone()["c"]
-        event_count = conn.execute("SELECT COUNT(*) as c FROM events").fetchone()["c"]
+        legacy_event_count = conn.execute(
+            "SELECT COUNT(*) as c FROM events"
+        ).fetchone()["c"]
 
     goal_count = len(kernel.query_state("goals", limit=10000))
     mem_count = len(kernel.query_state("memories", limit=10000))
 
     return {
-        "conversations": conv_count,
-        "messages": msg_count,
+        "conversations": counts["conversations"],
+        "messages": counts["messages"],
         "goals": goal_count,
-        "events": event_count,
+        "event_log": counts["event_log"],
+        "events": legacy_event_count,
         "memories": mem_count,
         "llm_providers": len(llm_router.list_providers()),
+        "experimental_trajectory_enabled": settings.experimental_trajectory_enabled,
     }
 
 

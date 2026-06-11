@@ -1,8 +1,3 @@
-"""Projection surface registry — Identity & Agency surfaces (RFC)."""
+"""Shim — projection package moved to app.experimental (2026-06)."""
 
-from app.core.runtime.projection.surfaces import (
-    load_agency_surfaces,
-    load_identity_surfaces,
-)
-
-__all__ = ["load_agency_surfaces", "load_identity_surfaces"]
+from app.experimental.projection import *  # noqa: F403

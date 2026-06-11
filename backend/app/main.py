@@ -97,7 +97,8 @@ app.include_router(approvals.router)
 app.include_router(background_tasks.router)
 app.include_router(triggers.router)
 app.include_router(inbox.router)
-app.include_router(trajectories.router)
+if settings.experimental_trajectory_enabled:
+    app.include_router(trajectories.router)
 
 
 @app.get("/")

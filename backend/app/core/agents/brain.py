@@ -6,6 +6,7 @@ and returns a response. It does NOT own state — that belongs to Runtime.
 
 import json
 import time
+import uuid
 from typing import AsyncIterator
 
 from app.config import settings
@@ -21,7 +22,7 @@ from app.core.agents.tool_postprocess import (
 from app.core.runtime.conversation_recorder import record_conversation_turn
 from app.core.runtime.egress.egress_gate import prepare_llm_egress
 from app.core.runtime.kernel_instance import kernel
-from app.core.runtime.meaning_gate import gate_assistant_text, gate_stream_delta
+from app.core.runtime.taint import is_external_ingestion_tool, taint_registry
 from app.core.telemetry.telemetry import LLMCallRecord, telemetry
 
 SYSTEM_PROMPT = """You are Personal AI Runtime — a personal AI assistant that helps users manage their life, work, and goals.
@@ -57,6 +58,9 @@ class Brain:
 
         Supports multi-LLM fallback: if the primary provider fails, tries alternatives.
         """
+        correlation_id = f"chat-{uuid.uuid4().hex[:16]}"
+        taint_registry.clear(correlation_id)
+
         # Step 1: Build the messages array
         messages = self._build_messages(conversation, user_message)
 
@@ -99,9 +103,15 @@ class Brain:
 
                 # Text content
                 if delta.content:
-                    stream_gated, safe_delta, _gate_warnings = gate_stream_delta(
-                        stream_gated, delta.content
-                    )
+                    safe_delta = delta.content
+                    if settings.meaning_gate_enabled:
+                        from app.experimental.meaning_gate import gate_stream_delta
+
+                        stream_gated, safe_delta, _gate_warnings = gate_stream_delta(
+                            stream_gated, delta.content
+                        )
+                    else:
+                        stream_gated += delta.content
                     assistant_content += safe_delta
                     yield {"type": "text_delta", "content": safe_delta}
 
@@ -192,7 +202,15 @@ class Brain:
                     name=tool_name,
                     args=tool_args,
                     actor="user",
+                    correlation_id=correlation_id,
                 )
+
+                if is_external_ingestion_tool(tool_name):
+                    taint_registry.mark(
+                        correlation_id,
+                        source="external_ingestion",
+                        reason=tool_name,
+                    )
 
                 if cap_result["status"] == "pending":
                     yield {
@@ -271,7 +289,10 @@ class Brain:
 
         # Step 4: Meaning gate + save + conversation episode
         if full_content and not canned_response_done:
-            full_content, _warnings = gate_assistant_text(full_content)
+            if settings.meaning_gate_enabled:
+                from app.experimental.meaning_gate import gate_assistant_text
+
+                full_content, _warnings = gate_assistant_text(full_content)
             conversation.save_assistant_message(full_content)
 
         record_conversation_turn(
@@ -312,7 +333,10 @@ class Brain:
 
         content = response.choices[0].message.content or ""
         if content:
-            content, _warnings = gate_assistant_text(content)
+            if settings.meaning_gate_enabled:
+                from app.experimental.meaning_gate import gate_assistant_text
+
+                content, _warnings = gate_assistant_text(content)
             conversation.save_assistant_message(content)
         return content
 

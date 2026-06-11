@@ -27,6 +27,9 @@ function ClaimStatusBadge({ status }: { status?: string | null }) {
 
 export default function MemoriesPage() {
   const setPage = useAppStore((s) => s.setPage);
+  const experimentalTrajectoryEnabled = useAppStore(
+    (s) => s.experimentalTrajectoryEnabled
+  );
   const [selfReports, setSelfReports] = useState<MemoryRow[]>([]);
   const [claims, setClaims] = useState<MemoryRow[]>([]);
   const [pendingCount, setPendingCount] = useState(0);
@@ -36,14 +39,16 @@ export default function MemoriesPage() {
   const load = async () => {
     setLoading(true);
     try {
-      const [grouped, pending] = await Promise.all([
-        listMemoriesGrouped(),
-        listPendingTrajectoryLinks(),
-      ]);
+      const grouped = await listMemoriesGrouped();
       setSelfReports(grouped.self_reports);
       setClaims(grouped.claims);
       setNote(grouped.projection_note);
-      setPendingCount(pending.pending.length);
+      if (experimentalTrajectoryEnabled) {
+        const pending = await listPendingTrajectoryLinks();
+        setPendingCount(pending.pending.length);
+      } else {
+        setPendingCount(0);
+      }
     } catch {
       // backend offline
     } finally {
@@ -53,7 +58,7 @@ export default function MemoriesPage() {
 
   useEffect(() => {
     load();
-  }, []);
+  }, [experimentalTrajectoryEnabled]);
 
   const onRatify = async (id: string) => {
     await ratifyClaim(id);
@@ -139,20 +144,22 @@ export default function MemoriesPage() {
           )}
         </section>
 
-        <section className="bg-gray-900/40 border border-gray-800 rounded-lg p-4">
-          <h3 className="text-sm font-semibold text-indigo-400 mb-2">轨迹链接</h3>
-          <p className="text-xs text-gray-500 mb-3">
-            连续性解释在「轨迹」页管理。
-            {pendingCount > 0 && ` 当前有 ${pendingCount} 条待确认链接。`}
-          </p>
-          <button
-            type="button"
-            onClick={() => setPage("trajectories")}
-            className="text-xs px-3 py-1.5 rounded bg-indigo-800 hover:bg-indigo-700"
-          >
-            打开轨迹页 →
-          </button>
-        </section>
+        {experimentalTrajectoryEnabled && (
+          <section className="bg-gray-900/40 border border-gray-800 rounded-lg p-4">
+            <h3 className="text-sm font-semibold text-indigo-400 mb-2">轨迹链接</h3>
+            <p className="text-xs text-gray-500 mb-3">
+              连续性解释在「轨迹」页管理。
+              {pendingCount > 0 && ` 当前有 ${pendingCount} 条待确认链接。`}
+            </p>
+            <button
+              type="button"
+              onClick={() => setPage("trajectories")}
+              className="text-xs px-3 py-1.5 rounded bg-indigo-800 hover:bg-indigo-700"
+            >
+              打开轨迹页 →
+            </button>
+          </section>
+        )}
       </div>
     </div>
   );

@@ -152,15 +152,9 @@ async def resolve_approval(approval_id: str, body: dict):
                 "error": cap_result.get("error", "unknown"),
             })
 
-        # Persist tool result (sole tool message for this call_id)
-        db.add_message(
-            conv_id=conv_id,
-            role="tool",
-            content=result_str,
-            tool_call_id=tool_call_id,
-        )
-        brain = Brain()
         conversation = ConversationManager(conversation_id=conv_id)
+        conversation.save_tool_result(result_str, tool_call_id)
+        brain = Brain()
         assistant_message = await brain.continue_after_tool_result(conversation)
         return {"status": "success", "result": result_str, "assistant_message": assistant_message}
     else:
@@ -171,13 +165,8 @@ async def resolve_approval(approval_id: str, body: dict):
             reason="user_denied",
         )
         result_str = json.dumps({"status": "denied", "reason": "User denied the operation"})
-        db.add_message(
-            conv_id=conv_id,
-            role="tool",
-            content=result_str,
-            tool_call_id=tool_call_id,
-        )
-        brain = Brain()
         conversation = ConversationManager(conversation_id=conv_id)
+        conversation.save_tool_result(result_str, tool_call_id)
+        brain = Brain()
         assistant_message = await brain.continue_after_tool_result(conversation)
         return {"status": "denied", "assistant_message": assistant_message}

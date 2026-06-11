@@ -1,7 +1,7 @@
 # Connector · RFC v0.1
 
 > 连接器验收标准：**捕获自我的一个维度**，而非「给 AI 工具」。  
-> 状态：**v0.1 — Ratified（calendar read-only）**  
+> 状态：**v0.1 — Experimental（calendar read-only）**  
 > 实现：`backend/app/core/connectors/calendar_capture.py`
 
 ---

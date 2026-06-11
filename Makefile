@@ -1,4 +1,4 @@
-.PHONY: install dev test test-backend test-frontend desktop boundary rebuild-verify meaning-verify meaning-dag-verify authority-verify drift-verify trajectory-verify identity-projection-verify identity-verify agency-verify egress-verify connector-verify belief-verify belief-quality belief-survival alembic-verify docker-up docker-down
+.PHONY: install dev test test-backend test-frontend desktop boundary rebuild-verify meaning-verify meaning-dag-verify authority-verify drift-verify trajectory-verify identity-projection-verify identity-verify agency-verify egress-verify connector-verify belief-verify belief-quality belief-survival alembic-verify vector-consistency-verify docker-up docker-down
 
 # Backend
 BACKEND_DIR := backend
@@ -39,6 +39,15 @@ boundary-strict:
 rebuild-verify:
 	cd $(BACKEND_DIR) && python3 scripts/verify_rebuild.py
 
+export-roundtrip-verify:
+	cd $(BACKEND_DIR) && python3 scripts/verify_export_roundtrip.py
+
+snapshot-verify:
+	cd $(BACKEND_DIR) && python3 scripts/verify_snapshot_rebuild.py
+
+experimental-verify:
+	cd $(BACKEND_DIR) && python3 scripts/verify_meaning_boundary.py && python3 scripts/verify_trajectory.py
+
 meaning-verify:
 	cd $(BACKEND_DIR) && python3 scripts/verify_meaning_boundary.py
 
@@ -68,6 +77,9 @@ agency-verify:
 
 egress-verify:
 	cd $(BACKEND_DIR) && python3 scripts/verify_egress.py
+
+vector-consistency-verify:
+	cd $(BACKEND_DIR) && python3 scripts/verify_vector_consistency.py
 
 connector-verify:
 	cd $(BACKEND_DIR) && python3 scripts/verify_connector.py

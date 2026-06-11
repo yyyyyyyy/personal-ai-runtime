@@ -58,6 +58,12 @@ class Settings:
     review_narrative_llm_enabled: bool = (
         os.getenv("REVIEW_NARRATIVE_LLM_ENABLED", "true").lower() == "true"
     )
+    meaning_gate_enabled: bool = (
+        os.getenv("MEANING_GATE_ENABLED", "false").lower() == "true"
+    )
+    experimental_trajectory_enabled: bool = (
+        os.getenv("EXPERIMENTAL_TRAJECTORY_ENABLED", "false").lower() == "true"
+    )
 
 
 settings = Settings()

@@ -2,7 +2,7 @@
 
 > LLM 润色 Identity Projection 文稿时的 **MUST** 约束与 `narrative_audit` 回填规范。  
 > 依赖：`IDENTITY_RFC.md` N1–N5、`MEANING_ONTOLOGY.md`  
-> 状态：**v0.1 — Ratified**（与 backend narrative_audit 实现对齐）
+> 状态：**v0.1 — Experimental**（与 backend experimental narrative_audit 实现对齐）
 
 ---
 

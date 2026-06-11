@@ -1,24 +1,3 @@
-"""Trajectory layer — continuity interpretations (see docs/rfc/TRAJECTORY_RFC.md)."""
+"""Shim — trajectory package moved to app.experimental (2026-06)."""
 
-from app.core.runtime.trajectory import identity_authority, link_authority
-from app.core.runtime.trajectory.engine import (
-    link_event,
-    list_trajectories,
-    load_merged_registry,
-    query_trajectory,
-    register_trajectory,
-    verify_competing_symmetry,
-)
-from app.core.runtime.trajectory.suggester import trajectory_suggester
-
-__all__ = [
-    "identity_authority",
-    "link_authority",
-    "trajectory_suggester",
-    "link_event",
-    "list_trajectories",
-    "load_merged_registry",
-    "query_trajectory",
-    "register_trajectory",
-    "verify_competing_symmetry",
-]
+from app.experimental.trajectory import *  # noqa: F403

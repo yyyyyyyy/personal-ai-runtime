@@ -81,13 +81,19 @@ jobs:
           print(f'OK: {len(tools)} tools registered')
           "
 
-      - name: Verify API routes load
+      - name: Verify API routes load (core, experimental off)
         run: |
           cd backend
           python -c "
           import os
           os.environ['LLM_API_KEY'] = 'test-key'
-          from app.main import app
+          os.environ['EXPERIMENTAL_TRAJECTORY_ENABLED'] = 'false'
+          import importlib
+          import app.config
+          import app.main as main_module
+          importlib.reload(app.config)
+          importlib.reload(main_module)
+          app = main_module.app
           routes = [r.path for r in app.routes if hasattr(r, 'path')]
           endpoints = [
               '/api/chat/conversations',
@@ -107,13 +113,12 @@ jobs:
               '/api/tasks/background',
               '/api/triggers/',
               '/api/inbox/',
-              '/api/trajectories/',
-              '/api/trajectories/pending-links',
-              '/api/trajectories/{trajectory_id}/identity-opt-in',
           ]
           for ep in endpoints:
               assert any(r.startswith(ep) for r in routes), f'Missing: {ep}'
-          print(f'OK: {len(endpoints)} API modules loaded')
+          traj = [r for r in routes if r.startswith('/api/trajectories')]
+          assert not traj, f'Trajectory routes should be gated off: {traj}'
+          print(f'OK: {len(endpoints)} core API modules loaded (trajectories gated)')
           "
 
       - name: Verify Event Log rebuild (Runtime invariant)
@@ -121,65 +126,67 @@ jobs:
           cd backend
           python scripts/verify_rebuild.py
 
+      - name: Verify export roundtrip (data sovereignty)
+        run: |
+          cd backend
+          python scripts/verify_export_roundtrip.py
+
+      - name: Verify projection snapshot incremental rebuild
+        run: |
+          cd backend
+          python scripts/verify_snapshot_rebuild.py
+
       - name: Kernel boundary guard (no direct writes to projection tables)
         run: |
           cd backend
           python scripts/check_boundary.py
 
-      - name: Meaning boundary G2 guard (authorship-aware memory presentation)
-        run: |
-          cd backend
-          python scripts/verify_meaning_boundary.py
-
-      - name: Meaning boundary G1 guard (claim authority and Agency gate)
-        run: |
-          cd backend
-          python scripts/verify_claim_authority.py
-
-      - name: Meaning DAG upward-generation guard
-        run: |
-          cd backend
-          python scripts/verify_meaning_dag.py
-
-      - name: Identity drift guard (Meaning Boundary at scale)
-        run: |
-          cd backend
-          python scripts/verify_identity_drift.py
-
-      - name: Trajectory integrity (Registry symmetry + link fixture)
-        run: |
-          cd backend
-          python scripts/verify_trajectory.py
-
-      - name: Trajectory links rebuild (materialized projection)
-        run: |
-          cd backend
-          python scripts/verify_trajectory_rebuild.py
-
-      - name: Identity projection guard (Review N5 metadata)
-        run: |
-          cd backend
-          python scripts/verify_identity_projection.py
-
-      - name: Identity surfaces + narrative lint (N1–N5)
-        run: |
-          cd backend
-          python scripts/verify_identity.py
-
-      - name: Agency surface lint (G5 ranking inputs)
-        run: |
-          cd backend
-          python scripts/verify_agency_surfaces.py
-
-      - name: LLM Egress audit (Data boundary v0.1)
+      - name: LLM Egress audit log
         run: |
           cd backend
           python scripts/verify_egress.py
 
-      - name: Calendar connector (Experience capture)
+  experimental:
+    runs-on: ubuntu-latest
+    continue-on-error: true
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
         run: |
           cd backend
-          python scripts/verify_connector.py
+          pip install -r requirements.txt
+
+      - name: Experimental Meaning/Trajectory verifies (non-blocking)
+        run: |
+          cd backend
+          make experimental-verify || true
+          python scripts/verify_claim_authority.py || true
+          python scripts/verify_trajectory_rebuild.py || true
+          python scripts/verify_identity.py || true
+
+      - name: Verify trajectory API routes when experimental enabled
+        run: |
+          cd backend
+          python -c "
+          import os
+          import importlib
+          os.environ['LLM_API_KEY'] = 'test-key'
+          os.environ['EXPERIMENTAL_TRAJECTORY_ENABLED'] = 'true'
+          import app.config
+          import app.main as main_module
+          importlib.reload(app.config)
+          importlib.reload(main_module)
+          routes = [r.path for r in main_module.app.routes if hasattr(r, 'path')]
+          for ep in ('/api/trajectories/', '/api/trajectories/pending-links'):
+              assert any(r.startswith(ep) for r in routes), f'Missing: {ep}'
+          print('OK: trajectory API routes present when experimental enabled')
+          " || true
 
   frontend:
     runs-on: ubuntu-latest

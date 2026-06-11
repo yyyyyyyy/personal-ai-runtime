@@ -1,6 +1,9 @@
 # Personal AI Runtime
 
-本地优先的个人 AI 运行时：带上下文的对话、目标管理、记忆沉淀、智能收件箱、工具执行与审批治理。
+本地优先的个人 AI 助手 + **可携带 Event 底座**：对话、目标、记忆、收件箱、工具执行与审批治理。
+
+**护城河：** 完整 `event_log` 无损导出/导入，跨模型可重建个人数据。  
+**实验特性：** Meaning / Trajectory / Identity 层位于 `backend/app/experimental/`（默认关闭，见 `MEANING_GATE_ENABLED` / `EXPERIMENTAL_TRAJECTORY_ENABLED`）。
 
 ## 环境要求
 
@@ -87,11 +90,10 @@ make test-frontend     # 仅前端类型检查
 make boundary          # Kernel 边界守卫（与 CI 一致）
 make boundary-inventory # 全仓 bypass 清单
 make boundary-strict   # 零债务模式（allowlist 非空时失败）
-make rebuild-verify    # Event Log 重建验证
-make belief-verify     # Pattern + Belief 管线验证
-make trajectory-verify # Trajectory Registry 对称性 + 链接 fixture
-make identity-projection-verify  # Review Identity Projection 元数据 (N5)
-make identity-verify             # identity_surfaces.yaml + N1–N4 叙事 lint
+make rebuild-verify          # Event Log 重建验证
+make export-roundtrip-verify # 无损导出/导入往返验证
+make snapshot-verify         # 投影快照增量 rebuild 验证
+make experimental-verify     # Meaning/Trajectory 实验层（非阻断）
 ```
 
 CI 还额外运行 ruff、mypy、schema 校验、MCP 工具注册校验等，见 [.github/workflows/ci.yml](.github/workflows/ci.yml)。
