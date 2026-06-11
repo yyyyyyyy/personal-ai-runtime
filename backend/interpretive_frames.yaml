@@ -1,0 +1,88 @@
+# Interpretive Frame Registry — registered interpretive lenses for Meaning generation.
+#
+# Frames define "from what angle" Meaning objects (Belief, Trajectory) are generated.
+# A Frame bundles one or more atomic Perspectives (growth, autonomy, care, etc.) into
+# a reusable interpretive lens.
+#
+# Status: v0.1 — proposed (not yet ratified; see INTERPRETIVE_GOVERNANCE.md).
+# Frames are NOT Runtime Primitives. They are governance configuration for the
+# Interpretive Layer that sits above Ontology and below Projection.
+#
+# Governance rules:
+#   - System MAY propose Frames (claim_status: proposed), MUST NOT be sole author
+#   - Frame creation/retirement goes through epistemic state machine
+#   - Retired Frames retain tombs™ (cf. Release)
+#   - Frame set MUST NOT be silently reduced to singleton
+
+version: 1
+
+frames:
+  - id: professional-growth
+    label: "Professional Growth"
+    description: "Interpretive lens centered on career development, skill mastery, and professional autonomy"
+    perspectives:
+      - growth
+      - mastery
+      - autonomy
+    created_by: system
+    created_at: "2026-06-11"
+    claim_status: proposed
+
+  - id: family-first
+    label: "Family First"
+    description: "Interpretive lens centered on family relationships, care responsibilities, and belonging"
+    perspectives:
+      - care
+      - responsibility
+      - belonging
+    created_by: system
+    created_at: "2026-06-11"
+    claim_status: proposed
+
+  - id: economic-independence
+    label: "Economic Independence"
+    description: "Interpretive lens centered on financial autonomy, wealth building, and security"
+    perspectives:
+      - autonomy
+      - security
+    created_by: system
+    created_at: "2026-06-11"
+    claim_status: proposed
+
+  - id: health-wellbeing
+    label: "Health & Wellbeing"
+    description: "Interpretive lens centered on physical health, mental wellbeing, and self-care"
+    perspectives:
+      - care
+      - health
+      - balance
+    created_by: system
+    created_at: "2026-06-11"
+    claim_status: proposed
+
+  - id: creative-expression
+    label: "Creative Expression"
+    description: "Interpretive lens centered on creative output, intellectual exploration, and making"
+    perspectives:
+      - mastery
+      - freedom
+      - expression
+    created_by: system
+    created_at: "2026-06-11"
+    claim_status: proposed
+
+# --- Atomic Perspectives ---
+# These are the fundamental interpretive dimensions that Frames compose.
+# Not yet formally modeled; listed here for Frame composition reference.
+#
+#   growth        — personal development, learning, improvement
+#   mastery       — skill acquisition, expertise, craft
+#   autonomy      — self-direction, independence, freedom from control
+#   care          — nurturing, protection, emotional investment
+#   responsibility — duty, obligation, reliability
+#   belonging     — connection, community, acceptance
+#   security      — safety, stability, predictability
+#   health        — physical and mental wellbeing
+#   balance       — equilibrium, moderation, sustainability
+#   freedom       — exploration, optionality, lack of constraint
+#   expression    — creation, articulation, making visible

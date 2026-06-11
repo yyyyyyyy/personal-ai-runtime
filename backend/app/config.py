@@ -56,7 +56,7 @@ class Settings:
     llm_temperature: float = 0.7
     llm_max_tokens: int = 4096
     review_narrative_llm_enabled: bool = (
-        os.getenv("REVIEW_NARRATIVE_LLM_ENABLED", "false").lower() == "true"
+        os.getenv("REVIEW_NARRATIVE_LLM_ENABLED", "true").lower() == "true"
     )
 
 

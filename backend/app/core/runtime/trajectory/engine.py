@@ -134,6 +134,7 @@ def register_trajectory(
     competing_with: list[str] | None = None,
     claim_status: str = "proposed",
     status: str = "active",
+    perspective: str | None = None,
     actor: str = "system",
 ) -> Event:
     return kernel.emit_event(
@@ -147,6 +148,7 @@ def register_trajectory(
             "competing_with": competing_with or [],
             "claim_status": claim_status,
             "status": status,
+            "perspective": perspective or domain,
         },
         actor=actor,
     )

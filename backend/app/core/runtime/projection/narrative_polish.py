@@ -52,11 +52,33 @@ def polish_narrative(
     released_trajectory_ids: set[str] | None = None,
 ) -> str:
     """Polish review narrative via LLM; fall back to template on lint failure or error."""
+    return asyncio.run(
+        polish_narrative_async(
+            template,
+            trajectories=trajectories,
+            memories=memories,
+            events=events,
+            trajectory_link_seqs=trajectory_link_seqs,
+            released_trajectory_ids=released_trajectory_ids,
+        )
+    )
+
+
+async def polish_narrative_async(
+    template: str,
+    *,
+    trajectories: list[dict[str, Any]],
+    memories: list[dict[str, Any]] | None = None,
+    events: list[dict[str, Any]] | None = None,
+    trajectory_link_seqs: dict[str, list[int]] | None = None,
+    released_trajectory_ids: set[str] | None = None,
+) -> str:
+    """Async variant of polish_narrative for use within async callers."""
     if not settings.review_narrative_llm_enabled or not template.strip():
         return template
 
     try:
-        polished = asyncio.run(_polish_async(template))
+        polished = await _polish_async(template)
     except Exception as exc:
         logger.warning("narrative polish LLM failed: %s", exc)
         return template

@@ -22,9 +22,8 @@ from .event import Event
 
 logger = logging.getLogger(__name__)
 
-# Append-only, ordered, immutable Event Log.
-# `seq` is a monotonic ordinal (the source of truth for ordering — not `ts`).
-# Triggers enforce immutability at the storage layer: the log can only grow.
+# ── Schema DDL (fallback for custom-DB tests & pre-Alembic envs) ───────────
+
 EVENT_LOG_SCHEMA = """
 CREATE TABLE IF NOT EXISTS event_log (
     seq            INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -38,16 +37,13 @@ CREATE TABLE IF NOT EXISTS event_log (
     correlation_id TEXT,
     ts             DATETIME DEFAULT CURRENT_TIMESTAMP
 );
-
 CREATE INDEX IF NOT EXISTS idx_event_log_aggregate
     ON event_log (aggregate_type, aggregate_id, seq);
 CREATE INDEX IF NOT EXISTS idx_event_log_correlation
     ON event_log (correlation_id);
-
 CREATE TRIGGER IF NOT EXISTS event_log_no_update
     BEFORE UPDATE ON event_log
     BEGIN SELECT RAISE(ABORT, 'event_log is append-only: UPDATE forbidden'); END;
-
 CREATE TRIGGER IF NOT EXISTS event_log_no_delete
     BEFORE DELETE ON event_log
     BEGIN SELECT RAISE(ABORT, 'event_log is append-only: DELETE forbidden'); END;
@@ -66,10 +62,18 @@ CREATE TABLE IF NOT EXISTS trajectory_links (
     linked_at      TEXT,
     updated_at     TEXT
 );
-
 CREATE INDEX IF NOT EXISTS idx_trajectory_links_trajectory
     ON trajectory_links (trajectory_id, linked_at_seq);
 """
+
+MEMORIES_LEGACY_DDL = [
+    "ALTER TABLE memories ADD COLUMN confidence REAL DEFAULT 0.5",
+    "ALTER TABLE memories ADD COLUMN derived_from_event TEXT",
+    "ALTER TABLE memories ADD COLUMN decayed_at DATETIME",
+    "ALTER TABLE memories ADD COLUMN status TEXT DEFAULT 'active'",
+    "ALTER TABLE memories ADD COLUMN origin TEXT DEFAULT 'claim'",
+    "ALTER TABLE memories ADD COLUMN claim_status TEXT",
+]
 
 Subscriber = Callable[[Event], None]
 
@@ -87,36 +91,23 @@ class Kernel:
         self._ensure_schema()
 
     def _ensure_schema(self) -> None:
+        """Run Alembic migrations; fall back to raw DDL for test/custom DBs."""
+        try:
+            from app.store.alembic_runner import run_migrations
+
+            run_migrations()
+            return
+        except Exception as exc:
+            logger.warning("Alembic migrations unavailable, using raw DDL: %s", exc)
+
         with self._db.get_db() as conn:
             conn.executescript(EVENT_LOG_SCHEMA)
             conn.executescript(TRAJECTORY_LINKS_SCHEMA)
-            # Migrate legacy memories table for derived-belief support
-            try:
-                conn.execute("ALTER TABLE memories ADD COLUMN confidence REAL DEFAULT 0.5")
-            except Exception:
-                pass
-            try:
-                conn.execute("ALTER TABLE memories ADD COLUMN derived_from_event TEXT")
-            except Exception:
-                pass
-            try:
-                conn.execute("ALTER TABLE memories ADD COLUMN decayed_at DATETIME")
-            except Exception:
-                pass
-            try:
-                conn.execute("ALTER TABLE memories ADD COLUMN status TEXT DEFAULT 'active'")
-            except Exception:
-                pass
-            try:
-                conn.execute(
-                    "ALTER TABLE memories ADD COLUMN origin TEXT DEFAULT 'claim'"
-                )
-            except Exception:
-                pass
-            try:
-                conn.execute("ALTER TABLE memories ADD COLUMN claim_status TEXT")
-            except Exception:
-                pass
+            for stmt in MEMORIES_LEGACY_DDL:
+                try:
+                    conn.execute(stmt)
+                except Exception:
+                    pass
 
     # --- Truth layer ---------------------------------------------------------
 

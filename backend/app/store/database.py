@@ -1,4 +1,4 @@
-"""SQLite database management with schema initialization."""
+"""SQLite database management with Alembic-powered schema initialization."""
 
 import sqlite3
 import uuid
@@ -8,24 +8,30 @@ from pathlib import Path
 
 from app.config import settings
 
-SCHEMA_SQL = """
-CREATE TABLE IF NOT EXISTS conversations (
+_DDL_FALLBACK = """
+CREATE TABLE IF NOT EXISTS memories (
     id TEXT PRIMARY KEY,
-    title TEXT,
-    summary TEXT,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    category TEXT NOT NULL,
+    content TEXT NOT NULL,
+    source TEXT,
+    embedding_id TEXT,
+    confidence REAL DEFAULT 0.5,
+    derived_from_event TEXT,
+    decayed_at DATETIME,
+    status TEXT DEFAULT 'active',
+    origin TEXT DEFAULT 'claim',
+    claim_status TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE TABLE IF NOT EXISTS messages (
+CREATE TABLE IF NOT EXISTS reviews (
     id TEXT PRIMARY KEY,
-    conversation_id TEXT NOT NULL,
-    role TEXT NOT NULL,
+    type TEXT NOT NULL,
+    period_start DATE NOT NULL,
+    period_end DATE NOT NULL,
     content TEXT NOT NULL,
-    tool_calls TEXT,
-    tool_call_id TEXT,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (conversation_id) REFERENCES conversations(id)
+    key_insights TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS goals (
@@ -55,6 +61,25 @@ CREATE TABLE IF NOT EXISTS actions (
     FOREIGN KEY (goal_id) REFERENCES goals(id)
 );
 
+CREATE TABLE IF NOT EXISTS conversations (
+    id TEXT PRIMARY KEY,
+    title TEXT,
+    summary TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS messages (
+    id TEXT PRIMARY KEY,
+    conversation_id TEXT NOT NULL,
+    role TEXT NOT NULL,
+    content TEXT NOT NULL,
+    tool_calls TEXT,
+    tool_call_id TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (conversation_id) REFERENCES conversations(id)
+);
+
 CREATE TABLE IF NOT EXISTS events (
     id TEXT PRIMARY KEY,
     type TEXT NOT NULL,
@@ -63,25 +88,6 @@ CREATE TABLE IF NOT EXISTS events (
     payload TEXT,
     timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (goal_id) REFERENCES goals(id)
-);
-
-CREATE TABLE IF NOT EXISTS memories (
-    id TEXT PRIMARY KEY,
-    category TEXT NOT NULL,
-    content TEXT NOT NULL,
-    source TEXT,
-    embedding_id TEXT,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE TABLE IF NOT EXISTS reviews (
-    id TEXT PRIMARY KEY,
-    type TEXT NOT NULL,
-    period_start DATE NOT NULL,
-    period_end DATE NOT NULL,
-    content TEXT NOT NULL,
-    key_insights TEXT,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS notifications (
@@ -234,16 +240,17 @@ class Database:
         Path(self.db_path).parent.mkdir(parents=True, exist_ok=True)
         self._init_schema()
 
+    def _init_schema(self) -> None:
+        """Create tables via raw DDL fallback (Alembic is the primary path via Kernel)."""
+        with self._get_connection() as conn:
+            conn.executescript(_DDL_FALLBACK)
+
     def _get_connection(self) -> sqlite3.Connection:
         conn = sqlite3.connect(self.db_path)
         conn.row_factory = sqlite3.Row
         conn.execute("PRAGMA journal_mode=WAL")
         conn.execute("PRAGMA foreign_keys=ON")
         return conn
-
-    def _init_schema(self):
-        with self._get_connection() as conn:
-            conn.executescript(SCHEMA_SQL)
 
     @contextmanager
     def get_db(self):

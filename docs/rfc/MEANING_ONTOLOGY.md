@@ -280,7 +280,54 @@ Identity 不是 Meaning 存储对象。Identity Projection 可引用 Trajectory 
 
 ---
 
-## §8 — Amendment
+## §8 — Clarification (v0.1 Addendum, 2026-06)
+
+### §8.1 Belief and Trajectory Are Orthogonal Pipelines
+
+The Interpretation Dependency DAG (§3) is accurate w.r.t. **cite-down** rules, but
+the implied layering (Trajectory → Pattern → Belief) does not reflect the actual
+generation order. In the current implementation (`belief_engine.py`, `trajectory/engine.py`):
+
+```text
+Evidence (Representation)
+├── Pattern Evidence  →  Belief    (explains recurrence)
+└── Continuity Evidence → Trajectory (explains continuity)
+```
+
+Belief is generated from Pattern (statistical aggregation, no LLM), not from Trajectory.
+Trajectory is generated from Continuity Evidence via TrajectoryLinked edges.
+They are **parallel pipelines from Evidence**, not hierarchical layers.
+
+The DAG remains valid for evidence citation (a Belief MAY cite a Trajectory as
+evidence) but MUST NOT imply that Trajectory is a prerequisite for Belief generation.
+
+### §8.2 Perspective as Interpretive Condition
+
+Neither Belief nor Trajectory is a self-standing ontology primitive. Both are
+**Perspective-bound interpretations**: the same Evidence, under different
+Perspectives, can yield different Beliefs and different Trajectories.
+
+Example:
+- Evidence: "resigned from job, started freelancing"  
+- Perspective `professional-growth` → Trajectory: "entrepreneurship arc"  
+- Perspective `family-first` → Trajectory: "family absence arc"
+
+Perspective itself is **not a Meaning Object** — it does not enter the Evidence DAG,
+is not stored as a Claim, and is not governed by the epistemic state machine. It
+belongs to the **Interpretive Layer** (above Ontology, below Projection), which is
+not yet modeled in RUNTIME_SPEC or MEANING_ONTOLOGY. Future work may introduce an
+`interpretive_frames.yaml` registry within the Interpretive Governance layer.
+
+### §8.3 Tension as Claim Subtype
+
+Tension (conflict between Belief and Behavior, competing Trajectories, etc.) is
+modeled as a Claim subtype (`TensionProposed` event with `claim_type: "tension"`).
+It reuses the existing epistemic state machine (proposed → contested → ratified
+→ released) and `claim_authority.py` guards. No new Runtime Primitive is required.
+
+---
+
+## §9 — Amendment
 
 变更本 RFC 之 MUST 语义须：
 

@@ -1,4 +1,4 @@
-.PHONY: install dev test test-backend test-frontend desktop boundary rebuild-verify meaning-verify meaning-dag-verify authority-verify drift-verify trajectory-verify identity-projection-verify identity-verify agency-verify egress-verify connector-verify belief-verify belief-quality belief-survival docker-up docker-down
+.PHONY: install dev test test-backend test-frontend desktop boundary rebuild-verify meaning-verify meaning-dag-verify authority-verify drift-verify trajectory-verify identity-projection-verify identity-verify agency-verify egress-verify connector-verify belief-verify belief-quality belief-survival alembic-verify docker-up docker-down
 
 # Backend
 BACKEND_DIR := backend
@@ -81,6 +81,10 @@ belief-quality:
 
 belief-survival:
 	cd $(BACKEND_DIR) && python3 scripts/verify_belief_survival.py
+
+# Alembic schema migration
+alembic-verify:
+	cd $(BACKEND_DIR) && python3 scripts/verify_alembic.py
 
 docker-up:
 	docker compose up --build

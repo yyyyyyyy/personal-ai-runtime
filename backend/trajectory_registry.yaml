@@ -7,6 +7,7 @@ version: 1
 trajectories:
   - id: career-entrepreneurship-2026
     domain: career
+    perspective: professional-growth
     description: "Career decisions related to entrepreneurship impulse (2026 arc)"
     status: active
     claim_status: proposed
@@ -16,6 +17,7 @@ trajectories:
 
   - id: career-corporate-stability-2026
     domain: career
+    perspective: professional-growth
     description: "Staying in corporate role while evaluating alternatives"
     status: active
     claim_status: proposed

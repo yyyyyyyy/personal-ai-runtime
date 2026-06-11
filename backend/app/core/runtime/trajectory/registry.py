@@ -26,6 +26,9 @@ def load_yaml_registry(path: Path | None = None) -> dict[str, dict[str, Any]]:
         tid = item.get("id")
         if tid:
             entries[tid] = dict(item)
+            # Ensure perspective defaults to domain if not set
+            if "perspective" not in entries[tid]:
+                entries[tid]["perspective"] = entries[tid].get("domain", "general")
     return entries
 
 
@@ -41,6 +44,7 @@ def merge_registry_from_events(
         merged[tid] = {
             "id": tid,
             "domain": p.get("domain", merged.get(tid, {}).get("domain", "general")),
+            "perspective": p.get("perspective", merged.get(tid, {}).get("perspective", p.get("domain", "general"))),
             "description": p.get("description", merged.get(tid, {}).get("description", "")),
             "status": p.get("status", merged.get(tid, {}).get("status", "active")),
             "claim_status": p.get("claim_status", merged.get(tid, {}).get("claim_status", "proposed")),

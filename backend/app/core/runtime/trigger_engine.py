@@ -31,6 +31,28 @@ class TriggerEngine:
                 "action_type": "suggestion",
                 "action_config": json.dumps({"template": "收件箱积压50封邮件，需要整理吗？"}),
             },
+            # --- P2.2: Reflection triggers (Tension detection) ---
+            {
+                "name": "trajectory_inactive_14d",
+                "trigger_type": "tension",
+                "condition_json": json.dumps({"tension_type": "trajectory_neglect", "inactive_days": 14}),
+                "action_type": "suggestion",
+                "action_config": json.dumps({"template": "轨迹「{trajectory_desc}」已14天无新活动，是否需要重新评估？"}),
+            },
+            {
+                "name": "tension_unresolved_30d",
+                "trigger_type": "tension",
+                "condition_json": json.dumps({"tension_type": "unresolved"}),
+                "action_type": "suggestion",
+                "action_config": json.dumps({"template": "你有一条已确认的张力30天未被关注：「{tension_desc}」，要重新审视吗？"}),
+            },
+            {
+                "name": "competing_imbalance",
+                "trigger_type": "tension",
+                "condition_json": json.dumps({"tension_type": "competing_dominance", "ratio_threshold": 5}),
+                "action_type": "suggestion",
+                "action_config": json.dumps({"template": "竞争轨迹对严重失衡（{ratio}:1），弱侧轨迹是否仍具有解释价值？"}),
+            },
         ]
 
     def seed_builtin_triggers(self):
@@ -89,6 +111,8 @@ class TriggerEngine:
             return self._eval_staleness(trigger, condition)
         if trigger_type == "threshold":
             return self._eval_threshold(trigger, condition)
+        if trigger_type == "tension":
+            return self._eval_tension(trigger, condition)
         return None
 
     def _eval_staleness(self, trigger: dict, condition: dict) -> list[dict] | None:
@@ -143,6 +167,55 @@ class TriggerEngine:
             return [{"trigger_id": trigger["id"], "type": "suggestion", "content": msg}]
 
         return None
+
+    def _eval_tension(self, trigger: dict, condition: dict) -> list[dict] | None:
+        """Evaluate tension triggers using the Tension Detection module."""
+        try:
+            from app.core.runtime.tension.detector import run_tension_detection
+
+            result = run_tension_detection()
+        except Exception:
+            return None
+
+        suggestions = []
+        action_config = json.loads(trigger.get("action_config", "{}"))
+        template = action_config.get("template", "")
+
+        tension_type = condition.get("tension_type", "")
+        if tension_type == "trajectory_neglect" and result.get("trajectory_neglect", 0) > 0:
+            suggestions.append({
+                "trigger_id": trigger["id"],
+                "type": "suggestion",
+                "content": template.format(
+                    trajectory_desc="某条轨迹",
+                ),
+            })
+        elif tension_type == "unresolved":
+            # Check if there are any TensionClaims that were ratified >30d ago
+            try:
+                claims = kernel.query_state("memories", origin="claim", limit=200)
+                for c in claims:
+                    p = json.loads(c.get("content", "{}") or "{}") if c.get("content") else {}
+                    if isinstance(p, dict) and p.get("claim_type") == "tension":
+                        if c.get("claim_status") == "ratified":
+                            suggestions.append({
+                                "trigger_id": trigger["id"],
+                                "type": "suggestion",
+                                "content": template.format(
+                                    tension_desc=p.get("description", "未命名张力")[:80],
+                                ),
+                            })
+                            break
+            except Exception:
+                pass
+        elif tension_type == "competing_dominance" and result.get("competing_dominance", 0) > 0:
+            suggestions.append({
+                "trigger_id": trigger["id"],
+                "type": "suggestion",
+                "content": template.format(ratio="5"),
+            })
+
+        return suggestions if suggestions else None
 
     def create_trigger(
         self,

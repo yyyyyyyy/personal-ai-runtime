@@ -7,6 +7,7 @@ from pydantic import BaseModel, Field
 
 from app.core.runtime import kernel_instance
 from app.core.runtime.trajectory import identity_authority, link_authority
+from app.core.runtime.trajectory.delta import compute_trajectory_delta
 from app.core.runtime.trajectory.engine import link_event, register_trajectory
 
 router = APIRouter(prefix="/api/trajectories", tags=["trajectories"])
@@ -111,6 +112,26 @@ async def identity_opt_in(trajectory_id: str):
         raise HTTPException(status_code=404, detail="Trajectory not found")
     identity_authority.opt_in(trajectory_id, actor="user")
     return {"trajectory_id": trajectory_id, "identity_narrative_opt_in": True}
+
+
+# --- P2.3: Delta View API ---
+
+
+@router.get("/{trajectory_id}/projection-delta")
+async def projection_delta(trajectory_id: str, perspective: str | None = None):
+    """Return the interpretation timeline for a trajectory.
+
+    Shows how the meaning of this trajectory has evolved across different
+    timestamps and perspectives.
+    """
+    data = compute_trajectory_delta(
+        kernel_instance.kernel,
+        trajectory_id,
+        perspective=perspective,
+    )
+    if data is None:
+        raise HTTPException(status_code=404, detail="Trajectory not found")
+    return data
 
 
 @router.post("/{trajectory_id}/identity-opt-out")

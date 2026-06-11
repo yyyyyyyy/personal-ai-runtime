@@ -2,17 +2,24 @@
 
 Review is the key value-producing component: it analyzes events, summarizes progress,
 detects problems, and suggests adjustments. Reviews complete the Goal→Action→Event→Memory→Review→Goal loop.
+
+LLM polish is enabled by default (REVIEW_NARRATIVE_LLM_ENABLED=true). The sync API
+(polish_narrative) wraps asyncio internally for APScheduler compatibility.
 """
 
+import asyncio
 import json
+import logging
 import uuid
 from datetime import UTC, datetime, timedelta
 
 from app.core.agents.memory_engine import memory_engine
 from app.core.runtime.legacy_event_adapter import to_legacy_dict
 from app.core.runtime.projection.narrative_audit import build_narrative_audit
-from app.core.runtime.projection.narrative_polish import polish_narrative
+from app.core.runtime.projection.narrative_polish import polish_narrative_async
 from app.core.telemetry.event_recorder import event_recorder
+
+logger = logging.getLogger(__name__)
 
 
 def _kernel():
@@ -333,13 +340,15 @@ class ReviewEngine:
             if t.get("id")
             and (t.get("status") == "released" or t.get("claim_status") == "released")
         }
-        return polish_narrative(
-            content,
-            trajectories=trajectories,
-            memories=memories,
-            events=events,
-            trajectory_link_seqs=link_seqs,
-            released_trajectory_ids=released_ids,
+        return asyncio.run(
+            polish_narrative_async(
+                content,
+                trajectories=trajectories,
+                memories=memories,
+                events=events,
+                trajectory_link_seqs=link_seqs,
+                released_trajectory_ids=released_ids,
+            )
         )
 
     def _key_insights_payload(
