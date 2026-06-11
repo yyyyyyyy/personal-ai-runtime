@@ -11,6 +11,7 @@ from datetime import UTC, datetime, timedelta
 from app.core.agents.memory_engine import memory_engine
 from app.core.runtime.legacy_event_adapter import to_legacy_dict
 from app.core.runtime.projection.narrative_audit import build_narrative_audit
+from app.core.runtime.projection.narrative_polish import polish_narrative
 from app.core.telemetry.event_recorder import event_recorder
 
 
@@ -60,7 +61,10 @@ class ReviewEngine:
         stagnant = self._get_stagnant_goals()
 
         review_id = str(uuid.uuid4())
-        content = self._build_review_content("daily", date, date, events, goals, stagnant)
+        content = self._finalize_review_content(
+            self._build_review_content("daily", date, date, events, goals, stagnant),
+            events,
+        )
         key_insights = self._key_insights_payload(content, surface="daily_review", events=events)
 
         with _db().get_db() as conn:
@@ -93,9 +97,12 @@ class ReviewEngine:
         completed = self._get_completed_goals(start_date.strftime("%Y-%m-%d"))
 
         review_id = str(uuid.uuid4())
-        content = self._build_review_content(
-            "weekly", start_date.strftime("%Y-%m-%d"), end_date.strftime("%Y-%m-%d"),
-            events, goals, completed
+        content = self._finalize_review_content(
+            self._build_review_content(
+                "weekly", start_date.strftime("%Y-%m-%d"), end_date.strftime("%Y-%m-%d"),
+                events, goals, completed,
+            ),
+            events,
         )
         key_insights = self._key_insights_payload(content, surface="weekly_review", events=events)
 
@@ -119,9 +126,12 @@ class ReviewEngine:
         completed = self._get_completed_goals(start_date.strftime("%Y-%m-%d"))
 
         review_id = str(uuid.uuid4())
-        content = self._build_review_content(
-            "monthly", start_date.strftime("%Y-%m-%d"), end_date.strftime("%Y-%m-%d"),
-            events, goals, completed
+        content = self._finalize_review_content(
+            self._build_review_content(
+                "monthly", start_date.strftime("%Y-%m-%d"), end_date.strftime("%Y-%m-%d"),
+                events, goals, completed,
+            ),
+            events,
         )
         key_insights = self._key_insights_payload(content, surface="monthly_review", events=events)
 
@@ -260,8 +270,16 @@ class ReviewEngine:
             trajectories = _kernel().list_trajectories()
         except Exception:
             return
-        active = [t for t in trajectories if t.get("status", "active") == "active"]
-        if not active:
+        active = [
+            t for t in trajectories
+            if t.get("status", "active") == "active"
+            and t.get("claim_status") != "released"
+        ]
+        released = [
+            t for t in trajectories
+            if t.get("status") == "released" or t.get("claim_status") == "released"
+        ]
+        if not active and not released:
             return
         lines.append("## 轨迹视角（连续性假说，可争议）")
         for t in active[:8]:
@@ -274,7 +292,55 @@ class ReviewEngine:
             if competing:
                 line += f" （竞争轨迹: {', '.join(competing[:3])}）"
             lines.append(line)
+        if released:
+            lines.append("")
+            lines.append("### 已放下轨迹（墓碑，不再定义身份叙事）")
+            for t in released[:8]:
+                tid = t.get("id", "")
+                desc = t.get("description", tid)
+                lines.append(
+                    f"- [已放下] {tid}: {desc}（Release；结构保留，影响已解除）"
+                )
         lines.append("")
+
+    def _finalize_review_content(
+        self, content: str, events: list[dict]
+    ) -> str:
+        k = _kernel()
+        try:
+            trajectories = k.list_trajectories()
+        except Exception:
+            return content
+        memories = k.query_state("memories", limit=300)
+        link_seqs: dict[str, list[int]] = {}
+        for t in trajectories:
+            tid = t.get("id")
+            if not tid:
+                continue
+            try:
+                data = k.query_trajectory(tid)
+                if data:
+                    link_seqs[tid] = [
+                        int(lnk["event_seq"])
+                        for lnk in data.get("links", [])
+                        if lnk.get("event_seq") is not None
+                    ]
+            except Exception:
+                link_seqs[tid] = []
+        released_ids = {
+            t["id"]
+            for t in trajectories
+            if t.get("id")
+            and (t.get("status") == "released" or t.get("claim_status") == "released")
+        }
+        return polish_narrative(
+            content,
+            trajectories=trajectories,
+            memories=memories,
+            events=events,
+            trajectory_link_seqs=link_seqs,
+            released_trajectory_ids=released_ids,
+        )
 
     def _key_insights_payload(
         self, content: str, *, surface: str, events: list[dict] | None = None

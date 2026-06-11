@@ -19,8 +19,9 @@ from app.core.agents.tool_postprocess import (
     compact_for_llm,
 )
 from app.core.runtime.conversation_recorder import record_conversation_turn
+from app.core.runtime.egress.egress_gate import prepare_llm_egress
 from app.core.runtime.kernel_instance import kernel
-from app.core.runtime.meaning_gate import gate_assistant_text
+from app.core.runtime.meaning_gate import gate_assistant_text, gate_stream_delta
 from app.core.telemetry.telemetry import LLMCallRecord, telemetry
 
 SYSTEM_PROMPT = """You are Personal AI Runtime — a personal AI assistant that helps users manage their life, work, and goals.
@@ -83,8 +84,9 @@ class Brain:
             if used_provider.name != self.provider.name:
                 self.client, self.provider = client, used_provider
 
-            # Collect streaming response
+            # Collect streaming response (gated at sentence boundaries)
             assistant_content = ""
+            stream_gated = ""
             tool_calls_data: list[dict] = []
             current_tool_call: dict[str, int | str] = {
                 "index": -1, "id": "", "function_name": "", "arguments": "",
@@ -97,8 +99,11 @@ class Brain:
 
                 # Text content
                 if delta.content:
-                    assistant_content += delta.content
-                    yield {"type": "text_delta", "content": delta.content}
+                    stream_gated, safe_delta, _gate_warnings = gate_stream_delta(
+                        stream_gated, delta.content
+                    )
+                    assistant_content += safe_delta
+                    yield {"type": "text_delta", "content": safe_delta}
 
                 # Tool calls
                 if delta.tool_calls:
@@ -290,10 +295,13 @@ class Brain:
         if messages and messages[-1].get("role") == "user" and not messages[-1].get("content"):
             messages.pop()
 
+        egress_messages, _egress_audit = prepare_llm_egress(
+            messages, purpose="chat_continue"
+        )
         try:
             response = await self.client.chat.completions.create(
                 model=self.provider.model,
-                messages=messages,
+                messages=egress_messages,
                 temperature=settings.llm_temperature,
                 max_tokens=settings.llm_max_tokens,
             )
@@ -320,11 +328,12 @@ class Brain:
         ]
         last_error: Exception | None = None
         llm_start = time.time()
+        egress_messages, _egress_audit = prepare_llm_egress(messages, purpose="chat_stream")
         for client, provider in candidates:
             try:
                 response = await client.chat.completions.create(  # type: ignore[call-overload]
                     model=provider.model,
-                    messages=messages,
+                    messages=egress_messages,
                     tools=kernel.list_capability_definitions(),
                     tool_choice="auto",
                     temperature=settings.llm_temperature,

@@ -1,4 +1,4 @@
-.PHONY: install dev test test-backend test-frontend desktop boundary rebuild-verify meaning-verify authority-verify drift-verify trajectory-verify identity-projection-verify identity-verify agency-verify belief-verify belief-quality belief-survival docker-up docker-down
+.PHONY: install dev test test-backend test-frontend desktop boundary rebuild-verify meaning-verify meaning-dag-verify authority-verify drift-verify trajectory-verify identity-projection-verify identity-verify agency-verify egress-verify connector-verify belief-verify belief-quality belief-survival docker-up docker-down
 
 # Backend
 BACKEND_DIR := backend
@@ -42,6 +42,9 @@ rebuild-verify:
 meaning-verify:
 	cd $(BACKEND_DIR) && python3 scripts/verify_meaning_boundary.py
 
+meaning-dag-verify:
+	cd $(BACKEND_DIR) && python3 scripts/verify_meaning_dag.py
+
 authority-verify:
 	cd $(BACKEND_DIR) && python3 scripts/verify_claim_authority.py
 
@@ -62,6 +65,12 @@ identity-verify:
 
 agency-verify:
 	cd $(BACKEND_DIR) && python3 scripts/verify_agency_surfaces.py
+
+egress-verify:
+	cd $(BACKEND_DIR) && python3 scripts/verify_egress.py
+
+connector-verify:
+	cd $(BACKEND_DIR) && python3 scripts/verify_connector.py
 
 # Pattern + Belief verification suite
 belief-verify:

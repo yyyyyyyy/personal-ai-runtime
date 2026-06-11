@@ -6,9 +6,9 @@
 > 它记录的不是 Primitive、不是 API、不是架构，而是 **哪些权力永远不允许被系统、模型、Agent、甚至未来的开发者拿走**。
 > 它绑住的首要对象，是未来那个会因为「实现方便」而想悄悄挪动权力的人——很可能就是未来的我们自己。
 >
-> 状态：**v1.0 — Proposed（待 Ratify）** ｜ 位于 `RUNTIME_SPEC.md` 之上 ｜ 适配基线：backend v0.9.0
+> 状态：**v1.0 — Ratified** ｜ 位于 `RUNTIME_SPEC.md` 之上 ｜ 适配基线：backend v0.9.0
 >
-> 本文档的状态，使用它自己在 §4 定义的认识论状态机标记：当前为 `Proposed`，经维护者批准后转 `Ratified`；此后任何改动须走 §7 的修宪流程。
+> 本文档的状态，使用它自己在 §4 定义的认识论状态机标记：当前为 `Ratified`；此后任何改动须走 §7 的修宪流程。
 
 ---
 
@@ -122,8 +122,8 @@ Meaning World 三分（见 Meaning Ontology RFC）：Claim（点）· Trajectory
 |------|---------|------|------|
 | **Truth（Event Sourcing）** | 禁止修改过去 | 凡改变系统者必 emit 不可变 Event；State/Memory/Claim 皆为投影，可重建 | `verify_rebuild.py` |
 | **Action（Governance）** | 禁止越权行动 | 一切对世界的作用必经 `invoke_capability` + Approval | `check_boundary.py` |
-| **Data（Egress）** | 禁止越权传播 | 任何离开本机的数据必经 Egress 裁决并留痕 | `check_egress`（待建） |
-| **Meaning** | 禁止垄断解释 | 见 §4 | `check_meaning_boundary`（待建，§4） |
+| **Data（Egress）** | 禁止越权传播 | 任何离开本机的数据必经 Egress 裁决并留痕 | `egress_gate.py` · `verify_egress.py`（LLM v0.1） |
+| **Meaning** | 禁止垄断解释 | 见 §4 | `verify_meaning_boundary.py` · `verify_claim_authority.py` |
 
 前三条已在 `RUNTIME_SPEC` / 路线图中。**Meaning Boundary 是这场对话新产出的第四条，也是 Human Runtime 区别于 AI Runtime 的那条。**
 
@@ -208,6 +208,9 @@ G2  投影冲突时 Self-Report(actor=user) 压过 Claim(actor=system)
 G3  任何呈现给用户的 Identity-class Claim 必须可证伪：
     无 evidence 边、或不暴露 Reject/Revise/Release ABI ⇒ 违宪（可 lint）
 G4  任何 Influence 必须可 Release；存在不可解除的影响 ⇒ 违宪
+G5  unratified Meaning（Claim / Trajectory 边 / Belief）MUST NOT 影响 Agency Projection 排序
+    → Brief、Today、Goal 排名仅可由 commissive Goal 字段 + ratified Meaning 微调驱动
+    → `agency_gate.py` · `verify_agency_surfaces.py`
 ```
 
 > 未决硬边（留给实现，不影响冻结）：**谁判定一个 Claim 是否 high-stakes？** 系统判 → 可把自利 Claim 标为低风险绕过署名；全交用户判 → 同意疲劳。这是 §8 之下的问题，但 G1 的存在使它**必须**被回答。
@@ -280,6 +283,9 @@ Trajectory Registry · TrajectoryLinked · Identity Projection · verify_traject
 | [`rfc/TRAJECTORY_RFC.md`](rfc/TRAJECTORY_RFC.md) | Trajectory 本体、Integrity、Registry 与物化 `trajectory_links` |
 | [`rfc/IDENTITY_RFC.md`](rfc/IDENTITY_RFC.md) | Identity Projection、Narrative Honesty、`verify_identity` |
 | [`rfc/IDENTITY_NARRATIVE_PROMPT.md`](rfc/IDENTITY_NARRATIVE_PROMPT.md) | LLM 叙事润色 prompt 与 `narrative_audit` 契约 |
+| [`rfc/EPISTEMIC_CLOSURE_RFC.md`](rfc/EPISTEMIC_CLOSURE_RFC.md) | 解释闭环与 DAG / G5 / Egress 验收 |
+| [`rfc/EGRESS_RFC.md`](rfc/EGRESS_RFC.md) | LLM 出站审计与 redact |
+| [`rfc/CONNECTOR_RFC.md`](rfc/CONNECTOR_RFC.md) | 自我捕获连接器（calendar v0.1） |
 
 > 路线先后：Egress + 连接器仍需早做——但其验收标准翻转：连接器不是「给 AI 工具」，而是「捕获自我的一个维度」；Egress 不是「防泄露的洁癖」，而是「我凭什么敢把『我是谁』喂给外部模型」的信任前提。
 

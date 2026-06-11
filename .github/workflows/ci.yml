@@ -136,6 +136,11 @@ jobs:
           cd backend
           python scripts/verify_claim_authority.py
 
+      - name: Meaning DAG upward-generation guard
+        run: |
+          cd backend
+          python scripts/verify_meaning_dag.py
+
       - name: Identity drift guard (Meaning Boundary at scale)
         run: |
           cd backend
@@ -165,6 +170,16 @@ jobs:
         run: |
           cd backend
           python scripts/verify_agency_surfaces.py
+
+      - name: LLM Egress audit (Data boundary v0.1)
+        run: |
+          cd backend
+          python scripts/verify_egress.py
+
+      - name: Calendar connector (Experience capture)
+        run: |
+          cd backend
+          python scripts/verify_connector.py
 
   frontend:
     runs-on: ubuntu-latest

@@ -208,7 +208,7 @@ Belief 在 Identity 叙事中 MUST 以 **recurrence hypothesis** 呈现，不得
 | §4.3 认识论状态机 | N5；Belief/Trajectory 边署名 |
 | G1–G5 | Agency 与 Meaning 防火墙；Identity 不驱动 Agency |
 
-**G5 延伸（规划 G5 正式条文）：** unratified Meaning（Claim / Trajectory 边 / Belief）MUST NOT 影响 Agency Projection 排序。
+**G5（宪法 §4.6 正式条文）：** unratified Meaning（Claim / Trajectory 边 / Belief）MUST NOT 影响 Agency Projection 排序；运行时见 `agency_gate.py`。
 
 ---
 
@@ -224,14 +224,20 @@ Belief 在 Identity 叙事中 MUST 以 **recurrence hypothesis** 呈现，不得
 | P5 | I-F1–F3 hard-fail lint + `verify_identity.py` fixture trace | ✅ |
 | P6 | 前端「轨迹」页待确认链接 | ✅ |
 
+### §5.1 — Product Decisions（v0.1 冻结）
+
+| # | 问题 | 裁定 |
+|---|------|------|
+| Q1 | Identity opt-in 粒度 | **per-trajectory**（`identity_authority.py`）；无 global 默认 |
+| Q2 | Belief 在 Weave 中的权重 | v1 **仅列举 + `claim_status`**；不展示 numeric confidence |
+| Q3 | Released 轨迹墓碑文案 | ✅ `review_engine` 墓碑段 + 轨迹页「已放下」徽章 |
+| Q4 | Chat「你一直是…」拦截 | ✅ `gate_stream_delta` + 落库 `gate_assistant_text` |
+
 ---
 
 ## §6 — Open Questions
 
-1. **Ratify 粒度：** 用户 opt-in「单轨迹 → 身份叙事」per-trajectory 还是 global？  
-2. **Belief 在 Weave 中的权重：** 是否展示 confidence，还是仅列举？  
-3. **Released 轨迹在 Identity 中的墓碑文案：** 与宪法 §5 Release 对齐。  
-4. **Chat 中的「你一直是…」：** 是否经 `MeaningGate.present()` 统一拦截？
+（v0.1 已全部裁定，见 §5.1。）
 
 ---
 

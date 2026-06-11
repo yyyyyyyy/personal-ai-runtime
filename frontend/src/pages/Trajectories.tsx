@@ -17,6 +17,7 @@ function LinkStatusBadge({ status }: { status?: string }) {
     proposed: "bg-amber-900/40 text-amber-300",
     ratified: "bg-emerald-900/40 text-emerald-300",
     rejected: "bg-gray-800 text-gray-500",
+    released: "bg-gray-800 text-gray-500 line-through",
     contested: "bg-orange-900/40 text-orange-300",
   };
   const label = status || "proposed";
@@ -177,18 +178,30 @@ export default function TrajectoriesPage() {
             <p className="text-gray-600 text-sm">暂无轨迹注册表条目。</p>
           ) : (
             <div className="grid gap-3 sm:grid-cols-2">
-              {trajectories.map((t) => (
+              {trajectories.map((t) => {
+                const isReleased =
+                  t.status === "released" || t.claim_status === "released";
+                return (
                 <button
                   key={t.id}
                   type="button"
                   onClick={() => setSelectedId(selectedId === t.id ? null : t.id!)}
                   className={`text-left bg-gray-900 border rounded-lg p-4 transition-colors ${
+                    isReleased ? "opacity-70 border-gray-800" : ""
+                  } ${
                     selectedId === t.id
                       ? "border-indigo-600 ring-1 ring-indigo-600/30"
                       : "border-gray-800 hover:border-gray-700"
                   }`}
                 >
-                  <div className="text-sm font-medium text-gray-200 mb-1">{t.id}</div>
+                  <div className="text-sm font-medium text-gray-200 mb-1 flex items-center gap-2">
+                    <span>{t.id}</span>
+                    {isReleased && (
+                      <span className="text-xs px-2 py-0.5 rounded bg-gray-800 text-gray-500 border border-gray-700">
+                        已放下
+                      </span>
+                    )}
+                  </div>
                   <p className="text-xs text-gray-500 mb-2 line-clamp-2">{t.description}</p>
                   <div className="flex flex-wrap gap-2 text-xs">
                     {t.domain && (
@@ -213,7 +226,8 @@ export default function TrajectoriesPage() {
                     </p>
                   )}
                 </button>
-              ))}
+              );
+              })}
             </div>
           )}
         </section>

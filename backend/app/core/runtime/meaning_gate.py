@@ -24,6 +24,29 @@ _OUTCOME_EPILOGUE = [
 ]
 
 
+def _ends_sentence(text: str) -> bool:
+    stripped = text.rstrip()
+    if not stripped:
+        return False
+    return stripped[-1] in "。！？!?\n"
+
+
+def gate_stream_delta(
+    accumulated: str, delta: str
+) -> tuple[str, str, list[str]]:
+    """Gate streaming text at sentence boundaries; return (new_accumulated, safe_delta, warnings)."""
+    new_accumulated = accumulated + delta
+    if not _ends_sentence(new_accumulated):
+        return new_accumulated, delta, []
+
+    gated, warnings = gate_assistant_text(new_accumulated)
+    if gated == new_accumulated:
+        return new_accumulated, delta, warnings
+
+    safe_delta = gated[len(accumulated):] if len(gated) >= len(accumulated) else gated
+    return gated, safe_delta, warnings
+
+
 def gate_assistant_text(text: str) -> tuple[str, list[str]]:
     """Sanitize assistant text; return (possibly modified text, warnings)."""
     if not text or not text.strip():

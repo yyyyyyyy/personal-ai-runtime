@@ -6,7 +6,7 @@
 >
 > 状态：**v0.1 — Ratified** ｜ 适配基线：backend v0.9.0 ｜ 不修改 `RUNTIME_SPEC.md` 之 Primitive 冻结声明
 >
-> 依赖：[`HUMAN_RUNTIME_CONSTITUTION.md`](../HUMAN_RUNTIME_CONSTITUTION.md)（Proposed）、Epistemic Closure RFC（规划中）
+> 依赖：[`HUMAN_RUNTIME_CONSTITUTION.md`](../HUMAN_RUNTIME_CONSTITUTION.md)（Ratified）、[`EPISTEMIC_CLOSURE_RFC.md`](EPISTEMIC_CLOSURE_RFC.md) v0.1 Ratified
 >
 > 被引用：`TRAJECTORY_RFC.md`、`IDENTITY_RFC.md`
 
@@ -275,8 +275,8 @@ Identity 不是 Meaning 存储对象。Identity Projection 可引用 Trajectory 
 待后续 RFC 展开：
 
 - [x] Identity Narrative Honesty（N1–N5）— 见 `IDENTITY_RFC.md`
-- [ ] `verify_meaning_dag.py`（CI 禁止向上生成）
-- [ ] Trajectory Registry schema（`TRAJECTORY_RFC.md` §1）
+- [x] `verify_meaning_dag.py`（CI 禁止向上生成）
+- [x] Trajectory Registry schema（`TRAJECTORY_RFC.md` §1）
 
 ---
 
