@@ -1,7 +1,7 @@
 {
-  "name": "personal-ai-os-desktop",
+  "name": "personal-ai-runtime-desktop",
   "version": "0.9.0",
-  "description": "Personal AI OS Desktop Client",
+  "description": "Personal AI Runtime Desktop Client",
   "main": "main.js",
   "scripts": {
     "start": "electron .",
@@ -15,8 +15,8 @@
     "electron-builder": "^25.0.0"
   },
   "build": {
-    "appId": "com.personalaios.desktop",
-    "productName": "Personal AI OS",
+    "appId": "com.personalairuntime.desktop",
+    "productName": "Personal AI Runtime",
     "files": [
       "main.js",
       "preload.js",

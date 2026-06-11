@@ -1,4 +1,4 @@
-# Personal AI OS
+# Personal AI Runtime
 
 本地优先的个人 AI 运行时：带上下文的对话、目标管理、记忆沉淀、智能收件箱、工具执行与审批治理。
 

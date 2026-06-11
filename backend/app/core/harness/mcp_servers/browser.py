@@ -14,7 +14,7 @@ class BrowserServer:
             async with httpx.AsyncClient(
                 timeout=20,
                 follow_redirects=True,
-                headers={"User-Agent": "PersonalAIOS/1.0"},
+                headers={"User-Agent": "PersonalAIRuntime/1.0"},
             ) as client:
                 resp = await client.get(url)
                 text = resp.text[:5000]

@@ -1,5 +1,5 @@
 /**
- * Electron main process for Personal AI OS Desktop.
+ * Electron main process for Personal AI Runtime Desktop.
  *
  * Provides:
  * - System tray icon with quick actions
@@ -28,7 +28,7 @@ function createMainWindow() {
     height: 800,
     minWidth: 800,
     minHeight: 600,
-    title: 'Personal AI OS',
+    title: 'Personal AI Runtime',
     icon: path.join(__dirname, 'icon.png'),
     webPreferences: {
       nodeIntegration: false,
@@ -100,7 +100,7 @@ function createTray() {
 
   const contextMenu = Menu.buildFromTemplate([
     {
-      label: '打开 Personal AI OS',
+      label: '打开 Personal AI Runtime',
       click: () => {
         if (mainWindow) {
           mainWindow.show();
@@ -120,8 +120,8 @@ function createTray() {
       click: () => {
         dialog.showMessageBox({
           type: 'info',
-          title: 'Personal AI OS',
-          message: 'Personal AI OS v0.7.0',
+          title: 'Personal AI Runtime',
+          message: 'Personal AI Runtime v0.7.0',
           detail: '你的第二大脑和执行引擎',
         });
       },
@@ -136,7 +136,7 @@ function createTray() {
     },
   ]);
 
-  tray.setToolTip('Personal AI OS');
+  tray.setToolTip('Personal AI Runtime');
   tray.setContextMenu(contextMenu);
 
   tray.on('click', () => {

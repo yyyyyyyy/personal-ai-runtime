@@ -93,7 +93,7 @@ export default function TimelinePage() {
 
         {sortedDates.length === 0 ? (
           <div className="text-gray-500 text-center py-12">
-            暂无事件记录。开始使用 Personal AI OS 后，这里将显示你的活动时间线。
+            暂无事件记录。开始使用 Personal AI Runtime 后，这里将显示你的活动时间线。
           </div>
         ) : (
           <div className="relative pl-8 border-l-2 border-gray-800">

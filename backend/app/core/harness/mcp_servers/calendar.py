@@ -58,7 +58,7 @@ class CalendarServer:
         )
 
         existing = ics_path.read_text(encoding="utf-8") if ics_path.exists() else (
-            "BEGIN:VCALENDAR\nVERSION:2.0\nPRODID:-//PersonalAIOS//Calendar//EN\n"
+            "BEGIN:VCALENDAR\nVERSION:2.0\nPRODID:-//PersonalAIRuntime//Calendar//EN\n"
         )
         if "END:VCALENDAR" not in existing:
             existing += "END:VCALENDAR\n"

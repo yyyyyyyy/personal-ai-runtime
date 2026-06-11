@@ -21,7 +21,7 @@ class FetchServer:
                 timeout=20.0,
                 follow_redirects=True,
                 headers={
-                    "User-Agent": "Mozilla/5.0 (compatible; PersonalAI-OS/0.1; +https://personal-ai.os)"
+                    "User-Agent": "Mozilla/5.0 (compatible; PersonalAI-Runtime/0.1; +https://personal-ai.runtime)"
                 },
             ) as client:
                 resp = await client.get(url)

@@ -1,4 +1,4 @@
-"""Personal AI OS — FastAPI Application Entry Point."""
+"""Personal AI Runtime — FastAPI Application Entry Point."""
 
 from contextlib import asynccontextmanager
 
@@ -70,7 +70,7 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(
-    title="Personal AI OS",
+    title="Personal AI Runtime",
     description="Your second brain and execution engine — Runtime Foundation",
     version="0.9.0",
     lifespan=lifespan,
@@ -104,7 +104,7 @@ app.include_router(inbox.router)
 
 @app.get("/")
 async def root():
-    return {"message": "Personal AI OS is running", "version": "0.9.0"}
+    return {"message": "Personal AI Runtime is running", "version": "0.9.0"}
 
 
 @app.websocket("/ws")

@@ -72,7 +72,7 @@ export default function App() {
       {/* Sidebar */}
       <aside className="w-64 bg-gray-900 border-r border-gray-800 flex flex-col shrink-0">
         <div className="p-4 border-b border-gray-800">
-          <h1 className="text-lg font-bold text-emerald-400">Personal AI OS</h1>
+          <h1 className="text-lg font-bold text-emerald-400">Personal AI Runtime</h1>
           <p className="text-xs text-gray-500 mt-1">你的第二大脑</p>
         </div>
 
@@ -165,7 +165,7 @@ export default function App() {
               <div className="text-center">
                 <div className="text-6xl mb-4">🧠</div>
                 <h2 className="text-2xl font-semibold text-gray-300 mb-2">
-                  Personal AI OS
+                  Personal AI Runtime
                 </h2>
                 <p className="text-gray-500 mb-6">
                   点击「新对话」开始，或选择一个已有对话

@@ -33,7 +33,7 @@ class PersonalAgentProtocol:
 
 
 class AgentGateway:
-    """Receives and routes messages between Personal AI OS agents."""
+    """Receives and routes messages between Personal AI Runtime agents."""
 
     SUPPORTED_INTENTS = ["schedule_meeting", "share_info", "request_status", "offer_help"]
 
@@ -51,7 +51,7 @@ class AgentGateway:
     def send(self, to_agent: str, intent: str, payload: dict) -> dict:
         """Create an outgoing message."""
         return PersonalAgentProtocol.format_message(
-            from_agent="personal-ai-os",
+            from_agent="personal-ai-runtime",
             to_agent=to_agent,
             intent=intent,
             payload=payload,

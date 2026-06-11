@@ -472,7 +472,7 @@ export default function ChatView({ conversationId }: Props) {
             </button>
           </div>
           <p className="text-xs text-gray-600 mt-2 text-center">
-            Personal AI OS 可能会犯错，请验证重要信息。
+            Personal AI Runtime 可能会犯错，请验证重要信息。
           </p>
         </div>
       </div>

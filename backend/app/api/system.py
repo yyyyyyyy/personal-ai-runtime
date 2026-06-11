@@ -15,7 +15,7 @@ async def health_check():
     """Health check endpoint."""
     return {
         "status": "ok",
-        "service": "personal-ai-os",
+        "service": "personal-ai-runtime",
         "version": "0.9.0",
     }
 

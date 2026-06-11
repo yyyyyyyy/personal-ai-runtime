@@ -1,5 +1,5 @@
 /**
- * Preload script for Personal AI OS Desktop.
+ * Preload script for Personal AI Runtime Desktop.
  * Exposes safe IPC methods to the renderer process.
  */
 

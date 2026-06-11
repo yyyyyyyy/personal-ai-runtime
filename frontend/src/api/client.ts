@@ -1,4 +1,4 @@
-/** API client for Personal AI OS backend. */
+/** API client for Personal AI Runtime backend. */
 
 const API_BASE = "/api";
 
