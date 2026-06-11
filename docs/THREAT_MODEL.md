@@ -41,7 +41,7 @@
 ### 3. Egress 审计（非脱敏边界）
 
 - 出站 LLM 调用记录 `EgressApproved` 事件（审计日志）。
-- **不**声称完整 PII 脱敏；详见 `EGRESS_RFC.md`（Experimental）。
+- **不**声称完整 PII 脱敏；当前仅做出站审计，不做脱敏边界。
 
 ## 非目标（当前版本）
 

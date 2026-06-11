@@ -1,9 +1,28 @@
 # Personal AI Runtime
 
-本地优先的个人 AI 助手 + **可携带 Event 底座**：对话、目标、记忆、收件箱、工具执行与审批治理。
+> 一个**数据完全属于你**的本地优先 AI 助手。对话、记忆、目标、智能收件箱、工具执行——全部跑在你自己机器上，可一键无损导出，永不被任何厂商锁定。
 
-**护城河：** 完整 `event_log` 无损导出/导入，跨模型可重建个人数据。  
-**实验特性：** Meaning / Trajectory / Identity 层位于 `backend/app/experimental/`（默认关闭，见 `MEANING_GATE_ENABLED` / `EXPERIMENTAL_TRAJECTORY_ENABLED`）。
+**它能为你做什么：**
+
+- 💬 **会记事的对话** —— 带长期记忆与目标上下文，不是每次从零开始
+- 📥 **智能收件箱** —— 自动轮询、分类、摘要邮件，对话里也能直接查信
+- 🎯 **目标与行动管理** —— 停滞检测、主动提醒
+- 🛠️ **23 个工具 + 审批治理** —— 写文件、跑命令、发邮件等高风险操作必须经你确认
+- 🔒 **数据主权护城河** —— 完整 `event_log` 无损导出/导入，跨模型可重建你的全部个人数据
+
+**为什么不同：** 大多数 AI 助手把你的数据存在它们的云上。这个项目反过来——Kernel 边界保证 Agent 永远不能直接读写你的存储，所有改动都留痕在不可变的事件日志里，你随时可以带着数据走。
+
+> **实验特性（默认关闭）：** Meaning / Trajectory / Identity 层位于 `backend/app/experimental/`，等真实用户验证后再决定去留（见 `MEANING_GATE_ENABLED` / `EXPERIMENTAL_TRAJECTORY_ENABLED`）。
+
+## 截图 / Demo
+
+> _占位：补充以下截图能极大提升项目可信度——_
+>
+> - `docs/assets/chat-approval.png` — Chat 中的高风险操作审批弹窗
+> - `docs/assets/inbox.png` — 智能收件箱分类与摘要
+> - `docs/assets/export.png` — 一键无损导出
+>
+> 录制建议：用 [asciinema](https://asciinema.org/) 或 30 秒 GIF 展示「发消息 → 工具审批 → 导出数据」主链路。
 
 ## 环境要求
 
@@ -155,8 +174,7 @@ User → Runtime Kernel (Event Log / State / Permissions)
          └─ Storage (SQLite + ChromaDB, 本地)
 ```
 
-架构契约与 W5 闭合性验证详见 [RUNTIME_SPEC.md](docs/RUNTIME_SPEC.md)。  
-认识论与轨迹理论（v0.1 Ratified）：[MEANING_ONTOLOGY](docs/rfc/MEANING_ONTOLOGY.md) · [TRAJECTORY_RFC](docs/rfc/TRAJECTORY_RFC.md) · [IDENTITY_RFC](docs/rfc/IDENTITY_RFC.md)。宪法序言见 [HUMAN_RUNTIME_CONSTITUTION.md](docs/HUMAN_RUNTIME_CONSTITUTION.md#序言--preambleepistemic-stack)。完整索引见 [docs/README.md](docs/README.md)。
+架构契约（Runtime Primitive / Kernel Boundary / ABI）详见 [RUNTIME_SPEC.md](docs/RUNTIME_SPEC.md)，安全边界见 [THREAT_MODEL.md](docs/THREAT_MODEL.md)。完整文档索引见 [docs/README.md](docs/README.md)。
 
 ## 版本
 
