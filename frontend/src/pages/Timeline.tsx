@@ -1,6 +1,5 @@
 import { useState, useEffect } from "react";
 import { listReviews, type Review } from "../api/client";
-import ProjectionBadge from "../components/ProjectionBadge";
 
 interface Event {
   id: string;
@@ -86,7 +85,6 @@ export default function TimelinePage() {
                       {review.period_start}
                       {review.period_end !== review.period_start ? ` ~ ${review.period_end}` : ""}
                     </span>
-                    <ProjectionBadge parsed={review.key_insights_parsed} />
                   </div>
                   <div className="text-sm text-gray-300 whitespace-pre-wrap line-clamp-6">
                     {review.content.slice(0, 800)}

@@ -34,8 +34,6 @@ APP_STORAGE_TABLES: frozenset[str] = frozenset({
     "triggers",
     "user_profile",
     "inbox_emails",
-    # Legacy table from prior trajectory experiment; retained by Alembic for existing DBs.
-    "trajectory_links",
 })
 
 # Expected columns for governed projection tables (PRAGMA contract).

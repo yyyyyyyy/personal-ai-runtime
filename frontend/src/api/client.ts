@@ -195,10 +195,6 @@ export async function getHealth(): Promise<HealthSnapshot> {
 // --- Reviews API ---
 
 export interface KeyInsightsParsed {
-  projection?: boolean;
-  projection_type?: string;
-  interpretive_plurality?: boolean;
-  not_ratified?: boolean;
   surface?: string;
   insights?: string[];
   legacy?: boolean;

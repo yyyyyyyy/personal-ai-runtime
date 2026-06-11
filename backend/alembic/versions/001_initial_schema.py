@@ -3,7 +3,7 @@
 Combines:
   - database.py SCHEMA_SQL (19 tables)
   - kernel.py EVENT_LOG_SCHEMA (event_log)
-  - kernel.py TRAJECTORY_LINKS_SCHEMA (trajectory_links)
+  - trajectory_links (dropped in migration 002)
   - kernel.py ALTER TABLE additions (memories columns)
 
 Revision ID: 001
