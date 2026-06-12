@@ -37,6 +37,7 @@ function mockDashboardData(overrides: Partial<ReturnType<typeof useDashboard>> =
     },
     health: {
       task_queue_length: 3,
+      llm_failure_rate_24h: 0.01,
       tool_failure_rate_24h: 0.02,
     },
     notifications: [

@@ -16,7 +16,12 @@ import json
 from typing import Any
 
 from . import projectors
-from .constants import CHAT_EVENT_TYPES, MEMORY_INDEX_EVENT_TYPES, PROJECTION_SNAPSHOT_AGGREGATES, PROJECTION_TABLES
+from .constants import (
+    CHAT_EVENT_TYPES,
+    MEMORY_INDEX_EVENT_TYPES,
+    PROJECTION_SNAPSHOT_AGGREGATES,
+    PROJECTION_TABLES,
+)
 
 
 class SovereigntyMixin:
