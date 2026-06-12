@@ -12,8 +12,10 @@ from __future__ import annotations
 import uuid
 from typing import Any
 
+from ._mixin_protocol import _KernelMixinInterface
 
-class GovernanceMixin:
+
+class GovernanceMixin(_KernelMixinInterface):
     """Approval governance for capability invocations.
 
     Mixed into Kernel. Uses self._db, self.emit_event, and related

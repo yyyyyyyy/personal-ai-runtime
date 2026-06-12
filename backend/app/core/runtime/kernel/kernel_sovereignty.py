@@ -16,6 +16,7 @@ import json
 from typing import Any
 
 from . import projectors
+from ._mixin_protocol import _KernelMixinInterface
 from .constants import (
     CHAT_EVENT_TYPES,
     MEMORY_INDEX_EVENT_TYPES,
@@ -24,7 +25,7 @@ from .constants import (
 )
 
 
-class SovereigntyMixin:
+class SovereigntyMixin(_KernelMixinInterface):
     """Data sovereignty operations — export, import, rebuild.
 
     Mixed into Kernel. Uses self._db, self.emit_event, self.read_events,
