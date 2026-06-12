@@ -1,27 +1,21 @@
 import { useEffect } from "react";
 import { useChatStore } from "./stores/chatStore";
-import { useAppStore, type Page } from "./stores/appStore";
+import { useAppStore } from "./stores/appStore";
+import { useErrorStore } from "./stores/errorStore";
 import {
   listConversations,
   createConversation,
   deleteConversation,
+  ApiError,
 } from "./api/client";
 import ChatView from "./components/chat/ChatView";
+import Sidebar from "./components/layout/Sidebar";
 import GoalsPage from "./pages/Goals";
 import TimelinePage from "./pages/Timeline";
 import DashboardPage from "./pages/Dashboard";
 import InboxPage from "./pages/Inbox";
 import MemoriesPage from "./pages/Memories";
 import { useNotifications } from "./hooks/useNotifications";
-
-const NAV_ITEMS: { id: Page; label: string; icon: string }[] = [
-  { id: "chat", label: "对话", icon: "💬" },
-  { id: "goals", label: "目标", icon: "🎯" },
-  { id: "inbox", label: "收件箱", icon: "📧" },
-  { id: "timeline", label: "时间线", icon: "📅" },
-  { id: "memories", label: "记忆", icon: "🧩" },
-  { id: "dashboard", label: "仪表盘", icon: "📊" },
-];
 
 export default function App() {
   const {
@@ -35,6 +29,7 @@ export default function App() {
 
   const { currentPage, setPage } = useAppStore();
   const { toasts, dismissToast } = useNotifications();
+  const { errors, dismissError, backendUnavailable, addError } = useErrorStore();
 
   useEffect(() => {
     loadConversations();
@@ -44,8 +39,13 @@ export default function App() {
     try {
       const convs = await listConversations();
       setConversations(convs);
-    } catch {
-      // Backend may not be running
+      useErrorStore.getState().setBackendUnavailable(false);
+    } catch (e) {
+      if (e instanceof ApiError && e.status === 401) {
+        addError("认证失败，请检查后端 AUTH_TOKEN 配置", "认证");
+      } else {
+        useErrorStore.getState().setBackendUnavailable(true);
+      }
     }
   };
 
@@ -55,8 +55,8 @@ export default function App() {
       addConversation(conv);
       setActiveConversation(conv.id);
       setPage("chat");
-    } catch {
-      // backend may not be running
+    } catch (e) {
+      addError(e instanceof ApiError ? e.message : "创建对话失败", "对话");
     }
   };
 
@@ -64,84 +64,31 @@ export default function App() {
     try {
       await deleteConversation(id);
       removeConversation(id);
-    } catch {
-      // ignore
+    } catch (e) {
+      addError(e instanceof ApiError ? e.message : "删除对话失败", "对话");
     }
   };
 
   return (
     <div className="flex h-screen bg-gray-950 text-gray-100">
-      {/* Sidebar */}
-      <aside className="w-64 bg-gray-900 border-r border-gray-800 flex flex-col shrink-0">
-        <div className="p-4 border-b border-gray-800">
-          <h1 className="text-lg font-bold text-emerald-400">Personal AI Runtime</h1>
-          <p className="text-xs text-gray-500 mt-1">你的第二大脑</p>
+      <Sidebar
+        currentPage={currentPage}
+        onNavigate={setPage}
+        conversations={conversations}
+        activeConversationId={activeConversationId}
+        onSelectConversation={setActiveConversation}
+        onNewChat={handleNewChat}
+        onDeleteChat={handleDeleteChat}
+      />
+
+      {/* Backend unavailable banner */}
+      {backendUnavailable && (
+        <div className="fixed top-0 left-64 right-0 z-50 bg-red-900/50 border-b border-red-700/50 px-4 py-2 text-center">
+          <span className="text-red-400 text-sm">
+            无法连接到后端服务，请确认后端已启动
+          </span>
         </div>
-
-        {/* Navigation */}
-        <nav className="px-2 py-2 border-b border-gray-800">
-          {NAV_ITEMS.map((item) => (
-            <button
-              key={item.id}
-              onClick={() => setPage(item.id)}
-              className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm mb-1 transition-colors ${
-                currentPage === item.id
-                  ? "bg-emerald-600/20 text-emerald-400"
-                  : "text-gray-400 hover:bg-gray-800/50"
-              }`}
-            >
-              <span>{item.icon}</span>
-              <span>{item.label}</span>
-            </button>
-          ))}
-        </nav>
-
-        {currentPage === "chat" && (
-          <>
-            <button
-              onClick={handleNewChat}
-              className="mx-3 mt-3 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 rounded-lg text-sm font-medium transition-colors"
-            >
-              + 新对话
-            </button>
-
-            <div className="flex-1 overflow-y-auto mt-3 px-2">
-              {conversations.map((conv) => (
-                <div
-                  key={conv.id}
-                  onClick={() => setActiveConversation(conv.id)}
-                  className={`group flex items-center justify-between px-3 py-2 rounded-lg cursor-pointer mb-1 transition-colors ${
-                    activeConversationId === conv.id
-                      ? "bg-gray-800 text-white"
-                      : "text-gray-400 hover:bg-gray-800/50 hover:text-gray-200"
-                  }`}
-                >
-                  <span className="truncate text-sm">{conv.title || "New Chat"}</span>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleDeleteChat(conv.id);
-                    }}
-                    className="opacity-0 group-hover:opacity-100 text-gray-500 hover:text-red-400 transition-all ml-2 shrink-0"
-                    title="删除对话"
-                  >
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                      <path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2" />
-                    </svg>
-                  </button>
-                </div>
-              ))}
-              {conversations.length === 0 && (
-                <p className="text-gray-600 text-sm text-center mt-8">暂无对话</p>
-              )}
-            </div>
-          </>
-        )}
-
-        <div className="p-3 border-t border-gray-800 text-xs text-gray-600 text-center mt-auto">
-          v0.9.0
-        </div>
-      </aside>
+      )}
 
       {/* Toast notifications */}
       <div className="fixed top-4 right-4 z-50 space-y-2 max-w-sm">
@@ -155,12 +102,24 @@ export default function App() {
             <div className="text-xs text-gray-400 mt-1 line-clamp-2">{t.content}</div>
           </div>
         ))}
+        {errors.map((e) => (
+          <div
+            key={e.id}
+            className="bg-gray-900 border border-red-700/50 rounded-lg p-3 shadow-lg cursor-pointer"
+            onClick={() => dismissError(e.id)}
+          >
+            <div className="text-sm font-medium text-red-400">
+              {e.source ? `[${e.source}] ` : ""}错误
+            </div>
+            <div className="text-xs text-gray-400 mt-1 line-clamp-2">{e.message}</div>
+          </div>
+        ))}
       </div>
 
       {/* Main content */}
       <main className="flex-1 flex flex-col min-w-0">
-        {currentPage === "chat" && (
-          activeConversationId ? (
+        {currentPage === "chat" &&
+          (activeConversationId ? (
             <ChatView conversationId={activeConversationId} />
           ) : (
             <div className="flex-1 flex items-center justify-center">
@@ -169,9 +128,7 @@ export default function App() {
                 <h2 className="text-2xl font-semibold text-gray-300 mb-2">
                   Personal AI Runtime
                 </h2>
-                <p className="text-gray-500 mb-6">
-                  点击「新对话」开始，或选择一个已有对话
-                </p>
+                <p className="text-gray-500 mb-6">点击「新对话」开始，或选择一个已有对话</p>
                 <button
                   onClick={handleNewChat}
                   className="px-6 py-3 bg-emerald-600 hover:bg-emerald-700 rounded-xl text-white font-medium transition-colors"
@@ -180,8 +137,7 @@ export default function App() {
                 </button>
               </div>
             </div>
-          )
-        )}
+          ))}
         {currentPage === "goals" && <GoalsPage />}
         {currentPage === "inbox" && <InboxPage />}
         {currentPage === "timeline" && <TimelinePage />}

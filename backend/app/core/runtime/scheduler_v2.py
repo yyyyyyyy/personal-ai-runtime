@@ -1,6 +1,7 @@
 """Scheduler v2 — supports Cron, Event, and Dependency triggers."""
 
 import asyncio
+import logging
 import uuid
 from datetime import UTC, datetime, timedelta
 
@@ -10,6 +11,8 @@ from apscheduler.triggers.cron import CronTrigger
 from app.core.runtime.event_bus import EventType, event_bus
 from app.core.runtime.kernel_instance import kernel
 from app.store.database import db
+
+logger = logging.getLogger(__name__)
 
 _scheduler = BackgroundScheduler()
 
@@ -200,7 +203,7 @@ def _run_morning_brief():
             push_notification("brief", brief["title"], brief["content"])
         _update_v2_last_run("morning_brief")
     except Exception as e:
-        print(f"Morning brief error: {e}")
+        logger.warning("Morning brief error: %s", e)
 
 
 def _run_trigger_evaluation():
@@ -209,7 +212,7 @@ def _run_trigger_evaluation():
         trigger_engine.evaluate_and_notify()
         _update_v2_last_run("trigger_evaluation")
     except Exception as e:
-        print(f"Trigger evaluation error: {e}")
+        logger.warning("Trigger evaluation error: %s", e)
 
 
 def _run_memory_decay():
@@ -218,7 +221,7 @@ def _run_memory_decay():
         run_memory_decay()
         _update_v2_last_run("memory_decay")
     except Exception as e:
-        print(f"Memory decay error: {e}")
+        logger.warning("Memory decay error: %s", e)
 
 
 def _run_world_model_snapshot():
@@ -227,17 +230,17 @@ def _run_world_model_snapshot():
         world_model.refresh_snapshot()
         _update_v2_last_run("world_model_snapshot")
     except Exception as e:
-        print(f"World model snapshot error: {e}")
+        logger.warning("World model snapshot error: %s", e)
 
 
 def _run_projection_snapshots():
     """Persist projection checkpoints for incremental rebuild (low-frequency)."""
     try:
         results = kernel.save_projection_snapshots()
-        print(f"Projection snapshots saved for {len(results)} aggregates")
+        logger.info("Projection snapshots saved for %d aggregates", len(results))
         _update_v2_last_run("projection_snapshots")
     except Exception as e:
-        print(f"Projection snapshot error: {e}")
+        logger.warning("Projection snapshot error: %s", e)
 
 
 def _run_inbox_poll():
@@ -247,7 +250,7 @@ def _run_inbox_poll():
         asyncio.run(poll_inbox())
         _update_v2_last_run("收件箱轮询")
     except Exception as e:
-        print(f"Inbox poll error: {e}")
+        logger.warning("Inbox poll error: %s", e)
 
 
 def _run_inbox_digest():
@@ -257,7 +260,7 @@ def _run_inbox_digest():
         generate_inbox_digest()
         _update_v2_last_run("收件箱摘要")
     except Exception as e:
-        print(f"Inbox digest error: {e}")
+        logger.warning("Inbox digest error: %s", e)
 
 
 def _run_daily_review():
@@ -266,7 +269,7 @@ def _run_daily_review():
         generate_daily_review()
         _update_v2_last_run("daily_review")
     except Exception as e:
-        print(f"Daily review error: {e}")
+        logger.warning("Daily review error: %s", e)
 
 
 def _run_belief_reflection():
@@ -279,7 +282,7 @@ def _run_belief_reflection():
         memories = kernel.query_state("memories", confidence_gt=0.3, limit=20)
 
         if not patterns:
-            print("Belief reflection skipped: no patterns available")
+            logger.info("Belief reflection skipped: no patterns available")
             return
 
         ctx = ReflectionContext(patterns=patterns, goals=goals, memories=memories)
@@ -290,10 +293,10 @@ def _run_belief_reflection():
         finally:
             loop.close()
 
-        print(f"Belief reflection produced {len(beliefs)} beliefs")
+        logger.info("Belief reflection produced %d beliefs", len(beliefs))
         _update_v2_last_run("belief_reflection")
     except Exception as e:
-        print(f"Belief reflection error: {e}")
+        logger.warning("Belief reflection error: %s", e)
 
 
 def _run_weekly_review():
@@ -302,7 +305,7 @@ def _run_weekly_review():
         generate_weekly_review()
         _update_v2_last_run("weekly_review")
     except Exception as e:
-        print(f"Weekly review error: {e}")
+        logger.warning("Weekly review error: %s", e)
 
 
 def _run_monthly_review():
@@ -311,7 +314,7 @@ def _run_monthly_review():
         generate_monthly_review()
         _update_v2_last_run("monthly_review")
     except Exception as e:
-        print(f"Monthly review error: {e}")
+        logger.warning("Monthly review error: %s", e)
 
 
 def _deadline_target_dates() -> set:
@@ -358,7 +361,7 @@ def _run_deadline_alert():
 
         _update_v2_last_run("deadline_alert")
     except Exception as e:
-        print(f"Deadline alert error: {e}")
+        logger.warning("Deadline alert error: %s", e)
 
 
 def _update_v2_last_run(task_name: str):

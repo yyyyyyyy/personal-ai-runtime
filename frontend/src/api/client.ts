@@ -2,6 +2,64 @@
 
 const API_BASE = "/api";
 
+let _authToken: string | null = null;
+
+/** Set the Bearer token for API requests. Call this once after reading the
+ *  token from localStorage or from the server health-check response. */
+export function setAuthToken(token: string) {
+  _authToken = token;
+}
+
+function authHeaders(): Record<string, string> {
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (_authToken) {
+    headers["Authorization"] = `Bearer ${_authToken}`;
+  }
+  return headers;
+}
+
+export class ApiError extends Error {
+  status: number;
+  constructor(message: string, status: number) {
+    super(message);
+    this.name = "ApiError";
+    this.status = status;
+  }
+}
+
+async function request<T>(
+  url: string,
+  options: RequestInit = {}
+): Promise<T> {
+  const res = await fetch(url, {
+    ...options,
+    headers: {
+      ...authHeaders(),
+      ...(options.headers as Record<string, string> | undefined),
+    },
+  });
+
+  if (res.status === 401) {
+    throw new ApiError("认证失败，请检查 AUTH_TOKEN 配置", 401);
+  }
+
+  if (!res.ok) {
+    let detail = "";
+    try {
+      const body = await res.json();
+      detail = body.detail || body.message || "";
+    } catch {
+      // response is not JSON
+    }
+    const msg = detail || `请求失败 (HTTP ${res.status})`;
+    throw new ApiError(msg, res.status);
+  }
+
+  return res.json();
+}
+
+// ── Types ───────────────────────────────────────────────────────────────────
+
 export interface Conversation {
   id: string;
   title: string;
@@ -20,30 +78,40 @@ export interface Message {
   created_at: string;
 }
 
+export interface StreamEvent {
+  type: "text_delta" | "tool_call_start" | "tool_result" | "confirmation_required" | "done" | "error";
+  content?: string;
+  tool_name?: string;
+  tool_args?: Record<string, unknown>;
+  tool_call_id?: string;
+  approval_id?: string;
+  tool_calls?: Array<{
+    index: number;
+    id: string;
+    function_name: string;
+    arguments: string;
+  }>;
+}
+
+// ── Chat API ────────────────────────────────────────────────────────────────
+
 export async function createConversation(title?: string): Promise<Conversation> {
   const url = title
     ? `${API_BASE}/chat/conversations?title=${encodeURIComponent(title)}`
     : `${API_BASE}/chat/conversations`;
-  const res = await fetch(url, { method: "POST" });
-  if (!res.ok) throw new Error("Failed to create conversation");
-  return res.json();
+  return request<Conversation>(url, { method: "POST" });
 }
 
 export async function listConversations(): Promise<Conversation[]> {
-  const res = await fetch(`${API_BASE}/chat/conversations`);
-  if (!res.ok) throw new Error("Failed to list conversations");
-  return res.json();
+  return request<Conversation[]>(`${API_BASE}/chat/conversations`);
 }
 
 export async function deleteConversation(id: string): Promise<void> {
-  const res = await fetch(`${API_BASE}/chat/conversations/${id}`, { method: "DELETE" });
-  if (!res.ok) throw new Error("Failed to delete conversation");
+  return request<void>(`${API_BASE}/chat/conversations/${id}`, { method: "DELETE" });
 }
 
 export async function getMessages(convId: string): Promise<Message[]> {
-  const res = await fetch(`${API_BASE}/chat/conversations/${convId}/messages`);
-  if (!res.ok) throw new Error("Failed to get messages");
-  return res.json();
+  return request<Message[]>(`${API_BASE}/chat/conversations/${convId}/messages`);
 }
 
 export async function sendMessage(
@@ -53,11 +121,22 @@ export async function sendMessage(
   onError: (error: string) => void,
   onDone: () => void
 ): Promise<void> {
-  const res = await fetch(`${API_BASE}/chat/conversations/${convId}/messages`, {
+  const url = `${API_BASE}/chat/conversations/${convId}/messages`;
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (_authToken) {
+    headers["Authorization"] = `Bearer ${_authToken}`;
+  }
+
+  const res = await fetch(url, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers,
     body: JSON.stringify({ content }),
   });
+
+  if (res.status === 401) {
+    onError("认证失败，请检查 AUTH_TOKEN 配置");
+    return;
+  }
 
   if (!res.ok) {
     onError(`HTTP error: ${res.status}`);
@@ -108,22 +187,7 @@ export async function sendMessage(
   }
 }
 
-export interface StreamEvent {
-  type: "text_delta" | "tool_call_start" | "tool_result" | "confirmation_required" | "done" | "error";
-  content?: string;
-  tool_name?: string;
-  tool_args?: Record<string, unknown>;
-  tool_call_id?: string;
-  approval_id?: string;
-  tool_calls?: Array<{
-    index: number;
-    id: string;
-    function_name: string;
-    arguments: string;
-  }>;
-}
-
-// --- Telemetry API ---
+// ── Telemetry API ───────────────────────────────────────────────────────────
 
 export interface CostSummary {
   total_calls: number;
@@ -154,21 +218,15 @@ export interface HealthSnapshot {
 }
 
 export async function getCostSummary(days: number = 7): Promise<CostSummary> {
-  const res = await fetch(`${API_BASE}/telemetry/cost/summary?days=${days}`);
-  if (!res.ok) throw new Error("Failed to fetch cost summary");
-  return res.json();
+  return request<CostSummary>(`${API_BASE}/telemetry/cost/summary?days=${days}`);
 }
 
 export async function getToolSummary(days: number = 7): Promise<ToolSummaryItem[]> {
-  const res = await fetch(`${API_BASE}/telemetry/tool-summary?days=${days}`);
-  if (!res.ok) throw new Error("Failed to fetch tool summary");
-  return res.json();
+  return request<ToolSummaryItem[]>(`${API_BASE}/telemetry/tool-summary?days=${days}`);
 }
 
 export async function getMemoryStats(): Promise<MemoryStats> {
-  const res = await fetch(`${API_BASE}/telemetry/memory/stats`);
-  if (!res.ok) throw new Error("Failed to fetch memory stats");
-  return res.json();
+  return request<MemoryStats>(`${API_BASE}/telemetry/memory/stats`);
 }
 
 export interface Notification {
@@ -181,18 +239,14 @@ export interface Notification {
 }
 
 export async function listNotifications(limit = 20): Promise<Notification[]> {
-  const res = await fetch(`${API_BASE}/notifications/?limit=${limit}`);
-  if (!res.ok) throw new Error("Failed to list notifications");
-  return res.json();
+  return request<Notification[]>(`${API_BASE}/notifications/?limit=${limit}`);
 }
 
 export async function getHealth(): Promise<HealthSnapshot> {
-  const res = await fetch(`${API_BASE}/telemetry/health`);
-  if (!res.ok) throw new Error("Failed to fetch health");
-  return res.json();
+  return request<HealthSnapshot>(`${API_BASE}/telemetry/health`);
 }
 
-// --- Reviews API ---
+// ── Reviews API ─────────────────────────────────────────────────────────────
 
 export interface KeyInsightsParsed {
   surface?: string;
@@ -212,12 +266,10 @@ export interface Review {
 }
 
 export async function listReviews(limit = 10): Promise<Review[]> {
-  const res = await fetch(`${API_BASE}/reviews/?limit=${limit}`);
-  if (!res.ok) throw new Error("Failed to list reviews");
-  return res.json();
+  return request<Review[]>(`${API_BASE}/reviews/?limit=${limit}`);
 }
 
-// --- Memory / Meaning API ---
+// ── Memory API ──────────────────────────────────────────────────────────────
 
 export interface MemoryRow {
   id: string;
@@ -242,20 +294,14 @@ export interface SystemInfo {
 }
 
 export async function fetchSystemInfo(): Promise<SystemInfo> {
-  const res = await fetch(`${API_BASE}/system/info`);
-  if (!res.ok) throw new Error("Failed to fetch system info");
-  return res.json();
+  return request<SystemInfo>(`${API_BASE}/system/info`);
 }
 
 export async function listMemoriesGrouped(): Promise<MemoriesGrouped> {
-  const res = await fetch(`${API_BASE}/memory/memories/grouped`);
-  if (!res.ok) throw new Error("Failed to list memories");
-  return res.json();
+  return request<MemoriesGrouped>(`${API_BASE}/memory/memories/grouped`);
 }
 
-// --- Approval API ---
-
-// --- Inbox API ---
+// ── Inbox API ───────────────────────────────────────────────────────────────
 
 export interface InboxEmail {
   id: string;
@@ -275,22 +321,18 @@ export async function listInboxEmails(category?: string): Promise<InboxEmail[]> 
   const url = category
     ? `${API_BASE}/inbox/?category=${encodeURIComponent(category)}`
     : `${API_BASE}/inbox/`;
-  const res = await fetch(url);
-  if (!res.ok) throw new Error("Failed to list inbox emails");
-  return res.json();
+  return request<InboxEmail[]>(url);
 }
 
 export async function getInboxDigest(): Promise<{ title?: string; content?: string; message?: string }> {
-  const res = await fetch(`${API_BASE}/inbox/digest`);
-  if (!res.ok) throw new Error("Failed to get inbox digest");
-  return res.json();
+  return request(`${API_BASE}/inbox/digest`);
 }
 
 export async function triggerInboxPoll(): Promise<Record<string, unknown>> {
-  const res = await fetch(`${API_BASE}/inbox/poll`, { method: "POST" });
-  if (!res.ok) throw new Error("Failed to poll inbox");
-  return res.json();
+  return request(`${API_BASE}/inbox/poll`, { method: "POST" });
 }
+
+// ── Approval API ────────────────────────────────────────────────────────────
 
 export async function resolveApproval(
   approvalId: string,
@@ -300,9 +342,8 @@ export async function resolveApproval(
   convId: string,
   toolCallId: string
 ): Promise<{ status: string; result?: string; assistant_message?: string }> {
-  const res = await fetch(`${API_BASE}/chat/approvals/${approvalId}/resolve`, {
+  return request(`${API_BASE}/chat/approvals/${approvalId}/resolve`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       decision,
       tool_name: toolName,
@@ -311,6 +352,4 @@ export async function resolveApproval(
       tool_call_id: toolCallId,
     }),
   });
-  if (!res.ok) throw new Error("Failed to resolve approval");
-  return res.json();
 }

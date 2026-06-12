@@ -1,11 +1,14 @@
 """SQLite database management with Alembic-powered schema initialization."""
 
 import json
+import logging
 import sqlite3
 from contextlib import contextmanager
 from pathlib import Path
 
 from app.config import settings
+
+logger = logging.getLogger(__name__)
 
 _DDL_FALLBACK = """
 CREATE TABLE IF NOT EXISTS memories (
@@ -258,6 +261,7 @@ class Database:
             yield conn
             conn.commit()
         except Exception:
+            logger.exception("Database transaction rolled back")
             conn.rollback()
             raise
         finally:

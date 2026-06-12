@@ -5,6 +5,7 @@ and returns a response. It does NOT own state — that belongs to Runtime.
 """
 
 import json
+import logging
 import time
 import uuid
 from typing import AsyncIterator
@@ -24,6 +25,8 @@ from app.core.runtime.egress.egress_gate import prepare_llm_egress
 from app.core.runtime.kernel_instance import kernel
 from app.core.runtime.taint import is_external_ingestion_tool, taint_registry
 from app.core.telemetry.telemetry import LLMCallRecord, telemetry
+
+logger = logging.getLogger(__name__)
 
 SYSTEM_PROMPT = """You are Personal AI Runtime — a personal AI assistant that helps users manage their life, work, and goals.
 
@@ -383,6 +386,7 @@ class Brain:
             )
             return (response.choices[0].message.content or "").strip()
         except Exception:
+            logger.exception("_synthesize_from_tool_results failed")
             return ""
 
     async def _complete_text_only(self, messages: list[dict], user_message: str) -> str:
@@ -404,6 +408,7 @@ class Brain:
             )
             return (response.choices[0].message.content or "").strip()
         except Exception:
+            logger.exception("_complete_text_only retry failed")
             return "抱歉，我暂时无法生成回复，请再试一次。"
 
     def _build_messages(self, conversation: ConversationManager, user_message: str) -> list[dict]:

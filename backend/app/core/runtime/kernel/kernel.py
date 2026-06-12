@@ -18,12 +18,17 @@ import uuid
 from typing import Any, Callable
 
 from . import projectors
+from .constants import (
+    CHAT_EVENT_TYPES,
+    MEMORY_INDEX_EVENT_TYPES,
+    PROJECTION_SNAPSHOT_AGGREGATES,
+    PROJECTION_TABLES,
+)
 from .event import Event
 
 logger = logging.getLogger(__name__)
 
-# Core aggregates whose projection tables are snapshotted for incremental rebuild.
-PROJECTION_SNAPSHOT_AGGREGATES = ("goal", "task", "memory", "conversation")
+Subscriber = Callable[[Event], None]
 
 # ── Schema DDL (fallback for custom-DB tests & pre-Alembic envs) ───────────
 
@@ -70,8 +75,6 @@ MEMORIES_LEGACY_DDL = [
     "ALTER TABLE memories ADD COLUMN claim_status TEXT",
 ]
 
-Subscriber = Callable[[Event], None]
-
 
 class Kernel:
     def __init__(self, db=None):
@@ -105,7 +108,7 @@ class Kernel:
                 try:
                     conn.execute(stmt)
                 except Exception:
-                    pass
+                    logger.warning("Legacy DDL statement failed (may be expected): %s", stmt[:80])
 
     # --- Truth layer ---------------------------------------------------------
 
@@ -114,7 +117,7 @@ class Kernel:
         type: str,
         aggregate_type: str,
         aggregate_id: str,
-        payload: dict[str, Any] | None = None,
+        payload: dict[str, object] | None = None,
         actor: str = "system",
         caused_by: str | None = None,
         correlation_id: str | None = None,
@@ -168,7 +171,7 @@ class Kernel:
         Runs after the SQL transaction commits so Chroma failures cannot roll
         back governed memory events or projections.
         """
-        if event.type not in ("MemoryDerived", "MemoryUpdated", "MemoryDeleted", "BeliefFormed"):
+        if event.type not in MEMORY_INDEX_EVENT_TYPES:
             return
         try:
             from app.store.vector import vector_store
@@ -299,9 +302,10 @@ class Kernel:
     # --- Read layer (projections) -------------------------------------------
 
     def query_state(self, selector: str, **filters: Any) -> list[dict]:
-        """Read current State (a projection). For this slice: `goals`.
+        """Read current State (a projection). Returns list of dict rows.
 
-        Kept deliberately small — selectors expand as projections are added.
+        Each dict follows the schema of the corresponding projection table.
+        See kernel/types.py for the intended TypedDict shapes.
         """
         if selector == "goals":
             return self._query_goals(filters)
@@ -897,15 +901,6 @@ class Kernel:
 
     # --- Export / import (data sovereignty) ----------------------------------
 
-    _PROJECTION_TABLES = (
-        "goals",
-        "actions",
-        "tasks",
-        "memories",
-        "approvals",
-        "patterns",
-    )
-
     def _drop_event_log_guards(self, conn) -> None:
         conn.execute("DROP TRIGGER IF EXISTS event_log_no_update")
         conn.execute("DROP TRIGGER IF EXISTS event_log_no_delete")
@@ -937,7 +932,7 @@ class Kernel:
         """Bulk-import events preserving seq/id; optionally rebuild all projections."""
         with self._db.get_db() as conn:
             self._drop_event_log_guards(conn)
-            for table in self._PROJECTION_TABLES:
+            for table in PROJECTION_TABLES:
                 conn.execute(f"DELETE FROM {table}")
             conn.execute("DELETE FROM event_log")
 
@@ -976,7 +971,7 @@ class Kernel:
         if rebuild_projections:
             self.rebuild_all()
             for event in self.read_events(
-                types=["MemoryDerived", "MemoryUpdated", "MemoryDeleted", "BeliefFormed"]
+                types=list(MEMORY_INDEX_EVENT_TYPES)
             ):
                 self._sync_memory_index(event)
         return len(rows)
@@ -998,12 +993,7 @@ class Kernel:
     ) -> dict[str, int]:
         """Emit chat events for legacy snapshots missing Conversation*/MessageAppended."""
         has_chat_events = any(
-            r.get("type") in {
-                "ConversationCreated",
-                "ConversationUpdated",
-                "ConversationDeleted",
-                "MessageAppended",
-            }
+            r.get("type") in CHAT_EVENT_TYPES
             for r in event_rows
         )
         if has_chat_events:

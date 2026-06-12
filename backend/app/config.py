@@ -1,54 +1,84 @@
-"""Application configuration management."""
+"""Application configuration management using pydantic-settings."""
 
-import os
 from pathlib import Path
 
 from dotenv import load_dotenv
+from pydantic_settings import BaseSettings
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 load_dotenv(BASE_DIR / ".env")
 
-# Disable ChromaDB internal telemetry to avoid posthog compatibility issues
-os.environ.setdefault("ANONYMIZED_TELEMETRY", "False")
 
-# Suppress tokenizers warning from ChromaDB embedding function
-os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
+class Settings(BaseSettings):
+    # --- LLM ---
+    llm_api_key: str = ""
+    llm_base_url: str = "https://api.deepseek.com/v1"
+    llm_model: str = "deepseek-chat"
+    llm_temperature: float = 0.7
+    llm_max_tokens: int = 4096
 
+    # --- Data Storage ---
+    data_dir: str = str(BASE_DIR / "backend" / "data")
+    sqlite_path: str = ""
+    vector_dir: str = ""
 
-class Settings:
-    llm_api_key: str = os.getenv("LLM_API_KEY", "")
-    llm_base_url: str = os.getenv("LLM_BASE_URL", "https://api.deepseek.com/v1")
-    llm_model: str = os.getenv("LLM_MODEL", "deepseek-chat")
+    # --- Server ---
+    host: str = "0.0.0.0"
+    port: int = 8000
+    cors_origins: str = "http://localhost:5173"
 
-    data_dir: str = os.getenv("DATA_DIR", str(BASE_DIR / "backend" / "data"))
-    sqlite_path: str = os.getenv("SQLITE_PATH", str(Path(data_dir) / "personal_ai.db"))
-    vector_dir: str = os.getenv("VECTOR_DIR", str(Path(data_dir) / "vectors"))
+    # --- Auth ---
+    auth_token: str = ""
+    """API 认证 Token。若未设置，启动时自动生成随机 Token 并打印到控制台。"""
 
-    host: str = os.getenv("HOST", "0.0.0.0")
-    port: int = int(os.getenv("PORT", "8000"))
-    cors_origins: str = os.getenv("CORS_ORIGINS", "http://localhost:5173")
+    # --- MCP ---
+    mcp_config_path: str = str(BASE_DIR / "backend" / "mcp_config.json")
+    capability_policy_path: str = str(BASE_DIR / "backend" / "capability_policy.json")
 
-    mcp_config_path: str = os.getenv(
-        "MCP_CONFIG_PATH", str(BASE_DIR / "backend" / "mcp_config.json")
-    )
-    capability_policy_path: str = os.getenv(
-        "CAPABILITY_POLICY_PATH", str(BASE_DIR / "backend" / "capability_policy.json")
-    )
-    memory_extractor: str = os.getenv("MEMORY_EXTRACTOR", "ollama")  # ollama | cloud
-    sensitive_ops_local: bool = os.getenv("SENSITIVE_OPS_LOCAL", "false").lower() == "true"
+    # --- Memory ---
+    memory_extractor: str = "ollama"
+    sensitive_ops_local: bool = False
 
-    # Conversation settings
-    max_recent_messages: int = 50  # sliding window size
-    max_tool_iterations: int = int(os.getenv("MAX_TOOL_ITERATIONS", "10"))
+    # --- Conversation ---
+    max_recent_messages: int = 50
+    max_tool_iterations: int = 10
     tool_timeout_seconds: int = 30
     total_tool_loop_timeout: int = 120
 
-    # LLM settings
-    llm_temperature: float = 0.7
-    llm_max_tokens: int = 4096
-    review_narrative_llm_enabled: bool = (
-        os.getenv("REVIEW_NARRATIVE_LLM_ENABLED", "true").lower() == "true"
-    )
+    # --- Misc ---
+    review_narrative_llm_enabled: bool = True
+
+    # --- Optional LLM fallback providers ---
+    openai_api_key: str = ""
+    anthropic_api_key: str = ""
+    ollama_base_url: str = "http://localhost:11434/v1"
+    ollama_model: str = "qwen2.5:7b"
+
+    # --- Email (Gmail IMAP/SMTP) ---
+    email_imap_host: str = "imap.gmail.com"
+    email_smtp_host: str = "smtp.gmail.com"
+    email_smtp_port: int = 465
+    email_user: str = ""
+    email_pass: str = ""
+
+    # --- Telegram ---
+    telegram_bot_token: str = ""
+    telegram_chat_id: str = ""
+
+    model_config = {
+        "env_file": str(BASE_DIR / ".env"),
+        "env_file_encoding": "utf-8",
+        "extra": "ignore",
+        # Resolve relative paths after defaults are set
+        "env_prefix": "",
+    }
+
+    def model_post_init(self, _context) -> None:
+        """Resolve relative defaults that depend on other fields."""
+        if not self.sqlite_path:
+            self.sqlite_path = str(Path(self.data_dir) / "personal_ai.db")
+        if not self.vector_dir:
+            self.vector_dir = str(Path(self.data_dir) / "vectors")
 
 
 settings = Settings()

@@ -1,16 +1,5 @@
-import { useEffect, useState } from "react";
-import {
-  getCostSummary,
-  getToolSummary,
-  getMemoryStats,
-  getHealth,
-  listNotifications,
-  type CostSummary,
-  type ToolSummaryItem,
-  type MemoryStats,
-  type HealthSnapshot,
-  type Notification,
-} from "../api/client";
+import { type ToolSummaryItem } from "../api/client";
+import { useDashboard } from "../hooks/useDashboard";
 import { useNotifications } from "../hooks/useNotifications";
 
 function StatCard({ label, value, unit, color }: { label: string; value: string | number; unit?: string; color?: string }) {
@@ -59,39 +48,17 @@ function ToolBadge({ tool }: { tool: ToolSummaryItem }) {
 }
 
 export default function DashboardPage() {
-  const [cost, setCost] = useState<CostSummary | null>(null);
-  const [tools, setTools] = useState<ToolSummaryItem[]>([]);
-  const [memory, setMemory] = useState<MemoryStats | null>(null);
-  const [health, setHealth] = useState<HealthSnapshot | null>(null);
-  const [notifications, setNotifications] = useState<Notification[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
+  const {
+    cost,
+    tools,
+    memory,
+    health,
+    notifications,
+    loading,
+    error,
+    refresh,
+  } = useDashboard();
   const { liveNotifications } = useNotifications();
-
-  const fetchData = async () => {
-    setLoading(true);
-    setError("");
-    try {
-      const [costData, toolData, memData, healthData, notifData] = await Promise.all([
-        getCostSummary(7),
-        getToolSummary(7),
-        getMemoryStats(),
-        getHealth(),
-        listNotifications(10).catch(() => []),
-      ]);
-      setCost(costData);
-      setTools(toolData);
-      setMemory(memData);
-      setHealth(healthData);
-      setNotifications(notifData);
-    } catch (e) {
-      setError("无法连接到后端服务，请确认后端已启动");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => { fetchData(); }, []);
 
   if (loading) {
     return (
@@ -108,7 +75,7 @@ export default function DashboardPage() {
           <div className="text-gray-500 mb-2">⚠</div>
           <div className="text-gray-400 mb-4">{error}</div>
           <button
-            onClick={fetchData}
+            onClick={refresh}
             className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 rounded-lg text-sm transition-colors"
           >
             重试
@@ -123,7 +90,7 @@ export default function DashboardPage() {
     ? (((cost.total_calls - cost.failed_calls) / cost.total_calls) * 100).toFixed(1)
     : "100";
 
-  const mergedNotifications = [...liveNotifications, ...notifications].reduce<Notification[]>(
+  const mergedNotifications = [...liveNotifications, ...notifications].reduce<typeof notifications>(
     (acc, item) => {
       const key = `${item.type}:${item.title}`;
       if (!acc.some((n) => n.id === item.id || `${n.type}:${n.title}` === key)) {
@@ -140,7 +107,7 @@ export default function DashboardPage() {
         <div className="flex items-center justify-between mb-6">
           <h2 className="text-xl font-semibold text-gray-200">系统运行概览</h2>
           <button
-            onClick={fetchData}
+            onClick={refresh}
             className="px-3 py-1.5 text-xs bg-gray-800 hover:bg-gray-700 text-gray-400 rounded-lg transition-colors"
           >
             刷新
