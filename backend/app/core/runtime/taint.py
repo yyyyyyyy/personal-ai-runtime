@@ -9,7 +9,7 @@ Tool names MUST match mcp_hub registrations and capability_policy.json.
 
 from __future__ import annotations
 
-import threading
+import contextvars
 from typing import Any
 
 # Registered MCP tools that ingest untrusted external content (see mcp_hub).
@@ -32,16 +32,21 @@ WRITE_CLASS_TOOLS = frozenset({
 })
 
 
-class TaintRegistry:
-    """Thread-local taint marks keyed by correlation_id."""
+_taint_marks: contextvars.ContextVar[dict[str, dict[str, Any]] | None] = contextvars.ContextVar(
+    "taint_marks",
+    default=None,
+)
 
-    def __init__(self) -> None:
-        self._local = threading.local()
+
+class TaintRegistry:
+    """Async/task-local taint marks keyed by correlation_id."""
 
     def _store(self) -> dict[str, dict[str, Any]]:
-        if not hasattr(self._local, "marks"):
-            self._local.marks = {}
-        return self._local.marks
+        store = _taint_marks.get()
+        if store is None:
+            store = {}
+            _taint_marks.set(store)
+        return store
 
     def mark(self, correlation_id: str | None, *, source: str, reason: str = "") -> None:
         if not correlation_id:

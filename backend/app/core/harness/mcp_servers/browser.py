@@ -2,9 +2,11 @@
 
 import json
 
-import httpx
-
-from app.core.harness.url_safety import UnsafeUrlError, validate_http_url
+from app.core.harness.url_safety import (
+    UnsafeUrlError,
+    create_ssrf_safe_async_client,
+    validate_http_url,
+)
 
 
 class BrowserServer:
@@ -15,14 +17,8 @@ class BrowserServer:
         try:
             safe_url = validate_http_url(url)
 
-            async def _redirect_hook(response: httpx.Response) -> None:
-                if response.is_redirect and response.next_request is not None:
-                    validate_http_url(str(response.next_request.url))
-
-            async with httpx.AsyncClient(
+            async with create_ssrf_safe_async_client(
                 timeout=20,
-                follow_redirects=True,
-                event_hooks={"response": [_redirect_hook]},
                 headers={"User-Agent": "PersonalAIRuntime/1.0"},
             ) as client:
                 resp = await client.get(safe_url)

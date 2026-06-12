@@ -82,6 +82,29 @@ async def test_tainted_shell_exec_forces_approval(kernel):
 
 
 @pytest.mark.asyncio
+async def test_kernel_marks_taint_after_external_ingestion(kernel, monkeypatch):
+    """Taint marking lives in Kernel so all ingestion paths are covered."""
+    from app.core.harness.mcp_hub import mcp_hub
+
+    async def fake_invoke(name, args):
+        return '{"content": "untrusted"}'
+
+    monkeypatch.setattr(mcp_hub, "invoke_tool", fake_invoke)
+
+    corr = "kernel-ingestion-taint"
+    result = await kernel.invoke_capability(
+        name="fetch_url",
+        args={"url": "https://example.com"},
+        actor="user",
+        correlation_id=corr,
+    )
+    assert result["status"] == "success"
+    assert taint_registry.is_tainted(corr)
+
+    taint_registry.clear(corr)
+
+
+@pytest.mark.asyncio
 async def test_untainted_low_risk_tool_auto_allowed(kernel):
     """read_file is auto_allow and should not require approval when context is clean."""
     corr = "corr-clean"

@@ -2,6 +2,7 @@
 
 import json
 import logging
+import secrets
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
@@ -45,6 +46,12 @@ _LOCALHOST_HOSTS = frozenset({"127.0.0.1", "localhost", "::1"})
 _EXPOSED_HOSTS = frozenset({"0.0.0.0", "::"})
 
 
+def _tokens_match(provided: str, expected: str) -> bool:
+    if not provided or not expected:
+        return False
+    return secrets.compare_digest(provided, expected)
+
+
 def _extract_ws_token(websocket: WebSocket) -> str:
     header = websocket.headers.get("sec-websocket-protocol", "")
     for part in header.split(","):
@@ -71,7 +78,7 @@ class AuthMiddleware(BaseHTTPMiddleware):
         if auth_header.startswith("Bearer "):
             token = auth_header[7:]
 
-        if not token or token != expected:
+        if not _tokens_match(token, expected):
             return JSONResponse(
                 status_code=401,
                 content={"detail": "Unauthorized: missing or invalid Bearer token"},
@@ -184,7 +191,7 @@ async def websocket_endpoint(websocket: WebSocket):
     subprotocol: str | None = None
     if expected:
         token = _extract_ws_token(websocket)
-        if not token or token != expected:
+        if not _tokens_match(token, expected):
             await websocket.close(code=4401, reason="Unauthorized")
             return
         subprotocol = f"{WS_AUTH_PREFIX}{token}"

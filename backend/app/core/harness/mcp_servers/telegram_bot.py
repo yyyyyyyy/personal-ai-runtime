@@ -3,6 +3,8 @@
 import json
 import os
 
+from app.core.harness.url_safety import create_ssrf_safe_async_client
+
 
 class TelegramBotServer:
     """Telegram Bot integration for messaging."""
@@ -17,9 +19,8 @@ class TelegramBotServer:
             return json.dumps({"error": "TELEGRAM_BOT_TOKEN or TELEGRAM_CHAT_ID not configured"})
 
         try:
-            import httpx
             url = f"https://api.telegram.org/bot{self.token}/sendMessage"
-            async with httpx.AsyncClient(timeout=10) as client:
+            async with create_ssrf_safe_async_client(timeout=10) as client:
                 resp = await client.post(url, json={
                     "chat_id": self.chat_id,
                     "text": text[:4000],
@@ -38,9 +39,8 @@ class TelegramBotServer:
             return json.dumps({"error": "TELEGRAM_BOT_TOKEN not configured"})
 
         try:
-            import httpx
             url = f"https://api.telegram.org/bot{self.token}/getMe"
-            async with httpx.AsyncClient(timeout=10) as client:
+            async with create_ssrf_safe_async_client(timeout=10) as client:
                 resp = await client.get(url)
                 data = resp.json()
                 if data.get("ok"):
@@ -55,10 +55,9 @@ class TelegramBotServer:
             return json.dumps({"error": "TELEGRAM_BOT_TOKEN not configured"})
 
         try:
-            import httpx
             url = f"https://api.telegram.org/bot{self.token}/getUpdates"
             params = {"limit": limit, "timeout": 5}
-            async with httpx.AsyncClient(timeout=10) as client:
+            async with create_ssrf_safe_async_client(timeout=10) as client:
                 resp = await client.get(url, params=params)
                 data = resp.json()
                 if data.get("ok"):

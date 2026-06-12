@@ -5,6 +5,8 @@ from urllib.parse import quote
 
 import httpx
 
+from app.core.harness.url_safety import create_ssrf_safe_async_client
+
 # DuckDuckGo Instant Answer API (free, no API key needed)
 DUCKDUCKGO_API = "https://api.duckduckgo.com/"
 
@@ -15,7 +17,7 @@ class WebSearchServer:
     async def search(self, query: str, max_results: int = 5) -> str:
         """Search the web and return results."""
         try:
-            async with httpx.AsyncClient(timeout=15.0) as client:
+            async with create_ssrf_safe_async_client(timeout=15.0) as client:
                 # Try DuckDuckGo Instant Answer API
                 resp = await client.get(
                     DUCKDUCKGO_API,

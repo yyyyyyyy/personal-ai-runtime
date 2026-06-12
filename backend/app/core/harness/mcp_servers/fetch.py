@@ -5,7 +5,11 @@ import re
 
 import httpx
 
-from app.core.harness.url_safety import UnsafeUrlError, validate_http_url
+from app.core.harness.url_safety import (
+    UnsafeUrlError,
+    create_ssrf_safe_async_client,
+    validate_http_url,
+)
 
 
 class FetchServer:
@@ -21,15 +25,8 @@ class FetchServer:
         try:
             safe_url = validate_http_url(url)
 
-            async def _redirect_hook(response: httpx.Response) -> None:
-                if response.is_redirect and response.next_request is not None:
-                    next_url = str(response.next_request.url)
-                    validate_http_url(next_url)
-
-            async with httpx.AsyncClient(
+            async with create_ssrf_safe_async_client(
                 timeout=20.0,
-                follow_redirects=True,
-                event_hooks={"response": [_redirect_hook]},
                 headers={
                     "User-Agent": "Mozilla/5.0 (compatible; PersonalAI-Runtime/0.1; +https://personal-ai.runtime)"
                 },

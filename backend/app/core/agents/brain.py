@@ -23,7 +23,7 @@ from app.core.agents.tool_postprocess import (
 from app.core.runtime.conversation_recorder import record_conversation_turn
 from app.core.runtime.egress.egress_gate import prepare_llm_egress
 from app.core.runtime.kernel_instance import kernel
-from app.core.runtime.taint import is_external_ingestion_tool, taint_registry
+from app.core.runtime.taint import taint_registry
 from app.core.telemetry.telemetry import LLMCallRecord, telemetry
 
 logger = logging.getLogger(__name__)
@@ -197,13 +197,6 @@ class Brain:
                     actor="user",
                     correlation_id=correlation_id,
                 )
-
-                if is_external_ingestion_tool(tool_name):
-                    taint_registry.mark(
-                        correlation_id,
-                        source="external_ingestion",
-                        reason=tool_name,
-                    )
 
                 if cap_result["status"] == "pending":
                     yield {

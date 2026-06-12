@@ -583,6 +583,49 @@ class Kernel(GovernanceMixin, SovereigntyMixin):
     # See kernel_governance.py for:
     #   request_approval() / grant_approval() / deny_approval()
 
+    @staticmethod
+    def _parse_approval_params(approval: dict[str, Any]) -> dict[str, Any]:
+        raw = approval.get("params") or "{}"
+        if isinstance(raw, str):
+            return json.loads(raw)
+        return dict(raw)
+
+    def _consume_pre_approved(
+        self,
+        approval_id: str,
+        name: str,
+        args: dict[str, Any],
+        *,
+        actor: str,
+        correlation_id: str | None,
+    ) -> dict | None:
+        """Verify a pending approval matches this invocation; grant or return error."""
+        rows = self.query_state("approvals", id=approval_id)
+        if not rows:
+            return {"status": "error", "error": f"Approval not found: {approval_id}"}
+        approval = rows[0]
+        if approval.get("status") != "pending":
+            return {
+                "status": "error",
+                "error": f"Approval not pending: {approval.get('status')}",
+            }
+        if approval.get("action") != name:
+            return {"status": "error", "error": "Approval action does not match capability"}
+        try:
+            recorded_args = self._parse_approval_params(approval)
+        except (json.JSONDecodeError, TypeError):
+            return {"status": "error", "error": "Approval record has invalid params"}
+        if recorded_args != args:
+            return {"status": "error", "error": "Approval params do not match capability args"}
+        self.grant_approval(
+            approval_id,
+            action=name,
+            actor=actor,
+            reason="pre_approved",
+            correlation_id=correlation_id,
+        )
+        return None
+
     async def invoke_capability(
         self,
         name: str,
@@ -591,6 +634,7 @@ class Kernel(GovernanceMixin, SovereigntyMixin):
         correlation_id: str | None = None,
         caused_by: str | None = None,
         pre_approved: bool = False,
+        approval_id: str | None = None,
     ) -> dict:
         """Invoke a capability through the Kernel, with approval gating.
 
@@ -635,6 +679,19 @@ class Kernel(GovernanceMixin, SovereigntyMixin):
                 correlation_id=correlation_id,
             )
             return {"status": "error", "error": f"Capability forbidden: {name}"}
+
+        if pre_approved:
+            if not approval_id:
+                return {"status": "error", "error": "pre_approved requires approval_id"}
+            pre_err = self._consume_pre_approved(
+                approval_id,
+                name,
+                args,
+                actor=actor,
+                correlation_id=correlation_id,
+            )
+            if pre_err is not None:
+                return pre_err
 
         if not pre_approved:
             from app.core.runtime.taint import is_write_class_tool, taint_registry
@@ -687,6 +744,15 @@ class Kernel(GovernanceMixin, SovereigntyMixin):
                 caused_by=caused_by,
                 correlation_id=correlation_id,
             )
+            if correlation_id:
+                from app.core.runtime.taint import is_external_ingestion_tool, taint_registry
+
+                if is_external_ingestion_tool(name):
+                    taint_registry.mark(
+                        correlation_id,
+                        source="external_ingestion",
+                        reason=name,
+                    )
             return {"status": "success", "result": result_str}
         except Exception as exc:
             self.emit_event(

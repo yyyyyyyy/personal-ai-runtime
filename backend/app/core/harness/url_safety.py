@@ -4,7 +4,10 @@ from __future__ import annotations
 
 import ipaddress
 import socket
+from typing import Any
 from urllib.parse import urlparse
+
+import httpx
 
 
 class UnsafeUrlError(ValueError):
@@ -69,3 +72,25 @@ def validate_http_url(url: str) -> str:
         raise UnsafeUrlError("URLs with embedded credentials are not allowed")
 
     return parsed.geturl()
+
+
+async def _validate_outbound_request(request: httpx.Request) -> None:
+    """Re-validate URL immediately before the outbound connection (TOCTOU mitigation)."""
+    validate_http_url(str(request.url))
+
+
+async def _validate_redirect_target(response: httpx.Response) -> None:
+    if response.is_redirect and response.next_request is not None:
+        validate_http_url(str(response.next_request.url))
+
+
+def create_ssrf_safe_async_client(**kwargs: Any) -> httpx.AsyncClient:
+    """Build an httpx client that validates every request and redirect target."""
+    hooks = dict(kwargs.pop("event_hooks", {}))
+    request_hooks = [_validate_outbound_request, *hooks.get("request", [])]
+    response_hooks = [_validate_redirect_target, *hooks.get("response", [])]
+    return httpx.AsyncClient(
+        event_hooks={"request": request_hooks, "response": response_hooks},
+        follow_redirects=kwargs.pop("follow_redirects", True),
+        **kwargs,
+    )

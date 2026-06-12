@@ -122,27 +122,67 @@ async def send_message(conv_id: str, body: dict):
     )
 
 
+def _load_pending_approval(approval_id: str) -> tuple[str, dict]:
+    """Load action/params from the governed approval projection (authoritative)."""
+    rows = kernel.query_state("approvals", id=approval_id)
+    if not rows:
+        raise HTTPException(status_code=404, detail="Approval not found")
+    approval = rows[0]
+    if approval["status"] != "pending":
+        raise HTTPException(
+            status_code=409,
+            detail=f"Approval already {approval['status']}",
+        )
+    tool_name = approval.get("action") or ""
+    if not tool_name:
+        raise HTTPException(status_code=400, detail="Approval record missing action")
+    raw_params = approval.get("params") or "{}"
+    try:
+        tool_args = json.loads(raw_params) if isinstance(raw_params, str) else dict(raw_params)
+    except (json.JSONDecodeError, TypeError):
+        raise HTTPException(status_code=400, detail="Approval record has invalid params") from None
+    return tool_name, tool_args
+
+
+async def _resume_conversation_after_approval(
+    conv_id: str,
+    tool_call_id: str,
+    result_str: str,
+) -> str | None:
+    """Persist tool result and continue the chat turn when conversation context is present."""
+    if not conv_id or not tool_call_id:
+        return None
+    conversation = ConversationManager(conversation_id=conv_id)
+    conversation.save_tool_result(result_str, tool_call_id)
+    brain = Brain()
+    return await brain.continue_after_tool_result(conversation)
+
+
+def _reject_client_approval_mismatch(body: dict, tool_name: str, tool_args: dict) -> None:
+    """Reject if the client payload disagrees with the immutable approval record."""
+    if "tool_name" in body and body.get("tool_name") != tool_name:
+        raise HTTPException(status_code=400, detail="tool_name does not match approval record")
+    if "tool_args" in body and body.get("tool_args") != tool_args:
+        raise HTTPException(status_code=400, detail="tool_args do not match approval record")
+
+
 @router.post("/approvals/{approval_id}/resolve")
 async def resolve_approval(approval_id: str, body: dict):
     """Resolve a pending approval and execute the capability if approved."""
     decision = body.get("decision", "deny")
-    tool_name = body.get("tool_name", "")
-    tool_args = body.get("tool_args", {})
     conv_id = body.get("conv_id", "")
     tool_call_id = body.get("tool_call_id", "")
 
+    tool_name, tool_args = _load_pending_approval(approval_id)
+    _reject_client_approval_mismatch(body, tool_name, tool_args)
+
     if decision == "approve":
-        kernel.grant_approval(
-            approval_id,
-            action=tool_name,
-            actor="user",
-            reason="user_approved",
-        )
         cap_result = await kernel.invoke_capability(
             name=tool_name,
             args=tool_args,
             actor="user",
             pre_approved=True,
+            approval_id=approval_id,
         )
         if cap_result["status"] == "success":
             result_str = cap_result["result"]
@@ -152,11 +192,13 @@ async def resolve_approval(approval_id: str, body: dict):
                 "error": cap_result.get("error", "unknown"),
             })
 
-        conversation = ConversationManager(conversation_id=conv_id)
-        conversation.save_tool_result(result_str, tool_call_id)
-        brain = Brain()
-        assistant_message = await brain.continue_after_tool_result(conversation)
-        return {"status": "success", "result": result_str, "assistant_message": assistant_message}
+        assistant_message = await _resume_conversation_after_approval(
+            conv_id, tool_call_id, result_str,
+        )
+        payload: dict = {"status": "success", "result": result_str}
+        if assistant_message is not None:
+            payload["assistant_message"] = assistant_message
+        return payload
     else:
         kernel.deny_approval(
             approval_id,
@@ -165,8 +207,10 @@ async def resolve_approval(approval_id: str, body: dict):
             reason="user_denied",
         )
         result_str = json.dumps({"status": "denied", "reason": "User denied the operation"})
-        conversation = ConversationManager(conversation_id=conv_id)
-        conversation.save_tool_result(result_str, tool_call_id)
-        brain = Brain()
-        assistant_message = await brain.continue_after_tool_result(conversation)
-        return {"status": "denied", "assistant_message": assistant_message}
+        assistant_message = await _resume_conversation_after_approval(
+            conv_id, tool_call_id, result_str,
+        )
+        payload = {"status": "denied"}
+        if assistant_message is not None:
+            payload["assistant_message"] = assistant_message
+        return payload
