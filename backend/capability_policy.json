@@ -9,6 +9,7 @@
     "list_calendar_events",
     "get_upcoming_events",
     "check_inbox",
+    "read_inbox_email",
     "open_web_page",
     "search_and_extract",
     "get_clipboard",

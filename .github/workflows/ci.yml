@@ -139,6 +139,11 @@ jobs:
           cd backend
           python scripts/verify_egress.py
 
+      - name: Verify connector (calendar capture)
+        run: |
+          cd backend
+          python scripts/verify_connector.py
+
   frontend:
     runs-on: ubuntu-latest
 

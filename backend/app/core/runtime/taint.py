@@ -3,6 +3,8 @@
 When external content (inbox, web fetch, browser) enters the agent context,
 subsequent write-class capability invocations in the same correlation chain
 MUST require user approval.
+
+Tool names MUST match mcp_hub registrations and capability_policy.json.
 """
 
 from __future__ import annotations
@@ -10,7 +12,7 @@ from __future__ import annotations
 import threading
 from typing import Any
 
-# Tools that ingest untrusted external content into the agent context.
+# Registered MCP tools that ingest untrusted external content (see mcp_hub).
 EXTERNAL_INGESTION_TOOLS = frozenset({
     "check_inbox",
     "read_inbox_email",
@@ -18,21 +20,15 @@ EXTERNAL_INGESTION_TOOLS = frozenset({
     "fetch_url",
     "search_and_extract",
     "open_web_page",
-    "read_web_page",
-    "browse_url",
 })
 
-# Tools that mutate the host or exfiltrate data — never auto-allow when tainted.
+# Registered MCP tools in capability_policy.json "needs_user" — mutate host or exfiltrate.
 WRITE_CLASS_TOOLS = frozenset({
     "write_file",
-    "delete_file",
-    "run_shell_command",
-    "execute_command",
+    "add_calendar_event",
     "send_email",
-    "reply_email",
-    "git_commit",
-    "git_push",
-    "create_calendar_event",
+    "shell_exec",
+    "telegram_send",
 })
 
 

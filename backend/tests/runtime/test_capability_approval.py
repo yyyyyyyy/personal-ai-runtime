@@ -1,13 +1,36 @@
 """T2 acceptance test: Capability invocation with approval gating through Kernel."""
 
+import json
 import os
+from pathlib import Path
 
 os.environ.setdefault("LLM_API_KEY", "test-key")
 
 import pytest
 
+from app.core.harness.mcp_hub import mcp_hub
 from app.core.runtime.kernel import Kernel
 from app.store.database import Database
+
+POLICY_PATH = Path(__file__).resolve().parents[2] / "capability_policy.json"
+
+
+def test_capability_policy_covers_all_registered_tools():
+    """Contract: every mcp_hub tool must appear in capability_policy.json."""
+    policy = json.loads(POLICY_PATH.read_text(encoding="utf-8"))
+    registered = {t["function"]["name"] for t in mcp_hub.get_tool_defs_for_llm()}
+    covered = (
+        set(policy["auto_allow"])
+        | set(policy["needs_user"])
+        | set(policy.get("forbidden", []))
+    )
+    missing = registered - covered
+    extra = covered - registered
+    overlap = set(policy["auto_allow"]) & set(policy["needs_user"])
+    assert not missing, f"Tools missing from capability_policy: {missing}"
+    assert not extra, f"Unknown tools in capability_policy: {extra}"
+    assert not overlap, f"Tools in both auto_allow and needs_user: {overlap}"
+    assert len(registered) == 23
 
 
 def make_kernel(tmp_path):

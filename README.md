@@ -84,6 +84,22 @@ cd frontend
 npm run dev
 ```
 
+### Windows（PowerShell）
+
+`make dev` 依赖 bash 语法，在 PowerShell 中请分两个终端手动启动：
+
+```powershell
+# 终端 1 — 后端
+cd backend
+python -m uvicorn app.main:app --reload --port 8000
+
+# 终端 2 — 前端
+cd frontend
+npm run dev
+```
+
+可选：安装 [Git Bash](https://git-scm.com/) 或 WSL 后可直接使用 `make install` / `make dev`。
+
 ## 环境变量（常用）
 
 | 变量 | 说明 | 默认值 |

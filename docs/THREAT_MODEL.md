@@ -30,7 +30,7 @@
 ### 1. 来源污点（Taint）
 
 - 外部摄入工具（`check_inbox`、`fetch_url`、`web_search` 等）成功后，标记当前 `correlation_id` 为 **tainted**。
-- 同一 `correlation_id` 内，**写类工具**（`write_file`、`run_shell_command`、`send_email` 等）强制 `risk=high`，禁止 auto-allow。
+- 同一 `correlation_id` 内，**写类工具**（与 `capability_policy.json` 的 `needs_user` 一致：`write_file`、`shell_exec`、`send_email` 等）强制 `risk=high`，禁止 auto-allow。
 - 实现：`app/core/runtime/taint.py` + `kernel.invoke_capability` 升级逻辑。
 
 ### 2. Approval 治理

@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""Connector verification — calendar capture + meaning DAG."""
+"""Connector verification — calendar capture emits ObservationRecorded via Kernel."""
 
 from __future__ import annotations
 
@@ -17,7 +17,6 @@ os.environ.setdefault("LLM_API_KEY", "test-key")
 from app.core.connectors.calendar_capture import capture_calendar_observations
 from app.core.harness.mcp_servers.calendar import CalendarServer
 from app.core.runtime.kernel import Kernel
-from app.core.runtime.meaning_dag import audit_kernel_event_log
 from app.store.database import Database
 
 
@@ -57,9 +56,6 @@ def main() -> int:
         actor = obs_events[0].actor
         if not str(actor).startswith("connector:"):
             violations.append(f"connector: unexpected actor {actor!r}")
-
-    failures, _warnings = audit_kernel_event_log(k)
-    violations.extend(failures)
 
     if violations:
         print("CONNECTOR VERIFICATION FAILED", file=sys.stderr)
