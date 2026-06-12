@@ -35,7 +35,3 @@ Thumbs.db
 .cursor/
 .junie/
 backend/.coverage
-
-# Local dev notes only (any path); not published to GitHub
-POSTMORTEM.md
-CONTRIBUTING.md
