@@ -29,7 +29,7 @@ class Settings(BaseSettings):
 
     # --- Auth ---
     auth_token: str = ""
-    """API 认证 Token。若未设置，启动时自动生成随机 Token 并打印到控制台。"""
+    """API Bearer token。未设置则认证关闭，启动时 logger.warning 提示。"""
 
     # --- MCP ---
     mcp_config_path: str = str(BASE_DIR / "backend" / "mcp_config.json")

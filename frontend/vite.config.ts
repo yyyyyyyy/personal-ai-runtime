@@ -1,11 +1,16 @@
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 
+const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const API_HOST = process.env.VITE_API_HOST || "localhost";
 const API_PORT = process.env.VITE_API_PORT || "8000";
 
 export default defineConfig({
+  // Read VITE_* from repo-root .env (same file as backend AUTH_TOKEN)
+  envDir: rootDir,
   plugins: [react(), tailwindcss()],
   server: {
     port: 5173,

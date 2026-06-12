@@ -13,10 +13,13 @@ DESTROY_CONFIRM = "DESTROY_ALL_DATA"
 @router.get("/health")
 async def health_check():
     """Health check endpoint."""
+    from app.config import settings
+
     return {
         "status": "ok",
         "service": "personal-ai-runtime",
         "version": "0.9.0",
+        "auth_required": bool(settings.auth_token),
     }
 
 

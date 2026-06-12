@@ -16,3 +16,10 @@ python_version = "3.12"
 ignore_missing_imports = true
 check_untyped_defs = true
 follow_imports = "silent"
+
+[tool.coverage.run]
+omit = [
+    "app/core/runtime/kernel/types.py",
+    "app/core/runtime/self_improver.py",
+    "app/core/runtime/memory_decay.py",
+]

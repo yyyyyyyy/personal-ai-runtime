@@ -28,7 +28,7 @@ test-backend:
 	cd $(BACKEND_DIR) && python3 -m pytest tests/ -q
 
 test-frontend:
-	cd $(FRONTEND_DIR) && npx tsc --noEmit
+	cd $(FRONTEND_DIR) && npx tsc --noEmit && npm test
 
 desktop:
 	cd $(DESKTOP_DIR) && npm start

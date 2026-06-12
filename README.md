@@ -96,8 +96,24 @@ npm run dev
 | `OLLAMA_BASE_URL` | 本地 Ollama（记忆抽取） | `http://localhost:11434/v1` |
 | `MEMORY_EXTRACTOR` | 记忆抽取后端：`ollama` 或 `cloud` | `ollama` |
 | `CORS_ORIGINS` | 允许的前端源 | `http://localhost:5173,http://localhost:5174` |
+| `AUTH_TOKEN` | API Bearer 认证（可选，留空则关闭） | — |
+| `VITE_AUTH_TOKEN` | 前端 Bearer token（启用认证时需与 `AUTH_TOKEN` 一致） | — |
 
 其余变量见 [.env.example](.env.example)。
+
+### API 认证（可选）
+
+默认不启用认证。若需保护本地 API（例如局域网暴露时），在 `.env` 中设置：
+
+```bash
+AUTH_TOKEN=your-secret-token
+VITE_AUTH_TOKEN=your-secret-token   # 必须与 AUTH_TOKEN 一致
+```
+
+- 根目录 `.env` 同时供后端与前端（Vite `envDir` 指向仓库根目录）使用
+- HTTP 请求：前端自动附加 `Authorization: Bearer <token>`
+- WebSocket 通知：自动附加 `?token=<token>`
+- 未设置 `AUTH_TOKEN` 时，后端与测试均不受影响
 
 ## 常用命令
 

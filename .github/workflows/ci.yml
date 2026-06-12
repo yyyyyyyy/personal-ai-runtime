@@ -36,13 +36,13 @@ jobs:
       - name: Type check (mypy)
         run: |
           cd backend
-          # Kernel + Runtime layer (strict); full app/ has legacy type debt outside this scope
-          mypy app/core/runtime/ app/core/agents/memory_engine.py app/core/agents/memory_extractor.py scripts/ --ignore-missing-imports
+          # Kernel + Runtime + API layer; full app/ has legacy type debt outside this scope
+          mypy app/core/runtime/ app/api/ app/main.py app/core/agents/memory_engine.py app/core/agents/memory_extractor.py scripts/ --ignore-missing-imports
 
       - name: Run tests
         run: |
           cd backend
-          python -m pytest tests/ -v --cov=app --cov-report=term -m "not live_llm"
+          python -m pytest tests/ -v --cov=app/core/runtime --cov-report=term --cov-fail-under=65 -m "not live_llm"
 
       - name: Verify database schema
         run: |
@@ -158,3 +158,8 @@ jobs:
         run: |
           cd frontend
           npx tsc --noEmit
+
+      - name: Frontend unit tests
+        run: |
+          cd frontend
+          npm test

@@ -43,9 +43,16 @@
 - 出站 LLM 调用记录 `EgressApproved` 事件（审计日志）。
 - **不**声称完整 PII 脱敏；当前仅做出站审计，不做脱敏边界。
 
+### 4. API 认证（opt-in）
+
+- 单用户 Bearer token：设置 `AUTH_TOKEN` 后，HTTP API 需 `Authorization: Bearer <token>`。
+- WebSocket（`/ws`）使用查询参数 `?token=<token>`。
+- 前端通过 `VITE_AUTH_TOKEN`（与 `AUTH_TOKEN` 一致）注入 token。
+- **默认关闭**：未设置 `AUTH_TOKEN` 时不拦截请求，适合本地开发与测试。
+
 ## 非目标（当前版本）
 
-- 多用户隔离 / 认证
+- 多用户隔离
 - 网络级沙箱
 - 完整 PII NER 脱敏
 

@@ -10,6 +10,14 @@ export function setAuthToken(token: string) {
   _authToken = token;
 }
 
+export function getAuthToken(): string | null {
+  return _authToken;
+}
+
+export function isAuthConfigured(): boolean {
+  return _authToken !== null && _authToken.length > 0;
+}
+
 function authHeaders(): Record<string, string> {
   const headers: Record<string, string> = { "Content-Type": "application/json" };
   if (_authToken) {
@@ -40,7 +48,10 @@ async function request<T>(
   });
 
   if (res.status === 401) {
-    throw new ApiError("认证失败，请检查 AUTH_TOKEN 配置", 401);
+    throw new ApiError(
+      "认证失败，请检查 AUTH_TOKEN 与 VITE_AUTH_TOKEN 是否一致",
+      401
+    );
   }
 
   if (!res.ok) {
@@ -56,6 +67,19 @@ async function request<T>(
   }
 
   return res.json();
+}
+
+// ── System API ──────────────────────────────────────────────────────────────
+
+export interface HealthResponse {
+  status: string;
+  service: string;
+  version: string;
+  auth_required: boolean;
+}
+
+export async function getSystemHealth(): Promise<HealthResponse> {
+  return request<HealthResponse>(`${API_BASE}/system/health`);
 }
 
 // ── Types ───────────────────────────────────────────────────────────────────
@@ -134,7 +158,7 @@ export async function sendMessage(
   });
 
   if (res.status === 401) {
-    onError("认证失败，请检查 AUTH_TOKEN 配置");
+    onError("认证失败，请检查 AUTH_TOKEN 与 VITE_AUTH_TOKEN 是否一致");
     return;
   }
 

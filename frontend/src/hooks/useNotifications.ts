@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { getAuthToken } from "../api/client";
 
 export interface NotificationItem {
   id: string;
@@ -27,10 +28,17 @@ function isValidNotification(data: unknown): data is WSNotificationPayload {
   );
 }
 
-const WS_URL =
-  typeof window !== "undefined"
-    ? `${window.location.protocol === "https:" ? "wss" : "ws"}://${window.location.hostname}:${__API_PORT__}/ws`
-    : `ws://${__API_HOST__}:${__API_PORT__}/ws`;
+function buildWsUrl(): string {
+  const base =
+    typeof window !== "undefined"
+      ? `${window.location.protocol === "https:" ? "wss" : "ws"}://${window.location.hostname}:${__API_PORT__}/ws`
+      : `ws://${__API_HOST__}:${__API_PORT__}/ws`;
+  const token = getAuthToken();
+  if (token) {
+    return `${base}?token=${encodeURIComponent(token)}`;
+  }
+  return base;
+}
 
 const MAX_RECONNECT_ATTEMPTS = 5;
 const RECONNECT_DELAY_MS = 5000;
@@ -57,7 +65,7 @@ export function useNotifications() {
       if (stopped || reconnectCountRef.current >= MAX_RECONNECT_ATTEMPTS) return;
 
       try {
-        ws = new WebSocket(WS_URL);
+        ws = new WebSocket(buildWsUrl());
 
         ws.onmessage = (event) => {
           try {

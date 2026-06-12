@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useChatStore } from "./stores/chatStore";
 import { useAppStore } from "./stores/appStore";
 import { useErrorStore } from "./stores/errorStore";
@@ -6,6 +6,8 @@ import {
   listConversations,
   createConversation,
   deleteConversation,
+  getSystemHealth,
+  isAuthConfigured,
   ApiError,
 } from "./api/client";
 import ChatView from "./components/chat/ChatView";
@@ -30,6 +32,7 @@ export default function App() {
   const { currentPage, setPage } = useAppStore();
   const { toasts, dismissToast } = useNotifications();
   const { errors, dismissError, backendUnavailable, addError } = useErrorStore();
+  const [authRequired, setAuthRequired] = useState(false);
 
   useEffect(() => {
     loadConversations();
@@ -37,12 +40,17 @@ export default function App() {
 
   const loadConversations = async () => {
     try {
+      const health = await getSystemHealth();
+      setAuthRequired(health.auth_required);
       const convs = await listConversations();
       setConversations(convs);
       useErrorStore.getState().setBackendUnavailable(false);
     } catch (e) {
       if (e instanceof ApiError && e.status === 401) {
-        addError("认证失败，请检查后端 AUTH_TOKEN 配置", "认证");
+        addError(
+          "认证失败，请检查 AUTH_TOKEN 与 VITE_AUTH_TOKEN 是否一致",
+          "认证"
+        );
       } else {
         useErrorStore.getState().setBackendUnavailable(true);
       }
@@ -80,6 +88,15 @@ export default function App() {
         onNewChat={handleNewChat}
         onDeleteChat={handleDeleteChat}
       />
+
+      {/* Auth not configured banner */}
+      {authRequired && !isAuthConfigured() && (
+        <div className="fixed top-0 left-64 right-0 z-50 bg-amber-900/50 border-b border-amber-700/50 px-4 py-2 text-center">
+          <span className="text-amber-300 text-sm">
+            后端已启用认证，请在 .env 中设置 VITE_AUTH_TOKEN（与 AUTH_TOKEN 保持一致）后重启前端
+          </span>
+        </div>
+      )}
 
       {/* Backend unavailable banner */}
       {backendUnavailable && (

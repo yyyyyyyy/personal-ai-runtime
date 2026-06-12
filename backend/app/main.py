@@ -39,7 +39,7 @@ _ws_connections: list[WebSocket] = []
 
 # ── Auth middleware ──────────────────────────────────────────────────────────
 
-SKIP_AUTH_PATHS = frozenset({"/", "/api/system/health", "/ws"})
+SKIP_AUTH_PATHS = frozenset({"/", "/api/system/health"})
 
 
 class AuthMiddleware(BaseHTTPMiddleware):
@@ -47,7 +47,7 @@ class AuthMiddleware(BaseHTTPMiddleware):
 
     async def dispatch(self, request: Request, call_next):
         path = request.url.path
-        if path in SKIP_AUTH_PATHS or path.startswith("/ws"):
+        if path in SKIP_AUTH_PATHS:
             return await call_next(request)
 
         expected = settings.auth_token
@@ -153,6 +153,13 @@ async def root():
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
     """WebSocket for real-time notification pushing."""
+    expected = settings.auth_token
+    if expected:
+        token = websocket.query_params.get("token", "")
+        if not token or token != expected:
+            await websocket.close(code=4401, reason="Unauthorized")
+            return
+
     await websocket.accept()
     _ws_connections.append(websocket)
     try:

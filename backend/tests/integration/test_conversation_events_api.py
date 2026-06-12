@@ -1,28 +1,5 @@
 """Integration: conversation events come from kernel ConversationRecorded only."""
 
-import os
-
-import pytest
-from fastapi.testclient import TestClient
-
-os.environ.setdefault("LLM_API_KEY", "test-key")
-
-
-@pytest.fixture
-def client(tmp_path, monkeypatch):
-    db_path = str(tmp_path / "conv_events.db")
-    monkeypatch.setenv("SQLITE_PATH", db_path)
-    monkeypatch.setenv("DATA_DIR", str(tmp_path))
-    monkeypatch.setenv("VECTOR_DIR", str(tmp_path / "vectors"))
-
-    from app.store.database import Database
-
-    Database._instance = None
-
-    from app.main import app
-
-    return TestClient(app)
-
 
 def test_conversation_type_reads_from_kernel(client):
     from app.core.runtime.conversation_recorder import record_conversation_turn
