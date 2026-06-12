@@ -16,6 +16,7 @@ const path = require('path');
 // Configuration
 const WEB_URL = process.env.WEB_URL || 'http://localhost:5173';
 const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:8000';
+const AUTH_TOKEN = process.env.AUTH_TOKEN || '';
 
 let mainWindow = null;
 let miniWindow = null;
@@ -228,7 +229,9 @@ app.setLoginItemSettings({
 function connectWebSocket() {
   try {
     const WebSocket = require('ws');
-    const ws = new WebSocket(`ws://localhost:8000/ws`);
+    const wsUrl = BACKEND_URL.replace(/^http/, 'ws') + '/ws';
+    const protocols = AUTH_TOKEN ? [`auth.${AUTH_TOKEN}`] : undefined;
+    const ws = protocols ? new WebSocket(wsUrl, protocols) : new WebSocket(wsUrl);
 
     ws.on('open', () => {
       console.log('WebSocket connected for notifications');

@@ -1,3 +1,4 @@
+# Backend binds 0.0.0.0 inside the container. Set AUTH_TOKEN in .env before exposing ports.
 services:
   backend:
     build:

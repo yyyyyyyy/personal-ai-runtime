@@ -9,7 +9,7 @@ from app.config import settings
 SENSITIVE_PATTERNS = [
     re.compile(r"\b(password|api[_-]?key|secret|token)\b", re.I),
     re.compile(r"\.(pem|key|env)$", re.I),
-    re.compile(r"/Users/|/home/|~/", re.I),
+    re.compile(r"/Users/|/home/|~/|C:\\Users\\|C:/Users/", re.I),
 ]
 
 

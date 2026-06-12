@@ -29,15 +29,14 @@ function isValidNotification(data: unknown): data is WSNotificationPayload {
 }
 
 function buildWsUrl(): string {
-  const base =
-    typeof window !== "undefined"
-      ? `${window.location.protocol === "https:" ? "wss" : "ws"}://${window.location.hostname}:${__API_PORT__}/ws`
-      : `ws://${__API_HOST__}:${__API_PORT__}/ws`;
+  return typeof window !== "undefined"
+    ? `${window.location.protocol === "https:" ? "wss" : "ws"}://${window.location.hostname}:${__API_PORT__}/ws`
+    : `ws://${__API_HOST__}:${__API_PORT__}/ws`;
+}
+
+function buildWsProtocols(): string[] | undefined {
   const token = getAuthToken();
-  if (token) {
-    return `${base}?token=${encodeURIComponent(token)}`;
-  }
-  return base;
+  return token ? [`auth.${token}`] : undefined;
 }
 
 const MAX_RECONNECT_ATTEMPTS = 5;
@@ -65,7 +64,10 @@ export function useNotifications() {
       if (stopped || reconnectCountRef.current >= MAX_RECONNECT_ATTEMPTS) return;
 
       try {
-        ws = new WebSocket(buildWsUrl());
+        const protocols = buildWsProtocols();
+        ws = protocols
+          ? new WebSocket(buildWsUrl(), protocols)
+          : new WebSocket(buildWsUrl());
 
         ws.onmessage = (event) => {
           try {

@@ -40,6 +40,18 @@ _ws_connections: list[WebSocket] = []
 # ── Auth middleware ──────────────────────────────────────────────────────────
 
 SKIP_AUTH_PATHS = frozenset({"/", "/api/system/health"})
+WS_AUTH_PREFIX = "auth."
+_LOCALHOST_HOSTS = frozenset({"127.0.0.1", "localhost", "::1"})
+_EXPOSED_HOSTS = frozenset({"0.0.0.0", "::"})
+
+
+def _extract_ws_token(websocket: WebSocket) -> str:
+    header = websocket.headers.get("sec-websocket-protocol", "")
+    for part in header.split(","):
+        part = part.strip()
+        if part.startswith(WS_AUTH_PREFIX):
+            return part[len(WS_AUTH_PREFIX) :]
+    return ""
 
 
 class AuthMiddleware(BaseHTTPMiddleware):
@@ -75,10 +87,21 @@ class AuthMiddleware(BaseHTTPMiddleware):
 async def lifespan(app: FastAPI):
     """Startup and shutdown events."""
     if not settings.auth_token:
-        logger.warning(
-            "AUTH_TOKEN is not set — API authentication disabled. "
-            "Set AUTH_TOKEN in .env to enable Bearer token protection."
-        )
+        if settings.host in _EXPOSED_HOSTS:
+            logger.warning(
+                "AUTH_TOKEN is not set while listening on %s — API is exposed on all interfaces. "
+                "Set AUTH_TOKEN in .env before binding to 0.0.0.0.",
+                settings.host,
+            )
+        elif settings.host not in _LOCALHOST_HOSTS:
+            logger.warning(
+                "AUTH_TOKEN is not set while listening on %s — set AUTH_TOKEN for non-localhost binds.",
+                settings.host,
+            )
+        else:
+            logger.warning(
+                "AUTH_TOKEN is not set — API authentication disabled (localhost bind)."
+            )
     else:
         logger.info("API authentication enabled (Bearer token)")
 
@@ -154,13 +177,15 @@ async def root():
 async def websocket_endpoint(websocket: WebSocket):
     """WebSocket for real-time notification pushing."""
     expected = settings.auth_token
+    subprotocol: str | None = None
     if expected:
-        token = websocket.query_params.get("token", "")
+        token = _extract_ws_token(websocket)
         if not token or token != expected:
             await websocket.close(code=4401, reason="Unauthorized")
             return
+        subprotocol = f"{WS_AUTH_PREFIX}{token}"
 
-    await websocket.accept()
+    await websocket.accept(subprotocol=subprotocol)
     _ws_connections.append(websocket)
     try:
         while True:

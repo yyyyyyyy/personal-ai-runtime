@@ -7,7 +7,9 @@ from app.product.digital_legacy import digital_legacy
 
 router = APIRouter(prefix="/api/system", tags=["system"])
 
+EXPORT_CONFIRM = "EXPORT_ALL_DATA"
 DESTROY_CONFIRM = "DESTROY_ALL_DATA"
+IMPORT_CONFIRM = "DESTROY_AND_IMPORT"
 
 
 @router.get("/health")
@@ -59,8 +61,14 @@ async def system_info():
 
 
 @router.post("/export")
-async def export_all_data():
+async def export_all_data(body: dict | None = None):
     """Export complete personal data snapshot as JSON."""
+    payload = body or {}
+    if payload.get("confirm") != EXPORT_CONFIRM:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Set confirm='{EXPORT_CONFIRM}' to export",
+        )
     return digital_legacy.export_all()
 
 
@@ -71,8 +79,11 @@ async def import_all_data(body: dict):
     if not snapshot:
         raise HTTPException(status_code=400, detail="Missing 'data' field")
     read_only = body.get("read_only", True)
-    if not read_only and body.get("confirm") != "DESTROY_AND_IMPORT":
-        raise HTTPException(status_code=400, detail="Set confirm='DESTROY_AND_IMPORT' for write import")
+    if not read_only and body.get("confirm") != IMPORT_CONFIRM:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Set confirm='{IMPORT_CONFIRM}' for write import",
+        )
     return digital_legacy.import_all(snapshot, read_only=read_only)
 
 

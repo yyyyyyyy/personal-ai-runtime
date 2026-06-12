@@ -17,9 +17,11 @@ class FilesystemServer:
         """Check if a path is within allowed directories."""
         try:
             p = Path(path).expanduser().resolve()
-            return any(
-                str(p).startswith(str(allowed)) for allowed in self.allowed_dirs
-            )
+            for allowed in self.allowed_dirs:
+                base = Path(allowed).resolve()
+                if p == base or p.is_relative_to(base):
+                    return True
+            return False
         except Exception:
             return False
 

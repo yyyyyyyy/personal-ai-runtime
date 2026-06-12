@@ -4,6 +4,8 @@ import json
 
 import httpx
 
+from app.core.harness.url_safety import UnsafeUrlError, validate_http_url
+
 
 class BrowserServer:
     """Browser automation. Uses httpx for read operations, Playwright stubs for automation."""
@@ -11,12 +13,19 @@ class BrowserServer:
     async def open_page(self, url: str) -> str:
         """Open a web page and return its content summary."""
         try:
+            safe_url = validate_http_url(url)
+
+            async def _redirect_hook(response: httpx.Response) -> None:
+                if response.is_redirect and response.next_request is not None:
+                    validate_http_url(str(response.next_request.url))
+
             async with httpx.AsyncClient(
                 timeout=20,
                 follow_redirects=True,
+                event_hooks={"response": [_redirect_hook]},
                 headers={"User-Agent": "PersonalAIRuntime/1.0"},
             ) as client:
-                resp = await client.get(url)
+                resp = await client.get(safe_url)
                 text = resp.text[:5000]
                 status = resp.status_code
 
@@ -32,6 +41,8 @@ class BrowserServer:
                 "title": title,
                 "content_preview": text[:1000],
             })
+        except UnsafeUrlError as e:
+            return json.dumps({"error": f"Blocked URL: {e}", "url": url})
         except Exception as e:
             return json.dumps({"error": str(e), "url": url})
 

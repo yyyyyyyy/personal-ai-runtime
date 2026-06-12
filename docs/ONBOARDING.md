@@ -66,7 +66,10 @@ curl http://localhost:8000/api/system/health
 导出包含完整 `event_log`、对话与消息的 JSON 快照（v2.0 无损格式）：
 
 ```bash
-curl -X POST http://localhost:8000/api/system/export -o my-personal-ai-backup.json
+curl -X POST http://localhost:8000/api/system/export \
+  -H "Content-Type: application/json" \
+  -d '{"confirm":"EXPORT_ALL_DATA"}' \
+  -o my-personal-ai-backup.json
 ```
 
 或在 Swagger UI（`/docs`）中调用 `POST /api/system/export`。

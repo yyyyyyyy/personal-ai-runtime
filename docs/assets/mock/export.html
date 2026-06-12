@@ -24,7 +24,7 @@
   <p>完整 event_log、对话与消息打包为 JSON v2.0。换模型、换设备、离开本项目——你的个人数据永远可以带走。</p>
   <div class="term">
     <span class="prompt">$</span>
-    <span class="cmd"> curl -X POST http://localhost:8000/api/system/export -o my-personal-ai-backup.json</span>
+    <span class="cmd"> curl -X POST http://localhost:8000/api/system/export -H "Content-Type: application/json" -d '{"confirm":"EXPORT_ALL_DATA"}' -o my-personal-ai-backup.json</span>
   </div>
   <div class="json">
 {<br>

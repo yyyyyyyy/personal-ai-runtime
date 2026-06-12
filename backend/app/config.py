@@ -21,9 +21,9 @@ class Settings(BaseSettings):
     vector_dir: str = ""
 
     # --- Server ---
-    host: str = "0.0.0.0"
+    host: str = "127.0.0.1"
     port: int = 8000
-    cors_origins: str = "http://localhost:5173"
+    cors_origins: str = "http://localhost:5173,http://localhost:5174"
 
     # --- Auth ---
     auth_token: str = ""

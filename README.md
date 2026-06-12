@@ -61,6 +61,7 @@ docker compose up --build
 - 前端：http://localhost:5173
 - 后端 API：http://localhost:8000
 - API 文档：http://localhost:8000/docs
+- 容器内后端绑定 `0.0.0.0`；若端口映射到局域网，请在 `.env` 中设置 `AUTH_TOKEN`
 
 ### 4. 桌面端（可选）
 
@@ -70,7 +71,7 @@ make desktop
 cd desktop && npm install && npm start
 ```
 
-Electron 壳会通过 WebSocket (`ws://localhost:8000/ws`) 接收桌面通知。
+Electron 壳会通过 WebSocket (`ws://localhost:8000/ws`) 接收桌面通知。启用 `AUTH_TOKEN` 时，Desktop 会读取同名的 `AUTH_TOKEN` 环境变量并以 `auth.<token>` 子协议连接。
 
 ## 手动启动
 
@@ -111,6 +112,7 @@ npm run dev
 | `EMAIL_USER` / `EMAIL_PASS` | Gmail 收件箱（应用专用密码） | — |
 | `OLLAMA_BASE_URL` | 本地 Ollama（记忆抽取） | `http://localhost:11434/v1` |
 | `MEMORY_EXTRACTOR` | 记忆抽取后端：`ollama` 或 `cloud` | `ollama` |
+| `HOST` | 后端监听地址 | `127.0.0.1` |
 | `CORS_ORIGINS` | 允许的前端源 | `http://localhost:5173,http://localhost:5174` |
 | `AUTH_TOKEN` | API Bearer 认证（可选，留空则关闭） | — |
 | `VITE_AUTH_TOKEN` | 前端 Bearer token（启用认证时需与 `AUTH_TOKEN` 一致） | — |
@@ -119,7 +121,7 @@ npm run dev
 
 ### API 认证（可选）
 
-默认不启用认证。若需保护本地 API（例如局域网暴露时），在 `.env` 中设置：
+默认绑定 `127.0.0.1` 且不启用认证（仅本机可访问）。若需绑定 `0.0.0.0` 或在局域网暴露，**必须**在 `.env` 中设置：
 
 ```bash
 AUTH_TOKEN=your-secret-token
@@ -128,13 +130,14 @@ VITE_AUTH_TOKEN=your-secret-token   # 必须与 AUTH_TOKEN 一致
 
 - 根目录 `.env` 同时供后端与前端（Vite `envDir` 指向仓库根目录）使用
 - HTTP 请求：前端自动附加 `Authorization: Bearer <token>`
-- WebSocket 通知：自动附加 `?token=<token>`
+- WebSocket 通知：通过 `Sec-WebSocket-Protocol: auth.<token>` 传递（不出现在 URL 中）
 - 未设置 `AUTH_TOKEN` 时，后端与测试均不受影响
 
 ## 常用命令
 
 ```bash
-make test              # backend pytest + frontend tsc
+make test              # backend pytest + frontend tsc + vitest
+make ci-local          # 接近 CI 的本地回归（含 boundary + export roundtrip）
 make test-backend      # 仅后端测试
 make test-frontend     # 仅前端类型检查
 make boundary          # Kernel 边界守卫（与 CI 一致）
@@ -170,11 +173,21 @@ CI 还额外运行 ruff、mypy、schema 校验、MCP 工具注册校验等，见
 ## 数据主权
 
 ```bash
-# 导出全部个人数据
-curl -X POST http://localhost:8000/api/system/export -o backup.json
+# 导出全部个人数据（需确认码）
+curl -X POST http://localhost:8000/api/system/export \
+  -H "Content-Type: application/json" \
+  -d '{"confirm":"EXPORT_ALL_DATA"}' \
+  -o backup.json
 
-# 导入（需确认码，见 API 文档）
-curl -X POST http://localhost:8000/api/system/import -d '{"confirm":"DESTROY_AND_IMPORT","data":{...}}'
+# 导入校验（只读，不写入）
+curl -X POST http://localhost:8000/api/system/import \
+  -H "Content-Type: application/json" \
+  -d '{"read_only":true,"data":{...}}'
+
+# 破坏性导入（需确认码 + read_only=false）
+curl -X POST http://localhost:8000/api/system/import \
+  -H "Content-Type: application/json" \
+  -d '{"read_only":false,"confirm":"DESTROY_AND_IMPORT","data":{...}}'
 ```
 
 ## 常见问题

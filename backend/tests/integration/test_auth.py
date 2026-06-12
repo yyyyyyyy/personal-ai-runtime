@@ -38,9 +38,19 @@ def test_websocket_requires_token_when_auth_enabled(authed_client: TestClient):
             pass
 
     with pytest.raises(Exception):
-        with authed_client.websocket_connect("/ws?token=wrong"):
+        with authed_client.websocket_connect(
+            "/ws",
+            subprotocols=["auth.wrong"],
+        ):
             pass
 
-    with authed_client.websocket_connect("/ws?token=test-secret") as ws:
+    with pytest.raises(Exception):
+        with authed_client.websocket_connect("/ws?token=test-secret"):
+            pass
+
+    with authed_client.websocket_connect(
+        "/ws",
+        subprotocols=["auth.test-secret"],
+    ) as ws:
         ws.send_text("ping")
         assert ws.receive_text() == "pong"

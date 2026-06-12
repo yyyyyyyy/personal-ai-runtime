@@ -5,6 +5,8 @@ import re
 
 import httpx
 
+from app.core.harness.url_safety import UnsafeUrlError, validate_http_url
+
 
 class FetchServer:
     """HTTP request and web scraping with readability-like text extraction."""
@@ -17,14 +19,22 @@ class FetchServer:
             extract_text: If True, extract main text content. If False, return raw HTML.
         """
         try:
+            safe_url = validate_http_url(url)
+
+            async def _redirect_hook(response: httpx.Response) -> None:
+                if response.is_redirect and response.next_request is not None:
+                    next_url = str(response.next_request.url)
+                    validate_http_url(next_url)
+
             async with httpx.AsyncClient(
                 timeout=20.0,
                 follow_redirects=True,
+                event_hooks={"response": [_redirect_hook]},
                 headers={
                     "User-Agent": "Mozilla/5.0 (compatible; PersonalAI-Runtime/0.1; +https://personal-ai.runtime)"
                 },
             ) as client:
-                resp = await client.get(url)
+                resp = await client.get(safe_url)
                 resp.raise_for_status()
                 html = resp.text
 
@@ -47,6 +57,8 @@ class FetchServer:
                         "content": html,
                     }, ensure_ascii=False)
 
+        except UnsafeUrlError as e:
+            return json.dumps({"error": f"Blocked URL: {e}"})
         except httpx.HTTPStatusError as e:
             return json.dumps({"error": f"HTTP {e.response.status_code}: {e.response.reason_phrase}"})
         except httpx.TimeoutException:

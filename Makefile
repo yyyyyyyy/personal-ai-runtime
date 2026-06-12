@@ -1,4 +1,4 @@
-.PHONY: install dev demo screenshots test test-backend test-frontend desktop boundary rebuild-verify export-roundtrip-verify snapshot-verify egress-verify connector-verify belief-verify belief-quality belief-survival alembic-verify vector-consistency-verify docker-up docker-down
+.PHONY: install dev demo screenshots test test-backend test-frontend ci-local desktop boundary rebuild-verify export-roundtrip-verify snapshot-verify egress-verify connector-verify belief-verify belief-quality belief-survival alembic-verify vector-consistency-verify docker-up docker-down
 
 # Backend
 BACKEND_DIR := backend
@@ -25,10 +25,13 @@ screenshots:
 test: test-backend test-frontend
 
 test-backend:
-	cd $(BACKEND_DIR) && python3 -m pytest tests/ -q
+	cd $(BACKEND_DIR) && python3 -m pytest tests/ -q -m "not live_llm"
 
 test-frontend:
 	cd $(FRONTEND_DIR) && npx tsc --noEmit && npm test
+
+ci-local: test-backend test-frontend boundary export-roundtrip-verify
+	@echo "ci-local checks passed"
 
 desktop:
 	cd $(DESKTOP_DIR) && npm start
