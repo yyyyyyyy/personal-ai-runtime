@@ -3,6 +3,7 @@
 import json
 import logging
 import secrets
+from asyncio import Lock
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
@@ -37,6 +38,7 @@ logger = logging.getLogger(__name__)
 
 # WebSocket connection manager for real-time notifications
 _ws_connections: list[WebSocket] = []
+_ws_lock = Lock()
 
 # ── Auth middleware ──────────────────────────────────────────────────────────
 
@@ -95,9 +97,16 @@ async def lifespan(app: FastAPI):
     """Startup and shutdown events."""
     if not settings.auth_token:
         if settings.host in _EXPOSED_HOSTS:
+            if not settings.allow_no_auth_on_exposed:
+                import sys
+                logger.critical(
+                    "REJECTED: AUTH_TOKEN is not set while listening on %s. "
+                    "Set AUTH_TOKEN in .env or ALLOW_NO_AUTH_ON_EXPOSED=true to override.",
+                    settings.host,
+                )
+                sys.exit(1)
             logger.warning(
-                "AUTH_TOKEN is not set while listening on %s — API is exposed on all interfaces. "
-                "Set AUTH_TOKEN in .env before binding to 0.0.0.0.",
+                "AUTH_TOKEN is not set while listening on %s — ALLOW_NO_AUTH_ON_EXPOSED is enabled.",
                 settings.host,
             )
         elif settings.host not in _LOCALHOST_HOSTS:
@@ -145,11 +154,13 @@ async def lifespan(app: FastAPI):
     shutdown_scheduler_v2()
     await event_bus.stop()
 
-    for ws in _ws_connections:
-        try:
-            await ws.close()
-        except Exception:
-            pass
+    async with _ws_lock:
+        for ws in _ws_connections:
+            try:
+                await ws.close()
+            except Exception:
+                pass
+        _ws_connections.clear()
 
 
 # ── App ──────────────────────────────────────────────────────────────────────
@@ -210,7 +221,8 @@ async def websocket_endpoint(websocket: WebSocket):
         subprotocol = f"{WS_AUTH_PREFIX}{token}"
 
     await websocket.accept(subprotocol=subprotocol)
-    _ws_connections.append(websocket)
+    async with _ws_lock:
+        _ws_connections.append(websocket)
     try:
         while True:
             data = await websocket.receive_text()
@@ -219,8 +231,9 @@ async def websocket_endpoint(websocket: WebSocket):
     except WebSocketDisconnect:
         pass
     finally:
-        if websocket in _ws_connections:
-            _ws_connections.remove(websocket)
+        async with _ws_lock:
+            if websocket in _ws_connections:
+                _ws_connections.remove(websocket)
 
 
 async def broadcast_notification(event: dict) -> None:
@@ -231,7 +244,9 @@ async def broadcast_notification(event: dict) -> None:
     """
     message = json.dumps(event)
     disconnected: list[WebSocket] = []
-    for ws in _ws_connections:
+    async with _ws_lock:
+        connections = list(_ws_connections)
+    for ws in connections:
         try:
             await ws.send_text(message)
         except WebSocketDisconnect:
@@ -240,6 +255,8 @@ async def broadcast_notification(event: dict) -> None:
             logger.warning("WebSocket broadcast failed: %s", exc)
             disconnected.append(ws)
 
-    for ws in disconnected:
-        if ws in _ws_connections:
-            _ws_connections.remove(ws)
+    if disconnected:
+        async with _ws_lock:
+            for ws in disconnected:
+                if ws in _ws_connections:
+                    _ws_connections.remove(ws)

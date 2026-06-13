@@ -29,6 +29,9 @@ class Settings(BaseSettings):
     auth_token: str = ""
     """API Bearer token。未设置则认证关闭，启动时 logger.warning 提示。"""
 
+    allow_no_auth_on_exposed: bool = False
+    """允许在公网暴露时无认证运行。仅在明确了解安全风险时设为 true。"""
+
     # --- MCP ---
     mcp_config_path: str = str(BASE_DIR / "backend" / "mcp_config.json")
     capability_policy_path: str = str(BASE_DIR / "backend" / "capability_policy.json")

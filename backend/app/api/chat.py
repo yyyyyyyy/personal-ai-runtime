@@ -5,6 +5,7 @@ import json
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
 
+from app.api.models import SendMessageRequest, ResolveApprovalRequest
 from app.core.agents.brain import Brain
 from app.core.agents.conversation import ConversationAPI, ConversationManager
 from app.core.agents.intent_predictor import intent_predictor
@@ -61,16 +62,13 @@ async def get_messages(conv_id: str, limit: int = 100):
 
 
 @router.post("/conversations/{conv_id}/messages")
-async def send_message(conv_id: str, body: dict):
-    """Send a message and get a streaming response.
-
-    Request body: {"content": "user message text"}
-    """
+async def send_message(conv_id: str, body: SendMessageRequest):
+    """Send a message and get a streaming response."""
     conv = ConversationAPI.get(conv_id)
     if not conv:
         raise HTTPException(status_code=404, detail="Conversation not found")
 
-    content = body.get("content", "")
+    content = body.content
     if not content.strip():
         raise HTTPException(status_code=400, detail="Message content is required")
 
@@ -158,20 +156,20 @@ async def _resume_conversation_after_approval(
     return await brain.continue_after_tool_result(conversation)
 
 
-def _reject_client_approval_mismatch(body: dict, tool_name: str, tool_args: dict) -> None:
+def _reject_client_approval_mismatch(body: ResolveApprovalRequest, tool_name: str, tool_args: dict) -> None:
     """Reject if the client payload disagrees with the immutable approval record."""
-    if "tool_name" in body and body.get("tool_name") != tool_name:
+    if body.tool_name and body.tool_name != tool_name:
         raise HTTPException(status_code=400, detail="tool_name does not match approval record")
-    if "tool_args" in body and body.get("tool_args") != tool_args:
+    if body.tool_args and body.tool_args != tool_args:
         raise HTTPException(status_code=400, detail="tool_args do not match approval record")
 
 
 @router.post("/approvals/{approval_id}/resolve")
-async def resolve_approval(approval_id: str, body: dict):
+async def resolve_approval(approval_id: str, body: ResolveApprovalRequest):
     """Resolve a pending approval and execute the capability if approved."""
-    decision = body.get("decision", "deny")
-    conv_id = body.get("conv_id", "")
-    tool_call_id = body.get("tool_call_id", "")
+    decision = body.decision
+    conv_id = body.conv_id
+    tool_call_id = body.tool_call_id
 
     tool_name, tool_args = _load_pending_approval(approval_id)
     _reject_client_approval_mismatch(body, tool_name, tool_args)

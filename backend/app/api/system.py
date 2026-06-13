@@ -2,6 +2,7 @@
 
 from fastapi import APIRouter, HTTPException
 
+from app.api.models import ExportRequest, ImportRequest
 from app.core.agents.llm_router import llm_router
 from app.product.digital_legacy import digital_legacy
 
@@ -69,10 +70,10 @@ async def mcp_status():
 
 
 @router.post("/export")
-async def export_all_data(body: dict | None = None):
+async def export_all_data(body: ExportRequest | None = None):
     """Export complete personal data snapshot as JSON."""
-    payload = body or {}
-    if payload.get("confirm") != EXPORT_CONFIRM:
+    payload = body or ExportRequest()
+    if payload.confirm != EXPORT_CONFIRM:
         raise HTTPException(
             status_code=400,
             detail=f"Set confirm='{EXPORT_CONFIRM}' to export",
@@ -81,18 +82,15 @@ async def export_all_data(body: dict | None = None):
 
 
 @router.post("/import")
-async def import_all_data(body: dict):
+async def import_all_data(body: ImportRequest):
     """Import personal data snapshot. Requires confirm code when not read_only."""
-    snapshot = body.get("data")
-    if not snapshot:
-        raise HTTPException(status_code=400, detail="Missing 'data' field")
-    read_only = body.get("read_only", True)
-    if not read_only and body.get("confirm") != IMPORT_CONFIRM:
+    read_only = body.read_only
+    if not read_only and body.confirm != IMPORT_CONFIRM:
         raise HTTPException(
             status_code=400,
             detail=f"Set confirm='{IMPORT_CONFIRM}' for write import",
         )
-    return digital_legacy.import_all(snapshot, read_only=read_only)
+    return digital_legacy.import_all(body.data, read_only=read_only)
 
 
 @router.delete("/data")
