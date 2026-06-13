@@ -92,7 +92,7 @@ async def send_message(conv_id: str, body: SendMessageRequest):
                 from app.core.runtime.conversation_recorder import record_conversation_turn
 
                 record_conversation_turn(conv_id, content, result["summary"])
-                yield f"data: {json.dumps({'type': 'text_delta', 'content': result['summary']})}\n\n"
+                yield f"data: {json.dumps({'type': 'text_delta', 'content': strip_tool_markup(result['summary'])})}\n\n"
                 yield f"data: {json.dumps({'type': 'done'})}\n\n"
             except Exception as e:
                 yield f"data: {json.dumps({'type': 'error', 'content': str(e)})}\n\n"
@@ -113,6 +113,8 @@ async def send_message(conv_id: str, body: SendMessageRequest):
     async def event_stream():
         try:
             async for event in brain.chat_stream(conversation, content):
+                if event.get("type") == "text_delta" and event.get("content"):
+                    event["content"] = strip_tool_markup(event["content"])
                 yield f"data: {json.dumps(event)}\n\n"
         except Exception as e:
             yield f"data: {json.dumps({'type': 'error', 'content': str(e)})}\n\n"
