@@ -14,7 +14,7 @@ const toolCall = {
 };
 
 describe("ConfirmationDialog", () => {
-  it("renders tool name and formatted arguments", () => {
+  it("renders human-readable label and expandable arguments", () => {
     render(
       <ConfirmationDialog
         toolCall={toolCall}
@@ -23,7 +23,11 @@ describe("ConfirmationDialog", () => {
       />
     );
 
-    expect(screen.getByText(/确认操作: write_file/)).toBeInTheDocument();
+    // Human-readable label
+    expect(screen.getByText(/确认写入文件/)).toBeInTheDocument();
+    // Argument details are expandable — expand them
+    const summary = screen.getByText("查看详细参数");
+    fireEvent.click(summary);
     expect(screen.getByText(/"path"/)).toBeInTheDocument();
   });
 

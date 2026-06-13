@@ -1,4 +1,5 @@
 import { useState, type ReactNode } from "react";
+import { toolLabel, toolIcon, describeToolAction } from "../../utils/toolLabels";
 
 interface ToolCall {
   index: number;
@@ -166,18 +167,7 @@ function formatResult(content: string, toolName: string): ReactNode {
 }
 
 function getToolIcon(name: string): string {
-  const icons: Record<string, string> = {
-    get_current_time: "🕐",
-    read_file: "📄",
-    list_directory: "📁",
-    write_file: "✍️",
-    web_search: "🔍",
-    fetch_url: "🌐",
-    check_inbox: "📧",
-    read_inbox_email: "📧",
-    send_email: "✉️",
-  };
-  return icons[name] || "🔧";
+  return toolIcon(name);
 }
 
 export default function ToolCallDisplay({ toolCalls, toolResults, defaultExpanded = false }: Props) {
@@ -205,8 +195,15 @@ export default function ToolCallDisplay({ toolCalls, toolResults, defaultExpande
           tc.function_name === "check_inbox" && result
             ? parseInboxResult(result.content)
             : null;
-        // Inbox table is the primary view — always show when data exists
         const showInboxInline = Boolean(inboxData);
+
+        let argsSummary = "";
+        try {
+          argsSummary = describeToolAction(
+            tc.function_name,
+            JSON.parse(tc.arguments || "{}")
+          );
+        } catch { /* keep empty */ }
 
         return (
           <div
@@ -216,16 +213,19 @@ export default function ToolCallDisplay({ toolCalls, toolResults, defaultExpande
             <button
               type="button"
               onClick={() => setExpandedCall(isExpanded ? null : idx)}
-              className="w-full flex items-center gap-2 px-3 py-2 text-xs text-gray-400 hover:text-gray-200 transition-colors"
+              className="w-full text-left px-3 py-2 text-xs text-gray-400 hover:text-gray-200 transition-colors"
             >
               <span>{getToolIcon(tc.function_name)}</span>
               <span className="text-emerald-400 font-medium">
-                {tc.function_name}
+                {toolLabel(tc.function_name)}
               </span>
+              {argsSummary && (
+                <span className="text-gray-500 ml-1.5">{argsSummary}</span>
+              )}
               {result ? (
-                <span className="ml-auto text-emerald-500">✓ 完成</span>
+                <span className="float-right text-emerald-500 mt-0.5">✓ 完成</span>
               ) : (
-                <span className="ml-auto flex items-center gap-1">
+                <span className="float-right flex items-center gap-1 mt-0.5">
                   <svg className="animate-spin h-3 w-3" viewBox="0 0 24 24">
                     <circle
                       className="opacity-25"
@@ -242,7 +242,7 @@ export default function ToolCallDisplay({ toolCalls, toolResults, defaultExpande
                 </span>
               )}
               <svg
-                className={`w-3 h-3 transition-transform ${isExpanded ? "rotate-180" : ""}`}
+                className={`float-right w-3 h-3 transition-transform mt-0.5 ml-1.5 ${isExpanded ? "rotate-180" : ""}`}
                 fill="none" stroke="currentColor" viewBox="0 0 24 24"
               >
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />

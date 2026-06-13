@@ -166,6 +166,12 @@ export default function ChatView({ conversationId }: Props) {
     }
   }, [isLoading]);
 
+  useEffect(() => {
+    if (pendingConfirmation) {
+      scrollToBottom();
+    }
+  }, [pendingConfirmation]);
+
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
@@ -417,19 +423,23 @@ export default function ChatView({ conversationId }: Props) {
       {/* Messages area */}
       <div className="flex-1 overflow-y-auto px-4 py-4">
         <div className="max-w-3xl mx-auto space-y-4">
-          {pendingConfirmation && (
-            <ConfirmationDialog
-              toolCall={pendingConfirmation.toolCall}
-              onConfirm={handleConfirm}
-              onDeny={handleDeny}
-            />
-          )}
           {messages.map((msg) => (
             <MessageItem key={msg.id} message={msg} />
           ))}
           <div ref={messagesEndRef} />
         </div>
       </div>
+
+      {/* Confirmation prompt — always visible above input */}
+      {pendingConfirmation && (
+        <div className="border-t border-amber-600/40 px-4 py-3 bg-gray-900/95 backdrop-blur-sm shrink-0">
+          <ConfirmationDialog
+            toolCall={pendingConfirmation.toolCall}
+            onConfirm={handleConfirm}
+            onDeny={handleDeny}
+          />
+        </div>
+      )}
 
       {/* Input area */}
       <div className="border-t border-gray-800 p-4">
@@ -443,7 +453,7 @@ export default function ChatView({ conversationId }: Props) {
               placeholder="输入消息... (Enter 发送, Shift+Enter 换行)"
               rows={1}
               className="flex-1 bg-transparent border-none outline-none resize-none text-gray-100 placeholder-gray-500 min-h-[24px] max-h-[200px] py-1"
-              disabled={isLoading}
+              disabled={isLoading || !!pendingConfirmation}
             />
             <button
               onClick={handleSend}

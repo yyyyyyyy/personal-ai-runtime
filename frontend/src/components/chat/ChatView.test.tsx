@@ -68,7 +68,7 @@ describe("ChatView", () => {
     fireEvent.click(sendButtons[sendButtons.length - 1]);
 
     await waitFor(() => {
-      expect(screen.getByText(/确认操作: write_file/)).toBeInTheDocument();
+      expect(screen.getByText(/确认写入文件/)).toBeInTheDocument();
     });
   });
 
@@ -102,7 +102,7 @@ describe("ChatView", () => {
     fireEvent.click(sendButtons[sendButtons.length - 1]);
 
     await waitFor(() => {
-      expect(screen.getByText(/确认操作: write_file/)).toBeInTheDocument();
+      expect(screen.getByText(/确认写入文件/)).toBeInTheDocument();
     });
 
     const confirmBtn = within(container).getByRole("button", { name: "确认执行" });

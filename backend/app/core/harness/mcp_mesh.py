@@ -5,7 +5,6 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-from contextlib import AsyncExitStack
 from dataclasses import dataclass
 from typing import Any
 
@@ -43,8 +42,8 @@ class DiscoveredMCPTool:
 class _ServerConnection:
     def __init__(self, config: ExternalMCPServerConfig):
         self.config = config
-        self.stack = AsyncExitStack()
         self.session: ClientSession | None = None
+        self._transport: tuple | None = None  # (read_stream, write_stream)
         self.tools: list[MCPTool] = []
         self._connect_lock = asyncio.Lock()
 
@@ -57,8 +56,10 @@ class _ServerConnection:
                 args=self.config.args,
                 env=self.config.resolve_env() or None,
             )
-            read, write = await self.stack.enter_async_context(stdio_client(params))
-            session = await self.stack.enter_async_context(ClientSession(read, write))
+            transport = stdio_client(params)
+            read, write = await transport.__aenter__()
+            session = ClientSession(read, write)
+            await session.__aenter__()
             await asyncio.wait_for(
                 session.initialize(),
                 timeout=self.config.connect_timeout_seconds,
@@ -68,11 +69,24 @@ class _ServerConnection:
                 timeout=self.config.connect_timeout_seconds,
             )
             self.session = session
+            self._transport = (transport, read, write)
             self.tools = list(listed.tools)
 
     async def close(self) -> None:
-        await self.stack.aclose()
+        """Best-effort cleanup — swallow all errors so shutdown never breaks."""
+        if self.session is not None:
+            try:
+                await self.session.__aexit__(None, None, None)
+            except Exception:
+                pass
         self.session = None
+        if self._transport is not None:
+            transport, _read, _write = self._transport
+            try:
+                await transport.__aexit__(None, None, None)
+            except Exception:
+                pass
+        self._transport = None
         self.tools = []
 
 

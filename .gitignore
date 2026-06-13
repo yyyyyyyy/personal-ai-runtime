@@ -35,3 +35,6 @@ Thumbs.db
 .cursor/
 .junie/
 backend/.coverage
+
+# MCP server runtime artifacts
+backend/.playwright-mcp/
