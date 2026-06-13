@@ -13,32 +13,15 @@ import {
   type Conversation,
 } from "../../api/client";
 import { useErrorStore } from "../../stores/errorStore";
+import { timeAgo, isStagnant } from "../../utils/timeUtils";
 
 const BRIEF_CACHE_KEY = "morning_brief_cache";
-const WEEKLY_REVIEW_DAYS = 7;
-
-function timeAgo(dateStr: string): string {
-  const diff = Date.now() - new Date(dateStr).getTime();
-  const mins = Math.floor(diff / 60000);
-  if (mins < 60) return `${mins} 分钟前`;
-  const hours = Math.floor(mins / 60);
-  if (hours < 24) return `${hours} 小时前`;
-  const days = Math.floor(hours / 24);
-  if (days < 7) return `${days} 天前`;
-  return new Date(dateStr).toLocaleDateString("zh-CN");
-}
-
-function isStagnant(lastActivity: string | null): boolean {
-  if (!lastActivity) return true;
-  return Date.now() - new Date(lastActivity).getTime() > 3 * 86400000;
-}
 
 export default function ChatHome() {
   const navigate = useNavigate();
   const conversations = useChatStore((s) => s.conversations);
   const addConversation = useChatStore((s) => s.addConversation);
   const setActiveConversation = useChatStore((s) => s.setActiveConversation);
-  const setPendingPrompt = useChatStore((s) => s.setPendingPrompt);
   const addError = useErrorStore((s) => s.addError);
 
   const [brief, setBrief] = useState<string | null>(null);
@@ -149,19 +132,6 @@ export default function ChatHome() {
   const handleContinueConversation = (conv: Conversation) => {
     setActiveConversation(conv.id);
     navigate(`/chat/${conv.id}`);
-  };
-
-  const handleStartStagnantGoalChat = async (goalTitle: string) => {
-    try {
-      const conv = await createConversation();
-      addConversation(conv);
-      setActiveConversation(conv.id);
-      setPendingPrompt(`目标「${goalTitle}」似乎停滞了一段时间，帮我分析原因并给出下一步建议。`);
-      navigate(`/chat/${conv.id}`);
-    } catch (err) {
-      const msg = err instanceof ApiError ? err.message : "创建对话失败";
-      addError(msg, "对话");
-    }
   };
 
   const lastConversation = conversations
