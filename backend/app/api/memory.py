@@ -2,6 +2,7 @@
 
 from fastapi import APIRouter, HTTPException
 
+from app.api.models import CreateMemoryRequest, UpdateMemoryRequest
 from app.core.agents.memory_engine import memory_engine
 from app.core.agents.memory_v2 import user_profile
 
@@ -22,16 +23,15 @@ async def list_memories_grouped(limit: int = 100):
 
 
 @router.post("/memories")
-async def create_memory(body: dict):
+async def create_memory(body: CreateMemoryRequest):
     """Create a new memory manually."""
-    content = body.get("content")
-    category = body.get("category", "fact")
-    source = body.get("source", "manual")
+    content = body.content
+    category = body.category or "fact"
 
     if not content:
         raise HTTPException(status_code=400, detail="Content is required")
 
-    memory_id = memory_engine.store_memory(content, category, source)
+    memory_id = memory_engine.store_memory(content, category, source="manual")
     return {"id": memory_id, "status": "ok"}
 
 
@@ -51,10 +51,10 @@ async def delete_memory(memory_id: str):
 
 
 @router.put("/memories/{memory_id}")
-async def update_memory(memory_id: str, body: dict):
+async def update_memory(memory_id: str, body: UpdateMemoryRequest):
     """Update a memory's content or category."""
-    content = body.get("content")
-    category = body.get("category")
+    content = body.content
+    category = body.category
 
     if not content:
         raise HTTPException(status_code=400, detail="Content is required")

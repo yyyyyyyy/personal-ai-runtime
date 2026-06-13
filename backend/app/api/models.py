@@ -41,5 +41,5 @@ class ImportKnowledgeRequest(BaseModel):
 
 
 class AskKnowledgeRequest(BaseModel):
-    query: str = Field(..., alias="q")
+    query: str
     n: int = 5

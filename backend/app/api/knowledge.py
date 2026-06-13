@@ -5,6 +5,7 @@ from datetime import UTC, datetime
 
 from fastapi import APIRouter, HTTPException, UploadFile
 
+from app.api.models import AskKnowledgeRequest, ImportKnowledgeRequest
 from app.store.database import db
 from app.store.vector import vector_store
 
@@ -32,13 +33,10 @@ def _chunk_text(text: str, chunk_size: int = CHUNK_SIZE) -> list[str]:
 
 
 @router.post("/documents")
-async def import_document(body: dict):
-    """Import a document from text content.
-
-    Request body: {"title": "My Note", "content": "full text content..."}
-    """
-    title = body.get("title", "Untitled")
-    content = body.get("content", "")
+async def import_document(body: ImportKnowledgeRequest):
+    """Import a document from text content."""
+    title = body.title or "Untitled"
+    content = body.content
 
     if not content.strip():
         raise HTTPException(status_code=400, detail="Content is required")
@@ -152,14 +150,10 @@ async def search_knowledge(q: str, n: int = 5):
 
 
 @router.post("/ask")
-async def ask_knowledge(body: dict):
-    """RAG-based Q&A: search knowledge base and return relevant chunks.
-
-    The actual LLM-based answer generation happens in the chat flow.
-    This endpoint returns the relevant context chunks for RAG.
-    """
-    query = body.get("query", "")
-    n = body.get("n", 5)
+async def ask_knowledge(body: AskKnowledgeRequest):
+    """RAG-based Q&A: search knowledge base and return relevant chunks."""
+    query = body.query
+    n = body.n
 
     if not query:
         raise HTTPException(status_code=400, detail="Query is required")
