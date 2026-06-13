@@ -5,6 +5,7 @@ import {
   Mail,
   Brain,
   BookOpen,
+  BarChart3,
   Settings,
   Trash2,
 } from "lucide-react";
@@ -20,6 +21,7 @@ const NAV_ITEMS: {
   { path: "/inbox", label: "收件箱", icon: Mail },
   { path: "/memories", label: "记忆", icon: Brain },
   { path: "/knowledge", label: "知识库", icon: BookOpen },
+  { path: "/dashboard", label: "仪表盘", icon: BarChart3 },
   { path: "/settings", label: "设置", icon: Settings },
 ];
 
