@@ -1,4 +1,4 @@
-.PHONY: install dev demo screenshots test test-backend test-frontend ci-local desktop boundary rebuild-verify export-roundtrip-verify snapshot-verify egress-verify connector-verify belief-verify belief-quality belief-survival alembic-verify vector-consistency-verify docker-up docker-down
+.PHONY: install dev demo screenshots test test-backend test-frontend ci-local lint typecheck desktop boundary rebuild-verify export-roundtrip-verify snapshot-verify egress-verify connector-verify belief-verify belief-quality belief-survival alembic-verify vector-consistency-verify docker-up docker-down
 
 # Backend
 BACKEND_DIR := backend
@@ -30,7 +30,13 @@ test-backend:
 test-frontend:
 	cd $(FRONTEND_DIR) && npx tsc --noEmit && npm test
 
-ci-local: test-backend test-frontend boundary export-roundtrip-verify
+lint:
+	cd $(BACKEND_DIR) && ruff check app/
+
+typecheck:
+	cd $(BACKEND_DIR) && mypy app/core/runtime/ app/core/agents/memory_engine.py app/core/agents/memory_extractor.py app/product/ app/api/ app/main.py scripts/ --ignore-missing-imports
+
+ci-local: lint typecheck test-backend test-frontend boundary export-roundtrip-verify
 	@echo "ci-local checks passed"
 
 desktop:
