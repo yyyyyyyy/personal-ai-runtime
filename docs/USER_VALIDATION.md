@@ -55,3 +55,40 @@
 - 对话 + 24 个 MCP 工具（含审批）
 - 目标 / 记忆 / 收件箱
 - **一键无损导出**（`POST /api/system/export`）— 完整 `event_log` + 对话
+
+## 已知问题（自用记录 · 2026-06-13）
+
+### 1. `make dev` 启动时前端代理超时（ETIMEDOUT）
+
+**现象：** `make dev` 后浏览器立刻打开，Vite 日志出现大量 `http proxy error: /api/... ETIMEDOUT`；过一会儿后端 MCP 日志才打完，刷新页面后恢复正常。
+
+**原因：** 前后端并行启动。Vite ~1s 就绪并请求 `/api/*`，而后端仍在跑迁移 + 连接外部 MCP（Tavily、Context7 等），lifespan 完成前代理会超时。
+
+**临时规避：**
+```bash
+# .env 中关闭外部 MCP，本地启动快很多
+MCP_EXTERNAL_ENABLED=false
+```
+然后重启 `make dev`；或等终端出现 MCP `running on stdio` 后再刷新 http://localhost:5173。
+
+**待修（可选）：** `make dev` 等 `/api/system/health` 就绪后再起前端。
+
+### 2. 审批场景误显示「抱歉，未能生成回复」（已修 · 2026-06-13）
+
+**现象：** 对话中触发需审批的工具（写文件、发邮件等）时，助手气泡先出现「抱歉，未能生成回复，请再试一次。」，审批弹窗正常弹出；批准后才显示真实结果。
+
+**原因：** 后端在 `confirmation_required` 后以空文本发送 `done`；前端 `useChatMessages.ts` 在 `done` 时若 `tempContent` 为空就填入兜底错误文案，未区分「等待审批」与「真正失败」。
+
+**修复：** `confirmation_required` 后 `done` 不再填兜底文案；仅无审批且无文本时才显示错误提示。
+
+**验证：** `frontend/src/components/chat/ChatView.test.tsx` — 审批流不应出现「未能生成回复」。
+
+### 3. 工具调用 DSML 标记泄露到对话气泡（已修 · 2026-06-13）
+
+**现象：** 助手回复里直接显示 `<｜｜DSML｜｜tool_calls>…invoke name="read_file"…` 等原始标记，工具可能未真正执行。
+
+**原因：** 部分 LLM（如 DeepSeek）偶发把工具调用写进 `delta.content` 文本流，而非结构化 `delta.tool_calls`；前端原样渲染。
+
+**修复：** 后端 `tool_markup.py` 过滤流式 DSML 并解析为 `tool_calls`；前端/读库/存库三层剥离；**需重启 `make dev`** 后生效，旧对话刷新后也会清理历史气泡。
+
+**验证：** `backend/tests/runtime/test_tool_markup.py`、`frontend/src/utils/stripToolMarkup.test.ts`

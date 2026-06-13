@@ -98,6 +98,7 @@ describe("ChatView", () => {
     await waitFor(() => {
       expect(screen.getByText(/确认写入文件/)).toBeInTheDocument();
     });
+    expect(screen.queryByText(/抱歉，未能生成回复/)).not.toBeInTheDocument();
   });
 
   it("calls resolveApproval when user confirms pending tool", async () => {

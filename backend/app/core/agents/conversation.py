@@ -12,6 +12,7 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 
 from app.config import settings
+from app.core.agents.tool_markup import strip_tool_markup
 from app.core.runtime.kernel_instance import kernel as default_kernel
 from app.store.database import db
 
@@ -54,6 +55,8 @@ class ConversationManager:
         tool_call_id: str | None = None,
     ) -> dict:
         """Persist a message via MessageAppended event."""
+        if role == "assistant" and content:
+            content = strip_tool_markup(content)
         msg_id = str(uuid.uuid4())
         tc_json = tool_calls if tool_calls is None else tool_calls
         self._k().emit_event(

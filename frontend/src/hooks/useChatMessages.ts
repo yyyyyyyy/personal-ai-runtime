@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { getMessages, sendMessage, updateConversation, ApiError } from "../api/client";
 import type { Message, StreamEvent } from "../api/client";
 import { useChatStore } from "../stores/chatStore";
+import { stripToolMarkup } from "../utils/stripToolMarkup";
 
 interface ToolResult {
   tool_name: string;
@@ -72,7 +73,7 @@ function parseLoadedMessages(msgs: Message[]): DisplayMessage[] {
     const display: DisplayMessage = {
       id: m.id,
       role: m.role,
-      content: m.content ?? "",
+      content: m.role === "assistant" ? stripToolMarkup(m.content ?? "") : (m.content ?? ""),
       expandTools: true,
     };
 
@@ -213,6 +214,7 @@ export function useChatMessages(
       let tempContent = "";
       let tempToolCalls: DisplayMessage["toolCalls"] = [];
       let tempToolResults: DisplayMessage["toolResults"] = [];
+      let awaitingApproval = false;
 
       const assistantMsg: DisplayMessage = {
         id: `assistant-${Date.now()}`,
@@ -226,10 +228,11 @@ export function useChatMessages(
       const handleEvent = (event: StreamEvent) => {
         if (event.type === "text_delta" && event.content) {
           tempContent += event.content;
-          setStreamingContent(tempContent);
+          const displayContent = stripToolMarkup(tempContent);
+          setStreamingContent(displayContent);
           setMessages((prev) =>
             prev.map((m) =>
-              m.id === assistantMsg.id ? { ...m, content: tempContent } : m
+              m.id === assistantMsg.id ? { ...m, content: displayContent } : m
             )
           );
         } else if (event.type === "tool_call_start" && event.tool_calls) {
@@ -264,8 +267,9 @@ export function useChatMessages(
             )
           );
         } else if (event.type === "done") {
-          const finalContent =
-            tempContent.trim() || "抱歉，未能生成回复，请再试一次。";
+          const finalContent = awaitingApproval
+            ? stripToolMarkup(tempContent)
+            : stripToolMarkup(tempContent) || "抱歉，未能生成回复，请再试一次。";
           setMessages((prev) =>
             prev.map((m) =>
               m.id === assistantMsg.id
@@ -275,6 +279,7 @@ export function useChatMessages(
           );
           setStreamingContent("");
         } else if (event.type === "confirmation_required" && event.tool_name && event.approval_id) {
+          awaitingApproval = true;
           onConfirmationRequired?.(assistantMsg.id, event);
         }
       };

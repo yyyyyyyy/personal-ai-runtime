@@ -9,6 +9,7 @@ from app.api.models import ResolveApprovalRequest, SendMessageRequest
 from app.core.agents.brain import Brain
 from app.core.agents.conversation import ConversationAPI, ConversationManager
 from app.core.agents.intent_predictor import intent_predictor
+from app.core.agents.tool_markup import strip_tool_markup
 from app.core.runtime.agent_orchestrator import agent_orchestrator
 from app.core.runtime.kernel_instance import kernel
 from app.store.database import db
@@ -58,7 +59,14 @@ async def get_messages(conv_id: str, limit: int = 100):
     conv = ConversationAPI.get(conv_id)
     if not conv:
         raise HTTPException(status_code=404, detail="Conversation not found")
-    return db.get_recent_messages(conv_id, limit=limit)
+    rows = db.get_recent_messages(conv_id, limit=limit)
+    result = []
+    for row in rows:
+        item = dict(row)
+        if item.get("role") == "assistant" and item.get("content"):
+            item["content"] = strip_tool_markup(item["content"])
+        result.append(item)
+    return result
 
 
 @router.post("/conversations/{conv_id}/messages")

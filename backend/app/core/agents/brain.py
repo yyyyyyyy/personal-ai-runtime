@@ -15,6 +15,10 @@ from app.core.agents.context_engine import context_engine
 from app.core.agents.conversation import ConversationManager
 from app.core.agents.llm_router import llm_router
 from app.core.agents.memory_extractor import memory_extractor
+from app.core.agents.tool_markup import (
+    parse_tool_calls,
+    strip_tool_markup,
+)
 from app.core.agents.tool_postprocess import (
     build_prompt_hints,
     canned_summary,
@@ -38,6 +42,7 @@ You are:
 
 You have access to tools. Use them when they would help answer the user's query.
 When using tools, briefly explain what you're doing before calling them.
+Never paste raw tool-call markup (DSML, XML, or similar) in your reply — use the tool API only.
 
 Current context (if available) will include the user's active goals, recent events, and relevant memories.
 Memories may appear in two sections:
@@ -101,6 +106,8 @@ class Brain:
 
             # Collect streaming response
             assistant_content = ""
+            assistant_content_raw = ""
+            assistant_visible = ""  # cleaned text exposed to user
             tool_calls_data: list[dict] = []
             current_tool_call: dict[str, int | str] = {
                 "index": -1, "id": "", "function_name": "", "arguments": "",
@@ -111,10 +118,23 @@ class Brain:
                 if delta is None:
                     continue
 
-                # Text content
+                # Text content — accumulate, defer stripping until streaming complete
                 if delta.content:
-                    assistant_content += delta.content
-                    yield {"type": "text_delta", "content": delta.content}
+                    assistant_content_raw += delta.content
+                    content_len = len(assistant_content_raw)
+                    if content_len <= 300:
+                        cleaned = strip_tool_markup(assistant_content_raw)
+                    else:
+                        # Over 300 chars: try simple regex on the full buffer
+                        from app.core.agents.tool_markup import _TOOL_CALLS_BLOCK_RE
+
+                        cleaned = _TOOL_CALLS_BLOCK_RE.sub("", assistant_content_raw)
+                        if cleaned == assistant_content_raw:
+                            continue
+                    visible = cleaned[len(assistant_visible):]
+                    if visible:
+                        assistant_visible = cleaned
+                        yield {"type": "text_delta", "content": visible}
 
                 # Tool calls
                 if delta.tool_calls:
@@ -140,6 +160,18 @@ class Brain:
             # Finalize last tool call
             if int(current_tool_call["index"]) >= 0:
                 tool_calls_data.append(dict(current_tool_call))
+
+            # Recover tool calls leaked as markup in text stream
+            if not tool_calls_data and assistant_content_raw:
+                parsed, cleaned = parse_tool_calls(assistant_content_raw)
+                if parsed:
+                    tool_calls_data = parsed
+                    assistant_visible = cleaned
+                    logger.info(
+                        "Recovered %d tool call(s) from markup in text stream",
+                        len(parsed),
+                    )
+            assistant_content = assistant_visible
 
             # Record LLM call
             llm_latency = (time.time() - llm_start) * 1000
