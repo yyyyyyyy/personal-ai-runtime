@@ -5,7 +5,7 @@ import json
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
 
-from app.api.models import SendMessageRequest, ResolveApprovalRequest
+from app.api.models import ResolveApprovalRequest, SendMessageRequest
 from app.core.agents.brain import Brain
 from app.core.agents.conversation import ConversationAPI, ConversationManager
 from app.core.agents.intent_predictor import intent_predictor
