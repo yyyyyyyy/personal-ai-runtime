@@ -187,19 +187,27 @@ export function useChatMessages(
       const conv = conversations.find((c) => c.id === conversationId);
       const isFirstUserMessage =
         messages.filter((m) => m.role === "user").length === 0;
-      const needsTitle =
-        isFirstUserMessage &&
-        (!conv?.title || conv.title === "New Chat" || conv.title === "新对话");
+      const isDefaultTitle =
+        !conv?.title ||
+        conv.title === "New Conversation" ||
+        conv.title === "New Chat" ||
+        conv.title === "新对话";
+      const needsTitle = isFirstUserMessage && isDefaultTitle;
 
       setMessages((prev) => [...prev, userMsg]);
       setIsLoading(true);
       setStreamingContent("");
 
       if (needsTitle) {
-        const title = trimmed.slice(0, 30) + (trimmed.length > 30 ? "…" : "");
+        const title =
+          trimmed.length > 25
+            ? `讨论「${trimmed.slice(0, 25)}…」`
+            : `讨论「${trimmed}」`;
         updateConversation(conversationId, title)
           .then(() => updateConversationTitle(conversationId, title))
-          .catch(() => {});
+          .catch(() => {
+            onLoadErrorRef.current?.("更新对话标题失败", "对话");
+          });
       }
 
       let tempContent = "";
