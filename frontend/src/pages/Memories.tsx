@@ -1,15 +1,13 @@
 import { useEffect, useState, useMemo } from "react";
-import { useNavigate } from "react-router-dom";
 import {
   listMemoriesGrouped,
   createMemory,
   deleteMemory,
-  createConversation,
   ApiError,
   type MemoryRow,
 } from "../api/client";
 import { useErrorStore } from "../stores/errorStore";
-import { useChatStore } from "../stores/chatStore";
+import { useQuickChat } from "../hooks/useQuickChat";
 import Dialog from "../components/ui/Dialog";
 
 export default function MemoriesPage() {
@@ -18,10 +16,7 @@ export default function MemoriesPage() {
   const [newContent, setNewContent] = useState("");
   const [deleteTarget, setDeleteTarget] = useState<MemoryRow | null>(null);
   const addError = useErrorStore((s) => s.addError);
-  const navigate = useNavigate();
-  const addConversation = useChatStore((s) => s.addConversation);
-  const setActiveConversation = useChatStore((s) => s.setActiveConversation);
-  const setPendingPrompt = useChatStore((s) => s.setPendingPrompt);
+  const quickChat = useQuickChat();
 
   const grouped = useMemo(() => {
     const map: Record<string, MemoryRow[]> = {};
@@ -82,18 +77,8 @@ export default function MemoriesPage() {
     }
   };
 
-  const handleContinueChat = async (m: MemoryRow) => {
-    try {
-      const conv = await createConversation("记忆讨论");
-      addConversation(conv);
-      setActiveConversation(conv.id);
-      setPendingPrompt(`基于以下记忆继续讨论：\n${m.content}`);
-      navigate(`/chat/${conv.id}`);
-    } catch (err) {
-      const msg =
-        err instanceof ApiError ? err.message : "创建对话失败";
-      addError(msg, "对话");
-    }
+  const handleContinueChat = (m: MemoryRow) => {
+    quickChat({ title: "记忆讨论", prompt: `基于以下记忆继续讨论：\n${m.content}` });
   };
 
   if (loading) {

@@ -2,7 +2,6 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useChatStore } from "../../stores/chatStore";
 import {
-  createConversation,
   listReviews,
   listMemoriesGrouped,
   listGoals,
@@ -13,6 +12,7 @@ import {
   type Conversation,
 } from "../../api/client";
 import { useErrorStore } from "../../stores/errorStore";
+import { useQuickChat } from "../../hooks/useQuickChat";
 import { timeAgo, isStagnant } from "../../utils/timeUtils";
 
 const BRIEF_CACHE_KEY = "morning_brief_cache";
@@ -20,9 +20,9 @@ const BRIEF_CACHE_KEY = "morning_brief_cache";
 export default function ChatHome() {
   const navigate = useNavigate();
   const conversations = useChatStore((s) => s.conversations);
-  const addConversation = useChatStore((s) => s.addConversation);
   const setActiveConversation = useChatStore((s) => s.setActiveConversation);
   const addError = useErrorStore((s) => s.addError);
+  const quickChat = useQuickChat();
 
   const [brief, setBrief] = useState<string | null>(null);
   const [loadingBrief, setLoadingBrief] = useState(false);
@@ -117,17 +117,7 @@ export default function ChatHome() {
     }
   };
 
-  const handleNewChat = async () => {
-    try {
-      const conv = await createConversation();
-      addConversation(conv);
-      setActiveConversation(conv.id);
-      navigate(`/chat/${conv.id}`);
-    } catch (err) {
-      const msg = err instanceof ApiError ? err.message : "创建对话失败";
-      addError(msg, "对话");
-    }
-  };
+  const handleNewChat = () => quickChat();
 
   const handleContinueConversation = (conv: Conversation) => {
     setActiveConversation(conv.id);

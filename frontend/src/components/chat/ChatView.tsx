@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { listGoals, searchMemories, ApiError } from "../../api/client";
+import { listGoals, searchMemories } from "../../api/client";
 import { type StreamEvent } from "../../api/client";
 import { useErrorStore } from "../../stores/errorStore";
 import { useChatStore } from "../../stores/chatStore";

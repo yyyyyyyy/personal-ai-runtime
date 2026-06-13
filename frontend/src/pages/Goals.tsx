@@ -7,12 +7,11 @@ import {
   updateGoal,
   createGoalAction,
   updateGoalAction,
-  createConversation,
   ApiError,
   type Goal,
 } from "../api/client";
 import { useErrorStore } from "../stores/errorStore";
-import { useChatStore } from "../stores/chatStore";
+import { useQuickChat } from "../hooks/useQuickChat";
 import Badge from "../components/ui/Badge";
 import Button from "../components/ui/Button";
 import Card from "../components/ui/Card";
@@ -29,9 +28,7 @@ export default function GoalsPage() {
   const [newTitle, setNewTitle] = useState("");
   const [loading, setLoading] = useState(false);
   const addError = useErrorStore((s) => s.addError);
-  const addConversation = useChatStore((s) => s.addConversation);
-  const setActiveConversation = useChatStore((s) => s.setActiveConversation);
-  const setPendingPrompt = useChatStore((s) => s.setPendingPrompt);
+  const quickChat = useQuickChat();
 
   useEffect(() => {
     loadGoals();
@@ -71,19 +68,11 @@ export default function GoalsPage() {
     navigate(`/goals/${goalId}`);
   };
 
-  const handleStartChatAboutGoal = async (goal: Goal) => {
-    try {
-      const conv = await createConversation(`目标：${goal.title}`);
-      addConversation(conv);
-      setActiveConversation(conv.id);
-      const prompt = `我想讨论目标「${goal.title}」${goal.description ? `：${goal.description}` : ""}。当前进度 ${goal.progress}%，请帮我分析下一步行动。`;
-      setPendingPrompt(prompt);
-      navigate(`/chat/${conv.id}`);
-    } catch (err) {
-      const msg =
-        err instanceof ApiError ? err.message : "创建对话失败";
-      addError(msg, "对话");
-    }
+  const handleStartChatAboutGoal = (goal: Goal) => {
+    quickChat({
+      title: `目标：${goal.title}`,
+      prompt: `我想讨论目标「${goal.title}」${goal.description ? `：${goal.description}` : ""}。当前进度 ${goal.progress}%，请帮我分析下一步行动。`,
+    });
   };
 
   const handleCreateGoal = async () => {

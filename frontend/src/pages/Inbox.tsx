@@ -1,15 +1,13 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
 import {
   getInboxDigest,
   listInboxEmails,
   triggerInboxPoll,
-  createConversation,
   ApiError,
   type InboxEmail,
 } from "../api/client";
 import { useErrorStore } from "../stores/errorStore";
-import { useChatStore } from "../stores/chatStore";
+import { useQuickChat } from "../hooks/useQuickChat";
 import Button from "../components/ui/Button";
 import Card from "../components/ui/Card";
 
@@ -25,24 +23,11 @@ export default function InboxPage() {
   const [loading, setLoading] = useState(false);
   const [polling, setPolling] = useState(false);
   const addError = useErrorStore((s) => s.addError);
-  const navigate = useNavigate();
-  const addConversation = useChatStore((s) => s.addConversation);
-  const setActiveConversation = useChatStore((s) => s.setActiveConversation);
-  const setPendingPrompt = useChatStore((s) => s.setPendingPrompt);
+  const quickChat = useQuickChat();
 
-  const handleAiProcess = async (em: InboxEmail) => {
-    try {
-      const conv = await createConversation(`邮件：${em.subject.slice(0, 20)}`);
-      addConversation(conv);
-      setActiveConversation(conv.id);
-      const prompt = `请帮我处理这封邮件：\n发件人：${em.sender}\n主题：${em.subject}\n预览：${em.preview}\n分类：${em.category}\n原因：${em.reason}`;
-      setPendingPrompt(prompt);
-      navigate(`/chat/${conv.id}`);
-    } catch (err) {
-      const msg =
-        err instanceof ApiError ? err.message : "创建对话失败";
-      addError(msg, "对话");
-    }
+  const handleAiProcess = (em: InboxEmail) => {
+    const prompt = `请帮我处理这封邮件：\n发件人：${em.sender}\n主题：${em.subject}\n预览：${em.preview}\n分类：${em.category}\n原因：${em.reason}`;
+    quickChat({ title: `邮件：${em.subject.slice(0, 20)}`, prompt });
   };
 
   const load = async () => {

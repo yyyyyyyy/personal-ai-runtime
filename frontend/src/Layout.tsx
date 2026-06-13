@@ -4,12 +4,12 @@ import { useChatStore } from "./stores/chatStore";
 import { useErrorStore } from "./stores/errorStore";
 import {
   listConversations,
-  createConversation,
   deleteConversation,
   getSystemHealth,
   isAuthConfigured,
   ApiError,
 } from "./api/client";
+import { useQuickChat } from "./hooks/useQuickChat";
 import Sidebar from "./components/layout/Sidebar";
 import Dialog from "./components/ui/Dialog";
 import NotificationBell from "./components/layout/NotificationBell";
@@ -22,9 +22,9 @@ export default function Layout() {
     activeConversationId,
     setConversations,
     setActiveConversation,
-    addConversation,
     removeConversation,
   } = useChatStore();
+  const quickChat = useQuickChat();
 
   const { toasts, dismissToast } = useNotifications();
   const { errors, dismissError, backendUnavailable, addError } = useErrorStore();
@@ -72,16 +72,7 @@ export default function Layout() {
     }
   };
 
-  const handleNewChat = async () => {
-    try {
-      const conv = await createConversation();
-      addConversation(conv);
-      setActiveConversation(conv.id);
-      navigate(`/chat/${conv.id}`);
-    } catch (e) {
-      addError(e instanceof ApiError ? e.message : "创建对话失败", "对话");
-    }
-  };
+  const handleNewChat = () => quickChat();
 
   const handleDeleteChat = (id: string) => {
     const conv = conversations.find((c) => c.id === id);
