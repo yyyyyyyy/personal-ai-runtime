@@ -20,6 +20,5 @@
 | [RUNTIME_SPEC.md](RUNTIME_SPEC.md) | 架构规格：Runtime Primitive、Kernel Boundary、Read Surface |
 | [THREAT_MODEL.md](THREAT_MODEL.md) | 信任边界与 Prompt Injection 威胁模型 |
 | [USER_VALIDATION.md](USER_VALIDATION.md) | 用户验证计划与留存指标 |
-| [ROADMAP.md](ROADMAP.md) | 全角度体检结论与分优先级改进清单 |
 
 阅读顺序：**ONBOARDING**（跑起来）→ **RUNTIME_SPEC**（怎么工作）→ **THREAT_MODEL**（安全边界）。
