@@ -122,6 +122,33 @@ def test_validation_metrics_endpoint(client: TestClient):
     r = client.get("/api/system/validation-metrics")
     assert r.status_code == 200
     data = r.json()
+    assert data["mode"] == "dogfood"
     assert "active_chat_days_7d" in data
     assert "export_count" in data
+    assert "friction" in data
     assert "targets" in data
+
+
+def test_friction_log_and_resolve(client: TestClient):
+    created = client.post(
+        "/api/system/friction",
+        json={"note": "测试摩擦点", "area": "chat", "severity": "low"},
+    )
+    assert created.status_code == 200
+    body = created.json()
+    assert body["status"] == "open"
+    friction_id = body["id"]
+
+    listed = client.get("/api/system/friction")
+    assert listed.status_code == 200
+    items = listed.json()["items"]
+    assert any(i["id"] == friction_id for i in items)
+
+    resolved = client.post(f"/api/system/friction/{friction_id}/resolve")
+    assert resolved.status_code == 200
+    assert resolved.json()["status"] == "resolved"
+
+
+def test_friction_rejects_empty_note(client: TestClient):
+    r = client.post("/api/system/friction", json={"note": "   "})
+    assert r.status_code == 400

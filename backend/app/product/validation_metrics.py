@@ -9,11 +9,12 @@ from app.core.runtime.kernel.constants import (
     EVENT_MESSAGE_APPENDED,
 )
 from app.core.runtime.kernel_instance import kernel
+from app.product.friction_log import friction_stats
 from app.store.database import db
 
 
 def get_validation_metrics() -> dict:
-    """Return D7-oriented metrics for user validation cohorts."""
+    """Return dogfood-oriented metrics for self-use validation."""
     counts = kernel.table_counts(("conversations", "messages"))
     since = (datetime.now(UTC) - timedelta(days=7)).isoformat()
 
@@ -36,16 +37,19 @@ def get_validation_metrics() -> dict:
         ).fetchone()["c"]
 
     conversations_7d = len({event.aggregate_id for event in conv_events})
+    friction = friction_stats(since_days=7)
 
     return {
+        "mode": "dogfood",
         "total_conversations": counts.get("conversations", 0),
         "conversations_7d": conversations_7d,
         "active_chat_days_7d": len(active_days),
         "user_messages_7d": user_messages_7d,
         "export_count": export_count,
+        "friction": friction,
         "targets": {
-            "d7_retention_pct": 40,
-            "export_per_user": 1,
             "active_days_per_week": 3,
+            "export_at_least_once": True,
+            "friction_logged_when_bad": True,
         },
     }

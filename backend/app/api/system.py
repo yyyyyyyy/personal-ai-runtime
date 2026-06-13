@@ -4,7 +4,7 @@ import secrets
 
 from fastapi import APIRouter, HTTPException, Request
 
-from app.api.models import ExportRequest, ImportRequest
+from app.api.models import ExportRequest, ImportRequest, LogFrictionRequest
 from app.config import settings
 from app.core.agents.llm_router import llm_router
 from app.core.startup_health import sanitize_startup_for_public
@@ -44,10 +44,40 @@ async def health_check(request: Request):
 
 @router.get("/validation-metrics")
 async def validation_metrics():
-    """User validation cohort metrics (see docs/USER_VALIDATION.md)."""
+    """Dogfood / validation metrics (see docs/USER_VALIDATION.md)."""
     from app.product.validation_metrics import get_validation_metrics
 
     return get_validation_metrics()
+
+
+@router.get("/friction")
+async def list_friction(status: str | None = None, limit: int = 50):
+    """List friction points from dogfood self-use."""
+    from app.product.friction_log import list_friction
+
+    return {"items": list_friction(status=status, limit=limit)}
+
+
+@router.post("/friction")
+async def create_friction(body: LogFrictionRequest):
+    """Log a friction point — something that felt bad during use."""
+    from app.product.friction_log import log_friction
+
+    try:
+        return log_friction(body.note, area=body.area, severity=body.severity)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.post("/friction/{friction_id}/resolve")
+async def resolve_friction_endpoint(friction_id: str):
+    """Mark a friction point as resolved."""
+    from app.product.friction_log import resolve_friction
+
+    entry = resolve_friction(friction_id)
+    if entry is None:
+        raise HTTPException(status_code=404, detail="Friction not found")
+    return entry
 
 
 @router.get("/llm-providers")

@@ -43,6 +43,9 @@ EVENT_ACTION_COMPLETED = "ActionCompleted"
 
 EVENT_PATTERN_RECORDED = "PatternRecorded"
 
+EVENT_FRICTION_LOGGED = "FrictionLogged"
+EVENT_FRICTION_RESOLVED = "FrictionResolved"
+
 # ── Aggregate types ─────────────────────────────────────────────────────────
 
 AGGREGATE_GOAL = "goal"
@@ -53,6 +56,7 @@ AGGREGATE_MEMORY = "memory"
 AGGREGATE_CONVERSATION = "conversation"
 AGGREGATE_ACTION = "action"
 AGGREGATE_PATTERN = "pattern"
+AGGREGATE_FRICTION = "friction"
 
 # ── Projection tables ───────────────────────────────────────────────────────
 

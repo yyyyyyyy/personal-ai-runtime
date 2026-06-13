@@ -36,9 +36,22 @@ def test_conversations_7d_counts_unique_aggregate_ids(monkeypatch):
         "get_db",
         lambda: _FakeConn(),
     )
+    monkeypatch.setattr(
+        validation_metrics,
+        "friction_stats",
+        lambda since_days=7: {
+            "logged_7d": 2,
+            "resolved_7d": 1,
+            "open_total": 1,
+            "by_area_7d": {"inbox": 1},
+            "by_severity_7d": {"medium": 2},
+        },
+    )
 
     result = validation_metrics.get_validation_metrics()
     assert result["conversations_7d"] == 1
+    assert result["mode"] == "dogfood"
+    assert result["friction"]["logged_7d"] == 2
 
 
 class _FakeConn:

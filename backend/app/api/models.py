@@ -43,3 +43,9 @@ class ImportKnowledgeRequest(BaseModel):
 class AskKnowledgeRequest(BaseModel):
     query: str
     n: int = 5
+
+
+class LogFrictionRequest(BaseModel):
+    note: str
+    area: str = "other"
+    severity: str = "medium"
