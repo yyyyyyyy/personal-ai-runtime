@@ -78,7 +78,7 @@ def test_ensure_related_id_backfill_from_review_title(notif_env):
         "created_at": "2026-06-14T00:00:00Z",
     }
     updated = ensure_related_id_on_notification(row, kernel=k)
-    expected_id = find_review_id_for_notification_title(row["title"])
+    expected_id = find_review_id_for_notification_title(row["title"], kernel=k)
     assert expected_id
     assert updated["content"].startswith(f"@related:{expected_id}\n")
 

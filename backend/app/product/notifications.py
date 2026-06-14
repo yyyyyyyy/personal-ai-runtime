@@ -48,9 +48,19 @@ def parse_related_id(content: str) -> tuple[str | None, str]:
     return None, content
 
 
-def find_review_id_for_notification_title(title: str) -> str | None:
+def _db_for(kernel: "Kernel | None" = None):
+    if kernel is not None:
+        return kernel._db
+    return database.db
+
+
+def find_review_id_for_notification_title(
+    title: str,
+    *,
+    kernel: "Kernel | None" = None,
+) -> str | None:
     """Match a review record id from a notification title."""
-    with database.db.get_db() as conn:
+    with _db_for(kernel).get_db() as conn:
         daily = re.match(r"^每日复盘 - (\d{4}-\d{2}-\d{2})$", title)
         if daily:
             row = conn.execute(
@@ -86,7 +96,7 @@ def ensure_related_id_on_notification(
     if row.get("type") != "review" or row.get("content", "").startswith("@related:"):
         return row
 
-    related_id = find_review_id_for_notification_title(row.get("title", ""))
+    related_id = find_review_id_for_notification_title(row.get("title", ""), kernel=kernel)
     if not related_id:
         return row
 
