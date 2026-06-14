@@ -1,13 +1,15 @@
+import { lazy } from "react";
 import { createBrowserRouter } from "react-router-dom";
 import Layout from "./Layout";
-import ChatPage from "./pages/ChatPage";
-import GoalsPage from "./pages/Goals";
-import InboxPage from "./pages/Inbox";
-import TimelinePage from "./pages/Timeline";
-import MemoriesPage from "./pages/Memories";
-import DashboardPage from "./pages/Dashboard";
-import SettingsPage from "./pages/Settings";
-import KnowledgePage from "./pages/Knowledge";
+
+const ChatPage = lazy(() => import("./pages/ChatPage"));
+const GoalsPage = lazy(() => import("./pages/Goals"));
+const InboxPage = lazy(() => import("./pages/Inbox"));
+const TimelinePage = lazy(() => import("./pages/Timeline"));
+const MemoriesPage = lazy(() => import("./pages/Memories"));
+const DashboardPage = lazy(() => import("./pages/Dashboard"));
+const SettingsPage = lazy(() => import("./pages/Settings"));
+const KnowledgePage = lazy(() => import("./pages/Knowledge"));
 
 export const router = createBrowserRouter([
   {

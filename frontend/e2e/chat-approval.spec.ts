@@ -1,46 +1,39 @@
 import { test, expect, type Page } from "@playwright/test";
+import { matchesApiPath, mockApiJson, mockApiHandler } from "./helpers";
 
 const CONV_ID = "e2e-conv-1";
 
 async function mockCommonApis(page: Page) {
-  await page.route("**/api/system/health", async (route) => {
-    await route.fulfill({
-      json: {
-        status: "ok",
-        service: "personal-ai",
-        version: "1.0.0",
-        auth_required: false,
-      },
-    });
+  await mockApiJson(page, "/api/system/health", {
+    status: "ok",
+    service: "personal-ai",
+    version: "1.0.0",
+    auth_required: false,
   });
 
-  await page.route("**/api/system/info", async (route) => {
-    await route.fulfill({
-      json: { conversations: 0, goals: 0, memories: 0, messages: 0 },
-    });
+  await mockApiJson(page, "/api/system/info", {
+    conversations: 0,
+    goals: 0,
+    memories: 0,
+    messages: 0,
   });
 
-  await page.route("**/api/system/llm-providers", async (route) => {
-    await route.fulfill({
-      json: { providers: [], default: "deepseek-chat" },
-    });
+  await mockApiJson(page, "/api/system/llm-providers", {
+    providers: [],
+    default: "deepseek-chat",
   });
 
-  await page.route("**/api/system/mcp-status", async (route) => {
-    await route.fulfill({
-      json: { enabled: false, servers: [], total_tools: 0 },
-    });
+  await mockApiJson(page, "/api/system/mcp-status", {
+    enabled: false,
+    servers: [],
+    total_tools: 0,
   });
 
-  await page.route("**/api/reviews/**", async (route) => {
-    await route.fulfill({ json: [] });
-  });
+  await mockApiJson(page, "/api/reviews", []);
 
-  await page.route("**/api/inbox/**", async (route) => {
-    await route.fulfill({ json: [] });
-  });
+  await mockApiJson(page, "/api/inbox", []);
 
-  await page.route("**/api/chat/conversations**", async (route) => {
+  await mockApiHandler(page, "/api/chat/conversations", async (route) => {
     if (route.request().method() === "GET") {
       await route.fulfill({
         json: [
@@ -58,31 +51,30 @@ async function mockCommonApis(page: Page) {
     await route.continue();
   });
 
-  await page.route(`**/api/chat/conversations/${CONV_ID}/messages`, async (route) => {
-    if (route.request().method() === "GET") {
-      await route.fulfill({ json: [] });
-      return;
-    }
-    await route.continue();
+  await mockApiHandler(
+    page,
+    `/api/chat/conversations/${CONV_ID}/messages`,
+    async (route) => {
+      if (route.request().method() === "GET") {
+        await route.fulfill({ json: [] });
+        return;
+      }
+      await route.continue();
+    },
+  );
+
+  await mockApiJson(page, "/api/goals", []);
+
+  await mockApiJson(page, "/api/approvals", []);
+
+  await mockApiJson(page, "/api/chat/approvals", {
+    status: "denied",
+    assistant_message: "操作已取消",
   });
 
-  await page.route("**/api/goals**", async (route) => {
-    await route.fulfill({ json: [] });
-  });
+  await mockApiJson(page, "/api/notifications", []);
 
-  await page.route("**/api/approvals/**", async (route) => {
-    await route.fulfill({ json: [] });
-  });
-
-  await page.route("**/api/chat/approvals/*/resolve", async (route) => {
-    await route.fulfill({
-      json: { status: "denied", assistant_message: "操作已取消" },
-    });
-  });
-
-  await page.route("**/api/notifications**", async (route) => {
-    await route.fulfill({ json: [] });
-  });
+  await mockApiJson(page, "/api/memory/memories/grouped", { memories: [] });
 }
 
 test.describe("Chat flow", () => {
@@ -94,8 +86,8 @@ test.describe("Chat flow", () => {
   });
 
   test("home page shows greeting and new chat", async ({ page }) => {
-    await page.goto("/");
-    await expect(page.getByText(/欢迎回来/)).toBeVisible();
+    await page.goto("/", { waitUntil: "networkidle" });
+    await expect(page.getByText(/欢迎回来/)).toBeVisible({ timeout: 15000 });
     await expect(page.getByRole("button", { name: "开始新对话" })).toBeVisible();
   });
 
@@ -132,27 +124,32 @@ test.describe("Chat approval flow", () => {
   });
 
   test("shows confirmation dialog and resolves approval", async ({ page }) => {
-    await page.route(`**/api/chat/conversations/${CONV_ID}/messages`, async (route) => {
-      if (route.request().method() === "GET") {
-        await route.fulfill({ json: [] });
+    await page.route("**/*", async (route) => {
+      const url = route.request().url();
+      if (
+        matchesApiPath(url, `/api/chat/conversations/${CONV_ID}/messages`) &&
+        route.request().method() !== "GET"
+      ) {
+        const sse =
+          'data: {"type":"confirmation_required","tool_name":"write_file","tool_args":{"path":"/tmp/e2e.txt","content":"hello"},"approval_id":"ap-e2e-1","tool_call_id":"tc-e2e-1"}\n\n' +
+          'data: {"type":"done"}\n\n';
+
+        await route.fulfill({
+          status: 200,
+          headers: { "Content-Type": "text/event-stream" },
+          body: sse,
+        });
         return;
       }
-
-      const sse =
-        'data: {"type":"confirmation_required","tool_name":"write_file","tool_args":{"path":"/tmp/e2e.txt","content":"hello"},"approval_id":"ap-e2e-1","tool_call_id":"tc-e2e-1"}\n\n' +
-        'data: {"type":"done"}\n\n';
-
-      await route.fulfill({
-        status: 200,
-        headers: { "Content-Type": "text/event-stream" },
-        body: sse,
-      });
-    });
-
-    await page.route("**/api/chat/approvals/ap-e2e-1/resolve", async (route) => {
-      await route.fulfill({
-        json: { status: "approved", result: '{"ok":true}' },
-      });
+      if (
+        matchesApiPath(url, "/api/chat/approvals/ap-e2e-1/resolve")
+      ) {
+        await route.fulfill({
+          json: { status: "approved", result: '{"ok":true}' },
+        });
+        return;
+      }
+      await route.continue();
     });
 
     await page.goto(`/chat/${CONV_ID}`);
@@ -168,21 +165,24 @@ test.describe("Chat approval flow", () => {
   });
 
   test("user can deny pending tool approval", async ({ page }) => {
-    await page.route(`**/api/chat/conversations/${CONV_ID}/messages`, async (route) => {
-      if (route.request().method() === "GET") {
-        await route.fulfill({ json: [] });
+    await page.route("**/*", async (route) => {
+      const url = route.request().url();
+      if (
+        matchesApiPath(url, `/api/chat/conversations/${CONV_ID}/messages`) &&
+        route.request().method() !== "GET"
+      ) {
+        const sse =
+          'data: {"type":"confirmation_required","tool_name":"write_file","tool_args":{"path":"/tmp/e2e.txt","content":"hello"},"approval_id":"ap-e2e-2","tool_call_id":"tc-e2e-2"}\n\n' +
+          'data: {"type":"done"}\n\n';
+
+        await route.fulfill({
+          status: 200,
+          headers: { "Content-Type": "text/event-stream" },
+          body: sse,
+        });
         return;
       }
-
-      const sse =
-        'data: {"type":"confirmation_required","tool_name":"write_file","tool_args":{"path":"/tmp/e2e.txt","content":"hello"},"approval_id":"ap-e2e-2","tool_call_id":"tc-e2e-2"}\n\n' +
-        'data: {"type":"done"}\n\n';
-
-      await route.fulfill({
-        status: 200,
-        headers: { "Content-Type": "text/event-stream" },
-        body: sse,
-      });
+      await route.continue();
     });
 
     await page.goto(`/chat/${CONV_ID}`);

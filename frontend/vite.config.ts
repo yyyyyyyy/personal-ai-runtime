@@ -19,6 +19,11 @@ export default defineConfig({
         target: `http://${API_HOST}:${API_PORT}`,
         changeOrigin: true,
       },
+      "/ws": {
+        target: `http://${API_HOST}:${API_PORT}`,
+        ws: true,
+        changeOrigin: true,
+      },
     },
   },
   define: {

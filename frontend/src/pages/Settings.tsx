@@ -311,6 +311,26 @@ export default function SettingsPage() {
           <h3 className="text-sm font-medium text-gray-300 mb-3">系统状态</h3>
           <div className="grid grid-cols-2 gap-4 text-sm">
             <div>
+              <span className="text-gray-500">运行状态</span>
+              <p className="mt-1">
+                <Badge
+                  tone={
+                    health?.status === "ok"
+                      ? "success"
+                      : health?.status === "degraded"
+                        ? "warning"
+                        : "danger"
+                  }
+                >
+                  {health?.status === "ok"
+                    ? "正常"
+                    : health?.status === "degraded"
+                      ? "降级"
+                      : health?.status || "未知"}
+                </Badge>
+              </p>
+            </div>
+            <div>
               <span className="text-gray-500">版本</span>
               <p className="text-gray-200">{health?.version}</p>
             </div>
@@ -331,6 +351,21 @@ export default function SettingsPage() {
               </p>
             </div>
           </div>
+          {health?.startup?.checks?.mcp &&
+            health.startup.checks.mcp.failed > 0 && (
+              <div className="mt-4 p-3 bg-amber-900/20 border border-amber-700/30 rounded-lg text-xs text-amber-300">
+                MCP 服务 {health.startup.checks.mcp.connected}/
+                {health.startup.checks.mcp.total} 已连接，
+                {health.startup.checks.mcp.failed} 个连接失败。部分工具可能不可用。
+              </div>
+            )}
+          {(health?.startup?.warning_count ?? 0) > 0 &&
+            health?.status === "degraded" &&
+            !(health?.startup?.checks?.mcp && health.startup.checks.mcp.failed > 0) && (
+              <div className="mt-4 p-3 bg-amber-900/20 border border-amber-700/30 rounded-lg text-xs text-amber-300">
+                系统存在 {health.startup?.warning_count} 项启动警告，部分功能可能受限。
+              </div>
+            )}
         </Card>
 
         <Card>

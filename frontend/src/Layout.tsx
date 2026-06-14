@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, Suspense } from "react";
 import { Outlet, useNavigate, useLocation } from "react-router-dom";
 import { useChatStore } from "./stores/chatStore";
 import { useErrorStore } from "./stores/errorStore";
@@ -163,7 +163,15 @@ export default function Layout() {
       </div>
 
       <main className="flex-1 flex flex-col min-w-0">
-        <Outlet />
+        <Suspense
+          fallback={
+            <div className="flex-1 flex items-center justify-center text-gray-400 animate-pulse">
+              加载中…
+            </div>
+          }
+        >
+          <Outlet />
+        </Suspense>
       </main>
 
       <Dialog

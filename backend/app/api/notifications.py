@@ -2,6 +2,7 @@
 
 from fastapi import APIRouter, HTTPException, Query
 
+from app.product.notifications import ensure_related_id_on_notification
 from app.store.database import db
 
 router = APIRouter(prefix="/api/notifications", tags=["notifications"])
@@ -21,7 +22,7 @@ async def list_notifications(unread_only: bool = False, limit: int = Query(50, g
                 "SELECT * FROM notifications ORDER BY created_at DESC LIMIT ?",
                 (limit,),
             ).fetchall()
-    return [dict(r) for r in rows]
+    return [ensure_related_id_on_notification(dict(r)) for r in rows]
 
 
 @router.get("/unread-count")

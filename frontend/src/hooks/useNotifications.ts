@@ -29,9 +29,11 @@ function isValidNotification(data: unknown): data is WSNotificationPayload {
 }
 
 function buildWsUrl(): string {
-  return typeof window !== "undefined"
-    ? `${window.location.protocol === "https:" ? "wss" : "ws"}://${window.location.hostname}:${__API_PORT__}/ws`
-    : `ws://${__API_HOST__}:${__API_PORT__}/ws`;
+  if (typeof window !== "undefined") {
+    const proto = window.location.protocol === "https:" ? "wss:" : "ws:";
+    return `${proto}//${window.location.host}/ws`;
+  }
+  return `ws://${__API_HOST__}:${__API_PORT__}/ws`;
 }
 
 function buildWsProtocols(): string[] | undefined {

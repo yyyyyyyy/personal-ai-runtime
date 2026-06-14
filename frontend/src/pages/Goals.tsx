@@ -31,6 +31,7 @@ export default function GoalsPage() {
   const [loading, setLoading] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<Goal | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [goalNotFound, setGoalNotFound] = useState(false);
   const addError = useErrorStore((s) => s.addError);
   const quickChat = useQuickChat();
 
@@ -43,6 +44,7 @@ export default function GoalsPage() {
       loadGoalById(urlGoalId);
     } else {
       setSelectedGoal(null);
+      setGoalNotFound(false);
     }
   }, [urlGoalId]);
 
@@ -58,10 +60,15 @@ export default function GoalsPage() {
   };
 
   const loadGoalById = async (goalId: string) => {
+    setGoalNotFound(false);
     try {
       const data = await getGoal(goalId);
       setSelectedGoal(data);
     } catch (err) {
+      if (err instanceof ApiError && err.status === 404) {
+        setGoalNotFound(true);
+        setSelectedGoal(null);
+      }
       const msg =
         err instanceof ApiError ? err.message : "加载目标详情失败";
       addError(msg, "目标");
@@ -266,7 +273,17 @@ export default function GoalsPage() {
 
       {/* Goal detail panel */}
       <div className="flex-1 overflow-y-auto p-6">
-        {selectedGoal ? (
+        {goalNotFound ? (
+          <EmptyState
+            title="目标不存在"
+            description="该目标可能已被删除，或链接无效。请从左侧列表选择其他目标。"
+            action={
+              <Button size="sm" onClick={() => navigate("/goals")}>
+                返回列表
+              </Button>
+            }
+          />
+        ) : selectedGoal ? (
           <div className="max-w-2xl">
             <div className="flex items-start justify-between mb-6">
               <div>

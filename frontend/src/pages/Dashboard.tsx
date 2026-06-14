@@ -97,8 +97,7 @@ export default function DashboardPage() {
     ? (((cost.total_calls - cost.failed_calls) / cost.total_calls) * 100).toFixed(1)
     : "100";
 
-  const unreadNotifications = notifications.filter((n) => !n.read);
-  const mergedNotifications = [...liveNotifications, ...unreadNotifications].reduce<typeof notifications>(
+  const mergedNotifications = [...liveNotifications, ...notifications].reduce<typeof notifications>(
     (acc, item) => {
       const key = `${item.type}:${item.title}`;
       if (!acc.some((n) => n.id === item.id || `${n.type}:${n.title}` === key)) {
@@ -218,9 +217,13 @@ export default function DashboardPage() {
                   key={n.id}
                   type="button"
                   onClick={() => handleNotificationClick(n)}
-                  className="w-full text-left p-3 bg-gray-800/50 rounded-lg hover:bg-gray-800 transition-colors"
+                  className={`w-full text-left p-3 bg-gray-800/50 rounded-lg hover:bg-gray-800 transition-colors ${
+                    n.read ? "opacity-60" : ""
+                  }`}
                 >
-                  <div className="text-sm text-emerald-400">{n.title}</div>
+                  <div className={`text-sm ${n.read ? "text-gray-400" : "text-emerald-400"}`}>
+                    {n.title}
+                  </div>
                   <div className="text-xs text-gray-400 mt-1 line-clamp-2">{notificationPreview(n.content)}</div>
                 </button>
               ))}

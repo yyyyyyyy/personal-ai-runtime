@@ -5,6 +5,15 @@ export interface HealthResponse {
   service: string;
   version: string;
   auth_required: boolean;
+  startup?: {
+    status: string;
+    warning_count: number;
+    checks?: {
+      mcp?: { total: number; connected: number; failed: number };
+      llm?: { configured: boolean; model?: string };
+      storage?: { data_dir_exists: boolean; data_dir_writable: boolean; sqlite_exists: boolean };
+    };
+  };
 }
 
 export interface Conversation {
