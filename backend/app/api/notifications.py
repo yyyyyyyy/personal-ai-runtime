@@ -1,6 +1,6 @@
 """Notifications API — list, mark as read, and get notifications."""
 
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 
 from app.store.database import db
 
@@ -38,6 +38,11 @@ async def unread_count():
 async def mark_as_read(notification_id: str):
     """Mark a notification as read."""
     with db.get_db() as conn:
+        existing = conn.execute(
+            "SELECT id FROM notifications WHERE id = ?", (notification_id,)
+        ).fetchone()
+        if not existing:
+            raise HTTPException(status_code=404, detail="Notification not found")
         conn.execute(
             "UPDATE notifications SET read = 1 WHERE id = ?", (notification_id,)
         )

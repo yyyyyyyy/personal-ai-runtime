@@ -42,6 +42,9 @@ async def get_conversation(conv_id: str):
 @router.delete("/conversations/{conv_id}")
 async def delete_conversation(conv_id: str):
     """Delete a conversation and its messages."""
+    conv = ConversationAPI.get(conv_id)
+    if not conv:
+        raise HTTPException(status_code=404, detail="Conversation not found")
     ConversationAPI.delete(conv_id)
     return {"status": "ok"}
 
@@ -49,6 +52,9 @@ async def delete_conversation(conv_id: str):
 @router.patch("/conversations/{conv_id}")
 async def update_conversation(conv_id: str, title: str | None = None):
     """Update conversation title."""
+    conv = ConversationAPI.get(conv_id)
+    if not conv:
+        raise HTTPException(status_code=404, detail="Conversation not found")
     ConversationAPI.update(conv_id, title=title)
     return {"status": "ok"}
 

@@ -110,7 +110,8 @@ async def lifespan(app: FastAPI):
                 )
                 sys.exit(1)
             logger.warning(
-                "AUTH_TOKEN is not set while listening on %s — ALLOW_NO_AUTH_ON_EXPOSED is enabled.",
+                "AUTH_TOKEN is not set while listening on %s — ALLOW_NO_AUTH_ON_EXPOSED is enabled. "
+                "Set AUTH_TOKEN in .env for production security.",
                 settings.host,
             )
         elif settings.host not in _LOCALHOST_HOSTS:
@@ -184,7 +185,7 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins.split(","),
     allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allow_headers=["Authorization", "Content-Type"],
 )
 

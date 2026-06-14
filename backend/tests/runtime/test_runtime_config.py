@@ -4,7 +4,7 @@ import json
 
 import pytest
 
-from app.core.runtime.runtime_config import _MASKED_SECRET, runtime_config
+from app.core.runtime.runtime_config import _MASKED_SECRET, invalidate_runtime_config_cache, runtime_config
 
 
 @pytest.fixture
@@ -13,6 +13,7 @@ def isolated_runtime_config(tmp_path, monkeypatch):
     from app.config import reset_settings
 
     reset_settings()
+    invalidate_runtime_config_cache()
     config_file = tmp_path / "runtime_config.json"
     if config_file.exists():
         config_file.unlink()
@@ -30,6 +31,7 @@ def test_default_llm_config_from_env(isolated_runtime_config, monkeypatch):
     from app.core.runtime import runtime_config as rc_mod
 
     rc_mod.runtime_config = rc_mod.RuntimeConfig()
+    rc_mod.invalidate_runtime_config_cache()
     llm = rc_mod.runtime_config.get_llm_config(masked=False)
     assert llm["default_provider"] == "deepseek"
     assert any(p["id"] == "deepseek" for p in llm["providers"])

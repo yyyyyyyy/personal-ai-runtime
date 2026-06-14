@@ -8,11 +8,13 @@ import {
   getSystemHealth,
   isAuthConfigured,
   ApiError,
+  type Notification,
 } from "./api/client";
 import { useQuickChat } from "./hooks/useQuickChat";
 import Sidebar from "./components/layout/Sidebar";
 import Dialog from "./components/ui/Dialog";
 import NotificationBell from "./components/layout/NotificationBell";
+import NotificationDetailModal from "./components/notifications/NotificationDetailModal";
 import OnboardingWizard from "./components/onboarding/OnboardingWizard";
 import { useNotifications } from "./hooks/useNotifications";
 
@@ -36,6 +38,7 @@ export default function Layout() {
   const [showOnboarding, setShowOnboarding] = useState(
     () => !localStorage.getItem("onboarding_done")
   );
+  const [toastDetail, setToastDetail] = useState<Notification | null>(null);
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -131,7 +134,15 @@ export default function Layout() {
           <div
             key={t.id}
             className="bg-gray-900 border border-emerald-700/50 rounded-lg p-3 shadow-lg cursor-pointer"
-            onClick={() => dismissToast(t.id)}
+            onClick={() =>
+              setToastDetail({
+                id: t.id,
+                type: t.type,
+                title: t.title,
+                content: t.content,
+                created_at: t.created_at,
+              })
+            }
           >
             <div className="text-sm font-medium text-emerald-400">{t.title}</div>
             <div className="text-xs text-gray-400 mt-1 line-clamp-2">{t.content}</div>
@@ -172,6 +183,14 @@ export default function Layout() {
       {showOnboarding && (
         <OnboardingWizard onComplete={() => setShowOnboarding(false)} />
       )}
+
+      <NotificationDetailModal
+        notification={toastDetail}
+        onClose={() => {
+          if (toastDetail) dismissToast(toastDetail.id);
+          setToastDetail(null);
+        }}
+      />
     </div>
   );
 }

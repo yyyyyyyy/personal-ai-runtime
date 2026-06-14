@@ -73,7 +73,7 @@ async def import_document(body: ImportKnowledgeRequest):
     return {"id": doc_id, "title": title, "chunk_count": len(chunks), "status": "ok"}
 
 
-@router.post("/documents/upload")
+@router.post("/documents/upload", description="Upload a document file (Markdown, TXT) using multipart/form-data. Send 'file' field with the file content.")
 async def upload_document(file: UploadFile):
     """Upload and import a document file (Markdown, TXT).
 
@@ -131,6 +131,11 @@ async def list_documents():
 async def delete_document(doc_id: str):
     """Delete a document and its chunks."""
     with db.get_db() as conn:
+        existing = conn.execute(
+            "SELECT id FROM documents WHERE id = ?", (doc_id,)
+        ).fetchone()
+        if not existing:
+            raise HTTPException(status_code=404, detail="Document not found")
         conn.execute("DELETE FROM documents WHERE id = ?", (doc_id,))
 
     # Delete all chunks for this document from ChromaDB

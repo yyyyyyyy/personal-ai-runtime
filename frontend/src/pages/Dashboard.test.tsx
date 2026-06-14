@@ -1,6 +1,15 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
+import { MemoryRouter } from "react-router-dom";
 import DashboardPage from "./Dashboard";
+
+function renderDashboard() {
+  return render(
+    <MemoryRouter>
+      <DashboardPage />
+    </MemoryRouter>
+  );
+}
 
 vi.mock("../hooks/useDashboard", () => ({
   useDashboard: vi.fn(),
@@ -93,20 +102,20 @@ describe("DashboardPage", () => {
   });
 
   it("renders dashboard title", () => {
-    render(<DashboardPage />);
+    renderDashboard();
     expect(screen.getAllByText("系统运行概览")[0]).toBeInTheDocument();
   });
 
   it("shows loading state", () => {
     mockDashboardData({ loading: true });
-    render(<DashboardPage />);
+    renderDashboard();
     expect(screen.getAllByText("加载中...")[0]).toBeInTheDocument();
   });
 
   it("shows error state with retry button", () => {
     const mockRefresh = vi.fn();
     mockDashboardData({ error: "后端连接失败", loading: false, refresh: mockRefresh });
-    render(<DashboardPage />);
+    renderDashboard();
     expect(screen.getAllByText("后端连接失败")[0]).toBeInTheDocument();
     const retryButtons = screen.getAllByText("重试");
     fireEvent.click(retryButtons[0]);
@@ -114,23 +123,23 @@ describe("DashboardPage", () => {
   });
 
   it("renders LLM success rate stat card", () => {
-    render(<DashboardPage />);
+    renderDashboard();
     expect(screen.getAllByText("LLM 成功率 (24h)")[0]).toBeInTheDocument();
     expect(screen.getAllByText("95.2%")[0]).toBeInTheDocument();
   });
 
   it("renders task queue length", () => {
-    render(<DashboardPage />);
+    renderDashboard();
     expect(screen.getAllByText("任务队列")[0]).toBeInTheDocument();
   });
 
   it("renders total memories count", () => {
-    render(<DashboardPage />);
+    renderDashboard();
     expect(screen.getAllByText("总记忆数")[0]).toBeInTheDocument();
   });
 
   it("renders token usage section with per-model breakdown", () => {
-    render(<DashboardPage />);
+    renderDashboard();
     expect(screen.getAllByText("Token 用量 (7天)")[0]).toBeInTheDocument();
     expect(screen.getByText(/8,000\s+tokens/)).toBeInTheDocument();
     expect(screen.getByText("按模型分布")).toBeInTheDocument();
@@ -138,20 +147,20 @@ describe("DashboardPage", () => {
   });
 
   it("renders cost section", () => {
-    render(<DashboardPage />);
+    renderDashboard();
     expect(screen.getAllByText("成本与延迟 (7天)")[0]).toBeInTheDocument();
     expect(screen.getAllByText("$0.0500")[0]).toBeInTheDocument();
   });
 
   it("renders tool summary section", () => {
-    render(<DashboardPage />);
+    renderDashboard();
     expect(screen.getAllByText("工具调用详情 (7天)")[0]).toBeInTheDocument();
     expect(screen.getAllByText("搜索网页")[0]).toBeInTheDocument();
     expect(screen.getAllByText("读取文件")[0]).toBeInTheDocument();
   });
 
   it("renders memory system section with categories", () => {
-    render(<DashboardPage />);
+    renderDashboard();
     expect(screen.getAllByText("记忆系统")[0]).toBeInTheDocument();
     expect(screen.getAllByText("habit: 30")[0]).toBeInTheDocument();
     expect(screen.getAllByText("work: 25")[0]).toBeInTheDocument();
@@ -159,7 +168,7 @@ describe("DashboardPage", () => {
   });
 
   it("renders notifications section", () => {
-    render(<DashboardPage />);
+    renderDashboard();
     expect(screen.getAllByText("主动建议 & 通知")[0]).toBeInTheDocument();
     expect(screen.getAllByText("周报建议")[0]).toBeInTheDocument();
   });
@@ -171,7 +180,7 @@ describe("DashboardPage", () => {
       liveNotifications: [],
       dismissToast: vi.fn(),
     });
-    render(<DashboardPage />);
+    renderDashboard();
     expect(
       screen.getAllByText("暂无主动建议（触发器每 30 分钟评估一次）")[0],
     ).toBeInTheDocument();
@@ -179,14 +188,14 @@ describe("DashboardPage", () => {
 
   it("renders empty tool message when no tools", () => {
     mockDashboardData({ tools: [] });
-    render(<DashboardPage />);
+    renderDashboard();
     expect(screen.getAllByText("暂无工具调用数据")[0]).toBeInTheDocument();
   });
 
   it("calls refresh on button click", () => {
     const mockRefresh = vi.fn();
     mockDashboardData({ refresh: mockRefresh });
-    render(<DashboardPage />);
+    renderDashboard();
     const refreshButtons = screen.getAllByText("刷新");
     fireEvent.click(refreshButtons[0]);
     expect(mockRefresh).toHaveBeenCalledOnce();

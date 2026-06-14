@@ -23,6 +23,7 @@ logger = logging.getLogger(__name__)
 _CONFIG_FILENAME = "runtime_config.json"
 _lock = threading.Lock()
 _MASKED_SECRET = "••••••••"
+_cache: dict[str, Any] | None = None
 
 # Provider type → connection semantics (all use OpenAI SDK today).
 PROVIDER_TYPES = {
@@ -233,21 +234,29 @@ def _load_from_json_file() -> dict[str, Any] | None:
         return None
 
 
-def _load_raw() -> dict[str, Any]:
+def _load_raw(*, force: bool = False) -> dict[str, Any]:
+    global _cache
+    if _cache is not None and not force:
+        return deepcopy(_cache)
+
     data = _load_from_db()
     if data is not None:
-        return data
+        _cache = deepcopy(data)
+        return deepcopy(data)
 
     legacy = _load_from_json_file()
     if legacy is not None:
         _save_raw(legacy)
         logger.info("Migrated runtime_config.json into app_settings table")
-        return legacy
+        return deepcopy(_cache)  # type: ignore[arg-type]
 
-    return _defaults()
+    data = _defaults()
+    _cache = deepcopy(data)
+    return deepcopy(data)
 
 
 def _save_raw(data: dict[str, Any]) -> None:
+    global _cache
     now = datetime.now(UTC).isoformat()
     with db.get_db() as conn:
         for category in ("llm", "email"):
@@ -259,6 +268,13 @@ def _save_raw(data: dict[str, Any]) -> None:
                      updated_at = excluded.updated_at""",
                 (category, json.dumps(data[category], ensure_ascii=False), now),
             )
+    _cache = deepcopy(data)
+
+
+def invalidate_runtime_config_cache() -> None:
+    """Clear in-memory cache (tests / forced reload)."""
+    global _cache
+    _cache = None
 
 
 class RuntimeConfig:

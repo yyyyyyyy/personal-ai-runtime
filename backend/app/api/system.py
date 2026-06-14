@@ -58,7 +58,7 @@ async def list_friction(status: str | None = None, limit: int = 50):
     return {"items": list_friction(status=status, limit=limit)}
 
 
-@router.post("/friction")
+@router.post("/friction", description="Log a friction point. Required body field: note (string) describing what felt bad.")
 async def create_friction(body: LogFrictionRequest):
     """Log a friction point — something that felt bad during use."""
     from app.product.friction_log import log_friction
@@ -148,8 +148,13 @@ async def import_all_data(body: ImportRequest):
 
 
 @router.delete("/data")
-async def destroy_all_data(body: dict):
-    """Destroy all local data. Requires confirm code."""
-    if body.get("confirm") != DESTROY_CONFIRM:
-        raise HTTPException(status_code=400, detail=f"confirm must be '{DESTROY_CONFIRM}'")
+async def destroy_all_data(confirm: str = ""):
+    """Destroy all local data. Requires confirm code via query parameter.
+    Usage: DELETE /api/system/data?confirm=DESTROY_ALL_DATA
+    """
+    if confirm != DESTROY_CONFIRM:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Query parameter confirm must be '{DESTROY_CONFIRM}'",
+        )
     return digital_legacy.destroy_all()

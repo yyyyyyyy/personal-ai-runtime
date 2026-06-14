@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   getSystemHealth,
   fetchSystemInfo,
@@ -68,6 +68,8 @@ export default function SettingsPage() {
   const [emailPass, setEmailPass] = useState("");
   const [mcp, setMcp] = useState<McpStatusResponse | null>(null);
   const [loading, setLoading] = useState(true);
+  const [settingsReady, setSettingsReady] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [exporting, setExporting] = useState(false);
   const [importing, setImporting] = useState(false);
   const [importConfirm, setImportConfirm] = useState("");
@@ -82,39 +84,56 @@ export default function SettingsPage() {
     error?: string | null;
   } | null>(null);
 
-  const load = async () => {
+  const applyLlmSettings = (llm: LlmSettingsResponse) => {
+    setLlmSettings(llm);
+    setLlmForm(llm.config.providers.map((p) => ({ ...p })));
+    setLlmDefault(llm.config.default_provider);
+    setLlmTemperature(llm.config.temperature);
+    setLlmMaxTokens(llm.config.max_tokens);
+  };
+
+  const applyEmailSettings = (email: EmailSettingsResponse) => {
+    setEmailSettings(email);
+    setEmailUser(email.config.user);
+    setEmailPass(email.config.password);
+    setEmailTestResult(null);
+  };
+
+  const load = useCallback(async () => {
     setLoading(true);
+    setLoadError(null);
+    setSettingsReady(false);
     try {
-      const [h, i, llm, email, m] = await Promise.all([
+      const [llm, email] = await Promise.all([getLlmSettings(), getEmailSettings()]);
+      applyLlmSettings(llm);
+      applyEmailSettings(email);
+      setSettingsReady(true);
+    } catch (err) {
+      const msg = err instanceof ApiError ? err.message : "加载 LLM/邮箱配置失败";
+      setLoadError(msg);
+      addError(msg, "设置");
+    }
+
+    try {
+      const [h, i, m] = await Promise.all([
         getSystemHealth(),
         fetchSystemInfo(),
-        getLlmSettings(),
-        getEmailSettings(),
         getMcpStatus(),
       ]);
       setHealth(h);
       setInfo(i);
-      setLlmSettings(llm);
-      setLlmForm(llm.config.providers.map((p) => ({ ...p })));
-      setLlmDefault(llm.config.default_provider);
-      setLlmTemperature(llm.config.temperature);
-      setLlmMaxTokens(llm.config.max_tokens);
-      setEmailSettings(email);
-      setEmailUser(email.config.user);
-      setEmailPass(email.config.password);
       setMcp(m);
-      setEmailTestResult(null);
     } catch (err) {
-      const msg = err instanceof ApiError ? err.message : "加载设置失败";
+      const msg = err instanceof ApiError ? err.message : "加载系统状态失败";
       addError(msg, "设置");
     } finally {
       setLoading(false);
     }
-  };
+  }, [addError]);
 
   useEffect(() => {
     load();
-  }, []);
+  }, [load]);
 
   const handleExport = async () => {
     setExporting(true);
@@ -194,14 +213,12 @@ export default function SettingsPage() {
         max_tokens: llmMaxTokens,
         providers: llmForm,
       });
-      setLlmSettings((prev) => ({
-        ...prev,
+      applyLlmSettings({
+        ...llmSettings!,
         ...result,
-        presets: result.presets ?? prev?.presets ?? {},
-        provider_types: result.provider_types ?? prev?.provider_types ?? {},
-      }));
-      setLlmForm(result.config.providers.map((p) => ({ ...p })));
-      setLlmDefault(result.config.default_provider);
+        presets: result.presets ?? llmSettings?.presets ?? {},
+        provider_types: result.provider_types ?? llmSettings?.provider_types ?? {},
+      });
     } catch (err) {
       addError(err instanceof ApiError ? err.message : "保存 LLM 配置失败", "设置");
     } finally {
@@ -233,11 +250,13 @@ export default function SettingsPage() {
         smtp_host: emailSettings?.config.smtp_host || "smtp.gmail.com",
         smtp_port: emailSettings?.config.smtp_port || 465,
       });
-      setEmailSettings((prev) =>
-        prev ? { ...prev, config: result.config } : null
-      );
-      setEmailPass(result.config.password);
-      setEmailTestResult(null);
+      applyEmailSettings({
+        ...(emailSettings ?? {
+          provider: "gmail",
+          help: "使用 Gmail 应用专用密码",
+        }),
+        config: result.config,
+      });
     } catch (err) {
       addError(err instanceof ApiError ? err.message : "保存邮箱配置失败", "设置");
     } finally {
@@ -260,11 +279,20 @@ export default function SettingsPage() {
     }
   };
 
-  if (loading) {
+  if (loading && !settingsReady) {
     return (
       <div className="flex-1 flex items-center justify-center gap-2 text-gray-500">
         <Spinner />
         加载设置…
+      </div>
+    );
+  }
+
+  if (!settingsReady) {
+    return (
+      <div className="flex-1 flex flex-col items-center justify-center gap-4 text-gray-500 p-6">
+        <p>{loadError || "无法加载已保存的配置"}</p>
+        <Button onClick={load}>重试</Button>
       </div>
     );
   }

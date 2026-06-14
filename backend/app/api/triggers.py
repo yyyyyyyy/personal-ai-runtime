@@ -28,6 +28,9 @@ async def list_triggers():
 
 @router.delete("/{trigger_id}")
 async def delete_trigger(trigger_id: str):
+    existing = trigger_engine.get_trigger(trigger_id)
+    if not existing:
+        raise HTTPException(status_code=404, detail="Trigger not found")
     trigger_engine.delete_trigger(trigger_id)
     return {"status": "ok"}
 

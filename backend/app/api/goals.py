@@ -26,6 +26,12 @@ async def create_goal(body: dict):
     description = body.get("description", "")
     importance = float(body.get("importance", 0.5))
     urgency = float(body.get("urgency", 0.5))
+
+    if not (0.0 <= importance <= 1.0):
+        raise HTTPException(status_code=400, detail="importance must be between 0.0 and 1.0")
+    if not (0.0 <= urgency <= 1.0):
+        raise HTTPException(status_code=400, detail="urgency must be between 0.0 and 1.0")
+
     deadline = body.get("deadline")
     parent_id = body.get("parent_id")
 
@@ -57,6 +63,28 @@ async def list_goals(status: str | None = None, limit: int = 50):
     return kernel.query_state("goals", **filters)
 
 
+@router.get("/priorities/sorted")
+async def get_prioritized_goals():
+    """Get goals sorted by priority (importance x urgency x stagnation_time)."""
+    goals = kernel.query_state("goals", status="active", limit=500)
+    scored = [{**g, "priority_score": _goal_priority_score(g)} for g in goals]
+    scored.sort(key=lambda g: g["priority_score"], reverse=True)
+    return scored[:20]
+
+
+@router.get("/stagnant")
+async def get_stagnant_goals(days: int = 3):
+    """Get goals that haven't been updated in the specified number of days."""
+    result = kernel.query_state(
+        "goals",
+        status="active",
+        last_activity_older_than_days=days,
+        order="last_activity_asc",
+        limit=500,
+    )
+    return result if result else []
+
+
 @router.get("/{goal_id}")
 async def get_goal(goal_id: str):
     """Get a goal with its actions and events."""
@@ -70,8 +98,9 @@ async def get_goal(goal_id: str):
 
 
 @router.put("/{goal_id}")
+@router.patch("/{goal_id}")
 async def update_goal(goal_id: str, body: dict):
-    """Update a goal's fields."""
+    """Update a goal's fields (supports PUT and PATCH)."""
     goal = _get_goal(goal_id)
     if not goal:
         raise HTTPException(status_code=404, detail="Goal not found")
@@ -108,6 +137,9 @@ async def update_goal(goal_id: str, body: dict):
 @router.delete("/{goal_id}")
 async def delete_goal(goal_id: str):
     """Delete a goal and its sub-actions."""
+    if not _get_goal(goal_id):
+        raise HTTPException(status_code=404, detail="Goal not found")
+
     for action in kernel.query_state("actions", goal_id=goal_id):
         kernel.emit_event(
             type="ActionDeleted",
@@ -161,6 +193,11 @@ async def create_action(goal_id: str, body: dict):
 @router.put("/{goal_id}/actions/{action_id}")
 async def update_action(goal_id: str, action_id: str, body: dict):
     """Update an action's status or title."""
+    # Verify action exists
+    actions = kernel.query_state("actions", id=action_id)
+    if not actions:
+        raise HTTPException(status_code=404, detail="Action not found")
+
     status = body.get("status")
     title = body.get("title")
     payload: dict = {}
@@ -189,6 +226,11 @@ async def update_action(goal_id: str, action_id: str, body: dict):
 @router.delete("/{goal_id}/actions/{action_id}")
 async def delete_action(goal_id: str, action_id: str):
     """Delete an action."""
+    # Verify action exists
+    actions = kernel.query_state("actions", id=action_id)
+    if not actions:
+        raise HTTPException(status_code=404, detail="Action not found")
+
     kernel.emit_event(
         type="ActionDeleted",
         aggregate_type="action",
@@ -215,27 +257,6 @@ def _goal_priority_score(goal: dict) -> float:
         return importance * urgency
     days_stale = max((datetime.now(UTC) - activity_dt).total_seconds() / 86400.0, 0.0)
     return importance * urgency * days_stale
-
-
-@router.get("/priorities/sorted")
-async def get_prioritized_goals():
-    """Get goals sorted by priority (importance x urgency x stagnation_time)."""
-    goals = kernel.query_state("goals", status="active", limit=500)
-    scored = [{**g, "priority_score": _goal_priority_score(g)} for g in goals]
-    scored.sort(key=lambda g: g["priority_score"], reverse=True)
-    return scored[:20]
-
-
-@router.get("/stagnant")
-async def get_stagnant_goals(days: int = 3):
-    """Get goals that haven't been updated in the specified number of days."""
-    return kernel.query_state(
-        "goals",
-        status="active",
-        last_activity_older_than_days=days,
-        order="last_activity_asc",
-        limit=500,
-    )
 
 
 def _get_goal(goal_id: str) -> dict | None:

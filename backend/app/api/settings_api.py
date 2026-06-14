@@ -4,7 +4,7 @@ import time
 
 from fastapi import APIRouter, HTTPException
 from openai import AsyncOpenAI
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 
 from app.core.agents.llm_router import llm_router
 from app.core.runtime.runtime_config import PROVIDER_PRESETS, runtime_config
@@ -28,6 +28,20 @@ class UpdateLlmConfigRequest(BaseModel):
     max_tokens: int | None = None
     providers: list[LlmProviderInput] | None = None
 
+    @field_validator("temperature")
+    @classmethod
+    def check_temperature(cls, value: float | None) -> float | None:
+        if value is not None and (value < 0.0 or value > 2.0):
+            raise ValueError("temperature must be between 0.0 and 2.0")
+        return value
+
+    @field_validator("max_tokens")
+    @classmethod
+    def check_max_tokens(cls, value: int | None) -> int | None:
+        if value is not None and value <= 0:
+            raise ValueError("max_tokens must be a positive integer")
+        return value
+
 
 class UpdateEmailConfigRequest(BaseModel):
     user: str = ""
@@ -41,12 +55,41 @@ class TestLlmRequest(BaseModel):
     provider_id: str | None = None
 
 
+def _llm_status_from_config(llm: dict) -> tuple[str, list[dict]]:
+    """Derive default model and provider status from persisted config (not router cache)."""
+    default_id = llm.get("default_provider", "deepseek")
+    providers_public: list[dict] = []
+    default_model = "deepseek-chat"
+
+    for item in llm.get("providers", []):
+        if not item.get("enabled", True):
+            continue
+        pid = item["id"]
+        model = item.get("model", "")
+        ptype = item.get("type", "openai_compatible")
+        if ptype == "ollama":
+            available = bool(item.get("base_url"))
+        else:
+            available = bool(item.get("has_api_key") or item.get("api_key"))
+        is_default = pid == default_id
+        if is_default and model:
+            default_model = model
+        providers_public.append({
+            "name": pid,
+            "model": model,
+            "type": ptype,
+            "is_default": is_default,
+            "available": available,
+        })
+
+    return default_model, providers_public
+
+
 @router.get("/llm")
 async def get_llm_settings():
     """Get LLM configuration (secrets masked)."""
     llm = runtime_config.get_llm_config(masked=True)
-    default_model = llm_router.get_default_model()
-    providers_public = llm_router.list_providers()
+    default_model, providers_public = _llm_status_from_config(llm)
     return {
         "config": llm,
         "default_model": default_model,
@@ -79,10 +122,12 @@ async def update_llm_settings(body: UpdateLlmConfigRequest):
     }:
         raise HTTPException(status_code=400, detail="default_provider not found in providers")
 
+    default_model, providers_public = _llm_status_from_config(updated)
+
     return {
         "config": updated,
-        "default_model": llm_router.get_default_model(),
-        "providers_status": llm_router.list_providers(),
+        "default_model": default_model,
+        "providers_status": providers_public,
         "presets": PROVIDER_PRESETS,
         "provider_types": {
             "openai_compatible": "OpenAI 兼容 API（DeepSeek / OpenAI / 代理）",

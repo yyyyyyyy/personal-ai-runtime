@@ -5,8 +5,15 @@ from fastapi import APIRouter, HTTPException
 from app.api.models import CreateMemoryRequest, UpdateMemoryRequest
 from app.core.agents.memory_engine import memory_engine
 from app.core.agents.memory_v2 import user_profile
+from app.core.runtime.kernel_instance import kernel
 
 router = APIRouter(prefix="/api/memory", tags=["memory"])
+
+
+def _get_memory(memory_id: str) -> dict | None:
+    """Check if a memory exists by querying the kernel projection."""
+    rows = kernel.query_state("memories", id=memory_id)
+    return rows[0] if rows else None
 
 
 @router.get("/memories")
@@ -46,6 +53,8 @@ async def search_memories(q: str, n: int = 5):
 @router.delete("/memories/{memory_id}")
 async def delete_memory(memory_id: str):
     """Delete a specific memory."""
+    if not _get_memory(memory_id):
+        raise HTTPException(status_code=404, detail="Memory not found")
     memory_engine.delete_memory(memory_id)
     return {"status": "ok"}
 
@@ -53,6 +62,9 @@ async def delete_memory(memory_id: str):
 @router.put("/memories/{memory_id}")
 async def update_memory(memory_id: str, body: UpdateMemoryRequest):
     """Update a memory's content or category."""
+    if not _get_memory(memory_id):
+        raise HTTPException(status_code=404, detail="Memory not found")
+
     content = body.content
     category = body.category
 

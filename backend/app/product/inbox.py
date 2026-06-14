@@ -172,7 +172,11 @@ async def poll_inbox(limit: int = 20) -> dict:
         actor="scheduler",
     )
     if cap.get("status") != "success":
-        return {"status": "error", "error": cap.get("error", "check_inbox failed"), "new_count": 0}
+        raw_error = cap.get("error", "check_inbox failed")
+        # Sanitize: don't expose environment variable names in user-facing errors
+        if "EMAIL_USER" in raw_error or "EMAIL_PASS" in raw_error:
+            raw_error = "Email credentials not configured"
+        return {"status": "error", "error": raw_error, "new_count": 0}
 
     try:
         payload = json.loads(cap.get("result", "{}"))
@@ -180,7 +184,11 @@ async def poll_inbox(limit: int = 20) -> dict:
         return {"status": "error", "error": "invalid inbox JSON", "new_count": 0}
 
     if payload.get("error"):
-        return {"status": "error", "error": payload["error"], "new_count": 0}
+        raw_error = payload["error"]
+        # Sanitize: don't expose environment variable names
+        if "EMAIL_USER" in raw_error or "EMAIL_PASS" in raw_error:
+            raw_error = "Email credentials not configured"
+        return {"status": "error", "error": raw_error, "new_count": 0}
 
     emails = payload.get("emails") or []
     unread_ids = {e["message_id"] for e in emails if e.get("message_id")}

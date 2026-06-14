@@ -1,6 +1,6 @@
 """Reviews API — query and trigger reviews."""
 
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 
 from app.core.review_engine import review_engine
 from app.product.daily_review import generate_daily_review
@@ -22,28 +22,28 @@ async def get_review(review_id: str):
     """Get a specific review by ID."""
     review = review_engine.get_review(review_id)
     if not review:
-        return {"error": "Review not found"}
+        raise HTTPException(status_code=404, detail="Review not found")
     return review
 
 
 @router.post("/trigger/daily")
 async def trigger_daily():
     """Manually trigger a daily review."""
-    result = generate_daily_review()
+    result = await generate_daily_review()
     return {"status": "ok", "result": result}
 
 
 @router.post("/trigger/weekly")
 async def trigger_weekly():
     """Manually trigger a weekly review."""
-    result = generate_weekly_review()
+    result = await generate_weekly_review()
     return {"status": "ok", "result": result}
 
 
 @router.post("/trigger/monthly")
 async def trigger_monthly():
     """Manually trigger a monthly review."""
-    result = generate_monthly_review()
+    result = await generate_monthly_review()
     return {"status": "ok", "result": result}
 
 

@@ -7,7 +7,6 @@ LLM polish is enabled by default (REVIEW_NARRATIVE_LLM_ENABLED=true). The sync A
 (polish_narrative) wraps asyncio internally for APScheduler compatibility.
 """
 
-import asyncio
 import json
 import logging
 import uuid
@@ -67,7 +66,7 @@ async def _polish_review_async(content: str) -> str:
 class ReviewEngine:
     """Generates periodic reviews by aggregating events and querying state."""
 
-    def generate_daily_review(self, date: str | None = None) -> str:
+    async def generate_daily_review(self, date: str | None = None) -> str:
         """Generate a daily review for the given date (default: today)."""
         if date is None:
             date = datetime.now().strftime("%Y-%m-%d")
@@ -85,7 +84,7 @@ class ReviewEngine:
         stagnant = self._get_stagnant_goals()
 
         review_id = str(uuid.uuid4())
-        content = self._finalize_review_content(
+        content = await self._finalize_review_content(
             self._build_review_content("daily", date, date, events, goals, stagnant),
             events,
         )
@@ -111,7 +110,7 @@ class ReviewEngine:
 
         return review_id
 
-    def generate_weekly_review(self) -> str:
+    async def generate_weekly_review(self) -> str:
         """Generate a weekly review for the past 7 days."""
         end_date = datetime.now()
         start_date = end_date - timedelta(days=7)
@@ -121,7 +120,7 @@ class ReviewEngine:
         completed = self._get_completed_goals(start_date.strftime("%Y-%m-%d"))
 
         review_id = str(uuid.uuid4())
-        content = self._finalize_review_content(
+        content = await self._finalize_review_content(
             self._build_review_content(
                 "weekly", start_date.strftime("%Y-%m-%d"), end_date.strftime("%Y-%m-%d"),
                 events, goals, completed,
@@ -140,7 +139,7 @@ class ReviewEngine:
 
         return review_id
 
-    def generate_monthly_review(self) -> str:
+    async def generate_monthly_review(self) -> str:
         """Generate a monthly review for the past 30 days."""
         end_date = datetime.now()
         start_date = end_date - timedelta(days=30)
@@ -150,7 +149,7 @@ class ReviewEngine:
         completed = self._get_completed_goals(start_date.strftime("%Y-%m-%d"))
 
         review_id = str(uuid.uuid4())
-        content = self._finalize_review_content(
+        content = await self._finalize_review_content(
             self._build_review_content(
                 "monthly", start_date.strftime("%Y-%m-%d"), end_date.strftime("%Y-%m-%d"),
                 events, goals, completed,
@@ -284,11 +283,11 @@ class ReviewEngine:
 
         return "\n".join(lines)
 
-    def _finalize_review_content(
+    async def _finalize_review_content(
         self, content: str, events: list[dict]
     ) -> str:
         del events  # reserved for future context-aware polish
-        return asyncio.run(_polish_review_async(content))
+        return await _polish_review_async(content)
 
     def _key_insights_payload(
         self, content: str, *, surface: str, events: list[dict] | None = None

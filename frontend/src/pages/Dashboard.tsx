@@ -1,7 +1,9 @@
-import { type ToolSummaryItem } from "../api/client";
+import { useState } from "react";
+import { type ToolSummaryItem, markNotificationRead, type Notification } from "../api/client";
 import { useDashboard } from "../hooks/useDashboard";
 import { useNotifications } from "../hooks/useNotifications";
 import { toolLabel } from "../utils/toolLabels";
+import NotificationDetailModal from "../components/notifications/NotificationDetailModal";
 
 function StatCard({ label, value, unit, color }: { label: string; value: string | number; unit?: string; color?: string }) {
   return (
@@ -49,6 +51,7 @@ function ToolBadge({ tool }: { tool: ToolSummaryItem }) {
 }
 
 export default function DashboardPage() {
+  const [selectedNotification, setSelectedNotification] = useState<Notification | null>(null);
   const {
     cost,
     costByModel,
@@ -104,6 +107,17 @@ export default function DashboardPage() {
     },
     [],
   ).slice(0, 8);
+
+  const handleNotificationClick = async (n: Notification) => {
+    setSelectedNotification(n);
+    if (!n.read) {
+      try {
+        await markNotificationRead(n.id);
+      } catch {
+        // still show detail
+      }
+    }
+  };
 
   return (
     <div className="flex-1 overflow-y-auto p-6">
@@ -199,10 +213,15 @@ export default function DashboardPage() {
           {mergedNotifications.length > 0 ? (
             <div className="space-y-2">
               {mergedNotifications.map((n) => (
-                <div key={n.id} className="p-3 bg-gray-800/50 rounded-lg">
+                <button
+                  key={n.id}
+                  type="button"
+                  onClick={() => handleNotificationClick(n)}
+                  className="w-full text-left p-3 bg-gray-800/50 rounded-lg hover:bg-gray-800 transition-colors"
+                >
                   <div className="text-sm text-emerald-400">{n.title}</div>
-                  <div className="text-xs text-gray-400 mt-1">{n.content}</div>
-                </div>
+                  <div className="text-xs text-gray-400 mt-1 line-clamp-2">{n.content}</div>
+                </button>
               ))}
             </div>
           ) : (
@@ -254,6 +273,11 @@ export default function DashboardPage() {
           )}
         </div>
       </div>
+
+      <NotificationDetailModal
+        notification={selectedNotification}
+        onClose={() => setSelectedNotification(null)}
+      />
     </div>
   );
 }
