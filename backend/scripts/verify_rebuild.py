@@ -65,6 +65,39 @@ SAMPLE_SCENARIO: list[tuple[str, str, str, dict[str, Any]]] = [
             "tool_call_id": None,
         },
     ),
+    # Notifications
+    (
+        "NotificationCreated",
+        "notification",
+        "n1",
+        {
+            "type": "review",
+            "title": "Daily review",
+            "content": "Summary text",
+            "created_at": "2026-06-10T00:00:00Z",
+        },
+    ),
+    ("NotificationRead", "notification", "n1", {}),
+    # Schedules
+    (
+        "ScheduleCreated",
+        "schedule",
+        "sch1",
+        {
+            "name": "morning_brief",
+            "cron_expr": "0 8 * * *",
+            "task_type": "morning_brief",
+            "trigger_type": "cron",
+            "enabled": True,
+            "created_at": "2026-06-10T00:00:00Z",
+        },
+    ),
+    (
+        "ScheduleLastRunUpdated",
+        "schedule",
+        "sch1",
+        {"last_run_at": "2026-06-10T08:00:00Z"},
+    ),
 ]
 
 
@@ -82,7 +115,7 @@ def main():
     db = Database(db_path=str(db_path))
     k = Kernel(db=db)
 
-    tables = ["goals", "actions", "approvals", "memories", "tasks", "conversations", "messages"]
+    tables = ["goals", "actions", "approvals", "memories", "tasks", "conversations", "messages", "notifications", "schedules"]
 
     # 1. Emit sample scenario
     for evt in SAMPLE_SCENARIO:

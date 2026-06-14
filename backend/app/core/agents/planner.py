@@ -40,9 +40,9 @@ class PlannerAgent:
 
         try:
             temp, max_tokens = runtime_config.get_generation_params()
-            response = await self.client.chat.completions.create(
+            response = await self.client.chat.completions.create(  # type: ignore
                 model=self.provider.model,
-                messages=messages,
+                messages=messages,  # type: ignore[arg-type]
                 temperature=temp,
                 max_tokens=max_tokens,
             )

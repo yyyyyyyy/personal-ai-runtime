@@ -1,21 +1,37 @@
-"""Notification generation utilities."""
+"""Notification generation utilities — writes go through Kernel Event Log."""
 
 import re
 import uuid
 from datetime import UTC, datetime
+from typing import TYPE_CHECKING
 
+from app.core.runtime.kernel.constants import (
+    AGGREGATE_NOTIFICATION,
+    EVENT_NOTIFICATION_CREATED,
+    EVENT_NOTIFICATION_UPDATED,
+)
+from app.core.runtime.kernel_instance import kernel as default_kernel
 from app.store import database
 
+if TYPE_CHECKING:
+    from app.core.runtime.kernel import Kernel
 
-def find_notification(notif_type: str, title: str) -> dict | None:
+
+def _kernel(k: "Kernel | None" = None) -> "Kernel":
+    return k or default_kernel
+
+
+def find_notification(
+    notif_type: str,
+    title: str,
+    *,
+    kernel: "Kernel | None" = None,
+) -> dict | None:
     """Return an existing notification with the same type and title, if any."""
-    with database.db.get_db() as conn:
-        row = conn.execute(
-            "SELECT id, type, title, content, created_at FROM notifications "
-            "WHERE type = ? AND title = ? LIMIT 1",
-            (notif_type, title),
-        ).fetchone()
-    return dict(row) if row else None
+    rows = _kernel(kernel).query_state(
+        "notifications", type=notif_type, title=title, limit=1
+    )
+    return rows[0] if rows else None
 
 
 def _embed_related_id(content: str, related_id: str | None) -> str:
@@ -61,7 +77,11 @@ def find_review_id_for_notification_title(title: str) -> str | None:
     return None
 
 
-def ensure_related_id_on_notification(row: dict) -> dict:
+def ensure_related_id_on_notification(
+    row: dict,
+    *,
+    kernel: "Kernel | None" = None,
+) -> dict:
     """Backfill @related: prefix on review notifications when missing."""
     if row.get("type") != "review" or row.get("content", "").startswith("@related:"):
         return row
@@ -72,11 +92,14 @@ def ensure_related_id_on_notification(row: dict) -> dict:
 
     _, body = parse_related_id(row["content"])
     updated = _embed_related_id(body, related_id)
-    with database.db.get_db() as conn:
-        conn.execute(
-            "UPDATE notifications SET content = ? WHERE id = ?",
-            (updated, row["id"]),
-        )
+    k = _kernel(kernel)
+    k.emit_event(
+        EVENT_NOTIFICATION_UPDATED,
+        AGGREGATE_NOTIFICATION,
+        row["id"],
+        payload={"content": updated},
+        actor="system",
+    )
     return {**row, "content": updated}
 
 
@@ -86,29 +109,40 @@ def create_notification(
     content: str,
     *,
     related_id: str | None = None,
+    kernel: "Kernel | None" = None,
 ) -> dict:
     """Create a notification and return it (idempotent by type + title)."""
-    existing = find_notification(notif_type, title)
+    k = _kernel(kernel)
+    existing = find_notification(notif_type, title, kernel=k)
     if existing:
         if related_id and not existing["content"].startswith("@related:"):
             _, body = parse_related_id(existing["content"])
             updated = _embed_related_id(body, related_id)
-            with database.db.get_db() as conn:
-                conn.execute(
-                    "UPDATE notifications SET content = ? WHERE id = ?",
-                    (updated, existing["id"]),
-                )
+            k.emit_event(
+                EVENT_NOTIFICATION_UPDATED,
+                AGGREGATE_NOTIFICATION,
+                existing["id"],
+                payload={"content": updated},
+                actor="system",
+            )
             existing = {**existing, "content": updated}
         return existing
 
     stored_content = _embed_related_id(content, related_id)
     nid = str(uuid.uuid4())
     now = datetime.now(UTC).isoformat()
-    with database.db.get_db() as conn:
-        conn.execute(
-            "INSERT INTO notifications (id, type, title, content, created_at) VALUES (?, ?, ?, ?, ?)",
-            (nid, notif_type, title, stored_content, now),
-        )
+    k.emit_event(
+        EVENT_NOTIFICATION_CREATED,
+        AGGREGATE_NOTIFICATION,
+        nid,
+        payload={
+            "type": notif_type,
+            "title": title,
+            "content": stored_content,
+            "created_at": now,
+        },
+        actor="system",
+    )
     return {
         "id": nid,
         "type": notif_type,

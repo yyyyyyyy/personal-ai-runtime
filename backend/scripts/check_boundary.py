@@ -26,6 +26,8 @@ PROJECTION_TABLES = (
     "memories",
     "messages",
     "conversations",
+    "notifications",
+    "schedules",
     "event_log",
 )
 KERNEL_PREFIX = Path("core/runtime/kernel")

@@ -30,4 +30,42 @@ export default defineConfig({
     __API_HOST__: JSON.stringify(API_HOST),
     __API_PORT__: JSON.stringify(API_PORT),
   },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (id.includes("node_modules")) {
+            if (
+              id.includes("react-markdown") ||
+              id.includes("remark-") ||
+              id.includes("micromark") ||
+              id.includes("mdast") ||
+              id.includes("unist")
+            ) {
+              return "vendor-markdown";
+            }
+            if (
+              id.includes("react-dom") ||
+              id.includes("react-router") ||
+              id.includes("/react/")
+            ) {
+              return "vendor-react";
+            }
+            if (id.includes("react-syntax-highlighter") || id.includes("refractor")) {
+              // Leave syntax highlighter in async chunks (lazy-loaded via CodeBlock)
+              return undefined;
+            }
+            if (id.includes("lucide-react")) {
+              return "vendor-icons";
+            }
+            return "vendor";
+          }
+          if (id.includes("/src/pages/")) {
+            const page = id.split("/src/pages/")[1]?.split(".")[0];
+            if (page) return `page-${page.replace(/Page$/, "").toLowerCase()}`;
+          }
+        },
+      },
+    },
+  },
 });

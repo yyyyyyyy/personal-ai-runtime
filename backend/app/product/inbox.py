@@ -270,15 +270,15 @@ async def poll_inbox(limit: int = 20) -> dict:
 def generate_inbox_digest() -> dict | None:
     """Daily inbox digest — idempotent per calendar day."""
     now = datetime.now(UTC)
+    title = f"收件箱摘要 - {now.strftime('%Y-%m-%d')}"
+
+    from app.product.notifications import find_notification
+
+    existing = find_notification("inbox_digest", title)
+    if existing:
+        return existing
 
     with db.get_db() as conn:
-        existing = conn.execute(
-            "SELECT id, title, content FROM notifications "
-            "WHERE type = 'inbox_digest' AND date(created_at) = date('now') LIMIT 1"
-        ).fetchone()
-        if existing:
-            return dict(existing)
-
         rows = conn.execute(
             """SELECT category, sender, subject, reason, importance
                FROM inbox_emails
@@ -317,7 +317,6 @@ def generate_inbox_digest() -> dict | None:
         lines.append("")
 
     content = "\n".join(lines).strip()
-    title = f"收件箱摘要 - {now.strftime('%Y-%m-%d')}"
 
     from app.core.runtime.notification_bridge import push_notification
 
@@ -365,9 +364,9 @@ def list_inbox_emails(
 
 
 def latest_digest() -> dict | None:
-    with db.get_db() as conn:
-        row = conn.execute(
-            """SELECT * FROM notifications WHERE type = 'inbox_digest'
-               ORDER BY created_at DESC LIMIT 1"""
-        ).fetchone()
-    return dict(row) if row else None
+    from app.core.runtime.kernel_instance import kernel
+
+    rows = kernel.query_state(
+        "notifications", type="inbox_digest", limit=1, order="created_at_desc"
+    )
+    return rows[0] if rows else None

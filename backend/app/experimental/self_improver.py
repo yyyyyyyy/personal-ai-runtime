@@ -1,65 +1,66 @@
 """Self Improver — collects feedback and improves prompts/behavior over time.
 
-Tracks user approvals/rejections, manages prompt templates with versioning.
+Status: EXPERIMENTAL — lives under `app/experimental/`, not wired into production.
 
-Status: EXPERIMENTAL — lives under `app/experimental/`, not wired into the system.
-
-Known issues:
-  - Violates Kernel Boundary: writes directly to `activity_log` via `db.get_db()`
-    instead of emitting events through `kernel.emit_event()`.
-  - No test coverage (excluded in pyproject.toml).
-
-TODO before activation:
-  1. Refactor to use kernel.emit_event() for all writes.
-  2. Add unit tests for feedback logging and version comparison.
-  3. Wire into the scheduler or agent pipeline.
+All writes go through Kernel Event Log (FeedbackLogged events).
 """
+
+from __future__ import annotations
 
 import json
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
+from typing import TYPE_CHECKING
 
-from app.store.database import db
+from app.core.runtime.kernel.constants import (
+    AGGREGATE_FRICTION,
+    EVENT_FEEDBACK_LOGGED,
+)
+
+if TYPE_CHECKING:
+    from app.core.runtime.kernel import Kernel
 
 
 class SelfImprover:
     """Manages feedback loops for continuous improvement."""
 
-    def log_feedback(self, prompt_template: str, output: str, accepted: bool, reason: str = ""):
-        """Log a user decision for training data."""
+    def __init__(self, kernel: Kernel | None = None):
+        from app.core.runtime.kernel_instance import kernel as default_kernel
+
+        self._kernel = kernel or default_kernel
+
+    def log_feedback(self, prompt_template: str, output: str, accepted: bool, reason: str = "") -> str:
+        """Log a user decision for training data via Kernel Event Log."""
         feedback_id = str(uuid.uuid4())
         now = datetime.now(UTC).isoformat()
-
-        with db.get_db() as conn:
-            conn.execute(
-                """INSERT INTO activity_log (type, payload, timestamp)
-                   VALUES (?, ?, ?)""",
-                (
-                    "feedback",
-                    json.dumps({
-                        "prompt_template": prompt_template[:500],
-                        "output": output[:500],
-                        "accepted": accepted,
-                        "reason": reason,
-                    }),
-                    now,
-                ),
-            )
+        self._kernel.emit_event(
+            EVENT_FEEDBACK_LOGGED,
+            AGGREGATE_FRICTION,
+            feedback_id,
+            payload={
+                "prompt_template": prompt_template[:500],
+                "output": output[:500],
+                "accepted": accepted,
+                "reason": reason,
+                "logged_at": now,
+            },
+            actor="self_improver",
+        )
         return feedback_id
 
     def get_accept_rate(self, prompt_version: str, days: int = 7) -> float:
-        """Calculate acceptance rate for a prompt version."""
-        with db.get_db() as conn:
-            total = conn.execute(
-                "SELECT COUNT(*) as c FROM activity_log WHERE type = 'feedback' AND payload LIKE ?",
-                (f"%{prompt_version}%",),
-            ).fetchone()["c"]
-            accepted = conn.execute(
-                "SELECT COUNT(*) as c FROM activity_log WHERE type = 'feedback' AND payload LIKE ? AND payload LIKE '%\"accepted\": true%'",
-                (f"%{prompt_version}%",),
-            ).fetchone()["c"]
-
-        return accepted / total if total > 0 else 0.5
+        """Calculate acceptance rate for a prompt version from Event Log."""
+        cutoff = (datetime.now(UTC) - timedelta(days=days)).isoformat()
+        events = self._kernel.read_events(type=EVENT_FEEDBACK_LOGGED, order="asc")
+        matching = [
+            e for e in events
+            if prompt_version in json.dumps(e.payload or {})
+            and (e.ts or "") >= cutoff
+        ]
+        if not matching:
+            return 0.5
+        accepted = sum(1 for e in matching if (e.payload or {}).get("accepted"))
+        return accepted / len(matching)
 
     def compare_versions(self, version_a: str, version_b: str) -> dict:
         """Compare two prompt versions by acceptance rate."""

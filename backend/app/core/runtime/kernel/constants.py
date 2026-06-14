@@ -46,6 +46,18 @@ EVENT_PATTERN_RECORDED = "PatternRecorded"
 EVENT_FRICTION_LOGGED = "FrictionLogged"
 EVENT_FRICTION_RESOLVED = "FrictionResolved"
 
+EVENT_NOTIFICATION_CREATED = "NotificationCreated"
+EVENT_NOTIFICATION_UPDATED = "NotificationUpdated"
+EVENT_NOTIFICATION_READ = "NotificationRead"
+EVENT_NOTIFICATION_READ_ALL = "NotificationReadAll"
+
+EVENT_SCHEDULE_CREATED = "ScheduleCreated"
+EVENT_SCHEDULE_LAST_RUN_UPDATED = "ScheduleLastRunUpdated"
+
+EVENT_FEEDBACK_LOGGED = "FeedbackLogged"
+EVENT_AGENT_MESSAGE_SENT = "AgentMessageSent"
+EVENT_AGENT_MESSAGE_RECEIVED = "AgentMessageReceived"
+
 # ── Aggregate types ─────────────────────────────────────────────────────────
 
 AGGREGATE_GOAL = "goal"
@@ -57,6 +69,8 @@ AGGREGATE_CONVERSATION = "conversation"
 AGGREGATE_ACTION = "action"
 AGGREGATE_PATTERN = "pattern"
 AGGREGATE_FRICTION = "friction"
+AGGREGATE_NOTIFICATION = "notification"
+AGGREGATE_SCHEDULE = "schedule"
 
 # ── Projection tables ───────────────────────────────────────────────────────
 
@@ -67,6 +81,8 @@ PROJECTION_TABLES = (
     "memories",
     "approvals",
     "patterns",
+    "notifications",
+    "schedules",
 )
 
 # ── Snapshot-eligible aggregates ─────────────────────────────────────────────

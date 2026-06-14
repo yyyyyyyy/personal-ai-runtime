@@ -1,80 +1,86 @@
 import { test, expect, type Page } from "@playwright/test";
-import { matchesApiPath, mockApiJson, mockApiHandler } from "./helpers";
+import { MockApiRouter } from "./helpers";
 
 const CONV_ID = "e2e-conv-1";
 
-async function mockCommonApis(page: Page) {
-  await mockApiJson(page, "/api/system/health", {
-    status: "ok",
-    service: "personal-ai",
-    version: "1.0.0",
-    auth_required: false,
-  });
+function buildCommonMocks(): MockApiRouter {
+  const llmSettings = {
+    config: {
+      providers: [],
+      default_provider: "deepseek",
+      temperature: 0.7,
+      max_tokens: 4096,
+    },
+  };
+  const emailSettings = {
+    config: { user: "", password: "", imap_host: "", smtp_host: "" },
+  };
 
-  await mockApiJson(page, "/api/system/info", {
-    conversations: 0,
-    goals: 0,
-    memories: 0,
-    messages: 0,
-  });
-
-  await mockApiJson(page, "/api/system/llm-providers", {
-    providers: [],
-    default: "deepseek-chat",
-  });
-
-  await mockApiJson(page, "/api/system/mcp-status", {
-    enabled: false,
-    servers: [],
-    total_tools: 0,
-  });
-
-  await mockApiJson(page, "/api/reviews", []);
-
-  await mockApiJson(page, "/api/inbox", []);
-
-  await mockApiHandler(page, "/api/chat/conversations", async (route) => {
-    if (route.request().method() === "GET") {
-      await route.fulfill({
-        json: [
-          {
-            id: CONV_ID,
-            title: "测试对话",
-            summary: null,
-            created_at: "2026-06-10T00:00:00Z",
-            updated_at: "2026-06-10T00:00:00Z",
-          },
-        ],
-      });
-      return;
-    }
-    await route.continue();
-  });
-
-  await mockApiHandler(
-    page,
-    `/api/chat/conversations/${CONV_ID}/messages`,
-    async (route) => {
+  return new MockApiRouter()
+    .json("/api/system/health", {
+      status: "ok",
+      service: "personal-ai",
+      version: "1.0.0",
+      auth_required: false,
+    })
+    .json("/api/system/info", {
+      conversations: 0,
+      goals: 0,
+      memories: 0,
+      messages: 0,
+    })
+    .json("/api/system/llm-providers", {
+      providers: [],
+      default: "deepseek-chat",
+    })
+    .json("/api/system/mcp-status", {
+      enabled: false,
+      servers: [],
+      total_tools: 0,
+    })
+    .json("/api/settings/llm", llmSettings)
+    .json("/api/settings/email", emailSettings)
+    .json("/api/reviews", [])
+    .json("/api/inbox", [])
+    .handler(`/api/chat/conversations/${CONV_ID}/messages`, async (route) => {
       if (route.request().method() === "GET") {
         await route.fulfill({ json: [] });
         return;
       }
       await route.continue();
-    },
-  );
+    })
+    .handler("/api/chat/conversations", async (route) => {
+      if (route.request().method() === "GET") {
+        await route.fulfill({
+          json: [
+            {
+              id: CONV_ID,
+              title: "测试对话",
+              summary: null,
+              created_at: "2026-06-10T00:00:00Z",
+              updated_at: "2026-06-10T00:00:00Z",
+            },
+          ],
+        });
+        return;
+      }
+      await route.continue();
+    })
+    .json("/api/goals", [])
+    .json("/api/approvals", [])
+    .json("/api/chat/approvals", {
+      status: "denied",
+      assistant_message: "操作已取消",
+    })
+    .json("/api/notifications", [])
+    .json("/api/memory/memories/grouped", { memories: [] })
+    .json("/api/memory/memories/search", []);
+}
 
-  await mockApiJson(page, "/api/goals", []);
-
-  await mockApiJson(page, "/api/approvals", []);
-
-  await mockApiJson(page, "/api/chat/approvals", {
-    status: "denied",
-    assistant_message: "操作已取消",
-  });
-
-  await mockApiJson(page, "/api/notifications", []);
-
-  await mockApiJson(page, "/api/memory/memories/grouped", { memories: [] });
+async function installMocks(page: Page, extra?: (router: MockApiRouter) => void) {
+  const router = buildCommonMocks();
+  extra?.(router);
+  await router.install(page);
 }
 
 test.describe("Chat flow", () => {
@@ -82,7 +88,7 @@ test.describe("Chat flow", () => {
     await page.addInitScript(() => {
       localStorage.setItem("onboarding_done", "1");
     });
-    await mockCommonApis(page);
+    await installMocks(page);
   });
 
   test("home page shows greeting and new chat", async ({ page }) => {
@@ -120,36 +126,30 @@ test.describe("Chat approval flow", () => {
     await page.addInitScript(() => {
       localStorage.setItem("onboarding_done", "1");
     });
-    await mockCommonApis(page);
   });
 
   test("shows confirmation dialog and resolves approval", async ({ page }) => {
-    await page.route("**/*", async (route) => {
-      const url = route.request().url();
-      if (
-        matchesApiPath(url, `/api/chat/conversations/${CONV_ID}/messages`) &&
-        route.request().method() !== "GET"
-      ) {
-        const sse =
-          'data: {"type":"confirmation_required","tool_name":"write_file","tool_args":{"path":"/tmp/e2e.txt","content":"hello"},"approval_id":"ap-e2e-1","tool_call_id":"tc-e2e-1"}\n\n' +
-          'data: {"type":"done"}\n\n';
-
-        await route.fulfill({
-          status: 200,
-          headers: { "Content-Type": "text/event-stream" },
-          body: sse,
+    await installMocks(page, (router) => {
+      router
+        .handler(`/api/chat/conversations/${CONV_ID}/messages`, async (route) => {
+          if (route.request().method() === "GET") {
+            await route.fulfill({ json: [] });
+            return;
+          }
+          const sse =
+            'data: {"type":"confirmation_required","tool_name":"write_file","tool_args":{"path":"/tmp/e2e.txt","content":"hello"},"approval_id":"ap-e2e-1","tool_call_id":"tc-e2e-1"}\n\n' +
+            'data: {"type":"done"}\n\n';
+          await route.fulfill({
+            status: 200,
+            headers: { "Content-Type": "text/event-stream" },
+            body: sse,
+          });
+        })
+        .handler("/api/chat/approvals/ap-e2e-1/resolve", async (route) => {
+          await route.fulfill({
+            json: { status: "approved", result: '{"ok":true}' },
+          });
         });
-        return;
-      }
-      if (
-        matchesApiPath(url, "/api/chat/approvals/ap-e2e-1/resolve")
-      ) {
-        await route.fulfill({
-          json: { status: "approved", result: '{"ok":true}' },
-        });
-        return;
-      }
-      await route.continue();
     });
 
     await page.goto(`/chat/${CONV_ID}`);
@@ -165,24 +165,21 @@ test.describe("Chat approval flow", () => {
   });
 
   test("user can deny pending tool approval", async ({ page }) => {
-    await page.route("**/*", async (route) => {
-      const url = route.request().url();
-      if (
-        matchesApiPath(url, `/api/chat/conversations/${CONV_ID}/messages`) &&
-        route.request().method() !== "GET"
-      ) {
+    await installMocks(page, (router) => {
+      router.handler(`/api/chat/conversations/${CONV_ID}/messages`, async (route) => {
+        if (route.request().method() === "GET") {
+          await route.fulfill({ json: [] });
+          return;
+        }
         const sse =
           'data: {"type":"confirmation_required","tool_name":"write_file","tool_args":{"path":"/tmp/e2e.txt","content":"hello"},"approval_id":"ap-e2e-2","tool_call_id":"tc-e2e-2"}\n\n' +
           'data: {"type":"done"}\n\n';
-
         await route.fulfill({
           status: 200,
           headers: { "Content-Type": "text/event-stream" },
           body: sse,
         });
-        return;
-      }
-      await route.continue();
+      });
     });
 
     await page.goto(`/chat/${CONV_ID}`);

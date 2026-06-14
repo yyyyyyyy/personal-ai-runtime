@@ -1,4 +1,4 @@
-.PHONY: install dev demo screenshots test test-backend test-frontend ci-local lint typecheck desktop boundary rebuild-verify export-roundtrip-verify snapshot-verify pattern-rebuild-verify egress-verify connector-verify belief-verify belief-quality belief-survival alembic-verify vector-consistency-verify docker-up docker-down
+.PHONY: install dev demo screenshots test test-backend test-frontend test-e2e ci-local lint typecheck desktop boundary rebuild-verify export-roundtrip-verify snapshot-verify pattern-rebuild-verify egress-verify connector-verify belief-verify belief-quality belief-survival alembic-verify vector-consistency-verify docker-up docker-down
 
 # Backend
 BACKEND_DIR := backend
@@ -11,8 +11,9 @@ install:
 	cd $(DESKTOP_DIR) && npm ci
 
 dev:
-	@echo "Starting backend (8000) and frontend (5173)..."
+	@echo "Starting backend (8000), waiting for health, then frontend (5173)..."
 	@(cd $(BACKEND_DIR) && python3 -m uvicorn app.main:app --reload --port 8000) & \
+	bash scripts/wait_for_health.sh localhost 8000 60 && \
 	(cd $(FRONTEND_DIR) && npm run dev) & \
 	wait
 
@@ -30,13 +31,18 @@ test-backend:
 test-frontend:
 	cd $(FRONTEND_DIR) && npx tsc --noEmit && npm test
 
+test-e2e:
+	cd $(FRONTEND_DIR) && npx playwright install chromium && npm run test:e2e
+
 lint:
 	cd $(BACKEND_DIR) && ruff check app/
 
-typecheck:
-	cd $(BACKEND_DIR) && mypy app/core/runtime/ app/core/harness/ app/core/agents/memory_engine.py app/core/agents/memory_extractor.py app/product/ app/api/ app/main.py scripts/ --ignore-missing-imports
+AGENTS_MYPY := app/core/agents/brain.py app/core/agents/conversation.py app/core/agents/planner.py app/core/agents/critic.py app/core/agents/llm_router.py app/core/agents/memory_engine.py app/core/agents/memory_extractor.py
 
-ci-local: lint typecheck test-backend test-frontend boundary export-roundtrip-verify
+typecheck:
+	cd $(BACKEND_DIR) && mypy app/core/runtime/ app/core/harness/ $(AGENTS_MYPY) app/product/ app/api/ app/main.py scripts/ --ignore-missing-imports
+
+ci-local: lint typecheck test-backend test-frontend test-e2e boundary export-roundtrip-verify
 	@echo "ci-local checks passed"
 
 desktop:

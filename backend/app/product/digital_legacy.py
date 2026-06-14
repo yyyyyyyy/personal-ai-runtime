@@ -53,6 +53,12 @@ class DigitalLegacy:
                 "event_log": len(event_log),
                 "conversations": len(conversations),
                 "messages": len(messages),
+                "goals": self._kernel.table_counts(("goals",)).get("goals", 0),
+                "memories": self._kernel.table_counts(("memories",)).get("memories", 0),
+                "notifications": self._kernel.table_counts(("notifications",)).get(
+                    "notifications", 0
+                ),
+                "schedules": self._kernel.table_counts(("schedules",)).get("schedules", 0),
             },
         }
 
@@ -200,7 +206,15 @@ class DigitalLegacy:
     def snapshot_counts(self) -> dict[str, int]:
         """Current instance counts for roundtrip verification."""
         return self._kernel.table_counts(
-            ("event_log", "conversations", "messages", "goals", "memories")
+            (
+                "event_log",
+                "conversations",
+                "messages",
+                "goals",
+                "memories",
+                "notifications",
+                "schedules",
+            )
         )
 
 

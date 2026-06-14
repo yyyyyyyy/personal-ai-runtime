@@ -37,7 +37,7 @@ jobs:
         run: |
           cd backend
           # Kernel + Runtime + API layer + Product layer; full app/ has legacy type debt outside this scope
-          mypy app/core/runtime/ app/core/harness/ app/core/agents/memory_engine.py app/core/agents/memory_extractor.py app/product/ app/api/ app/main.py scripts/ --ignore-missing-imports
+          mypy app/core/runtime/ app/core/harness/ app/core/agents/brain.py app/core/agents/conversation.py app/core/agents/planner.py app/core/agents/critic.py app/core/agents/llm_router.py app/core/agents/memory_engine.py app/core/agents/memory_extractor.py app/product/ app/api/ app/main.py scripts/ --ignore-missing-imports
 
       - name: Run tests
         run: |
@@ -170,3 +170,13 @@ jobs:
         run: |
           cd frontend
           npm test
+
+      - name: Install Playwright browser
+        run: |
+          cd frontend
+          npx playwright install chromium
+
+      - name: Frontend E2E tests
+        run: |
+          cd frontend
+          npm run test:e2e

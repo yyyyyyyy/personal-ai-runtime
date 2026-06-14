@@ -52,6 +52,19 @@ def main() -> int:
     mgr.save_user_message("Hello export")
     mgr.save_assistant_message("Hello import")
 
+    source_kernel.emit_event(
+        "NotificationCreated",
+        "notification",
+        "n-export-1",
+        payload={
+            "type": "alert",
+            "title": "Export test",
+            "content": "Roundtrip notification",
+            "created_at": "2026-06-10T00:00:00Z",
+        },
+        actor="verify",
+    )
+
     snapshot = legacy.export_all()
     if snapshot["version"] != EXPORT_VERSION:
         print(f"FAIL: expected version {EXPORT_VERSION}", file=sys.stderr)
@@ -70,7 +83,7 @@ def main() -> int:
     after = import_legacy.snapshot_counts()
 
     failed = False
-    for key in ("event_log", "conversations", "messages", "goals", "memories"):
+    for key in ("event_log", "conversations", "messages", "goals", "memories", "notifications"):
         if before.get(key) != after.get(key):
             print(
                 f"FAIL: count mismatch for {key!r}: before={before.get(key)} after={after.get(key)}",
@@ -86,6 +99,11 @@ def main() -> int:
     msgs = import_db.get_recent_messages(conv["id"], limit=10)
     if len(msgs) != 2 or msgs[0]["content"] != "Hello export":
         print("FAIL: messages not restored", file=sys.stderr)
+        failed = True
+
+    notifs = import_kernel.query_state("notifications", id="n-export-1")
+    if not notifs or notifs[0].get("title") != "Export test":
+        print("FAIL: notification projection not restored", file=sys.stderr)
         failed = True
 
     print(json.dumps({"import_result": result, "before": before, "after": after}, indent=2))

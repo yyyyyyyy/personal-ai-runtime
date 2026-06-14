@@ -179,19 +179,33 @@ def trigger_event_schedule(task_type: str, payload: dict | None = None):
 
 def _sync_v2_schedules_to_db():
     """Sync scheduler jobs to the schedules table with trigger_type."""
+    from app.core.runtime.kernel.constants import (
+        AGGREGATE_SCHEDULE,
+        EVENT_SCHEDULE_CREATED,
+    )
+    from app.core.runtime.kernel_instance import kernel
+
     jobs = _scheduler.get_jobs()
-    with db.get_db() as conn:
-        for job in jobs:
-            existing = conn.execute(
-                "SELECT id FROM schedules WHERE name = ?", (job.name,)
-            ).fetchone()
-            if not existing:
-                schedule_id = str(uuid.uuid4())
-                conn.execute(
-                    """INSERT INTO schedules (id, name, cron_expr, task_type, trigger_type, enabled, created_at)
-                       VALUES (?, ?, ?, ?, 'cron', 1, ?)""",
-                    (schedule_id, job.name, str(job.trigger), job.id, datetime.now(UTC).isoformat()),
-                )
+    now = datetime.now(UTC).isoformat()
+    for job in jobs:
+        existing = kernel.query_state("schedules", name=job.name)
+        if existing:
+            continue
+        schedule_id = str(uuid.uuid4())
+        kernel.emit_event(
+            EVENT_SCHEDULE_CREATED,
+            AGGREGATE_SCHEDULE,
+            schedule_id,
+            payload={
+                "name": job.name,
+                "cron_expr": str(job.trigger),
+                "task_type": job.id,
+                "trigger_type": "cron",
+                "enabled": True,
+                "created_at": now,
+            },
+            actor="scheduler",
+        )
 
 
 def _run_morning_brief():
@@ -359,16 +373,12 @@ def _run_deadline_alert():
             delta = datetime.fromisoformat(goal["deadline"]) - datetime.now(UTC)
             days_left = delta.days
 
-            notification_id = str(uuid.uuid4())
             title = "Deadline 预警"
             content = f"目标「{goal['title']}」还有 {days_left} 天截止"
 
-            with db.get_db() as conn:
-                conn.execute(
-                    "INSERT INTO notifications (id, type, title, content, created_at) "
-                    "VALUES (?, 'alert', ?, ?, ?)",
-                    (notification_id, title, content, datetime.now(UTC).isoformat()),
-                )
+            from app.product.notifications import create_notification
+
+            create_notification("alert", title, content)
 
         _update_v2_last_run("deadline_alert")
     except Exception as e:
@@ -376,8 +386,20 @@ def _run_deadline_alert():
 
 
 def _update_v2_last_run(task_name: str):
-    with db.get_db() as conn:
-        conn.execute(
-            "UPDATE schedules SET last_run_at = ? WHERE name = ?",
-            (datetime.now(UTC).isoformat(), task_name),
-        )
+    from app.core.runtime.kernel.constants import (
+        AGGREGATE_SCHEDULE,
+        EVENT_SCHEDULE_LAST_RUN_UPDATED,
+    )
+    from app.core.runtime.kernel_instance import kernel
+
+    rows = kernel.query_state("schedules", name=task_name)
+    if not rows:
+        return
+    now = datetime.now(UTC).isoformat()
+    kernel.emit_event(
+        EVENT_SCHEDULE_LAST_RUN_UPDATED,
+        AGGREGATE_SCHEDULE,
+        rows[0]["id"],
+        payload={"last_run_at": now},
+        actor="scheduler",
+    )

@@ -17,6 +17,8 @@ GOVERNED_TABLES: frozenset[str] = frozenset({
     "patterns",
     "conversations",
     "messages",
+    "notifications",
+    "schedules",
     "projection_checkpoints",
 })
 
@@ -24,8 +26,6 @@ GOVERNED_TABLES: frozenset[str] = frozenset({
 APP_STORAGE_TABLES: frozenset[str] = frozenset({
     "events",
     "reviews",
-    "notifications",
-    "schedules",
     "activity_log",
     "documents",
     "llm_calls",
@@ -69,6 +69,13 @@ GOVERNED_SCHEMA: dict[str, frozenset[str]] = {
     "messages": frozenset({
         "id", "conversation_id", "role", "content", "tool_calls", "tool_call_id",
         "created_at",
+    }),
+    "notifications": frozenset({
+        "id", "type", "title", "content", "read", "created_at",
+    }),
+    "schedules": frozenset({
+        "id", "name", "cron_expr", "task_type", "trigger_type", "trigger_config",
+        "config", "enabled", "last_run_at", "created_at",
     }),
     "event_log": frozenset({
         "seq", "id", "type", "aggregate_type", "aggregate_id", "actor", "payload",

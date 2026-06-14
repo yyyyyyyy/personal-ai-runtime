@@ -28,6 +28,10 @@ class QueryStateMixin(_KernelMixinInterface):
             return self._query_memories(filters)
         if selector == "patterns":
             return self._query_patterns(filters)
+        if selector == "notifications":
+            return self._query_notifications(filters)
+        if selector == "schedules":
+            return self._query_schedules(filters)
         raise ValueError(f"Unknown state selector: {selector!r}")
 
     def _query_goals(self, filters: dict[str, Any]) -> list[dict]:
@@ -264,6 +268,73 @@ class QueryStateMixin(_KernelMixinInterface):
             rows = conn.execute(
                 f"SELECT * FROM patterns{where} ORDER BY created_at DESC LIMIT ?",
                 params,
+            ).fetchall()
+        return [dict(r) for r in rows]
+
+    def _query_notifications(self, filters: dict[str, Any]) -> list[dict]:
+        notification_id = filters.get("id")
+        notif_type = filters.get("type")
+        title = filters.get("title")
+        unread_only = filters.get("unread_only")
+        created_on_date = filters.get("created_on_date")
+        limit = filters.get("limit", 50)
+        order = filters.get("order", "created_at_desc")
+
+        order_clauses = {
+            "created_at_desc": "created_at DESC",
+            "created_at_asc": "created_at ASC",
+        }
+        order_sql = order_clauses.get(order, order_clauses["created_at_desc"])
+
+        with self._db.get_db() as conn:
+            if notification_id:
+                row = conn.execute(
+                    "SELECT * FROM notifications WHERE id = ?", (notification_id,)
+                ).fetchone()
+                return [dict(row)] if row else []
+
+            clauses: list[str] = []
+            params: list[Any] = []
+            if notif_type is not None:
+                clauses.append("type = ?")
+                params.append(notif_type)
+            if title is not None:
+                clauses.append("title = ?")
+                params.append(title)
+            if unread_only:
+                clauses.append("read = 0")
+            if created_on_date is not None:
+                clauses.append("date(created_at) = date(?)")
+                params.append(created_on_date)
+
+            where = f" WHERE {' AND '.join(clauses)}" if clauses else ""
+            params.append(limit)
+            rows = conn.execute(
+                f"SELECT * FROM notifications{where} ORDER BY {order_sql} LIMIT ?",
+                params,
+            ).fetchall()
+        return [dict(r) for r in rows]
+
+    def _query_schedules(self, filters: dict[str, Any]) -> list[dict]:
+        schedule_id = filters.get("id")
+        name = filters.get("name")
+        limit = filters.get("limit", 100)
+
+        with self._db.get_db() as conn:
+            if schedule_id:
+                row = conn.execute(
+                    "SELECT * FROM schedules WHERE id = ?", (schedule_id,)
+                ).fetchone()
+                return [dict(row)] if row else []
+            if name is not None:
+                row = conn.execute(
+                    "SELECT * FROM schedules WHERE name = ? LIMIT 1", (name,)
+                ).fetchone()
+                return [dict(row)] if row else []
+
+            rows = conn.execute(
+                "SELECT * FROM schedules ORDER BY created_at DESC LIMIT ?",
+                (limit,),
             ).fetchall()
         return [dict(r) for r in rows]
 
