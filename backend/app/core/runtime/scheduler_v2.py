@@ -10,7 +10,6 @@ from apscheduler.triggers.cron import CronTrigger
 
 from app.core.runtime.event_bus import EventType, event_bus
 from app.core.runtime.kernel_instance import kernel
-from app.store.database import db
 
 logger = logging.getLogger(__name__)
 

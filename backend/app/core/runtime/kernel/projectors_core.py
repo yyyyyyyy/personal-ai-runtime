@@ -3,7 +3,6 @@ import json
 # --- Goal projection ---------------------------------------------------------
 # The `goals` table is the read model. These handlers are the ONLY writers to it
 # in the event-sourced path.
-
 from .event import Event
 from .projectors_registry import _OWNED_TABLES, projector
 

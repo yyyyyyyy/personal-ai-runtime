@@ -27,9 +27,7 @@ from app.core.agents.tool_postprocess import (
     compact_for_llm,
 )
 from app.core.runtime.conversation_recorder import record_conversation_turn
-from app.core.runtime.egress.egress_gate import prepare_llm_egress
 from app.core.runtime.kernel_instance import kernel
-from app.core.runtime.runtime_config import runtime_config
 from app.core.runtime.taint import taint_registry
 from app.core.telemetry.telemetry import LLMCallRecord, telemetry
 

@@ -1,7 +1,7 @@
 import json
+from typing import Any
 
 # --- Conversation projection (chat read models) --------------------------------
-
 from .event import Event
 from .projectors_registry import _OWNED_TABLES, projector
 

@@ -8,8 +8,7 @@ replaying the Event Log — that is the core property this slice proves.
 
 from __future__ import annotations
 
-import json
-from typing import Any, Callable
+from typing import Callable
 
 from .event import Event
 
