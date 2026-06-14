@@ -2,35 +2,57 @@
 
     Some providers emit <｜tool_calls><｜invoke name="shell_exec">… in content. */
 
-const PIPE = /[｜|]/;
-
-function open(): RegExp {
-  return new RegExp(`<\\s*[｜|]+tool_calls\\s*>`, "gi");
-}
-function close(): RegExp {
-  return new RegExp(`<\\s*/\\s*[｜|]+tool_calls\\s*>`, "gi");
-}
-function invoke(): RegExp {
-  return new RegExp(
-    `<\\s*[｜|]+invoke[^>]*>[\\s\\S]*?<\\s*/\\s*[｜|]+invoke\\s*>`,
-    "gi"
-  );
-}
+/** Matches complete <｜tool_calls>…</｜tool_calls> blocks (including all nested content). */
 function block(): RegExp {
   return new RegExp(
     `<\\s*[｜|]+tool_calls\\s*>[\\s\\S]*?<\\s*/\\s*[｜|]+tool_calls\\s*>`,
     "gi"
   );
 }
-function tail(): RegExp {
-  return new RegExp(`<\\s*[｜|]+tool_calls\\s*>[\\s\\S]*`, "gi");
+
+/** Matches standalone <｜invoke>…</｜invoke> blocks (without outer tool_calls wrapper). */
+function invoke(): RegExp {
+  return new RegExp(
+    `<\\s*[｜|]+invoke[^>]*>[\\s\\S]*?<\\s*/\\s*[｜|]+invoke\\s*>`,
+    "gi"
+  );
+}
+
+/** Matches any individual open/close/self-closing tool-call markup tag. */
+function anyTag(): RegExp {
+  return new RegExp(
+    `<\\s*\\/?\\s*[｜|]+\\s*(?:tool_calls|invoke|parameter)\\b[^>]*>`,
+    "gi"
+  );
+}
+
+/**
+ * Final safety-net: if any `<｜` survived all previous passes,
+ * strip from there to end of string.
+ */
+function ultimateTail(): RegExp {
+  return new RegExp(`<\\s*[｜|][\\s\\S]*$`, "i");
 }
 
 export function stripToolMarkup(text: string): string {
   if (!text) return "";
-  return text.replace(block(), "").replace(tail(), "").trim();
+
+  // Step 1: complete <｜tool_calls>…</｜tool_calls> blocks
+  text = text.replace(block(), "");
+
+  // Step 2: standalone <｜invoke>…</｜invoke> blocks
+  text = text.replace(invoke(), "");
+
+  // Step 3: any surviving individual tool-call tags
+  text = text.replace(anyTag(), "");
+
+  // Step 4: ultimate safety-net
+  text = text.replace(ultimateTail(), "");
+
+  return text.trim();
 }
 
 export function hasToolMarkup(text: string): boolean {
-  return open().test(text) || invoke().test(text);
+  if (!text) return false;
+  return /<[｜|]/.test(text);
 }

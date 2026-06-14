@@ -92,3 +92,49 @@ MCP_EXTERNAL_ENABLED=false
 **修复：** 后端 `tool_markup.py` 过滤流式 DSML 并解析为 `tool_calls`；前端/读库/存库三层剥离；**需重启 `make dev`** 后生效，旧对话刷新后也会清理历史气泡。
 
 **验证：** `backend/tests/runtime/test_tool_markup.py`、`frontend/src/utils/stripToolMarkup.test.ts`
+
+### 4. 审批后 LLM 不继续完成任务（已修 · 2026-06-14）
+
+**现象：** 用户审批通过工具操作后，助手气泡显示"任务完成"但没有后续文本回复，对话就此停止。
+
+**排错过程（含失误记录）：**
+
+本轮 bug 修复经历了 3 次迭代才找到根因：
+
+1. **第一轮（只改前端，无效）：** 看到聊天界面有 `<｜tool_calls>` 标记泄露 → 推测前端 `stripToolMarkup` 的 `invoke()` 正则定义了但未调用 → 增加调用和扩展 `tail()` 正则。用户反馈"没有解决"。
+
+2. **第二轮（只改前端，治标不治本）：** 重写前端剥离为 5 层级联防御，在 MessageItem 和审批流中都加防御 → 标记消失了，但 LLM 仍然没有继续执行任务。
+
+3. **第三轮（查数据库，找到根因）：** 通过 `sqlite3` 直接查询 `messages` 表，发现了真正的因果链：
+
+```sql
+-- Message 9 的内容（已保存到数据库）
+SELECT id, role, content FROM messages WHERE conversation_id = ? ORDER BY created_at;
+```
+
+| 序号 | role | 内容 |
+|------|------|------|
+| 8 | tool | `{"error": "Shell metacharacters ... not allowed"}` |
+| **9** | **assistant** | **`<｜tool_calls>…<｜invoke>…pwd…</｜invoke>…</｜tool_calls>`** |
+
+- Message 9 保存的是**纯工具标记文本**（不含正常的自然语言），经 `strip_tool_markup` 剥离后变为 **空字符串**。
+- 这条空消息由 `continue_after_tool_result` 产出：LLM 在被请求做**纯文本**回复时，仍然用结构化工具调用语法输出，导致剥离后为空。
+
+**根因：** `continue_after_tool_result` 使用非流式、不传 `tools` 的方式调用 DeepSeek，但 DeepSeek 仍以文本形式输出工具标记 → `strip_tool_markup` 剥离后为空 → 没有内容被保存/展示。
+
+**修复：**
+1. `brain.py` 的 `continue_after_tool_result` 增加空响应检测 + 重试：空内容时自动追加"禁止工具调用"的中文提示再请求一次。
+2. `tool_markup.py` 的 `strip_tool_markup` 防御层从 3 层增到 4 层（完整块 → 独立 invoke → 残余标签 → `<｜` 终极截断）。
+3. `stripToolMarkup.ts` 前端同步升级到 5 层防御。
+
+**教训（为什么改了多次才改对）：**
+
+| 失误 | 后果 | 正确做法 |
+|------|------|----------|
+| 没查数据库就改代码 | 前两轮都在修"显示"问题，漏了真正的"行为"问题 | **先读数据，再动手**：`sqlite3` 查 `messages` 表能 30 秒定位根因 |
+| 只改了前端 | 标记被隐藏，但 LLM 空响应没解决 | 按**端到端数据流**走查：LLM → 后端 → DB → 前端 |
+| 没区分"症状"与"根因" | 把标记泄露当根因修了两轮 | 问自己："如果标记被剥离了，任务能继续吗？"——不能，因为剥离后内容是空的 |
+
+**验证：**
+- 后端：`backend/app/core/agents/brain.py` → `continue_after_tool_result` 的 retry 分支有测试覆盖
+- 前端：`frontend/src/utils/stripToolMarkup.test.ts`

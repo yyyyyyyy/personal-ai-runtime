@@ -3,6 +3,7 @@ import remarkGfm from "remark-gfm";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { oneDark } from "react-syntax-highlighter/dist/esm/styles/prism";
 import ToolCallDisplay from "./ToolCallDisplay";
+import { stripToolMarkup } from "../../utils/stripToolMarkup";
 
 interface ToolCall {
   index: number;
@@ -37,6 +38,9 @@ export default function MessageItem({ message }: Props) {
   const isSystem = message.role === "system";
   const isTool = message.role === "tool";
 
+  // Defensive strip: ensure no tool markup leaks into the rendered content
+  const displayContent = isAssistant ? stripToolMarkup(message.content) : message.content;
+
   if (isSystem || isTool) return null;
 
   return (
@@ -64,11 +68,11 @@ export default function MessageItem({ message }: Props) {
         )}
 
         {/* Message content */}
-        {message.content && (
+        {displayContent && (
           <div className={message.isStreaming ? "typing-cursor" : ""}>
             {isUser ? (
               <p className="whitespace-pre-wrap text-sm leading-relaxed">
-                {message.content}
+                {displayContent}
               </p>
             ) : (
               <div className="markdown-content text-sm leading-relaxed prose-p:my-0">
@@ -116,7 +120,7 @@ export default function MessageItem({ message }: Props) {
                     },
                   }}
                 >
-                  {message.content}
+                  {displayContent}
                 </ReactMarkdown>
               </div>
             )}

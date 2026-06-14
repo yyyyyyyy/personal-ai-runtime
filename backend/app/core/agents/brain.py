@@ -324,15 +324,22 @@ class Brain:
         yield {"type": "done"}
 
     async def continue_after_tool_result(self, conversation: ConversationManager) -> str:
-        """One-shot LLM completion after approval resolution closes the tool loop."""
+        """One-shot LLM completion after approval resolution closes the tool loop.
+
+        The LLM is called *without* tools so it produces a text-only continuation.
+        Some providers (DeepSeek) may still emit tool-call markup as text — we
+        strip it and retry with an explicit instruction when the result is empty.
+        """
         messages = self._build_messages(conversation, user_message="")
-        # Drop the trailing empty user message added by _build_messages.
         if messages and messages[-1].get("role") == "user" and not messages[-1].get("content"):
             messages.pop()
 
         egress_messages, _egress_audit = prepare_llm_egress(
             messages, purpose="chat_continue"
         )
+
+        # First attempt — clean LLM response
+        content = ""
         try:
             response = await self.client.chat.completions.create(
                 model=self.provider.model,
@@ -340,16 +347,46 @@ class Brain:
                 temperature=settings.llm_temperature,
                 max_tokens=settings.llm_max_tokens,
             )
+            content = response.choices[0].message.content or ""
         except Exception as e:
-            err = f"无法生成后续回复: {e}"
-            conversation.save_assistant_message(err)
-            return err
+            logger.warning("continue_after_tool_result first attempt failed: %s", e)
 
-        content = response.choices[0].message.content or ""
-        if content:
-            content = strip_tool_markup(content)
-            conversation.save_assistant_message(content)
-        return content
+        # Strip any leaked tool-call markup
+        cleaned = strip_tool_markup(content)
+
+        # If the LLM produced only tool-call markup (stripped to empty), retry
+        # with an explicit instruction to NOT use any tool syntax.
+        if not cleaned.strip():
+            original_raw = content[:200] if content else "(empty)"
+            logger.warning(
+                "continue_after_tool_result: empty after strip, raw=%r — retrying",
+                original_raw,
+            )
+            retry_messages = list(egress_messages)
+            retry_messages.append({
+                "role": "user",
+                "content": (
+                    "请仅用自然语言继续回答，不要使用任何工具调用标记"
+                    "（如 <｜tool_calls>、<｜invoke> 等），"
+                    "也不要尝试调用任何工具。直接给出你的分析或建议。"
+                ),
+            })
+            try:
+                response = await self.client.chat.completions.create(
+                    model=self.provider.model,
+                    messages=retry_messages,
+                    temperature=settings.llm_temperature,
+                    max_tokens=settings.llm_max_tokens,
+                )
+                content = response.choices[0].message.content or ""
+                cleaned = strip_tool_markup(content)
+            except Exception as e:
+                logger.exception("continue_after_tool_result retry failed")
+                cleaned = f"操作已完成，但无法生成后续回复：{e}"
+
+        if cleaned.strip():
+            conversation.save_assistant_message(cleaned)
+        return cleaned
 
     async def _create_llm_stream(self, messages: list[dict]):
         """Try primary LLM provider, then fallbacks."""

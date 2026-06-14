@@ -92,7 +92,8 @@ async def send_message(conv_id: str, body: SendMessageRequest):
                 from app.core.runtime.conversation_recorder import record_conversation_turn
 
                 record_conversation_turn(conv_id, content, result["summary"])
-                yield f"data: {json.dumps({'type': 'text_delta', 'content': strip_tool_markup(result['summary'])})}\n\n"
+                summary_clean = strip_tool_markup(result["summary"])
+                yield f"data: {json.dumps({'type': 'text_delta', 'content': summary_clean})}\n\n"
                 yield f"data: {json.dumps({'type': 'done'})}\n\n"
             except Exception as e:
                 yield f"data: {json.dumps({'type': 'error', 'content': str(e)})}\n\n"
@@ -205,7 +206,6 @@ async def resolve_approval(approval_id: str, body: ResolveApprovalRequest):
         )
         payload: dict = {"status": "success", "result": result_str}
         if assistant_message is not None:
-            from app.core.agents.tool_markup import strip_tool_markup
             payload["assistant_message"] = strip_tool_markup(assistant_message)
         return payload
     else:
@@ -221,6 +221,5 @@ async def resolve_approval(approval_id: str, body: ResolveApprovalRequest):
         )
         payload = {"status": "denied"}
         if assistant_message is not None:
-            from app.core.agents.tool_markup import strip_tool_markup
             payload["assistant_message"] = strip_tool_markup(assistant_message)
         return payload

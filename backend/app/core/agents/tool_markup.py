@@ -35,21 +35,44 @@ _PARAM_RE = re.compile(
     rf"<\s*{_PARAM}\s+name=\"([^\"]+)\"[^>]*>(.*?)<\s*/\s*{_PARAM}\s*>",
     re.DOTALL | re.IGNORECASE,
 )
-_ANY_TOOL_MARKUP_RE = re.compile(rf"<\s*{_OPEN}", re.IGNORECASE)
 
 
 def has_tool_markup(text: str) -> bool:
-    return bool(text and _ANY_TOOL_MARKUP_RE.search(text))
+    """True when the text contains any pipe-based tool-call markup."""
+    if not text:
+        return False
+    return bool(re.search(rf"<\s*{_PIPE}(?:tool_calls|invoke|parameter)\b", text, re.IGNORECASE))
 
 
 def strip_tool_markup(text: str) -> str:
-    """Remove leaked tool-call markup from assistant text."""
+    """Remove leaked tool-call markup from assistant text.
+
+    Strategy (ordered by specificity):
+    1. Remove complete <｜tool_calls>…</｜tool_calls> blocks
+    2. Remove standalone <｜invoke>…</｜invoke> blocks
+    3. Remove any remaining individual tool-call / invoke / parameter tags
+    4. Ultimate safety-net: strip from the first surviving <｜ to end
+    """
     if not text:
         return ""
+
+    # Step 1: complete <｜tool_calls>…</｜tool_calls> blocks
     cleaned = _TOOL_CALLS_BLOCK_RE.sub("", text)
+
+    # Step 2: standalone <｜invoke>…</｜invoke> blocks (may appear without wrapper)
     cleaned = _INVOKE_BLOCK_RE.sub("", cleaned)
-    # Drop orphan opening tags still buffering
-    cleaned = re.sub(rf"<\s*{_OPEN}\s*>[\s\S]*", "", cleaned)
+
+    # Step 3: any surviving individual open/close/self-closing tool-call markup tags
+    _any_tag_re = re.compile(
+        rf"<\s*/?\s*{_PIPE}\s*(?:tool_calls|invoke|parameter)\b[^>]*>",
+        re.IGNORECASE,
+    )
+    cleaned = _any_tag_re.sub("", cleaned)
+
+    # Step 4: ultimate safety-net — if any <｜ survived, strip from there to end
+    _ultimate_tail_re = re.compile(r"<\s*[｜|][\s\S]*$", re.IGNORECASE)
+    cleaned = _ultimate_tail_re.sub("", cleaned)
+
     return cleaned.strip()
 
 

@@ -1,6 +1,7 @@
 import { useState, useCallback } from "react";
 import { resolveApproval, ApiError } from "../api/client";
 import type { DisplayMessage } from "./useChatMessages";
+import { stripToolMarkup } from "../utils/stripToolMarkup";
 
 interface PendingConfirmation {
   toolCall: {
@@ -59,7 +60,7 @@ export function useApprovalFlow(conversationId: string) {
             updated.push({
               id: `assistant-followup-${Date.now()}`,
               role: "assistant",
-              content: res.assistant_message,
+              content: stripToolMarkup(res.assistant_message),
               isStreaming: false,
             });
           }
@@ -120,7 +121,7 @@ export function useApprovalFlow(conversationId: string) {
             updated.push({
               id: `assistant-followup-${Date.now()}`,
               role: "assistant",
-              content: res.assistant_message,
+              content: stripToolMarkup(res.assistant_message),
               isStreaming: false,
             });
           }
