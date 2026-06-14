@@ -62,7 +62,6 @@ Coding & project changes:
 - To add an external MCP: edit backend/mcp_config.json (follow existing external_servers entries), update .env.example if needed, tell the user which .env keys to set, and remind them to restart the backend before new tools appear.
 
 shell_exec rules:
-- Run ONE command per call. Do NOT chain commands with &&, ||, or |.
 - Use list_directory and read_file to explore the project — do not use shell_exec to list files."""
 
 

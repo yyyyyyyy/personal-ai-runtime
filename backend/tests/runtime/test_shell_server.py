@@ -33,7 +33,6 @@ def test_node_eval_blocked():
     "command",
     [
         "echo hello | wc",
-        "echo hello && echo world",
         "echo hello; echo world",
         "echo > /tmp/out",
         "echo `whoami`",
@@ -41,6 +40,14 @@ def test_node_eval_blocked():
 )
 def test_shell_metacharacters_blocked(command: str):
     assert "metacharacters" in _error(shell_server.execute(command))
+
+
+def test_chained_commands_auto_split():
+    """&& is now auto-split into individual commands instead of being rejected."""
+    result = json.loads(shell_server.execute("echo hello && echo world"))
+    assert result.get("chained") is True
+    assert result["commands"] == ["echo hello", "echo world"]
+    assert len(result["results"]) == 2
 
 
 def test_blocked_patterns_still_rejected():

@@ -28,8 +28,15 @@ class ShellServer:
         "> /dev/", "dd if=", ":(){ :|:& };:",
     ]
 
-    # Shell metacharacters and command chaining — never pass to a shell.
-    SHELL_METACHAR_RE = re.compile(r"[|&;`$<>()]|\|\||&&")
+    # Shell metacharacters — never pass to a shell.
+    # && is handled separately by _split_and_execute; all other metacharacters
+    # (|, ||, ;, `, $, <, >, (, )) are still rejected.
+    _METACHAR_RE = re.compile(r"[|;`$<>()]|\|\|")
+
+    def _split_chained_commands(self, command: str) -> list[str]:
+        """Split a chained command (cmd1 && cmd2) into individual commands."""
+        parts = command.split("&&")
+        return [p.strip() for p in parts if p.strip()]
 
     # Dangerous flags for interpreters that can execute arbitrary code.
     DANGEROUS_FLAGS: dict[str, frozenset[str]] = {
@@ -47,10 +54,10 @@ class ShellServer:
         if not stripped:
             return "Empty command"
 
-        if self.SHELL_METACHAR_RE.search(stripped):
+        if self._METACHAR_RE.search(stripped):
             return (
                 "Shell metacharacters and command chaining are not allowed. "
-                "Run ONE command per call (e.g. 'pwd' not 'pwd && ls')."
+                "Use '&&' to chain commands instead, or run ONE command."
             )
 
         for pattern in self.BLOCKED_PATTERNS:
@@ -100,7 +107,42 @@ class ShellServer:
         return None
 
     def execute(self, command: str, cwd: str = "", timeout_seconds: int = 30) -> str:
-        """Execute a whitelisted command without invoking a shell."""
+        """Execute whitelisted commands without invoking a shell.
+        
+        If the command contains &&, it is automatically split into individual
+        commands that are run sequentially. Each command gets the full timeout.
+        The first failure stops the chain.
+        """
+        parts = self._split_chained_commands(command)
+        if len(parts) > 1:
+            results = []
+            for i, part in enumerate(parts):
+                r = self._run_single(part, cwd, timeout_seconds)
+                results.append(r)
+                # Check if this command returned an error — if so, stop the chain
+                try:
+                    data = json.loads(r)
+                    if data.get("error"):
+                        return json.dumps({
+                            "chained": True,
+                            "commands": parts,
+                            "completed": i + 1,
+                            "stopped_at_command": i + 1,
+                            "results": results,
+                            "note": f"Stopped at command {i+1}/{len(parts)} due to error.",
+                        })
+                except json.JSONDecodeError:
+                    pass
+            return json.dumps({
+                "chained": True,
+                "commands": parts,
+                "results": [json.loads(r) for r in results],
+            })
+        
+        return self._run_single(command, cwd, timeout_seconds)
+
+    def _run_single(self, command: str, cwd: str = "", timeout_seconds: int = 30) -> str:
+        """Execute a single command (no chaining)."""
         parsed = self._parse_argv(command)
         if isinstance(parsed, str):
             return json.dumps({"error": parsed})
