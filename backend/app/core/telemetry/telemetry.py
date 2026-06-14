@@ -103,6 +103,28 @@ class Telemetry:
             ).fetchone()
         return dict(row) if row else {}
 
+    def get_llm_summary_by_model(self, days: int = 7) -> list[dict]:
+        """Get token/cost breakdown grouped by provider and model."""
+        with db.get_db() as conn:
+            rows = conn.execute(
+                """SELECT
+                    provider,
+                    model,
+                    COUNT(*) as total_calls,
+                    SUM(prompt_tokens) as prompt_tokens,
+                    SUM(completion_tokens) as completion_tokens,
+                    SUM(prompt_tokens) + SUM(completion_tokens) as total_tokens,
+                    SUM(cost) as cost,
+                    AVG(latency_ms) as avg_latency_ms,
+                    SUM(CASE WHEN success = 0 THEN 1 ELSE 0 END) as failed_calls
+                   FROM llm_calls
+                   WHERE created_at >= datetime('now', ?)
+                   GROUP BY provider, model
+                   ORDER BY total_tokens DESC""",
+                (f"-{days} days",),
+            ).fetchall()
+        return [dict(r) for r in rows]
+
     def get_tool_summary(self, days: int = 7) -> dict:
         """Get tool call success rate and latency summary."""
         with db.get_db() as conn:

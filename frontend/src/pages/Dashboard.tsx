@@ -51,6 +51,7 @@ function ToolBadge({ tool }: { tool: ToolSummaryItem }) {
 export default function DashboardPage() {
   const {
     cost,
+    costByModel,
     tools,
     memory,
     health,
@@ -87,6 +88,7 @@ export default function DashboardPage() {
   }
 
   const totalTokens = (cost?.total_prompt_tokens || 0) + (cost?.total_completion_tokens || 0);
+  const maxModelTokens = costByModel.reduce((max, m) => Math.max(max, m.total_tokens || 0), 0) || 1;
   const successRate = cost && cost.total_calls > 0
     ? (((cost.total_calls - cost.failed_calls) / cost.total_calls) * 100).toFixed(1)
     : "100";
@@ -151,6 +153,20 @@ export default function DashboardPage() {
               <span className="text-gray-500">总计</span>
               <span className="text-gray-200 font-medium">{totalTokens.toLocaleString()} tokens</span>
             </div>
+            {costByModel.length > 0 && (
+              <div className="mt-4 pt-3 border-t border-gray-800">
+                <div className="text-xs text-gray-500 mb-2">按模型分布</div>
+                {costByModel.map((m) => (
+                  <Bar
+                    key={`${m.provider}:${m.model}`}
+                    label={`${m.provider} / ${m.model}`}
+                    value={m.total_tokens || 0}
+                    max={maxModelTokens}
+                    color="#8b5cf6"
+                  />
+                ))}
+              </div>
+            )}
           </div>
           <div className="bg-gray-900 border border-gray-800 rounded-xl p-5">
             <h3 className="text-sm font-medium text-gray-300 mb-4">成本与延迟 (7天)</h3>

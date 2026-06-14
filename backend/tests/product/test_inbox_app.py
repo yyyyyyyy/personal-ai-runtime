@@ -22,6 +22,43 @@ def inbox_db(tmp_path, monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_poll_inbox_syncs_read_status(inbox_db):
+    sample_unread = {
+        "count": 1,
+        "emails": [
+            {
+                "message_id": "msg-unread",
+                "from": "a@b.com",
+                "subject": "Still unread",
+                "preview": "x",
+                "date": "2026-06-10",
+            },
+        ],
+    }
+
+    with inbox_db.get_db() as conn:
+        conn.execute(
+            """INSERT INTO inbox_emails
+               (id, sender, subject, preview, received_at, category, importance, reason, status)
+               VALUES ('msg-read', 'b@c.com', 'Read mail', 'y', datetime('now'), 'actionable', 0.5, 't', 'pending'),
+                      ('msg-unread', 'a@b.com', 'Unread', 'x', datetime('now'), 'actionable', 0.5, 't', 'pending')"""
+        )
+
+    async def fake_invoke(name, args=None, actor="system", **kwargs):
+        return {"status": "success", "result": json.dumps(sample_unread)}
+
+    with patch("app.product.inbox.kernel.invoke_capability", side_effect=fake_invoke):
+        with patch("app.product.inbox._classify_emails", new=AsyncMock(return_value=[])):
+            result = await poll_inbox(limit=10)
+
+    assert result["synced_read"] == 1
+    with inbox_db.get_db() as conn:
+        rows = {r["id"]: r["status"] for r in conn.execute("SELECT id, status FROM inbox_emails").fetchall()}
+    assert rows["msg-read"] == "read"
+    assert rows["msg-unread"] == "pending"
+
+
+@pytest.mark.asyncio
 async def test_poll_inbox_dedupes_and_notifies_important(inbox_db):
     sample = {
       "count": 2,

@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any
 
 from app.config import settings, validate_storage_paths
+from app.core.runtime.runtime_config import runtime_config
 
 logger = logging.getLogger(__name__)
 
@@ -43,21 +44,32 @@ def run_startup_checks() -> dict[str, Any]:
         "sqlite_exists": sqlite_path.exists(),
     }
 
+    default_provider = next(
+        (p for p in runtime_config.get_llm_config(masked=False).get("providers", []) if p.get("enabled")),
+        None,
+    )
+    llm_configured = False
+    if default_provider:
+        if default_provider.get("type") == "ollama":
+            llm_configured = bool(default_provider.get("base_url"))
+        else:
+            llm_configured = bool(default_provider.get("api_key"))
     checks["llm"] = {
-        "configured": bool(settings.llm_api_key),
-        "model": settings.llm_model,
-        "base_url": settings.llm_base_url,
+        "configured": llm_configured,
+        "model": default_provider.get("model", settings.llm_model) if default_provider else settings.llm_model,
+        "base_url": default_provider.get("base_url", settings.llm_base_url) if default_provider else settings.llm_base_url,
     }
-    if not settings.llm_api_key:
-        warnings.append("LLM_API_KEY is not set — chat will fail until configured")
+    if not checks["llm"]["configured"]:
+        warnings.append("LLM API Key 未配置 — 对话将失败直至配置完成")
 
     checks["auth"] = {
         "enabled": bool(settings.auth_token),
         "host": settings.host,
     }
 
+    email_creds = runtime_config.get_email_credentials()
     checks["email"] = {
-        "configured": bool(settings.email_user and settings.email_pass),
+        "configured": bool(email_creds.get("user") and email_creds.get("password")),
     }
 
     for warning in warnings:

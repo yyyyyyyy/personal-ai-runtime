@@ -35,6 +35,7 @@ REQUIRED_TABLES = [
     "triggers",
     "user_profile",
     "inbox_emails",
+    "app_settings",
 ]
 
 

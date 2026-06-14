@@ -230,7 +230,14 @@ CREATE TABLE IF NOT EXISTS inbox_emails (
     reason TEXT,
     notified INTEGER DEFAULT 0,
     digested INTEGER DEFAULT 0,
+    status TEXT DEFAULT 'pending',
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS app_settings (
+    category TEXT PRIMARY KEY,
+    data_json TEXT NOT NULL,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 """
 

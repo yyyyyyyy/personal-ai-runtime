@@ -5,8 +5,8 @@ Takes user input + context, outputs a multi-step plan as JSON.
 
 import json
 
-from app.config import settings
 from app.core.agents.llm_router import llm_router
+from app.core.runtime.runtime_config import runtime_config
 
 PLANNER_PROMPT = """You are a strategic planner. Given a user request and context, produce a step-by-step execution plan.
 
@@ -39,11 +39,12 @@ class PlannerAgent:
         ]
 
         try:
+            temp, max_tokens = runtime_config.get_generation_params()
             response = await self.client.chat.completions.create(
                 model=self.provider.model,
                 messages=messages,
-                temperature=settings.llm_temperature,
-                max_tokens=settings.llm_max_tokens,
+                temperature=temp,
+                max_tokens=max_tokens,
             )
             content = response.choices[0].message.content or "{}"
             return json.loads(content)

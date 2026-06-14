@@ -1,14 +1,15 @@
 """Multi-LLM Router — supports multiple LLM providers with fallback.
 
 Allows configuring multiple LLM providers and automatically switches
-when the primary provider fails.
+when the primary provider fails. Configuration comes from runtime_config
+with .env as initial seed.
 """
 
 from dataclasses import dataclass
 
 from openai import AsyncOpenAI
 
-from app.config import settings
+from app.core.runtime.runtime_config import effective_api_key, runtime_config
 
 
 @dataclass
@@ -19,6 +20,7 @@ class LLMProvider:
     api_key: str
     base_url: str
     model: str
+    provider_type: str = "openai_compatible"
     is_default: bool = False
 
 
@@ -27,57 +29,40 @@ class LLMRouter:
 
     def __init__(self):
         self.providers: list[LLMProvider] = []
-        self._load_providers()
         self._clients: dict[str, AsyncOpenAI] = {}
+        self._load_providers()
+
+    def _resolve_api_key(self, provider: dict) -> str:
+        return effective_api_key(provider)
 
     def _load_providers(self):
-        """Load providers from settings. Default provider comes from .env."""
-        self.providers = [
-            LLMProvider(
-                name="deepseek",
-                api_key=settings.llm_api_key,
-                base_url=settings.llm_base_url,
-                model=settings.llm_model,
-                is_default=True,
-            )
-        ]
+        """Load providers from runtime_config."""
+        llm = runtime_config.get_llm_config(masked=False)
+        default_id = llm.get("default_provider", "deepseek")
+        self.providers = []
+        self._clients = {}
 
-        # Optional secondary providers from env
-        import os
-        openai_key = os.getenv("OPENAI_API_KEY", "")
-        if openai_key:
+        for item in llm.get("providers", []):
+            if not item.get("enabled", True):
+                continue
+            api_key = self._resolve_api_key(item)
             self.providers.append(
                 LLMProvider(
-                    name="openai",
-                    api_key=openai_key,
-                    base_url="https://api.openai.com/v1",
-                    model=os.getenv("OPENAI_MODEL", "gpt-4o-mini"),
+                    name=item["id"],
+                    api_key=api_key,
+                    base_url=item.get("base_url", ""),
+                    model=item.get("model", ""),
+                    provider_type=item.get("type", "openai_compatible"),
+                    is_default=item["id"] == default_id,
                 )
             )
 
-        claude_key = os.getenv("ANTHROPIC_API_KEY", "")
-        if claude_key:
-            # Claude via OpenAI-compatible proxy is common
-            claude_base = os.getenv("ANTHROPIC_BASE_URL", "https://api.anthropic.com/v1")
-            self.providers.append(
-                LLMProvider(
-                    name="claude",
-                    api_key=claude_key,
-                    base_url=claude_base,
-                    model=os.getenv("CLAUDE_MODEL", "claude-sonnet-4-20250514"),
-                )
-            )
+        if self.providers and not any(p.is_default for p in self.providers):
+            self.providers[0].is_default = True
 
-        ollama_url = os.getenv("OLLAMA_BASE_URL", "")
-        if ollama_url:
-            self.providers.append(
-                LLMProvider(
-                    name="ollama",
-                    api_key="ollama",
-                    base_url=ollama_url,
-                    model=os.getenv("OLLAMA_MODEL", "qwen2.5:7b"),
-                )
-            )
+    def reload(self):
+        """Reload providers after runtime config changes."""
+        self._load_providers()
 
     def get_client(self, provider_name: str | None = None) -> tuple[AsyncOpenAI, LLMProvider]:
         """Get a client for the specified provider, or the default one."""
@@ -88,7 +73,6 @@ class LLMRouter:
                         self._clients[p.name] = AsyncOpenAI(api_key=p.api_key, base_url=p.base_url)
                     return self._clients[p.name], p
 
-        # Return default
         for p in self.providers:
             if p.is_default:
                 if p.name not in self._clients:
@@ -107,13 +91,20 @@ class LLMRouter:
                 result.append((self._clients[p.name], p))
         return result
 
+    def _provider_available(self, provider: LLMProvider) -> bool:
+        if provider.provider_type == "ollama":
+            return bool(provider.base_url)
+        return bool(provider.api_key)
+
     def list_providers(self) -> list[dict]:
-        """List all configured providers."""
+        """List all configured providers with availability."""
         return [
             {
                 "name": p.name,
                 "model": p.model,
+                "type": p.provider_type,
                 "is_default": p.is_default,
+                "available": self._provider_available(p),
             }
             for p in self.providers
         ]

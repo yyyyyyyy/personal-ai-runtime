@@ -88,7 +88,7 @@ export default function ChatHome() {
       ]);
       setMemoryCount(memories.memories?.length ?? 0);
       setStagnantGoalCount(goals.filter((g) => g.status === "active" && isStagnant(g.last_activity_at)).length);
-      setUnreadInbox(inbox.filter((e) => !e.notified).length);
+      setUnreadInbox(inbox.length);
     } catch {
       // optional
     } finally {

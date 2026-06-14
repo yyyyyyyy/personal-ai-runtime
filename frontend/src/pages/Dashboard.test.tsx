@@ -26,6 +26,30 @@ function mockDashboardData(overrides: Partial<ReturnType<typeof useDashboard>> =
       total_calls: 42,
       failed_calls: 2,
     },
+    costByModel: [
+      {
+        provider: "deepseek",
+        model: "deepseek-chat",
+        total_calls: 30,
+        prompt_tokens: 4000,
+        completion_tokens: 2000,
+        total_tokens: 6000,
+        cost: 0.04,
+        avg_latency_ms: 1100,
+        failed_calls: 1,
+      },
+      {
+        provider: "openai",
+        model: "gpt-4o-mini",
+        total_calls: 12,
+        prompt_tokens: 1000,
+        completion_tokens: 1000,
+        total_tokens: 2000,
+        cost: 0.01,
+        avg_latency_ms: 900,
+        failed_calls: 1,
+      },
+    ],
     tools: [
       { tool_name: "web_search", total_calls: 15, failed_calls: 1, avg_latency_ms: 800 },
       { tool_name: "read_file", total_calls: 10, failed_calls: 0, avg_latency_ms: 200 },
@@ -105,10 +129,12 @@ describe("DashboardPage", () => {
     expect(screen.getAllByText("总记忆数")[0]).toBeInTheDocument();
   });
 
-  it("renders token usage section", () => {
+  it("renders token usage section with per-model breakdown", () => {
     render(<DashboardPage />);
     expect(screen.getAllByText("Token 用量 (7天)")[0]).toBeInTheDocument();
     expect(screen.getByText(/8,000\s+tokens/)).toBeInTheDocument();
+    expect(screen.getByText("按模型分布")).toBeInTheDocument();
+    expect(screen.getByText("deepseek / deepseek-chat")).toBeInTheDocument();
   });
 
   it("renders cost section", () => {

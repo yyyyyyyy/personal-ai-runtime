@@ -58,6 +58,18 @@ export interface CostSummary {
   failed_calls: number;
 }
 
+export interface ModelCostItem {
+  provider: string;
+  model: string;
+  total_calls: number;
+  prompt_tokens: number;
+  completion_tokens: number;
+  total_tokens: number;
+  cost: number;
+  avg_latency_ms: number;
+  failed_calls: number;
+}
+
 export interface ToolSummaryItem {
   tool_name: string;
   total_calls: number;
@@ -163,6 +175,7 @@ export interface InboxEmail {
   reason: string;
   notified: number;
   digested: number;
+  status?: "pending" | "read" | "handled";
   created_at: string;
 }
 

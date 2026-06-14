@@ -52,7 +52,7 @@ jobs:
           import os
           os.environ['LLM_API_KEY'] = 'test-key'
           from app.store.database import db
-          required = ['conversations','messages','goals','actions','events','memories','reviews','notifications','schedules','activity_log','documents','tasks','llm_calls','tool_calls','approvals','background_tasks','triggers','user_profile','inbox_emails']
+          required = ['conversations','messages','goals','actions','events','memories','reviews','notifications','schedules','activity_log','documents','tasks','llm_calls','tool_calls','approvals','background_tasks','triggers','user_profile','inbox_emails','app_settings']
           with db.get_db() as conn:
               tables = {t['name'] for t in conn.execute('SELECT name FROM sqlite_master WHERE type=\"table\"').fetchall()}
               missing = [t for t in required if t not in tables]

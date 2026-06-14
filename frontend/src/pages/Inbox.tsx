@@ -3,6 +3,7 @@ import {
   getInboxDigest,
   listInboxEmails,
   triggerInboxPoll,
+  updateInboxEmailStatus,
   ApiError,
   type InboxEmail,
 } from "../api/client";
@@ -25,16 +26,36 @@ export default function InboxPage() {
   const addError = useErrorStore((s) => s.addError);
   const quickChat = useQuickChat();
 
-  const handleAiProcess = (em: InboxEmail) => {
+  const handleAiProcess = async (em: InboxEmail) => {
+    try {
+      await updateInboxEmailStatus(em.id, "handled");
+      setEmails((prev) => prev.filter((e) => e.id !== em.id));
+    } catch (err) {
+      const msg = err instanceof ApiError ? err.message : "标记处理失败";
+      addError(msg, "收件箱");
+    }
     const prompt = `请帮我处理这封邮件：\n发件人：${em.sender}\n主题：${em.subject}\n预览：${em.preview}\n分类：${em.category}\n原因：${em.reason}`;
     quickChat({ title: `邮件：${em.subject.slice(0, 20)}`, prompt });
   };
 
-  const load = async () => {
+  const handleMarkRead = async (em: InboxEmail) => {
+    try {
+      await updateInboxEmailStatus(em.id, "read");
+      setEmails((prev) => prev.filter((e) => e.id !== em.id));
+    } catch (err) {
+      const msg = err instanceof ApiError ? err.message : "标记已读失败";
+      addError(msg, "收件箱");
+    }
+  };
+
+  const load = async (sync = true) => {
     setLoading(true);
     try {
+      if (sync) {
+        await triggerInboxPoll().catch(() => null);
+      }
       const [items, dig] = await Promise.all([
-        listInboxEmails(),
+        listInboxEmails(undefined, "pending"),
         getInboxDigest(),
       ]);
       setEmails(items);
@@ -56,7 +77,7 @@ export default function InboxPage() {
     setPolling(true);
     try {
       await triggerInboxPoll();
-      await load();
+      await load(false);
     } catch (err) {
       const msg =
         err instanceof ApiError ? err.message : "轮询邮件失败";
@@ -109,12 +130,20 @@ export default function InboxPage() {
                       {em.reason && (
                         <div className="text-xs text-gray-600 mt-2 line-clamp-2">{em.reason}</div>
                       )}
-                      <button
-                        onClick={() => handleAiProcess(em)}
-                        className="mt-2 text-xs text-emerald-500 hover:text-emerald-400"
-                      >
-                        让 AI 处理
-                      </button>
+                      <div className="flex gap-3 mt-2">
+                        <button
+                          onClick={() => handleMarkRead(em)}
+                          className="text-xs text-gray-400 hover:text-gray-200"
+                        >
+                          标记已读
+                        </button>
+                        <button
+                          onClick={() => handleAiProcess(em)}
+                          className="text-xs text-emerald-500 hover:text-emerald-400"
+                        >
+                          让 AI 处理
+                        </button>
+                      </div>
                     </div>
                   ))}
                   {byCategory(col.key).length === 0 && (

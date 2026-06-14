@@ -13,6 +13,12 @@ async def cost_summary(days: int = Query(default=7, ge=1, le=90)):
     return telemetry.get_llm_summary(days=days)
 
 
+@router.get("/cost/by-model")
+async def cost_by_model(days: int = Query(default=7, ge=1, le=90)):
+    """Get LLM token/cost breakdown per provider and model."""
+    return telemetry.get_llm_summary_by_model(days=days)
+
+
 @router.get("/llm-calls")
 async def list_llm_calls(limit: int = 50, offset: int = 0):
     """List recent LLM calls."""

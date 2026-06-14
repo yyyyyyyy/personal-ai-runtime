@@ -13,6 +13,7 @@ export type {
   StreamEvent,
   Notification,
   CostSummary,
+  ModelCostItem,
   ToolSummaryItem,
   MemoryStats,
   HealthSnapshot,
@@ -64,7 +65,7 @@ export {
 } from "./goals";
 
 // Inbox
-export { listInboxEmails, getInboxDigest, triggerInboxPoll } from "./inbox";
+export { listInboxEmails, getInboxDigest, triggerInboxPoll, updateInboxEmailStatus } from "./inbox";
 
 // Memory
 export {
@@ -84,7 +85,26 @@ export {
 } from "./knowledge";
 
 // Telemetry
-export { getCostSummary, getToolSummary, getMemoryStats, getHealth } from "./telemetry";
+export { getCostSummary, getCostByModel, getToolSummary, getMemoryStats, getHealth } from "./telemetry";
+
+// Settings
+export {
+  getLlmSettings,
+  updateLlmSettings,
+  testLlmConnection,
+  getEmailSettings,
+  updateEmailSettings,
+  testEmailConnection,
+} from "./settings";
+export type {
+  LlmConfig,
+  LlmProviderConfig,
+  LlmSettingsResponse,
+  EmailConfig,
+  EmailSettingsResponse,
+  LlmTestResult,
+  EmailTestResult,
+} from "./settings";
 
 // Events
 export { listEvents } from "./events";

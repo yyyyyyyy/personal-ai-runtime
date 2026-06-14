@@ -131,11 +131,44 @@ def _classification_by_id(classified: list[dict]) -> dict[str, dict]:
     return {c.get("message_id", ""): c for c in classified if c.get("message_id")}
 
 
+def _sync_read_status(unread_ids: set[str]) -> int:
+    """Mark pending emails as read when they no longer appear in IMAP UNSEEN."""
+    updated = 0
+    with db.get_db() as conn:
+        rows = conn.execute(
+            """SELECT id FROM inbox_emails
+               WHERE COALESCE(status, 'pending') = 'pending'"""
+        ).fetchall()
+        for row in rows:
+            email_id = row["id"]
+            if email_id not in unread_ids:
+                conn.execute(
+                    "UPDATE inbox_emails SET status = 'read' WHERE id = ?",
+                    (email_id,),
+                )
+                updated += 1
+    return updated
+
+
+def mark_inbox_email_status(email_id: str, status: str) -> dict | None:
+    if status not in ("pending", "read", "handled"):
+        raise ValueError(f"Invalid status: {status}")
+    with db.get_db() as conn:
+        row = conn.execute("SELECT id FROM inbox_emails WHERE id = ?", (email_id,)).fetchone()
+        if not row:
+            return None
+        conn.execute(
+            "UPDATE inbox_emails SET status = ? WHERE id = ?",
+            (status, email_id),
+        )
+    return {"id": email_id, "status": status}
+
+
 async def poll_inbox(limit: int = 20) -> dict:
     """Poll unread inbox, classify new mail, notify important items."""
     cap = await kernel.invoke_capability(
         "check_inbox",
-        {"unread_only": True, "limit": limit},
+        {"unread_only": True, "limit": max(limit, 50)},
         actor="scheduler",
     )
     if cap.get("status") != "success":
@@ -150,12 +183,14 @@ async def poll_inbox(limit: int = 20) -> dict:
         return {"status": "error", "error": payload["error"], "new_count": 0}
 
     emails = payload.get("emails") or []
+    unread_ids = {e["message_id"] for e in emails if e.get("message_id")}
+    synced_read = _sync_read_status(unread_ids)
     with db.get_db() as conn:
         known = _existing_message_ids(conn)
 
     new_emails = [e for e in emails if e.get("message_id") and e["message_id"] not in known]
     if not new_emails:
-        return {"status": "ok", "new_count": 0, "notified": 0}
+        return {"status": "ok", "new_count": 0, "notified": 0, "synced_read": synced_read}
 
     classified = await _classify_emails(new_emails)
     by_id = _classification_by_id(classified)
@@ -176,8 +211,8 @@ async def poll_inbox(limit: int = 20) -> dict:
             conn.execute(
                 """INSERT INTO inbox_emails
                    (id, sender, subject, preview, received_at, category, importance, reason,
-                    notified, digested, created_at)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, 0, ?)""",
+                    notified, digested, status, created_at)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, 0, 'pending', ?)""",
                 (
                     mid,
                     em.get("from", ""),
@@ -221,7 +256,7 @@ async def poll_inbox(limit: int = 20) -> dict:
         with db.get_db() as conn:
             conn.execute("UPDATE inbox_emails SET notified = 1 WHERE id = ?", (item["id"],))
 
-    return {"status": "ok", "new_count": len(stored), "notified": notified}
+    return {"status": "ok", "new_count": len(stored), "notified": notified, "synced_read": synced_read}
 
 
 def generate_inbox_digest() -> dict | None:
@@ -239,7 +274,7 @@ def generate_inbox_digest() -> dict | None:
         rows = conn.execute(
             """SELECT category, sender, subject, reason, importance
                FROM inbox_emails
-               WHERE digested = 0
+               WHERE digested = 0 AND COALESCE(status, 'pending') = 'pending'
                ORDER BY importance DESC, created_at DESC
                LIMIT 50"""
         ).fetchall()
@@ -289,18 +324,34 @@ def generate_inbox_digest() -> dict | None:
 def list_inbox_emails(
     category: str | None = None,
     limit: int = 50,
+    status: str = "pending",
 ) -> list[dict]:
     with db.get_db() as conn:
-        if category:
+        if status == "all":
+            if category:
+                rows = conn.execute(
+                    """SELECT * FROM inbox_emails WHERE category = ?
+                       ORDER BY created_at DESC LIMIT ?""",
+                    (category, limit),
+                ).fetchall()
+            else:
+                rows = conn.execute(
+                    "SELECT * FROM inbox_emails ORDER BY created_at DESC LIMIT ?",
+                    (limit,),
+                ).fetchall()
+        elif category:
             rows = conn.execute(
-                """SELECT * FROM inbox_emails WHERE category = ?
+                """SELECT * FROM inbox_emails
+                   WHERE category = ? AND COALESCE(status, 'pending') = ?
                    ORDER BY created_at DESC LIMIT ?""",
-                (category, limit),
+                (category, status, limit),
             ).fetchall()
         else:
             rows = conn.execute(
-                "SELECT * FROM inbox_emails ORDER BY created_at DESC LIMIT ?",
-                (limit,),
+                """SELECT * FROM inbox_emails
+                   WHERE COALESCE(status, 'pending') = ?
+                   ORDER BY created_at DESC LIMIT ?""",
+                (status, limit),
             ).fetchall()
     return [dict(r) for r in rows]
 

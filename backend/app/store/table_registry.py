@@ -34,6 +34,7 @@ APP_STORAGE_TABLES: frozenset[str] = frozenset({
     "triggers",
     "user_profile",
     "inbox_emails",
+    "app_settings",
 })
 
 # Expected columns for governed projection tables (PRAGMA contract).

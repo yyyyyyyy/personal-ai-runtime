@@ -7,6 +7,7 @@ vi.mock("../api/client", () => ({
   listInboxEmails: vi.fn().mockResolvedValue([]),
   getInboxDigest: vi.fn().mockResolvedValue({ title: "今日摘要", content: "无新邮件" }),
   triggerInboxPoll: vi.fn().mockResolvedValue({}),
+  updateInboxEmailStatus: vi.fn().mockResolvedValue({ id: "x", status: "read" }),
   createConversation: vi.fn(),
   ApiError: class extends Error {
     status: number;

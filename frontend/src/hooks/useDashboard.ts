@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   getCostSummary,
+  getCostByModel,
   getToolSummary,
   getMemoryStats,
   getHealth,
   listNotifications,
   type CostSummary,
+  type ModelCostItem,
   type ToolSummaryItem,
   type MemoryStats,
   type HealthSnapshot,
@@ -15,6 +17,7 @@ import { useErrorStore } from "../stores/errorStore";
 
 interface DashboardData {
   cost: CostSummary | null;
+  costByModel: ModelCostItem[];
   tools: ToolSummaryItem[];
   memory: MemoryStats | null;
   health: HealthSnapshot | null;
@@ -24,6 +27,7 @@ interface DashboardData {
 export function useDashboard() {
   const [data, setData] = useState<DashboardData>({
     cost: null,
+    costByModel: [],
     tools: [],
     memory: null,
     health: null,
@@ -40,8 +44,9 @@ export function useDashboard() {
     setError("");
 
     try {
-      const [costData, toolData, memData, healthData, notifData] = await Promise.all([
+      const [costData, modelCostData, toolData, memData, healthData, notifData] = await Promise.all([
         getCostSummary(7),
+        getCostByModel(7),
         getToolSummary(7),
         getMemoryStats(),
         getHealth(),
@@ -53,6 +58,7 @@ export function useDashboard() {
 
       setData({
         cost: costData,
+        costByModel: modelCostData,
         tools: toolData,
         memory: memData,
         health: healthData,

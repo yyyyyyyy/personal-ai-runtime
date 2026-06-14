@@ -86,12 +86,21 @@ class EmailServer:
     """Email operations: read inbox via IMAP, send via SMTP (requires approval)."""
 
     def __init__(self):
-        self._imap_host = os.getenv("EMAIL_IMAP_HOST", "imap.gmail.com")
-        self._smtp_host = os.getenv("EMAIL_SMTP_HOST", "smtp.gmail.com")
-        self._smtp_port = int(os.getenv("EMAIL_SMTP_PORT", "465"))
+        self._refresh_config()
+
+    def _refresh_config(self):
+        from app.core.runtime.runtime_config import runtime_config
+
+        creds = runtime_config.get_email_credentials()
+        self._imap_host = str(creds.get("imap_host") or os.getenv("EMAIL_IMAP_HOST", "imap.gmail.com"))
+        self._smtp_host = str(creds.get("smtp_host") or os.getenv("EMAIL_SMTP_HOST", "smtp.gmail.com"))
+        self._smtp_port = int(str(creds.get("smtp_port") or os.getenv("EMAIL_SMTP_PORT", "465")))
+        self._user = str(creds.get("user") or os.getenv("EMAIL_USER", ""))
+        self._password = str(creds.get("password") or os.getenv("EMAIL_PASS", ""))
 
     def _get_credentials(self):
-        return os.getenv("EMAIL_USER", ""), os.getenv("EMAIL_PASS", "")
+        self._refresh_config()
+        return self._user, self._password
 
     def _fetch_sorted_emails(
         self,

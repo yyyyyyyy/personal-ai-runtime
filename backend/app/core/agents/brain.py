@@ -27,6 +27,7 @@ from app.core.agents.tool_postprocess import (
 from app.core.runtime.conversation_recorder import record_conversation_turn
 from app.core.runtime.egress.egress_gate import prepare_llm_egress
 from app.core.runtime.kernel_instance import kernel
+from app.core.runtime.runtime_config import runtime_config
 from app.core.runtime.taint import taint_registry
 from app.core.telemetry.telemetry import LLMCallRecord, telemetry
 
@@ -175,8 +176,8 @@ class Brain:
             completion_tokens = len(assistant_content) // 4
             estimated_cost = (prompt_tokens * 0.000001 + completion_tokens * 0.000002)  # generic estimate
             telemetry.record_llm_call(LLMCallRecord(
-                provider=self.provider.name,
-                model=self.provider.model,
+                provider=used_provider.name,
+                model=used_provider.model,
                 prompt_tokens=prompt_tokens,
                 completion_tokens=completion_tokens,
                 latency_ms=llm_latency,
@@ -348,8 +349,8 @@ class Brain:
             response = await self.client.chat.completions.create(
                 model=self.provider.model,
                 messages=egress_messages,
-                temperature=settings.llm_temperature,
-                max_tokens=settings.llm_max_tokens,
+                temperature=runtime_config.get_generation_params()[0],
+                max_tokens=runtime_config.get_generation_params()[1],
             )
             content = response.choices[0].message.content or ""
         except Exception as e:
@@ -377,8 +378,8 @@ class Brain:
                 response = await self.client.chat.completions.create(
                     model=self.provider.model,
                     messages=retry_messages,
-                    temperature=settings.llm_temperature,
-                    max_tokens=settings.llm_max_tokens,
+                    temperature=runtime_config.get_generation_params()[0],
+                    max_tokens=runtime_config.get_generation_params()[1],
                 )
                 content = response.choices[0].message.content or ""
                 cleaned = strip_tool_markup(content)
@@ -416,16 +417,10 @@ class Brain:
                     messages=egress_messages,
                     tools=kernel.list_capability_definitions(),
                     tool_choice="auto",
-                    temperature=settings.llm_temperature,
-                    max_tokens=settings.llm_max_tokens,
+                    temperature=runtime_config.get_generation_params()[0],
+                    max_tokens=runtime_config.get_generation_params()[1],
                     stream=True,
                 )
-                telemetry.record_llm_call(LLMCallRecord(
-                    provider=provider.name,
-                    model=provider.model,
-                    latency_ms=(time.time() - llm_start) * 1000,
-                    success=True,
-                ))
                 return response, client, provider
             except Exception as e:
                 last_error = e
@@ -452,8 +447,8 @@ class Brain:
             response = await self.client.chat.completions.create(  # type: ignore[call-overload]
                 model=self.provider.model,
                 messages=synth_messages,
-                temperature=settings.llm_temperature,
-                max_tokens=settings.llm_max_tokens,
+                temperature=runtime_config.get_generation_params()[0],
+                max_tokens=runtime_config.get_generation_params()[1],
             )
             return strip_tool_markup((response.choices[0].message.content or "").strip())
         except Exception:
@@ -474,8 +469,8 @@ class Brain:
             response = await self.client.chat.completions.create(  # type: ignore[call-overload]
                 model=self.provider.model,
                 messages=retry_messages,
-                temperature=settings.llm_temperature,
-                max_tokens=settings.llm_max_tokens,
+                temperature=runtime_config.get_generation_params()[0],
+                max_tokens=runtime_config.get_generation_params()[1],
             )
             return strip_tool_markup((response.choices[0].message.content or "").strip())
         except Exception:

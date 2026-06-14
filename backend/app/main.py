@@ -22,6 +22,7 @@ from app.api import (
     memory,
     notifications,
     reviews,
+    settings_api,
     system,
     tasks,
     telemetry_api,
@@ -190,6 +191,7 @@ app.add_middleware(
 # Register routers
 app.include_router(chat.router)
 app.include_router(system.router)
+app.include_router(settings_api.router)
 app.include_router(memory.router)
 app.include_router(events.router)
 app.include_router(knowledge.router)
