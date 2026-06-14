@@ -2,11 +2,14 @@
 
 import asyncio
 import json
+import logging
 import uuid
 from datetime import UTC, datetime
 
 from app.core.runtime.kernel_instance import kernel
 from app.store.database import db
+
+logger = logging.getLogger(__name__)
 
 
 class BackgroundWorker:
@@ -35,8 +38,8 @@ class BackgroundWorker:
         while self._running:
             try:
                 await self._process_pending()
-            except Exception as e:
-                print(f"Background worker error: {e}")
+            except Exception:
+                logger.exception("Background worker poll loop error")
             await asyncio.sleep(10)
 
     async def _process_pending(self):

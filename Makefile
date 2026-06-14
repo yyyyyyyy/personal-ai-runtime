@@ -1,4 +1,4 @@
-.PHONY: install dev demo screenshots test test-backend test-frontend ci-local lint typecheck desktop boundary rebuild-verify export-roundtrip-verify snapshot-verify egress-verify connector-verify belief-verify belief-quality belief-survival alembic-verify vector-consistency-verify docker-up docker-down
+.PHONY: install dev demo screenshots test test-backend test-frontend ci-local lint typecheck desktop boundary rebuild-verify export-roundtrip-verify snapshot-verify pattern-rebuild-verify egress-verify connector-verify belief-verify belief-quality belief-survival alembic-verify vector-consistency-verify docker-up docker-down
 
 # Backend
 BACKEND_DIR := backend
@@ -59,6 +59,9 @@ export-roundtrip-verify:
 
 snapshot-verify:
 	cd $(BACKEND_DIR) && python3 scripts/verify_snapshot_rebuild.py
+
+pattern-rebuild-verify:
+	cd $(BACKEND_DIR) && python3 scripts/verify_pattern_rebuild.py
 
 egress-verify:
 	cd $(BACKEND_DIR) && python3 scripts/verify_egress.py

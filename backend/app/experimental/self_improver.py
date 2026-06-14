@@ -2,8 +2,7 @@
 
 Tracks user approvals/rejections, manages prompt templates with versioning.
 
-Status: EXPERIMENTAL — not yet wired into the system. Currently unused by any
-module; the singleton is never imported outside this file.
+Status: EXPERIMENTAL — lives under `app/experimental/`, not wired into the system.
 
 Known issues:
   - Violates Kernel Boundary: writes directly to `activity_log` via `db.get_db()`

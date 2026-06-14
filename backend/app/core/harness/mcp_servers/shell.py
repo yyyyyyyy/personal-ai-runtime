@@ -108,7 +108,7 @@ class ShellServer:
 
     def execute(self, command: str, cwd: str = "", timeout_seconds: int = 30) -> str:
         """Execute whitelisted commands without invoking a shell.
-        
+
         If the command contains &&, it is automatically split into individual
         commands that are run sequentially. Each command gets the full timeout.
         The first failure stops the chain.
@@ -138,7 +138,7 @@ class ShellServer:
                 "commands": parts,
                 "results": [json.loads(r) for r in results],
             })
-        
+
         return self._run_single(command, cwd, timeout_seconds)
 
     def _run_single(self, command: str, cwd: str = "", timeout_seconds: int = 30) -> str:

@@ -20,6 +20,6 @@ follow_imports = "silent"
 [tool.coverage.run]
 omit = [
     "app/core/runtime/kernel/types.py",
-    "app/core/runtime/self_improver.py",
+    "app/experimental/*",
     "app/core/runtime/memory_decay.py",
 ]

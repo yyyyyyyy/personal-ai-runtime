@@ -1,15 +1,22 @@
 # README 截图资源
 
-| 文件 | 说明 |
+从运行中的前端（`http://localhost:5173`）抓取真实 UI 截图。
+
+| 文件 | 页面 |
 |------|------|
-| `chat-approval.png` | 对话 + 高风险工具审批 |
+| `chat.png` | 对话首页 |
 | `goals.png` | 目标管理 |
-| `export.png` | 一键无损导出 |
+| `inbox.png` | 智能收件箱 |
+| `dashboard.png` | 仪表盘 |
+| `memories.png` | 记忆管理 |
 
 ## 重新生成
+
+1. 启动应用：`make dev`（另开终端可先 `make demo` 写入示例数据）
+2. 抓取截图：
 
 ```bash
 make screenshots
 ```
 
-源文件在 `mock/*.html`（静态 UI 示意，与真实前端风格一致）。修改 HTML 后重新运行上述命令即可更新 PNG。
+脚本：`capture-screenshots.mjs`（Playwright）。修改前端 UI 后重新运行上述命令即可更新 PNG。

@@ -1,6 +1,5 @@
 """SQLite database management with Alembic-powered schema initialization."""
 
-import json
 import logging
 import sqlite3
 from contextlib import contextmanager
@@ -267,13 +266,7 @@ class Database:
         finally:
             conn.close()
 
-    # --- Conversation methods ---
-
-    def create_conversation(self, title: str | None = None) -> dict:
-        """Deprecated: use ConversationAPI.create() (Kernel event path)."""
-        from app.core.agents.conversation import ConversationAPI
-
-        return ConversationAPI.create(title=title)
+    # --- Conversation methods (read-only; writes go through ConversationAPI) ---
 
     def get_conversation(self, conv_id: str) -> dict | None:
         with self.get_db() as conn:
@@ -290,44 +283,7 @@ class Database:
             ).fetchall()
         return [dict(r) for r in rows]
 
-    def update_conversation(self, conv_id: str, title: str | None = None, summary: str | None = None):
-        """Deprecated: use ConversationAPI.update() (Kernel event path)."""
-        from app.core.agents.conversation import ConversationAPI
-
-        ConversationAPI.update(conv_id, title=title, summary=summary)
-
-    def delete_conversation(self, conv_id: str):
-        """Deprecated: use ConversationAPI.delete() (Kernel event path)."""
-        from app.core.agents.conversation import ConversationAPI
-
-        ConversationAPI.delete(conv_id)
-
-    # --- Message methods ---
-
-    def add_message(
-        self,
-        conv_id: str,
-        role: str,
-        content: str,
-        tool_calls: str | None = None,
-        tool_call_id: str | None = None,
-    ) -> dict:
-        """Deprecated: use ConversationManager.save_message() (Kernel event path)."""
-        from app.core.agents.conversation import ConversationManager
-
-        parsed_tool_calls = None
-        if tool_calls:
-            try:
-                parsed_tool_calls = json.loads(tool_calls)
-            except (json.JSONDecodeError, TypeError):
-                parsed_tool_calls = tool_calls
-        mgr = ConversationManager(conv_id)
-        return mgr.save_message(
-            role=role,
-            content=content,
-            tool_calls=parsed_tool_calls,
-            tool_call_id=tool_call_id,
-        )
+    # --- Message methods (read-only; writes go through ConversationManager) ---
 
     def get_message(self, msg_id: str) -> dict | None:
         with self.get_db() as conn:

@@ -7,9 +7,6 @@ python-dotenv==1.0.1
 chromadb==0.5.23
 apscheduler==3.11.0
 httpx==0.28.1
-sqlite-utils==3.38.0
 mcp>=1.0.0
-watchfiles==0.24.0
-PyYAML==6.0.2
 alembic==1.15.1
 sqlalchemy==2.0.36

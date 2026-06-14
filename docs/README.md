@@ -20,5 +20,8 @@
 | [RUNTIME_SPEC.md](RUNTIME_SPEC.md) | 架构规格：Runtime Primitive、Kernel Boundary、Read Surface |
 | [THREAT_MODEL.md](THREAT_MODEL.md) | 信任边界与 Prompt Injection 威胁模型 |
 | [USER_VALIDATION.md](USER_VALIDATION.md) | 用户验证计划与留存指标 |
+| [CONTRIBUTING.md](CONTRIBUTING.md) | 贡献指南与本地 CI 对照 |
+| [MCP_MESH.md](MCP_MESH.md) | MCP 工具网格与扩展 |
+| [POSTMORTEM.md](POSTMORTEM.md) | 事故复盘记录 |
 
 阅读顺序：**ONBOARDING**（跑起来）→ **RUNTIME_SPEC**（怎么工作）→ **THREAT_MODEL**（安全边界）。

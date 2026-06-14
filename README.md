@@ -14,13 +14,17 @@
 
 ## 截图
 
-| 对话 + 审批治理 | 目标管理 | 数据主权导出 |
+| 对话 | 目标 | 收件箱 |
 |:---:|:---:|:---:|
-| ![对话审批](docs/assets/chat-approval.png) | ![目标管理](docs/assets/goals.png) | ![一键导出](docs/assets/export.png) |
+| ![对话](docs/assets/chat.png) | ![目标管理](docs/assets/goals.png) | ![智能收件箱](docs/assets/inbox.png) |
+
+| 仪表盘 | 记忆 |
+|:---:|:---:|
+| ![仪表盘](docs/assets/dashboard.png) | ![记忆管理](docs/assets/memories.png) |
 
 **本地快速预览：** 配置 `.env` 后 `make dev`，另开终端执行 `make demo` 写入示例目标 / 记忆 / 对话（可重复执行，已存在则跳过）。
 
-截图由 `docs/assets/mock/` 下的静态页面生成，更新 UI 后可运行 `make screenshots` 重新导出 PNG。
+截图从运行中的前端抓取（需 `make dev` 已启动）。更新 UI 后运行 `make screenshots` 重新导出 PNG，详见 [docs/assets/README.md](docs/assets/README.md)。
 
 ## 环境要求
 
@@ -157,10 +161,12 @@ CI 还额外运行 ruff、mypy、schema 校验、MCP 工具注册校验等，见
 | Chat | 带记忆/目标上下文的对话，24 个 MCP 工具，高风险操作审批 |
 | Inbox | 邮件轮询、分类、摘要；对话中也可 `check_inbox` 查信 |
 | Goals | 目标与行动管理，停滞检测 |
+| Memories | 长期记忆浏览、搜索与手动编辑 |
+| Knowledge | 文档导入与 RAG 检索 |
 | Dashboard | 系统状态与主动建议 |
 | Timeline | 活动与事件时间线 |
 
-**后端 API（无独立前端页）：** Knowledge（文档导入与 RAG）、Telemetry、Triggers 等 — 见 `/docs`。
+**后端 API（无独立前端页）：** Telemetry、Triggers 等 — 见 `/docs`。
 
 **后台服务（启动时自动运行）：** Pattern Aggregator（活动模式检测）、Belief Engine（定时反思）、Inbox 轮询（每 15 分钟）。
 
