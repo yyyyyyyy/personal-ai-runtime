@@ -48,7 +48,10 @@ class ShellServer:
             return "Empty command"
 
         if self.SHELL_METACHAR_RE.search(stripped):
-            return "Shell metacharacters and command chaining are not allowed"
+            return (
+                "Shell metacharacters and command chaining are not allowed. "
+                "Run ONE command per call (e.g. 'pwd' not 'pwd && ls')."
+            )
 
         for pattern in self.BLOCKED_PATTERNS:
             if pattern in stripped:
