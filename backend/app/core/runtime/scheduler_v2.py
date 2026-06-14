@@ -263,10 +263,19 @@ def _run_inbox_digest():
         logger.warning("Inbox digest error: %s", e)
 
 
+def _run_async(coro):
+    loop = asyncio.new_event_loop()
+    try:
+        return loop.run_until_complete(coro)
+    finally:
+        loop.close()
+
+
 def _run_daily_review():
     try:
         from app.product.daily_review import generate_daily_review
-        generate_daily_review()
+
+        _run_async(generate_daily_review())
         _update_v2_last_run("daily_review")
     except Exception as e:
         logger.warning("Daily review error: %s", e)
@@ -302,7 +311,8 @@ def _run_belief_reflection():
 def _run_weekly_review():
     try:
         from app.product.weekly_review import generate_weekly_review
-        generate_weekly_review()
+
+        _run_async(generate_weekly_review())
         _update_v2_last_run("weekly_review")
     except Exception as e:
         logger.warning("Weekly review error: %s", e)
@@ -311,7 +321,8 @@ def _run_weekly_review():
 def _run_monthly_review():
     try:
         from app.product.monthly_review import generate_monthly_review
-        generate_monthly_review()
+
+        _run_async(generate_monthly_review())
         _update_v2_last_run("monthly_review")
     except Exception as e:
         logger.warning("Monthly review error: %s", e)

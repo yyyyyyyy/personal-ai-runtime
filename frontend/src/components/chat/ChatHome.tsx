@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useChatStore } from "../../stores/chatStore";
 import {
   listReviews,
+  getReview,
   listMemoriesGrouped,
   listGoals,
   listInboxEmails,
@@ -11,6 +12,7 @@ import {
   type Review,
   type Conversation,
 } from "../../api/client";
+import ReviewDetailModal from "../reviews/ReviewDetailModal";
 import { useErrorStore } from "../../stores/errorStore";
 import { useQuickChat } from "../../hooks/useQuickChat";
 import { timeAgo, isStagnant } from "../../utils/timeUtils";
@@ -27,6 +29,9 @@ export default function ChatHome() {
   const [brief, setBrief] = useState<string | null>(null);
   const [loadingBrief, setLoadingBrief] = useState(false);
   const [weeklyReview, setWeeklyReview] = useState<Review | null>(null);
+  const [selectedReview, setSelectedReview] = useState<Review | null>(null);
+  const [reviewLoading, setReviewLoading] = useState(false);
+  const [reviewError, setReviewError] = useState<string | null>(null);
   const [memoryCount, setMemoryCount] = useState(0);
   const [stagnantGoalCount, setStagnantGoalCount] = useState(0);
   const [unreadInbox, setUnreadInbox] = useState(0);
@@ -119,6 +124,22 @@ export default function ChatHome() {
 
   const handleNewChat = () => quickChat();
 
+  const handleOpenWeeklyReview = async () => {
+    if (!weeklyReview) return;
+    setSelectedReview(weeklyReview);
+    setReviewLoading(true);
+    setReviewError(null);
+    try {
+      const full = await getReview(weeklyReview.id);
+      setSelectedReview(full);
+    } catch (err) {
+      const msg = err instanceof ApiError ? err.message : "加载复盘详情失败";
+      setReviewError(msg);
+    } finally {
+      setReviewLoading(false);
+    }
+  };
+
   const handleContinueConversation = (conv: Conversation) => {
     setActiveConversation(conv.id);
     navigate(`/chat/${conv.id}`);
@@ -192,12 +213,19 @@ export default function ChatHome() {
 
         {/* Weekly review */}
         {weeklyReview && weeklyReview.content && (
-          <div className="bg-gray-900 border border-gray-800 rounded-xl p-4">
-            <h3 className="text-sm font-medium text-gray-400 mb-2">📊 本周回顾</h3>
+          <button
+            type="button"
+            onClick={handleOpenWeeklyReview}
+            className="w-full text-left bg-gray-900 border border-gray-800 rounded-xl p-4 hover:border-emerald-600/40 transition-colors"
+          >
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="text-sm font-medium text-gray-400">📊 本周回顾</h3>
+              <span className="text-xs text-emerald-500">查看全文 →</span>
+            </div>
             <p className="text-sm text-gray-400 whitespace-pre-wrap line-clamp-3">
               {weeklyReview.content.slice(0, 200)}
             </p>
-          </div>
+          </button>
         )}
 
         {/* Continue last conversation */}
@@ -301,6 +329,16 @@ export default function ChatHome() {
           </button>
         </div>
       </div>
+
+      <ReviewDetailModal
+        review={selectedReview}
+        loading={reviewLoading}
+        error={reviewError}
+        onClose={() => {
+          setSelectedReview(null);
+          setReviewError(null);
+        }}
+      />
     </div>
   );
 }

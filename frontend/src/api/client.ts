@@ -60,6 +60,7 @@ export {
   getGoal,
   createGoal,
   updateGoal,
+  deleteGoal,
   createGoalAction,
   updateGoalAction,
 } from "./goals";
@@ -110,7 +111,7 @@ export type {
 export { listEvents } from "./events";
 
 // Reviews
-export { listReviews, triggerMorningBrief } from "./reviews";
+export { listReviews, getReview, triggerMorningBrief } from "./reviews";
 
 // Approvals
 export { listPendingApprovals, resolveApproval } from "./approvals";

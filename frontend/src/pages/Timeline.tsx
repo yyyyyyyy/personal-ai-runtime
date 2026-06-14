@@ -3,16 +3,22 @@ import { useNavigate } from "react-router-dom";
 import {
   listEvents,
   listReviews,
+  getReview,
   ApiError,
   type Review,
   type TimelineEvent,
 } from "../api/client";
 import { useErrorStore } from "../stores/errorStore";
 import { useChatStore } from "../stores/chatStore";
+import ReviewDetailModal from "../components/reviews/ReviewDetailModal";
+import { reviewPeriodLabel, reviewTypeLabel } from "../utils/reviewUtils";
 
 export default function TimelinePage() {
   const [events, setEvents] = useState<TimelineEvent[]>([]);
   const [reviews, setReviews] = useState<Review[]>([]);
+  const [selectedReview, setSelectedReview] = useState<Review | null>(null);
+  const [reviewLoading, setReviewLoading] = useState(false);
+  const [reviewError, setReviewError] = useState<string | null>(null);
   const addError = useErrorStore((s) => s.addError);
   const navigate = useNavigate();
   const setActiveConversation = useChatStore((s) => s.setActiveConversation);
@@ -34,6 +40,21 @@ export default function TimelinePage() {
       navigate(`/chat/${convId}`);
     } else if (event.goal_id) {
       navigate(`/goals/${event.goal_id}`);
+    }
+  };
+
+  const handleReviewClick = async (review: Review) => {
+    setSelectedReview(review);
+    setReviewLoading(true);
+    setReviewError(null);
+    try {
+      const full = await getReview(review.id);
+      setSelectedReview(full);
+    } catch (err) {
+      const msg = err instanceof ApiError ? err.message : "加载复盘详情失败";
+      setReviewError(msg);
+    } finally {
+      setReviewLoading(false);
     }
   };
 
@@ -84,13 +105,6 @@ export default function TimelinePage() {
     action_status_changed: "🔄",
   };
 
-  const reviewTypeLabel = (type: string) => {
-    if (type === "daily") return "每日复盘";
-    if (type === "weekly") return "每周复盘";
-    if (type === "monthly") return "每月复盘";
-    return type;
-  };
-
   return (
     <div className="flex-1 overflow-y-auto p-6">
       <div className="max-w-3xl mx-auto">
@@ -101,19 +115,24 @@ export default function TimelinePage() {
             <h3 className="text-sm font-semibold text-gray-400 mb-3">最近复盘</h3>
             <div className="space-y-3">
               {reviews.slice(0, 3).map((review) => (
-                <div key={review.id} className="bg-gray-800 rounded-xl p-4 border border-gray-700">
+                <button
+                  key={review.id}
+                  type="button"
+                  onClick={() => handleReviewClick(review)}
+                  className="w-full text-left bg-gray-800 rounded-xl p-4 border border-gray-700 hover:border-emerald-600/40 hover:bg-gray-800/80 transition-colors cursor-pointer"
+                >
                   <div className="flex flex-wrap items-center gap-2 mb-2">
                     <span className="text-xs text-gray-500">
                       {reviewTypeLabel(review.type)}
                       {" · "}
-                      {review.period_start}
-                      {review.period_end !== review.period_start ? ` ~ ${review.period_end}` : ""}
+                      {reviewPeriodLabel(review)}
                     </span>
+                    <span className="text-xs text-emerald-500 ml-auto">查看全文 →</span>
                   </div>
                   <div className="text-sm text-gray-300 whitespace-pre-wrap line-clamp-6">
-                    {review.content.slice(0, 800)}
+                    {(review.content || "").slice(0, 800)}
                   </div>
-                </div>
+                </button>
               ))}
             </div>
           </div>
@@ -170,6 +189,16 @@ export default function TimelinePage() {
           </div>
         )}
       </div>
+
+      <ReviewDetailModal
+        review={selectedReview}
+        loading={reviewLoading}
+        error={reviewError}
+        onClose={() => {
+          setSelectedReview(null);
+          setReviewError(null);
+        }}
+      />
     </div>
   );
 }

@@ -13,6 +13,7 @@ vi.mock("../api/client", () => ({
       period_start: "2026-06-01",
       period_end: "2026-06-07",
       content: "本周完成了Python学习，运动3次。下周继续推进。",
+      created_at: "2026-06-07T00:00:00Z",
     },
     {
       id: "r2",
@@ -20,8 +21,17 @@ vi.mock("../api/client", () => ({
       period_start: "2026-06-10",
       period_end: "2026-06-10",
       content: "完成代码审查，处理了3个issue。",
+      created_at: "2026-06-10T00:00:00Z",
     },
   ]),
+  getReview: vi.fn().mockImplementation(async (id: string) => ({
+    id,
+    type: "weekly",
+    period_start: "2026-06-01",
+    period_end: "2026-06-07",
+    content: "本周完成了Python学习，运动3次。下周继续推进。完整内容。",
+    created_at: "2026-06-07T00:00:00Z",
+  })),
   ApiError: class extends Error {
     status: number;
     constructor(message: string, status: number) {

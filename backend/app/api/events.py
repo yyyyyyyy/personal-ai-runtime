@@ -1,6 +1,6 @@
 """Events API — query the governed event log."""
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Query
 
 from app.core.runtime.kernel_instance import kernel
 from app.core.runtime.legacy_event_adapter import goal_legacy_events, recent_legacy_events

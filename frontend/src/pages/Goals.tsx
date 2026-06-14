@@ -5,6 +5,7 @@ import {
   getGoal,
   createGoal,
   updateGoal,
+  deleteGoal,
   createGoalAction,
   updateGoalAction,
   ApiError,
@@ -15,6 +16,7 @@ import { useQuickChat } from "../hooks/useQuickChat";
 import Badge from "../components/ui/Badge";
 import Button from "../components/ui/Button";
 import Card from "../components/ui/Card";
+import Dialog from "../components/ui/Dialog";
 import EmptyState from "../components/ui/EmptyState";
 import { Input } from "../components/ui/Input";
 import { timeAgo, isStagnant } from "../utils/timeUtils";
@@ -27,6 +29,8 @@ export default function GoalsPage() {
   const [showCreate, setShowCreate] = useState(false);
   const [newTitle, setNewTitle] = useState("");
   const [loading, setLoading] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<Goal | null>(null);
+  const [deleting, setDeleting] = useState(false);
   const addError = useErrorStore((s) => s.addError);
   const quickChat = useQuickChat();
 
@@ -130,6 +134,27 @@ export default function GoalsPage() {
       const msg =
         err instanceof ApiError ? err.message : "更新行动步骤失败";
       addError(msg, "目标");
+    }
+  };
+
+  const handleDeleteGoal = async () => {
+    if (!deleteTarget) return;
+    const goalId = deleteTarget.id;
+    setDeleting(true);
+    try {
+      await deleteGoal(goalId);
+      setDeleteTarget(null);
+      if (selectedGoal?.id === goalId) {
+        setSelectedGoal(null);
+        navigate("/goals");
+      }
+      await loadGoals();
+    } catch (err) {
+      const msg =
+        err instanceof ApiError ? err.message : "删除目标失败";
+      addError(msg, "目标");
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -310,6 +335,13 @@ export default function GoalsPage() {
                     恢复
                   </button>
                 )}
+                <Button
+                  size="sm"
+                  variant="danger"
+                  onClick={() => setDeleteTarget(selectedGoal)}
+                >
+                  删除
+                </Button>
               </div>
             </div>
 
@@ -382,6 +414,20 @@ export default function GoalsPage() {
           />
         )}
       </div>
+
+      <Dialog
+        open={!!deleteTarget}
+        title="删除目标"
+        description={
+          deleteTarget
+            ? `确定删除目标「${deleteTarget.title}」？关联的行动步骤将一并删除，此操作不可撤销。`
+            : undefined
+        }
+        confirmLabel={deleting ? "删除中…" : "删除"}
+        variant="danger"
+        onConfirm={handleDeleteGoal}
+        onCancel={() => !deleting && setDeleteTarget(null)}
+      />
     </div>
   );
 }

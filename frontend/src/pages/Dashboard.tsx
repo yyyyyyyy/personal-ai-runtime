@@ -4,6 +4,7 @@ import { useDashboard } from "../hooks/useDashboard";
 import { useNotifications } from "../hooks/useNotifications";
 import { toolLabel } from "../utils/toolLabels";
 import NotificationDetailModal from "../components/notifications/NotificationDetailModal";
+import { notificationPreview } from "../utils/reviewUtils";
 
 function StatCard({ label, value, unit, color }: { label: string; value: string | number; unit?: string; color?: string }) {
   return (
@@ -220,7 +221,7 @@ export default function DashboardPage() {
                   className="w-full text-left p-3 bg-gray-800/50 rounded-lg hover:bg-gray-800 transition-colors"
                 >
                   <div className="text-sm text-emerald-400">{n.title}</div>
-                  <div className="text-xs text-gray-400 mt-1 line-clamp-2">{n.content}</div>
+                  <div className="text-xs text-gray-400 mt-1 line-clamp-2">{notificationPreview(n.content)}</div>
                 </button>
               ))}
             </div>

@@ -72,7 +72,7 @@ def test_import_write_with_confirm(client: TestClient, monkeypatch):
 
 
 def test_destroy_requires_confirm(client: TestClient):
-    r = client.request("DELETE", "/api/system/data", json={"confirm": "WRONG"})
+    r = client.request("DELETE", "/api/system/data?confirm=WRONG")
     assert r.status_code == 400
     assert "DESTROY_ALL_DATA" in r.json()["detail"]
 
@@ -82,11 +82,7 @@ def test_destroy_success_with_confirm(client: TestClient, monkeypatch):
         "app.api.system.digital_legacy.destroy_all",
         lambda: {"status": "destroyed", "message": "test"},
     )
-    r = client.request(
-        "DELETE",
-        "/api/system/data",
-        json={"confirm": "DESTROY_ALL_DATA"},
-    )
+    r = client.request("DELETE", "/api/system/data?confirm=DESTROY_ALL_DATA")
     assert r.status_code == 200
     assert r.json()["status"] == "destroyed"
 

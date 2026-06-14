@@ -327,6 +327,11 @@ def _on_task_status_changed(event: Event, conn) -> None:
     )
 
 
+@projector("TaskDeleted")
+def _on_task_deleted(event: Event, conn) -> None:
+    conn.execute("DELETE FROM tasks WHERE id = ?", (event.aggregate_id,))
+
+
 # --- Action projection -------------------------------------------------------
 # The `actions` table is the read model for goal sub-actions.
 

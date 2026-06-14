@@ -34,6 +34,10 @@ export async function updateGoal(
   });
 }
 
+export async function deleteGoal(goalId: string): Promise<void> {
+  await request(`${API_BASE}/goals/${goalId}`, { method: "DELETE" });
+}
+
 export async function createGoalAction(
   goalId: string,
   title: string

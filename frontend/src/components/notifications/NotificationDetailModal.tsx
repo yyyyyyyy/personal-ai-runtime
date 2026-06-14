@@ -1,10 +1,15 @@
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import type { Notification } from "../../api/types";
+import { getReview, listReviews, type Notification, type Review } from "../../api/client";
 import Button from "../ui/Button";
 import {
   notificationTargetPath,
   notificationTypeLabel,
 } from "../../utils/notificationRoutes";
+import {
+  findReviewForNotification,
+  parseRelatedId,
+} from "../../utils/reviewUtils";
 
 interface Props {
   notification: Notification | null;
@@ -21,10 +26,67 @@ function formatTime(value: string): string {
 
 export default function NotificationDetailModal({ notification, onClose }: Props) {
   const navigate = useNavigate();
+  const [review, setReview] = useState<Review | null>(null);
+  const [loadingReview, setLoadingReview] = useState(false);
+  const [reviewError, setReviewError] = useState<string | null>(null);
+
+  const isReview = Boolean(notification?.type.includes("review"));
+
+  useEffect(() => {
+    if (!notification || !isReview) {
+      setReview(null);
+      setReviewError(null);
+      setLoadingReview(false);
+      return;
+    }
+
+    let cancelled = false;
+    const loadReview = async () => {
+      setLoadingReview(true);
+      setReviewError(null);
+      try {
+        const { relatedId, body: _preview } = parseRelatedId(notification.content);
+        if (relatedId) {
+          const full = await getReview(relatedId);
+          if (!cancelled) setReview(full);
+          return;
+        }
+
+        const reviews = await listReviews(30);
+        const matched = findReviewForNotification(notification.title, reviews);
+        if (matched) {
+          const full = await getReview(matched.id);
+          if (!cancelled) setReview(full);
+          return;
+        }
+
+        if (!cancelled) {
+          setReviewError("未找到对应的复盘记录");
+        }
+      } catch {
+        if (!cancelled) {
+          setReviewError("加载复盘详情失败");
+        }
+      } finally {
+        if (!cancelled) {
+          setLoadingReview(false);
+        }
+      }
+    };
+
+    loadReview();
+    return () => {
+      cancelled = true;
+    };
+  }, [notification, isReview]);
 
   if (!notification) return null;
 
   const target = notificationTargetPath(notification.type);
+  const { body: previewContent } = parseRelatedId(notification.content);
+  const displayContent = isReview
+    ? review?.content || (loadingReview ? "加载中…" : previewContent)
+    : previewContent;
 
   const handleNavigate = () => {
     onClose();
@@ -65,8 +127,11 @@ export default function NotificationDetailModal({ notification, onClose }: Props
         </div>
 
         <div className="px-5 py-4 overflow-y-auto flex-1">
+          {reviewError && (
+            <p className="text-sm text-amber-400 mb-3">{reviewError}</p>
+          )}
           <pre className="text-sm text-gray-300 whitespace-pre-wrap font-sans leading-relaxed">
-            {notification.content || "（无详细内容）"}
+            {displayContent || "（无详细内容）"}
           </pre>
         </div>
 
@@ -76,7 +141,7 @@ export default function NotificationDetailModal({ notification, onClose }: Props
           </Button>
           {target && (
             <Button size="sm" onClick={handleNavigate}>
-              前往查看
+              前往时间线
             </Button>
           )}
         </div>

@@ -1,6 +1,10 @@
 """Pydantic request models for API endpoints."""
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
+
+MEMORY_CATEGORIES = frozenset({
+    "fact", "preference", "habit", "belief", "insight", "work", "personal",
+})
 
 
 class SendMessageRequest(BaseModel):
@@ -29,10 +33,28 @@ class CreateMemoryRequest(BaseModel):
     content: str
     category: str | None = None
 
+    @field_validator("category")
+    @classmethod
+    def check_category(cls, value: str | None) -> str | None:
+        if value is not None and value not in MEMORY_CATEGORIES:
+            raise ValueError(
+                f"category must be one of: {', '.join(sorted(MEMORY_CATEGORIES))}"
+            )
+        return value
+
 
 class UpdateMemoryRequest(BaseModel):
     content: str | None = None
     category: str | None = None
+
+    @field_validator("category")
+    @classmethod
+    def check_category(cls, value: str | None) -> str | None:
+        if value is not None and value not in MEMORY_CATEGORIES:
+            raise ValueError(
+                f"category must be one of: {', '.join(sorted(MEMORY_CATEGORIES))}"
+            )
+        return value
 
 
 class ImportKnowledgeRequest(BaseModel):

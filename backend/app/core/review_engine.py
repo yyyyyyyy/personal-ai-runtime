@@ -9,6 +9,7 @@ LLM polish is enabled by default (REVIEW_NARRATIVE_LLM_ENABLED=true). The sync A
 
 import json
 import logging
+import re
 import uuid
 from datetime import UTC, datetime, timedelta
 
@@ -25,6 +26,15 @@ _REVIEW_POLISH_SYSTEM = (
     "你是个人复盘助手。在保留结构与事实的前提下润色下文，使其更流畅易读。"
     "不要添加不存在的事实。"
 )
+
+_REVIEW_SUGGESTIONS_SYSTEM = (
+    "你是个人复盘助手。根据以下复盘内容，生成 3-5 条具体、可执行的个性化建议。"
+    "使用简洁的中文 bullet points（以 - 开头），不要重复原文，不要添加不存在的事实。"
+)
+
+_AI_SUGGESTIONS_MARKER = "## AI 建议"
+_AI_SUGGESTIONS_HEADING_RE = re.compile(r"(?m)^#{1,3}\s*AI 建议\s*$")
+_PLACEHOLDER_SUGGESTIONS = "将由 LLM 根据以上数据生成个性化建议"
 
 
 def _kernel():
@@ -63,6 +73,30 @@ async def _polish_review_async(content: str) -> str:
         return content
 
 
+async def _generate_ai_suggestions_async(content: str) -> str:
+    """Generate personalized review suggestions via LLM."""
+    if not settings.review_narrative_llm_enabled or not content.strip():
+        return "暂无足够数据生成建议。"
+    try:
+        client, provider = llm_router.get_client()
+        messages = [
+            {"role": "system", "content": _REVIEW_SUGGESTIONS_SYSTEM},
+            {"role": "user", "content": content},
+        ]
+        messages, _audit = prepare_llm_egress(messages, purpose="review_suggestions")
+        response = await client.chat.completions.create(
+            model=provider.model,
+            messages=messages,  # type: ignore[arg-type]
+            temperature=0.5,
+            max_tokens=min(settings.llm_max_tokens, 800),
+        )
+        suggestions = (response.choices[0].message.content or "").strip()
+        return suggestions or "暂无足够数据生成建议。"
+    except Exception as exc:
+        logger.warning("review suggestions LLM failed: %s", exc)
+        return "建议生成失败，请稍后重试。"
+
+
 class ReviewEngine:
     """Generates periodic reviews by aggregating events and querying state."""
 
@@ -77,7 +111,7 @@ class ReviewEngine:
                 (date,),
             ).fetchone()
         if existing:
-            return existing["id"]
+            return await self._ensure_ai_suggestions(existing["id"])
 
         events = self._get_events_for_date(date)
         goals = self._get_active_goals()
@@ -276,17 +310,54 @@ class ReviewEngine:
                 lines.append(f"- {g['title']}")
             lines.append("")
 
-        # Suggestions
-        lines.append("## AI 建议")
-        lines.append("(将由 LLM 根据以上数据生成个性化建议)")
+        # Suggestions section — content filled in by _finalize_review_content
+        lines.append(_AI_SUGGESTIONS_MARKER)
         lines.append("")
 
         return "\n".join(lines)
 
+    def _split_before_suggestions(self, content: str) -> tuple[str, bool]:
+        match = _AI_SUGGESTIONS_HEADING_RE.search(content)
+        if not match:
+            return content.rstrip(), False
+        return content[: match.start()].rstrip(), True
+
+    async def _ensure_ai_suggestions(self, review_id: str) -> str:
+        """Refresh AI suggestions for an existing review when still using placeholder text."""
+        review = self.get_review(review_id)
+        if not review:
+            return review_id
+
+        content = review.get("content", "")
+        _, has_section = self._split_before_suggestions(content)
+        needs_refresh = _PLACEHOLDER_SUGGESTIONS in content
+        if not needs_refresh and has_section:
+            after = _AI_SUGGESTIONS_HEADING_RE.split(content, maxsplit=1)[-1].strip()
+            needs_refresh = not after or after.startswith("(") or _PLACEHOLDER_SUGGESTIONS in after
+
+        if not needs_refresh:
+            return review_id
+
+        updated = await self._finalize_review_content(content, [])
+        surface = f"{review.get('type', 'daily')}_review"
+        key_insights = self._key_insights_payload(updated, surface=surface)
+
+        with _db().get_db() as conn:
+            conn.execute(
+                "UPDATE reviews SET content = ?, key_insights = ? WHERE id = ?",
+                (updated, key_insights, review_id),
+            )
+        return review_id
+
     async def _finalize_review_content(
         self, content: str, events: list[dict]
     ) -> str:
-        del events  # reserved for future context-aware polish
+        del events  # reserved for future context-aware generation
+        base, has_section = self._split_before_suggestions(content)
+        if has_section:
+            polished_base = await _polish_review_async(base)
+            suggestions = await _generate_ai_suggestions_async(polished_base)
+            return f"{polished_base}\n\n{_AI_SUGGESTIONS_MARKER}\n{suggestions}\n"
         return await _polish_review_async(content)
 
     def _key_insights_payload(
@@ -319,7 +390,14 @@ class ReviewEngine:
             insights.append("存在停滞目标，需要关注")
         if "已完成目标" in content:
             insights.append("有已完成的目标")
-        return insights
+        match = _AI_SUGGESTIONS_HEADING_RE.search(content)
+        if match:
+            suggestions = content[match.end():]
+            for line in suggestions.splitlines():
+                line = line.strip()
+                if line.startswith("- "):
+                    insights.append(line[2:].strip())
+        return insights[:5]
 
     def list_reviews(self, limit: int = 10) -> list[dict]:
         with _db().get_db() as conn:

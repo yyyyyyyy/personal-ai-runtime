@@ -7,6 +7,7 @@ import {
   type Notification,
 } from "../../api/client";
 import NotificationDetailModal from "../notifications/NotificationDetailModal";
+import { notificationPreview } from "../../utils/reviewUtils";
 
 export default function NotificationBell() {
   const [open, setOpen] = useState(false);
@@ -104,7 +105,7 @@ export default function NotificationBell() {
                     {n.title}
                   </p>
                   <p className="text-xs text-gray-500 mt-1 line-clamp-2">
-                    {n.content}
+                    {notificationPreview(n.content)}
                   </p>
                 </button>
               ))

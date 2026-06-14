@@ -50,6 +50,8 @@ async def get_task(task_id: str):
 
 @router.get("/{task_id}/subtasks")
 async def get_subtasks(task_id: str):
+    if not task_engine.get_task(task_id):
+        raise HTTPException(status_code=404, detail="Task not found")
     return task_engine.get_subtasks(task_id)
 
 
@@ -70,6 +72,8 @@ async def delete_task(task_id: str):
 
 @router.get("/goals/{goal_id}/tree")
 async def get_task_tree(goal_id: str):
+    if not kernel.query_state("goals", id=goal_id):
+        raise HTTPException(status_code=404, detail="Goal not found")
     return task_engine.get_task_tree(goal_id)
 
 

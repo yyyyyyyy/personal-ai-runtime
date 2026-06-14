@@ -7,6 +7,7 @@ vi.mock("../api/client", () => ({
   getGoal: vi.fn(),
   createGoal: vi.fn(),
   updateGoal: vi.fn(),
+  deleteGoal: vi.fn(),
   createGoalAction: vi.fn(),
   updateGoalAction: vi.fn(),
   ApiError: class extends Error {

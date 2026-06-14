@@ -1,6 +1,6 @@
 """Notifications API — list, mark as read, and get notifications."""
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
 
 from app.store.database import db
 
@@ -8,7 +8,7 @@ router = APIRouter(prefix="/api/notifications", tags=["notifications"])
 
 
 @router.get("/")
-async def list_notifications(unread_only: bool = False, limit: int = 50):
+async def list_notifications(unread_only: bool = False, limit: int = Query(50, ge=1, le=500)):
     """List notifications, optionally filtered to unread only."""
     with db.get_db() as conn:
         if unread_only:

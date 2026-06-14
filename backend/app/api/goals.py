@@ -3,12 +3,38 @@
 import uuid
 from datetime import UTC, datetime
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
 
 from app.core.runtime.kernel_instance import kernel
 from app.core.runtime.legacy_event_adapter import goal_legacy_events
 
 router = APIRouter(prefix="/api/goals", tags=["goals"])
+
+VALID_GOAL_STATUSES = frozenset({"active", "completed", "paused"})
+
+
+def _validate_score_field(name: str, value: object) -> float:
+    if not isinstance(value, (int, float, str)):
+        raise HTTPException(status_code=400, detail=f"{name} must be a number")
+    try:
+        score = float(value)
+    except (TypeError, ValueError) as exc:
+        raise HTTPException(status_code=400, detail=f"{name} must be a number") from exc
+    if not (0.0 <= score <= 1.0):
+        raise HTTPException(status_code=400, detail=f"{name} must be between 0.0 and 1.0")
+    return score
+
+
+def _validate_goal_update_fields(body: dict) -> None:
+    if "importance" in body:
+        body["importance"] = _validate_score_field("importance", body["importance"])
+    if "urgency" in body:
+        body["urgency"] = _validate_score_field("urgency", body["urgency"])
+    if "status" in body and body["status"] not in VALID_GOAL_STATUSES:
+        raise HTTPException(
+            status_code=400,
+            detail=f"status must be one of: {', '.join(sorted(VALID_GOAL_STATUSES))}",
+        )
 
 
 # --- Goal CRUD ---------------------------------------------------------------
@@ -24,13 +50,8 @@ async def create_goal(body: dict):
     now = datetime.now(UTC).isoformat()
 
     description = body.get("description", "")
-    importance = float(body.get("importance", 0.5))
-    urgency = float(body.get("urgency", 0.5))
-
-    if not (0.0 <= importance <= 1.0):
-        raise HTTPException(status_code=400, detail="importance must be between 0.0 and 1.0")
-    if not (0.0 <= urgency <= 1.0):
-        raise HTTPException(status_code=400, detail="urgency must be between 0.0 and 1.0")
+    importance = _validate_score_field("importance", body.get("importance", 0.5))
+    urgency = _validate_score_field("urgency", body.get("urgency", 0.5))
 
     deadline = body.get("deadline")
     parent_id = body.get("parent_id")
@@ -73,7 +94,7 @@ async def get_prioritized_goals():
 
 
 @router.get("/stagnant")
-async def get_stagnant_goals(days: int = 3):
+async def get_stagnant_goals(days: int = Query(3, ge=1)):
     """Get goals that haven't been updated in the specified number of days."""
     result = kernel.query_state(
         "goals",
@@ -113,6 +134,8 @@ async def update_goal(goal_id: str, body: dict):
 
     if not changed:
         return goal
+
+    _validate_goal_update_fields(changed)
 
     if changed.get("status") == "completed":
         kernel.emit_event(
