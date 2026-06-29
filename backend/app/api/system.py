@@ -138,14 +138,14 @@ async def export_encrypted(password: str = ""):
 
     from cryptography.hazmat.primitives import hashes
     from cryptography.hazmat.primitives.ciphers.aead import AESGCM
-    from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2
+    from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 
     # Export plaintext
     snapshot = digital_legacy.export_all()
 
     # Derive key from password
     salt = os.urandom(16)
-    kdf = PBKDF2(algorithm=hashes.SHA256(), length=32, salt=salt, iterations=600000)
+    kdf = PBKDF2HMAC(algorithm=hashes.SHA256(), length=32, salt=salt, iterations=600000)
     key = kdf.derive(password.encode())
 
     # Encrypt
@@ -170,7 +170,7 @@ async def import_encrypted(data: str = "", password: str = ""):
 
     from cryptography.hazmat.primitives import hashes
     from cryptography.hazmat.primitives.ciphers.aead import AESGCM
-    from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2
+    from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 
     try:
         raw = base64.b64decode(data)
@@ -178,7 +178,7 @@ async def import_encrypted(data: str = "", password: str = ""):
     except Exception:
         raise HTTPException(status_code=400, detail="Invalid encrypted blob format")
 
-    kdf = PBKDF2(algorithm=hashes.SHA256(), length=32, salt=salt, iterations=600000)
+    kdf = PBKDF2HMAC(algorithm=hashes.SHA256(), length=32, salt=salt, iterations=600000)
     key = kdf.derive(password.encode())
     aesgcm = AESGCM(key)
 
