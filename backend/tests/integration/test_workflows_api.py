@@ -120,3 +120,64 @@ def test_export_complex_topology(client: TestClient):
     assert r.status_code == 200
     plan = r.json()["plan"]
     assert len(plan["steps"]) == 4
+
+
+def test_scene_templates_separate_nodes_and_edges(client: TestClient):
+    """Templates must define nodes and edges as distinct arrays.
+
+    Regression guard: an earlier version inlined edges into the nodes array,
+    which made export_executable_plan treat pseudo 'edge' entries as nodes.
+    """
+    from app.api.workflows import SCENE_TEMPLATES
+
+    for tpl in SCENE_TEMPLATES:
+        node_ids = {n["id"] for n in tpl["nodes"]}
+        edges = tpl.get("edges", [])
+        # No node should be an edge in disguise.
+        for e in edges:
+            assert e["id"] not in node_ids, (
+                f"Template {tpl['id']} has edge {e['id']} masquerading as a node"
+            )
+            assert e["source"] in node_ids, (
+                f"Template {tpl['id']} edge {e['id']} references missing source {e['source']}"
+            )
+            assert e["target"] in node_ids, (
+                f"Template {tpl['id']} edge {e['id']} references missing target {e['target']}"
+            )
+
+    # Instantiating a template should produce a valid export.
+    r = client.post("/api/workflows/from-template/template-inbox")
+    assert r.status_code == 200
+    wf_id = r.json()["id"]
+    r = client.get(f"/api/workflows/{wf_id}/export")
+    assert r.status_code == 200
+    plan = r.json()["plan"]
+    # Inbox template: schedule + check_inbox + agent + notification = 4 steps,
+    # NOT 7 (which it would be if edges were counted as nodes).
+    assert len(plan["steps"]) == 4
+
+
+def test_workflow_mutations_emit_audit_event(client: TestClient):
+    """create/update/delete must emit WorkflowChanged audit events to event_log."""
+    from app.core.runtime.kernel_instance import kernel
+
+    before = len(kernel.read_events(type="WorkflowChanged"))
+
+    r = client.post("/api/workflows", json={"name": "Audit Test", "nodes": [], "edges": []})
+    wf_id = r.json()["id"]
+    after_create = len(kernel.read_events(type="WorkflowChanged"))
+    assert after_create == before + 1, "create did not emit audit event"
+
+    client.put(f"/api/workflows/{wf_id}", json={"name": "Renamed"})
+    after_update = len(kernel.read_events(type="WorkflowChanged"))
+    assert after_update == after_create + 1, "update did not emit audit event"
+
+    client.delete(f"/api/workflows/{wf_id}")
+    after_delete = len(kernel.read_events(type="WorkflowChanged"))
+    assert after_delete == after_update + 1, "delete did not emit audit event"
+
+    # Verify the create event payload.
+    create_events = kernel.read_events(type="WorkflowChanged")
+    last = create_events[-1]
+    assert last.payload["action"] == "deleted"
+    assert last.payload["workflow_id"] == wf_id

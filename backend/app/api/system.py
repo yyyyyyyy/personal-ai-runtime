@@ -4,7 +4,12 @@ import secrets
 
 from fastapi import APIRouter, HTTPException, Request
 
-from app.api.models import ExportRequest, ImportRequest
+from app.api.models import (
+    EncryptedExportRequest,
+    EncryptedImportRequest,
+    ExportRequest,
+    ImportRequest,
+)
 from app.config import settings
 from app.core.agents.llm_router import llm_router
 from app.core.startup_health import sanitize_startup_for_public
@@ -123,71 +128,57 @@ async def destroy_all_data(confirm: str = ""):
 # --- Encrypted Sync (Phase 2) ---
 
 @router.post("/export/encrypted")
-async def export_encrypted(password: str = ""):
+async def export_encrypted(body: EncryptedExportRequest):
     """Export with AES-GCM encryption using a user-provided passphrase.
 
-    Returns a base64-encoded encrypted blob suitable for cross-device
-    transfer. Use /api/system/import/encrypted to restore.
+    Password is read from the request body (not query) to keep it out of
+    access logs and shell history. Returns a base64-encoded encrypted blob
+    suitable for cross-device transfer. Use /api/system/import/encrypted to
+    restore.
     """
-    if len(password) < 8:
-        raise HTTPException(status_code=400, detail="Password must be at least 8 characters")
+    if body.confirm != EXPORT_CONFIRM:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Set confirm='{EXPORT_CONFIRM}' to export",
+        )
 
-    import base64
-    import json as _json
-    import os
+    from app.product.encrypted_sync import (
+        BLOB_FORMAT,
+        EncryptedSyncError,
+        encrypt_snapshot,
+    )
 
-    from cryptography.hazmat.primitives import hashes
-    from cryptography.hazmat.primitives.ciphers.aead import AESGCM
-    from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
-
-    # Export plaintext
     snapshot = digital_legacy.export_all()
 
-    # Derive key from password
-    salt = os.urandom(16)
-    kdf = PBKDF2HMAC(algorithm=hashes.SHA256(), length=32, salt=salt, iterations=600000)
-    key = kdf.derive(password.encode())
+    try:
+        blob = await encrypt_snapshot(snapshot, body.password)
+    except EncryptedSyncError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
-    # Encrypt
-    nonce = os.urandom(12)
-    aesgcm = AESGCM(key)
-    plaintext = _json.dumps(snapshot).encode()
-    ciphertext = aesgcm.encrypt(nonce, plaintext, None)
-
-    # Package
-    blob = base64.b64encode(salt + nonce + ciphertext).decode()
-    return {"format": "encrypted_snapshot_v1", "data": blob, "size_bytes": len(blob)}
+    return {"format": BLOB_FORMAT, "data": blob, "size_bytes": len(blob)}
 
 
 @router.post("/import/encrypted")
-async def import_encrypted(data: str = "", password: str = ""):
-    """Import previously encrypted export blob."""
-    if not data or not password:
-        raise HTTPException(status_code=400, detail="data and password are required")
+async def import_encrypted(body: EncryptedImportRequest):
+    """Import previously encrypted export blob.
 
-    import base64
-    import json as _json
+    Requires the same confirm code as plaintext write import, because the
+    underlying path rewrites event_log (drops append-only triggers, clears,
+    reinserts). Password is read from the request body.
+    """
+    if body.confirm != IMPORT_CONFIRM:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Set confirm='{IMPORT_CONFIRM}' for encrypted write import",
+        )
 
-    from cryptography.hazmat.primitives import hashes
-    from cryptography.hazmat.primitives.ciphers.aead import AESGCM
-    from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
-
-    try:
-        raw = base64.b64decode(data)
-        salt, nonce, ciphertext = raw[:16], raw[16:28], raw[28:]
-    except Exception:
-        raise HTTPException(status_code=400, detail="Invalid encrypted blob format")
-
-    kdf = PBKDF2HMAC(algorithm=hashes.SHA256(), length=32, salt=salt, iterations=600000)
-    key = kdf.derive(password.encode())
-    aesgcm = AESGCM(key)
+    from app.product.encrypted_sync import EncryptedSyncError, decrypt_snapshot
 
     try:
-        plaintext = aesgcm.decrypt(nonce, ciphertext, None)
-    except Exception:
-        raise HTTPException(status_code=400, detail="Decryption failed — wrong password or corrupted data")
+        snapshot = await decrypt_snapshot(body.data, body.password)
+    except EncryptedSyncError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
-    snapshot = _json.loads(plaintext)
     result = digital_legacy.import_all(snapshot, read_only=False)
     return {"status": "ok", "events_imported": result.get("counts", {}).get("event_log", 0)}
 

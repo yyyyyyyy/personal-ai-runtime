@@ -285,11 +285,17 @@ class Kernel(QueryStateMixin, GovernanceMixin, SovereigntyMixin):
             result = await asyncio.wait_for(future, timeout=timeout)
             return result.payload
         except asyncio.TimeoutError:
-            self._pending_commands.pop(key, None)
             return {"error": "timeout", "status": "timeout"}
         except Exception as exc:
-            self._pending_commands.pop(key, None)
             return {"error": str(exc), "status": "error"}
+        finally:
+            # Defensive cleanup: guarantee the registration never leaks even
+            # if _dispatch misses the completion event (e.g. no running loop,
+            # handler raised before resolving, process fork). This is the
+            # single source of truth for key removal — _dispatch also pops
+            # on successful resolve, but pop(key, None) here is a safe no-op
+            # in that case.
+            self._pending_commands.pop(key, None)
 
     def _sync_memory_index(self, event: Event) -> None:
         """Keep ChromaDB as a derived index of memory projection events.
@@ -518,6 +524,14 @@ class Kernel(QueryStateMixin, GovernanceMixin, SovereigntyMixin):
             try:
                 loop = asyncio.get_running_loop()
             except RuntimeError:
+                # No running loop — cannot schedule the resolution callback.
+                # The future has already been popped above; submit_command's
+                # wait_for will time out and its finally block guarantees the
+                # key is gone. We deliberately do NOT cancel the future here:
+                # cancelling would inject a CancelledError into wait_for,
+                # which asyncio then propagates as a task cancellation — hard
+                # to distinguish from a genuine caller cancellation. Letting
+                # it time out is safer and the timeout is already bounded.
                 return
             # Use a nested function instead of lambda for mypy type inference
             def _resolve_pending(f: "asyncio.Future", e: Event) -> None:
@@ -533,6 +547,8 @@ class Kernel(QueryStateMixin, GovernanceMixin, SovereigntyMixin):
                 try:
                     loop = asyncio.get_running_loop()
                 except RuntimeError:
+                    # Same reasoning as above: let it time out rather than
+                    # injecting a CancelledError.
                     return
 
                 def _resolve_failed(f: "asyncio.Future", e: Event) -> None:

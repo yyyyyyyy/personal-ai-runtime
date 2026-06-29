@@ -29,6 +29,30 @@ class ImportRequest(BaseModel):
     confirm: str = ""
 
 
+class EncryptedExportRequest(BaseModel):
+    """Body for AES-GCM encrypted export.
+
+    Password is sent in the body (not query) so it stays out of access logs,
+    shell history, and browser history.
+    """
+
+    password: str
+    confirm: str = ""
+
+
+class EncryptedImportRequest(BaseModel):
+    """Body for AES-GCM encrypted import.
+
+    Requires the same confirm code as plaintext write import, because the
+    underlying path rewrites event_log (drops append-only triggers, clears,
+    reinserts) — that is a destructive sovereignty operation.
+    """
+
+    data: str
+    password: str
+    confirm: str = ""
+
+
 class CreateMemoryRequest(BaseModel):
     content: str
     category: str | None = None

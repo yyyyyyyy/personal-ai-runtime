@@ -112,3 +112,36 @@ def test_health_full_startup_with_auth(authed_client: TestClient):
     assert startup is not None
     assert "warnings" in startup
     assert "data_dir" in startup["checks"]["storage"]
+
+
+# --- Encrypted export/import confirm-code enforcement ---
+
+def test_encrypted_export_requires_confirm(client: TestClient):
+    r = client.post(
+        "/api/system/export/encrypted",
+        json={"password": "longpassword"},
+    )
+    assert r.status_code == 400
+    assert "EXPORT_ALL_DATA" in r.json()["detail"]
+
+
+def test_encrypted_import_requires_confirm(client: TestClient):
+    r = client.post(
+        "/api/system/import/encrypted",
+        json={"data": "blob", "password": "longpassword"},
+    )
+    assert r.status_code == 400
+    assert "DESTROY_AND_IMPORT" in r.json()["detail"]
+
+
+def test_encrypted_import_wrong_confirm_rejected(client: TestClient):
+    r = client.post(
+        "/api/system/import/encrypted",
+        json={
+            "data": "blob",
+            "password": "longpassword",
+            "confirm": "WRONG_CODE",
+        },
+    )
+    assert r.status_code == 400
+    assert "DESTROY_AND_IMPORT" in r.json()["detail"]

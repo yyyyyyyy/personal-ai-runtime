@@ -6,10 +6,9 @@ import secrets
 from asyncio import Lock
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
-from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.types import ASGIApp, Receive, Scope, Send
 
 from app.api import (
     approvals,
@@ -69,30 +68,66 @@ def _extract_ws_token(websocket: WebSocket) -> str:
     return ""
 
 
-class AuthMiddleware(BaseHTTPMiddleware):
-    """Simple Bearer Token middleware for local-first API protection."""
+class AuthMiddleware:
+    """Pure ASGI Bearer Token middleware for local-first API protection.
 
-    async def dispatch(self, request: Request, call_next):
-        path = request.url.path
+    Implemented as a raw ASGI middleware (not BaseHTTPMiddleware) so that
+    streaming responses — notably the chat SSE endpoint — pass through
+    unbuffered. BaseHTTPMiddleware buffers the full response body, which
+    breaks token-level streaming.
+    """
+
+    def __init__(self, app: ASGIApp) -> None:
+        self.app = app
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] != "http":
+            # WebSocket and other non-HTTP scopes pass through untouched;
+            # WebSocket auth is handled in the websocket_endpoint directly.
+            await self.app(scope, receive, send)
+            return
+
+        path = scope["path"]
         if path in SKIP_AUTH_PATHS:
-            return await call_next(request)
+            await self.app(scope, receive, send)
+            return
 
         expected = settings.auth_token
         if not expected:
-            return await call_next(request)
+            await self.app(scope, receive, send)
+            return
 
-        auth_header = request.headers.get("Authorization", "")
-        token = ""
-        if auth_header.startswith("Bearer "):
-            token = auth_header[7:]
-
+        token = self._extract_bearer(scope)
         if not _tokens_match(token, expected):
-            return JSONResponse(
-                status_code=401,
-                content={"detail": "Unauthorized: missing or invalid Bearer token"},
-            )
+            await self._unauthorized(send)
+            return
 
-        return await call_next(request)
+        await self.app(scope, receive, send)
+
+    @staticmethod
+    def _extract_bearer(scope: Scope) -> str:
+        for header_name, header_value in scope.get("headers", []):
+            if header_name == b"authorization":
+                value = header_value.decode("latin-1")
+                if value.startswith("Bearer "):
+                    return value[7:]
+        return ""
+
+    @staticmethod
+    async def _unauthorized(send: Send) -> None:
+        # Minimal ASGI 401 response without touching the downstream app.
+        body = json.dumps(
+            {"detail": "Unauthorized: missing or invalid Bearer token"}
+        ).encode("utf-8")
+        await send({
+            "type": "http.response.start",
+            "status": 401,
+            "headers": [
+                (b"content-type", b"application/json"),
+                (b"content-length", str(len(body)).encode("ascii")),
+            ],
+        })
+        await send({"type": "http.response.body", "body": body})
 
 
 # ── Lifespan ─────────────────────────────────────────────────────────────────
