@@ -3,6 +3,9 @@ import {
   listMemoriesGrouped,
   createMemory,
   deleteMemory,
+  updateMemory,
+  ratifyMemory,
+  rejectMemory,
   getMemoryGraph,
   ApiError,
   type MemoryRow,
@@ -11,7 +14,7 @@ import {
 import { useErrorStore } from "../stores/errorStore";
 import { useQuickChat } from "../hooks/useQuickChat";
 import Dialog from "../components/ui/Dialog";
-import { Network, List } from "lucide-react";
+import { Network, List, Check, X, Edit3 } from "lucide-react";
 
 function timeAgoShort(dateStr: string): string {
   const d = new Date(dateStr);
@@ -34,6 +37,9 @@ export default function MemoriesPage() {
   const [viewMode, setViewMode] = useState<"list" | "graph">("list");
   const [graphData, setGraphData] = useState<MemoryGraph | null>(null);
   const [graphLoading, setGraphLoading] = useState(false);
+  const [editTarget, setEditTarget] = useState<MemoryRow | null>(null);
+  const [editContent, setEditContent] = useState("");
+  const [editCategory, setEditCategory] = useState("");
   const addError = useErrorStore((s) => s.addError);
   const quickChat = useQuickChat();
 
@@ -79,6 +85,45 @@ export default function MemoriesPage() {
     } catch (err) {
       const msg =
         err instanceof ApiError ? err.message : "删除记忆失败";
+      addError(msg, "记忆");
+    }
+  };
+
+  const handleEdit = (m: MemoryRow) => {
+    setEditTarget(m);
+    setEditContent(m.content);
+    setEditCategory(m.category || "fact");
+  };
+
+  const confirmEdit = async () => {
+    if (!editTarget || !editContent.trim()) return;
+    const id = editTarget.id;
+    setEditTarget(null);
+    try {
+      await updateMemory(id, { content: editContent.trim(), category: editCategory || undefined });
+      load();
+    } catch (err) {
+      const msg = err instanceof ApiError ? err.message : "更新记忆失败";
+      addError(msg, "记忆");
+    }
+  };
+
+  const handleRatify = async (m: MemoryRow) => {
+    try {
+      await ratifyMemory(m.id);
+      load();
+    } catch (err) {
+      const msg = err instanceof ApiError ? err.message : "确认记忆失败";
+      addError(msg, "记忆");
+    }
+  };
+
+  const handleReject = async (m: MemoryRow) => {
+    try {
+      await rejectMemory(m.id);
+      load();
+    } catch (err) {
+      const msg = err instanceof ApiError ? err.message : "拒绝记忆失败";
       addError(msg, "记忆");
     }
   };
@@ -220,32 +265,52 @@ export default function MemoriesPage() {
                           className="bg-gray-900 border border-gray-800 rounded-lg p-3 text-sm group"
                         >
                           <p className="text-gray-300">{m.content}</p>
-                          <div className="flex items-center gap-3 mt-2">
+                          <div className="flex items-center gap-2 mt-2 flex-wrap">
                             {m.created_at && (
                               <span className="text-xs text-gray-600">
                                 {timeAgoShort(m.created_at)}
                               </span>
                             )}
                             {m.origin === "claim" && (
-                              <span className="text-xs text-indigo-500/60" title="这条记忆来自对话推断">
-                                对话推断
-                              </span>
+                              <span className="text-xs text-indigo-500/60">对话推断</span>
                             )}
                             {m.origin === "self_report" && (
-                              <span className="text-xs text-emerald-500/60" title="你直接告诉我的">
-                                你告诉我的
-                              </span>
+                              <span className="text-xs text-emerald-500/60">你告诉我的</span>
                             )}
-                            <button
-                              onClick={() => handleContinueChat(m)}
-                              className="text-xs text-emerald-500 hover:text-emerald-400 opacity-0 group-hover:opacity-100 transition-opacity"
-                            >
+                            {m.claim_status === "proposed" && (
+                              <span className="text-xs bg-amber-500/20 text-amber-400 px-1.5 py-0.5 rounded">待确认</span>
+                            )}
+                            {m.claim_status === "ratified" && (
+                              <span className="text-xs bg-emerald-500/20 text-emerald-400 px-1.5 py-0.5 rounded">已确认</span>
+                            )}
+                            {m.claim_status === "rejected" && (
+                              <span className="text-xs bg-red-500/20 text-red-400 px-1.5 py-0.5 rounded">已拒绝</span>
+                            )}
+                            {m.claim_status === "contested" && (
+                              <span className="text-xs bg-purple-500/20 text-purple-400 px-1.5 py-0.5 rounded">有争议</span>
+                            )}
+                            {m.origin === "claim" && m.claim_status === "proposed" && (
+                              <>
+                                <button onClick={() => handleRatify(m)}
+                                  className="text-xs text-emerald-500 hover:text-emerald-400 opacity-0 group-hover:opacity-100 transition-opacity">
+                                  <Check size={14} className="inline mr-0.5" />确认
+                                </button>
+                                <button onClick={() => handleReject(m)}
+                                  className="text-xs text-red-500 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity">
+                                  <X size={14} className="inline mr-0.5" />拒绝
+                                </button>
+                              </>
+                            )}
+                            <button onClick={() => handleEdit(m)}
+                              className="text-xs text-blue-500 hover:text-blue-400 opacity-0 group-hover:opacity-100 transition-opacity">
+                              <Edit3 size={14} className="inline mr-0.5" />编辑
+                            </button>
+                            <button onClick={() => handleContinueChat(m)}
+                              className="text-xs text-emerald-500 hover:text-emerald-400 opacity-0 group-hover:opacity-100 transition-opacity">
                               继续聊
                             </button>
-                            <button
-                              onClick={() => handleDelete(m)}
-                              className="text-xs text-red-500 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity"
-                            >
+                            <button onClick={() => handleDelete(m)}
+                              className="text-xs text-red-500 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity">
                               忘掉
                             </button>
                           </div>
@@ -284,6 +349,34 @@ export default function MemoriesPage() {
         onConfirm={confirmDelete}
         onCancel={() => setDeleteTarget(null)}
       />
+
+      {editTarget && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setEditTarget(null)}>
+          <div className="bg-gray-800 border border-gray-700 rounded-xl p-6 w-96 max-w-[90vw] space-y-4" onClick={e => e.stopPropagation()}>
+            <h3 className="text-lg font-semibold text-white">编辑记忆</h3>
+            <div className="space-y-3">
+              <div>
+                <label className="text-xs text-gray-400 mb-1 block">内容</label>
+                <input value={editContent} onChange={(e) => setEditContent(e.target.value)}
+                  className="w-full bg-gray-700 rounded-lg px-3 py-2 text-sm text-white border border-gray-600"
+                  placeholder="记忆内容" autoFocus />
+              </div>
+              <div>
+                <label className="text-xs text-gray-400 mb-1 block">分类</label>
+                <input value={editCategory} onChange={(e) => setEditCategory(e.target.value)}
+                  className="w-full bg-gray-700 rounded-lg px-3 py-2 text-sm text-white border border-gray-600"
+                  placeholder="如 fact, preference, habit" />
+              </div>
+            </div>
+            <div className="flex gap-2 justify-end">
+              <button onClick={() => setEditTarget(null)}
+                className="px-3 py-1.5 bg-gray-700 hover:bg-gray-600 rounded-lg text-sm">取消</button>
+              <button onClick={confirmEdit}
+                className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 rounded-lg text-sm">保存</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

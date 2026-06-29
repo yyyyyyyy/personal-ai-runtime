@@ -75,6 +75,62 @@ async def update_memory(memory_id: str, body: UpdateMemoryRequest):
     return {"status": "ok"}
 
 
+# --- Claim authority endpoints (Phase 1: user confirms/corrects memories) ---
+
+@router.post("/memories/{memory_id}/ratify")
+async def ratify_memory(memory_id: str):
+    """Confirm an AI-inferred memory as correct."""
+    mem = _get_memory(memory_id)
+    if not mem:
+        raise HTTPException(status_code=404, detail="Memory not found")
+    if mem.get("origin") != "claim":
+        raise HTTPException(
+            status_code=400, detail="Only inferred (claim) memories can be ratified")
+
+    kernel.emit_event(
+        "ClaimRatified", "memory", memory_id,
+        payload={"by": "user"},
+        actor="user",
+    )
+    return {"status": "ok", "claim_status": "ratified"}
+
+
+@router.post("/memories/{memory_id}/reject")
+async def reject_memory(memory_id: str):
+    """Reject an AI-inferred memory as incorrect."""
+    mem = _get_memory(memory_id)
+    if not mem:
+        raise HTTPException(status_code=404, detail="Memory not found")
+    if mem.get("origin") != "claim":
+        raise HTTPException(
+            status_code=400, detail="Only inferred (claim) memories can be rejected")
+
+    kernel.emit_event(
+        "ClaimRejected", "memory", memory_id,
+        payload={"by": "user"},
+        actor="user",
+    )
+    return {"status": "ok", "claim_status": "rejected"}
+
+
+@router.post("/memories/{memory_id}/contest")
+async def contest_memory(memory_id: str):
+    """Mark an AI-inferred memory as contested (needs correction)."""
+    mem = _get_memory(memory_id)
+    if not mem:
+        raise HTTPException(status_code=404, detail="Memory not found")
+    if mem.get("origin") != "claim":
+        raise HTTPException(
+            status_code=400, detail="Only inferred (claim) memories can be contested")
+
+    kernel.emit_event(
+        "ClaimContested", "memory", memory_id,
+        payload={"by": "user"},
+        actor="user",
+    )
+    return {"status": "ok", "claim_status": "contested"}
+
+
 # --- User Profile endpoints (Memory v2) ---
 
 @router.get("/profile")

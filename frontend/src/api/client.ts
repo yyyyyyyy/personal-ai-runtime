@@ -76,6 +76,10 @@ export {
   searchMemories,
   createMemory,
   deleteMemory,
+  updateMemory,
+  ratifyMemory,
+  rejectMemory,
+  contestMemory,
   getMemoryGraph,
 } from "./memory";
 export type {

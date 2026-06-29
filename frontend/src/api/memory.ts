@@ -27,6 +27,28 @@ export async function deleteMemory(memoryId: string): Promise<{ status: string }
   return request(`${API_BASE}/memory/memories/${memoryId}`, { method: "DELETE" });
 }
 
+export async function updateMemory(
+  memoryId: string,
+  body: { content: string; category?: string }
+): Promise<{ status: string }> {
+  return request(`${API_BASE}/memory/memories/${memoryId}`, {
+    method: "PUT",
+    body: JSON.stringify(body),
+  });
+}
+
+export async function ratifyMemory(memoryId: string): Promise<{ status: string; claim_status: string }> {
+  return request(`${API_BASE}/memory/memories/${memoryId}/ratify`, { method: "POST" });
+}
+
+export async function rejectMemory(memoryId: string): Promise<{ status: string; claim_status: string }> {
+  return request(`${API_BASE}/memory/memories/${memoryId}/reject`, { method: "POST" });
+}
+
+export async function contestMemory(memoryId: string): Promise<{ status: string; claim_status: string }> {
+  return request(`${API_BASE}/memory/memories/${memoryId}/contest`, { method: "POST" });
+}
+
 export interface MemoryGraphNode {
   id: string;
   content: string;

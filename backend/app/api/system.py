@@ -118,3 +118,19 @@ async def destroy_all_data(confirm: str = ""):
             detail=f"Query parameter confirm must be '{DESTROY_CONFIRM}'",
         )
     return digital_legacy.destroy_all()
+
+
+# --- Demo endpoint (Phase 1: Model Continuity Demo) ---
+
+@router.get("/demo/model-continuity")
+async def model_continuity_demo():
+    """Return current model & memory stats for the Phase 1 model-switch demo."""
+    from app.core.runtime.kernel_instance import kernel
+    counts = kernel.table_counts(("memories", "event_log"))
+    return {
+        "model": settings.llm_model,
+        "base_url": settings.llm_base_url,
+        "total_memories": counts.get("memories", 0),
+        "total_events": counts.get("event_log", 0),
+        "message": "你的记忆已安全存储。切换到任何模型，记忆都不会丢失。",
+    }
