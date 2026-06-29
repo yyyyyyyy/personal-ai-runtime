@@ -16,6 +16,8 @@ const WorkflowEditorPage = lazy(() => import("./pages/WorkflowEditor"));
 const PortraitPage = lazy(() => import("./pages/Portrait"));
 const TrustReportPage = lazy(() => import("./pages/TrustReport"));
 const ModelSwitchDemoPage = lazy(() => import("./pages/ModelSwitchDemo"));
+const SceneTemplatesPage = lazy(() => import("./pages/SceneTemplates"));
+const IntegrationsHubPage = lazy(() => import("./pages/IntegrationsHub"));
 
 export const router = createBrowserRouter([
   {
@@ -38,6 +40,8 @@ export const router = createBrowserRouter([
       { path: "knowledge", element: <KnowledgePage /> },
       { path: "workflows", element: <WorkflowListPage /> },
       { path: "workflows/:workflowId", element: <WorkflowEditorPage /> },
+      { path: "templates", element: <SceneTemplatesPage /> },
+      { path: "integrations", element: <IntegrationsHubPage /> },
     ],
   },
 ]);

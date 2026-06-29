@@ -120,6 +120,78 @@ async def destroy_all_data(confirm: str = ""):
     return digital_legacy.destroy_all()
 
 
+# --- Encrypted Sync (Phase 2) ---
+
+@router.post("/export/encrypted")
+async def export_encrypted(password: str = ""):
+    """Export with AES-GCM encryption using a user-provided passphrase.
+
+    Returns a base64-encoded encrypted blob suitable for cross-device
+    transfer. Use /api/system/import/encrypted to restore.
+    """
+    if len(password) < 8:
+        raise HTTPException(status_code=400, detail="Password must be at least 8 characters")
+
+    import base64
+    import json as _json
+    import os
+
+    from cryptography.hazmat.primitives import hashes
+    from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+    from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2
+
+    # Export plaintext
+    snapshot = digital_legacy.export_all()
+
+    # Derive key from password
+    salt = os.urandom(16)
+    kdf = PBKDF2(algorithm=hashes.SHA256(), length=32, salt=salt, iterations=600000)
+    key = kdf.derive(password.encode())
+
+    # Encrypt
+    nonce = os.urandom(12)
+    aesgcm = AESGCM(key)
+    plaintext = _json.dumps(snapshot).encode()
+    ciphertext = aesgcm.encrypt(nonce, plaintext, None)
+
+    # Package
+    blob = base64.b64encode(salt + nonce + ciphertext).decode()
+    return {"format": "encrypted_snapshot_v1", "data": blob, "size_bytes": len(blob)}
+
+
+@router.post("/import/encrypted")
+async def import_encrypted(data: str = "", password: str = ""):
+    """Import previously encrypted export blob."""
+    if not data or not password:
+        raise HTTPException(status_code=400, detail="data and password are required")
+
+    import base64
+    import json as _json
+
+    from cryptography.hazmat.primitives import hashes
+    from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+    from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2
+
+    try:
+        raw = base64.b64decode(data)
+        salt, nonce, ciphertext = raw[:16], raw[16:28], raw[28:]
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid encrypted blob format")
+
+    kdf = PBKDF2(algorithm=hashes.SHA256(), length=32, salt=salt, iterations=600000)
+    key = kdf.derive(password.encode())
+    aesgcm = AESGCM(key)
+
+    try:
+        plaintext = aesgcm.decrypt(nonce, ciphertext, None)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Decryption failed — wrong password or corrupted data")
+
+    snapshot = _json.loads(plaintext)
+    result = digital_legacy.import_all(snapshot, read_only=False)
+    return {"status": "ok", "events_imported": result.get("counts", {}).get("event_log", 0)}
+
+
 # --- Demo endpoint (Phase 1: Model Continuity Demo) ---
 
 @router.get("/demo/model-continuity")

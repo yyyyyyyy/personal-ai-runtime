@@ -1,7 +1,8 @@
-"""Workflow API — visual workflow CRUD and executable plan export.
+"""Workflow API — visual workflow CRUD, executable plan export, and scene templates.
 
 Workflows are visual representations of Trigger → Action chains that compile
 into executable_plan JSON understood by BackgroundWorker/TaskEngine.
+Scene templates are pre-built workflows users can instantiate with one click.
 """
 
 import json
@@ -245,3 +246,92 @@ NODE_PALETTE = [
 @router.get("/_palette")
 async def node_palette():
     return {"nodes": NODE_PALETTE}
+
+
+# --- Scene Templates (Phase 2) ---
+
+SCENE_TEMPLATES: list[dict] = [
+    {
+        "id": "template-inbox",
+        "name": "管理邮件",
+        "icon": "📬",
+        "description": "定时轮询收件箱，自动分类重要邮件并通知你",
+        "category": "productivity",
+        "nodes": [
+            {"id":"n1","type":"schedule","label":"每 15 分钟","data":{"cron":"minute=*/15"}},
+            {"id":"n2","type":"action","label":"检查收件箱","data":{"tool":"check_inbox"}},
+            {"id":"n3","type":"agent","label":"AI 分类","data":{"prompt":"根据内容将邮件分类为重要、普通、垃圾"}},
+            {"id":"n4","type":"notification","label":"通知我","data":{"title":"新邮件摘要","content":"{summary}"}},
+            {"id":"e1","source":"n1","target":"n2"},
+            {"id":"e2","source":"n2","target":"n3"},
+            {"id":"e3","source":"n3","target":"n4"},
+        ],
+    },
+    {
+        "id": "template-goals",
+        "name": "追踪目标",
+        "icon": "🎯",
+        "description": "每日检查目标进度，停滞时自动提醒你",
+        "category": "productivity",
+        "nodes": [
+            {"id":"n1","type":"schedule","label":"每天 9:00","data":{"cron":"hour=9,minute=0"}},
+            {"id":"n2","type":"trigger","label":"检查停滞","data":{"event_type":"trigger_evaluation"}},
+            {"id":"n3","type":"notification","label":"目标提醒","data":{"title":"目标进度提醒","content":"以下目标本周无进展：{stalled_goals}"}},
+            {"id":"e1","source":"n1","target":"n2"},
+            {"id":"e2","source":"n2","target":"n3"},
+        ],
+    },
+    {
+        "id": "template-daily",
+        "name": "自动化日报",
+        "icon": "📊",
+        "description": "每天早晨生成昨日活动摘要并通知你",
+        "category": "productivity",
+        "nodes": [
+            {"id":"n1","type":"schedule","label":"每天 7:30","data":{"cron":"hour=7,minute=30"}},
+            {"id":"n2","type":"agent","label":"生成日报","data":{"prompt":"总结过去24小时的对话、目标和邮件活动，生成一份简洁日报"}},
+            {"id":"n3","type":"notification","label":"推送日报","data":{"title":"今日日报","content":"{daily_summary}"}},
+            {"id":"e1","source":"n1","target":"n2"},
+            {"id":"e2","source":"n2","target":"n3"},
+        ],
+    },
+    {
+        "id": "template-memory",
+        "name": "建立记忆",
+        "icon": "🧠",
+        "description": "定期从对话中提取关键信息，更新用户画像",
+        "category": "cognition",
+        "nodes": [
+            {"id":"n1","type":"schedule","label":"每天 21:30","data":{"cron":"hour=21,minute=30"}},
+            {"id":"n2","type":"trigger","label":"记忆反思","data":{"event_type":"belief_reflection"}},
+            {"id":"n3","type":"agent","label":"更新画像","data":{"prompt":"根据最近对话更新用户偏好和习惯"}},
+            {"id":"e1","source":"n1","target":"n2"},
+            {"id":"e2","source":"n2","target":"n3"},
+        ],
+    },
+]
+
+@router.get("/templates")
+async def list_templates():
+    """List scene templates available for one-click instantiation."""
+    return {"templates": SCENE_TEMPLATES}
+
+@router.post("/from-template/{template_id}")
+async def create_from_template(template_id: str):
+    """Instantiate a workflow from a scene template."""
+    template = next((t for t in SCENE_TEMPLATES if t["id"] == template_id), None)
+    if not template:
+        raise HTTPException(status_code=404, detail="Template not found")
+    wf_id = str(uuid.uuid4())
+    now = datetime.now(UTC).isoformat()
+    wf_data = {
+        "id": wf_id, "name": template["name"],
+        "description": template.get("description", ""),
+        "nodes": template["nodes"],
+        "edges": template.get("edges", []),
+        "enabled": False, "created_at": now, "updated_at": now,
+    }
+    all_wf = _load_workflows()
+    all_wf[wf_id] = wf_data
+    _save_workflows(all_wf)
+    return {"id": wf_id, "name": template["name"], "status": "created"}
