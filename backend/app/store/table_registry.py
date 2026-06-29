@@ -94,7 +94,7 @@ GOVERNED_SCHEMA: dict[str, frozenset[str]] = {
     }),
     "messages": frozenset({
         "id", "conversation_id", "role", "content", "tool_calls", "tool_call_id",
-        "created_at", "source_event_id",
+        "created_at", "source_event_id", "sources",
     }),
     "notifications": frozenset({
         "id", "type", "title", "content", "read", "created_at",

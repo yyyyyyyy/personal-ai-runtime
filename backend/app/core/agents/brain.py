@@ -23,6 +23,7 @@ from app.core.agents.tool_markup import (
 )
 from app.core.agents.tool_postprocess import canned_summary, compact_for_llm
 from app.core.runtime.conversation_recorder import record_conversation_turn
+from app.core.runtime.governance.context_pipeline import get_sources
 from app.core.runtime.kernel_instance import kernel
 from app.core.runtime.taint import taint_registry
 from app.core.telemetry.telemetry import LLMCallRecord, telemetry
@@ -238,7 +239,6 @@ class Brain(BrainCompletionMixin):
         # Step 4: Save + conversation episode
         if full_content and not canned_response_done:
             try:
-                from app.core.runtime.governance.context_pipeline import get_sources
                 sources = get_sources(conversation.conversation_id)
             except Exception:
                 sources = None

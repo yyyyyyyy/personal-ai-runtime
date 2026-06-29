@@ -79,10 +79,9 @@ function parseLoadedMessages(msgs: Message[]): DisplayMessage[] {
     };
 
     // Parse persisted sources for "I Remember" markers
-    if (m.role === "assistant" && (m as any).sources) {
-      const raw = (m as any).sources;
+    if (m.role === "assistant" && m.sources) {
       try {
-        display.sources = typeof raw === "string" ? JSON.parse(raw) : raw;
+        display.sources = typeof m.sources === "string" ? JSON.parse(m.sources) : m.sources;
       } catch {
         // ignore parse errors
       }

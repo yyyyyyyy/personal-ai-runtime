@@ -31,6 +31,7 @@ export interface Message {
   content: string;
   tool_calls: string | null;
   tool_call_id: string | null;
+  sources?: string | null;
   created_at: string;
 }
 

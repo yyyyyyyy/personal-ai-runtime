@@ -3,36 +3,7 @@ import {
   User, Heart, Target, Users, Dumbbell, Wallet, Briefcase, Sparkles,
   AlertCircle, Loader2, RefreshCw, ChevronRight,
 } from "lucide-react";
-import { API_BASE, request } from "../api/core";
-
-interface ProfileItem {
-  data: Record<string, string>;
-  confidence: number;
-}
-
-interface HabitItem {
-  id: string;
-  content: string;
-  confidence: number;
-  source: string;
-  origin: string;
-  created_at?: string;
-}
-
-interface PortraitData {
-  profile: Record<string, ProfileItem | undefined>;
-  habits: HabitItem[];
-  goals: GoalSummary[];
-}
-
-interface GoalSummary {
-  id: string;
-  title: string;
-  progress: number;
-  importance: number;
-  deadline: string | null;
-  last_activity_at: string | null;
-}
+import { getPortrait, type PortraitData, type HabitItem, type ProfileItem, type GoalSummary } from "../api/portrait";
 
 const CATEGORY_META: Record<string, { label: string; icon: typeof User; description: string }> = {
   preferences: { label: "偏好", icon: Heart, description: "你的喜好与倾向" },
@@ -59,7 +30,7 @@ export default function PortraitPage() {
     setLoading(true);
     setError(null);
     try {
-      const result = await request<PortraitData>(`${API_BASE}/memory/portrait`);
+      const result = await getPortrait();
       setData(result);
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "获取画像失败");
