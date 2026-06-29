@@ -83,6 +83,62 @@ async def get_profile():
     return user_profile.get_profile()
 
 
+# --- AI Portrait endpoint (Phase 1: Trust Moat) ---
+
+@router.get("/portrait")
+async def get_portrait():
+    """Get the AI Portrait – aggregated user understanding across all dimensions.
+
+    Combines user profile (preferences, values, relationships, health, finance,
+    career), habits from memories, and active goals into a single structured
+    response with confidence scores and source references.
+
+    Returns:
+        dict with keys: profile, habits, goals, relationships
+    """
+    # 1. Full structured profile
+    profile = user_profile.get_profile()
+
+    # 2. Habits — memories with category="habit"
+    habits = memory_engine.list_memories(category="habit", limit=50)
+
+    # 3. Active goals — query kernel projection
+    try:
+        goal_rows = kernel.query_state("goals", status="active", limit=20)
+    except Exception:
+        goal_rows = None
+
+    goals_progress = []
+    if goal_rows:
+        goals_progress = [
+            {
+                "id": g.get("id", ""),
+                "title": g.get("title", ""),
+                "progress": g.get("progress", 0),
+                "importance": g.get("importance", 0),
+                "deadline": g.get("deadline"),
+                "last_activity_at": g.get("last_activity_at"),
+            }
+            for g in goal_rows
+        ]
+
+    return {
+        "profile": profile,
+        "habits": [
+            {
+                "id": h.get("id", ""),
+                "content": h.get("content", ""),
+                "confidence": h.get("confidence", 0.5),
+                "source": h.get("source", ""),
+                "origin": h.get("origin", "claim"),
+                "created_at": h.get("created_at"),
+            }
+            for h in habits
+        ],
+        "goals": goals_progress,
+    }
+
+
 @router.post("/profile/refresh")
 async def refresh_profile():
     """Recalculate time decay and refresh profile confidence scores."""

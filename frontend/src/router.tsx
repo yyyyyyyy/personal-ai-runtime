@@ -13,6 +13,7 @@ const TimelinePage = lazy(() => import("./pages/Timeline"));
 const KnowledgePage = lazy(() => import("./pages/Knowledge"));
 const WorkflowListPage = lazy(() => import("./pages/WorkflowList"));
 const WorkflowEditorPage = lazy(() => import("./pages/WorkflowEditor"));
+const PortraitPage = lazy(() => import("./pages/Portrait"));
 
 export const router = createBrowserRouter([
   {
@@ -25,6 +26,7 @@ export const router = createBrowserRouter([
       { path: "goals/:goalId", element: <GoalsPage /> },
       { path: "inbox", element: <InboxPage /> },
       { path: "memories", element: <MemoriesPage /> },
+      { path: "portrait", element: <PortraitPage /> },
       { path: "dashboard", element: <DashboardPage /> },
       { path: "settings", element: <SettingsPage /> },
       { path: "approvals", element: <ApprovalsPage /> },
