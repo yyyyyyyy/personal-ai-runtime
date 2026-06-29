@@ -56,10 +56,14 @@ def _on_message_appended(event: Event, conn) -> None:
     tool_calls = p.get("tool_calls")
     if tool_calls is not None and not isinstance(tool_calls, str):
         tool_calls = json.dumps(tool_calls)
+    sources = p.get("sources")
+    if sources is not None and not isinstance(sources, str):
+        sources = json.dumps(sources)
     conn.execute(
         """INSERT OR REPLACE INTO messages
-           (id, conversation_id, role, content, tool_calls, tool_call_id, created_at, source_event_id)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+           (id, conversation_id, role, content,
+            tool_calls, tool_call_id, sources, created_at, source_event_id)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
         (
             msg_id,
             conv_id,
@@ -67,6 +71,7 @@ def _on_message_appended(event: Event, conn) -> None:
             p.get("content", ""),
             tool_calls,
             p.get("tool_call_id"),
+            sources,
             p.get("created_at", event.ts),
             event.id,
         ),

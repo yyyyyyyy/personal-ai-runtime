@@ -32,6 +32,17 @@ def apply_projection_ddl(db: Database) -> None:
         conn.executescript(TIMER_DDL)
         conn.executescript(POLICY_DDL)
         conn.executescript(GRANT_DDL)
+        # Migration: add sources column to messages for "I Remember" persistence
+        _migrate_messages_sources(conn)
+
+
+def _migrate_messages_sources(conn) -> None:
+    """Add sources column to messages table if it doesn't exist (Phase 1 migration)."""
+    import sqlite3
+    try:
+        conn.execute("ALTER TABLE messages ADD COLUMN sources TEXT")
+    except sqlite3.OperationalError:
+        pass  # column already exists
 
 
 def apply_raw_ddl(db: Database) -> None:

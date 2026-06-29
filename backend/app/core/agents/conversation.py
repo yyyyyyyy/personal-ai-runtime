@@ -53,24 +53,28 @@ class ConversationManager:
         content: str,
         tool_calls: list | None = None,
         tool_call_id: str | None = None,
+        sources: list | None = None,
     ) -> dict:
         """Persist a message via MessageAppended event."""
         if role == "assistant" and content:
             content = strip_tool_markup(content)
         msg_id = str(uuid.uuid4())
         tc_json = tool_calls if tool_calls is None else tool_calls
+        payload: dict = {
+            "message_id": msg_id,
+            "role": role,
+            "content": content,
+            "tool_calls": tc_json,
+            "tool_call_id": tool_call_id,
+            "created_at": _now(),
+        }
+        if sources:
+            payload["sources"] = sources
         self._k().emit_event(
             "MessageAppended",
             "conversation",
             self.conversation_id,
-            payload={
-                "message_id": msg_id,
-                "role": role,
-                "content": content,
-                "tool_calls": tc_json,
-                "tool_call_id": tool_call_id,
-                "created_at": _now(),
-            },
+            payload=payload,
             actor="user",
         )
         return db.get_message(msg_id) or {
@@ -83,8 +87,12 @@ class ConversationManager:
     def save_user_message(self, content: str) -> dict:
         return self.save_message(role="user", content=content)
 
-    def save_assistant_message(self, content: str, tool_calls: list | None = None) -> dict:
-        return self.save_message(role="assistant", content=content, tool_calls=tool_calls)
+    def save_assistant_message(
+        self, content: str, tool_calls: list | None = None, sources: list | None = None
+    ) -> dict:
+        return self.save_message(
+            role="assistant", content=content, tool_calls=tool_calls, sources=sources
+        )
 
     def save_tool_result(self, content: str, tool_call_id: str) -> dict:
         return self.save_message(role="tool", content=content, tool_call_id=tool_call_id)

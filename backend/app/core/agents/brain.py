@@ -237,7 +237,12 @@ class Brain(BrainCompletionMixin):
 
         # Step 4: Save + conversation episode
         if full_content and not canned_response_done:
-            conversation.save_assistant_message(full_content)
+            try:
+                from app.core.runtime.governance.context_pipeline import get_sources
+                sources = get_sources(conversation.conversation_id)
+            except Exception:
+                sources = None
+            conversation.save_assistant_message(full_content, sources=sources)
 
         record_conversation_turn(
             conversation.conversation_id,

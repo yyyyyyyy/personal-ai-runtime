@@ -70,6 +70,12 @@ async def get_messages(conv_id: str, limit: int = 100):
         item = dict(row)
         if item.get("role") == "assistant" and item.get("content"):
             item["content"] = strip_tool_markup(item["content"])
+        # Parse sources if stored as JSON string
+        if item.get("sources") and isinstance(item["sources"], str):
+            try:
+                item["sources"] = json.loads(item["sources"])
+            except json.JSONDecodeError:
+                item["sources"] = None
         result.append(item)
     return result
 

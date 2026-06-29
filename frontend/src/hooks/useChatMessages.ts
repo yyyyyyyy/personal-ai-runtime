@@ -78,6 +78,16 @@ function parseLoadedMessages(msgs: Message[]): DisplayMessage[] {
       expandTools: true,
     };
 
+    // Parse persisted sources for "I Remember" markers
+    if (m.role === "assistant" && (m as any).sources) {
+      const raw = (m as any).sources;
+      try {
+        display.sources = typeof raw === "string" ? JSON.parse(raw) : raw;
+      } catch {
+        // ignore parse errors
+      }
+    }
+
     if (m.tool_calls) {
       try {
         display.toolCalls = parseToolCalls(m.tool_calls);

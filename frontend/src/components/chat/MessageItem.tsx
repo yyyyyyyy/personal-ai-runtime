@@ -2,7 +2,7 @@ import { useState, useCallback } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import remarkBreaks from "remark-breaks";
-import { Copy, Check, BookOpen, Brain, Mail, Target } from "lucide-react";
+import { Copy, Check, Brain, Mail, Target } from "lucide-react";
 import ToolCallDisplay from "./ToolCallDisplay";
 import { CodeBlock } from "./CodeBlock";
 import { stripToolMarkup } from "../../utils/stripToolMarkup";
@@ -204,14 +204,14 @@ export default function MessageItem({ message }: Props) {
           </div>
         )}
 
-        {/* Source citations */}
+        {/* Source citations — "I Remember" markers */}
         {isAssistant && message.sources && message.sources.length > 0 && !message.isStreaming && (
-          <div className="mt-2 pt-2 border-t border-gray-700/50">
-            <div className="flex items-center gap-1 text-xs text-gray-400 mb-1">
-              <BookOpen size={12} />
-              <span>引用来源</span>
+          <div className="mt-3 pt-2 border-t border-gray-700/50">
+            <div className="flex items-center gap-1.5 text-xs text-purple-400 font-medium mb-2">
+              <Brain size={12} />
+              <span>我记得</span>
             </div>
-            <div className="flex flex-wrap gap-1">
+            <div className="flex flex-wrap gap-1.5">
               {message.sources.map((source, idx) => (
                 <SourceBadge key={`${source.id}-${idx}`} source={source} />
               ))}
