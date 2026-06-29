@@ -104,6 +104,9 @@ async def send_message(conv_id: str, body: SendMessageRequest):
     scheduler = get_scheduler(kernel)
     await scheduler.start()
 
+    from app.core.runtime.sse_queue_registry import register, unregister
+    sse_queue = register(correlation_id)
+
     kernel.emit_event(
         "ChatRequested",
         "chat",
@@ -116,36 +119,40 @@ async def send_message(conv_id: str, body: SendMessageRequest):
         correlation_id=correlation_id,
     )
 
-    seen_chunks = 0
-
     async def sse_stream():
-        nonlocal seen_chunks
         try:
             loop = asyncio.get_running_loop()
             deadline = loop.time() + settings.total_tool_loop_timeout + 10.0
             while loop.time() < deadline:
-                # Stream text chunks as they arrive
-                chunks = kernel.read_events(
-                    correlation_id=correlation_id, type="ChatTextDelta",
-                    since_seq=max(0, seen_chunks), order="asc",
-                )
-                for ch in chunks:
-                    if ch.seq and int(ch.seq) > seen_chunks:
-                        seen_chunks = int(ch.seq)
-                    # Pass through incremental deltas as-is: brain already strips markup on
-                    # accumulated text. Per-chunk strip_tool_markup drops leading/trailing
-                    # newlines (e.g. "\nLine2" → "Line2"), breaking line breaks in the UI.
-                    delta = ch.payload.get("content", "")
-                    if delta:
-                        yield f"data: {_json.dumps({'type': 'text_delta', 'content': delta})}\n\n"
+                # Read text deltas from the in-memory queue (no event_log writes)
+                try:
+                    item = await asyncio.wait_for(sse_queue.get(), timeout=0.1)
+                except asyncio.TimeoutError:
+                    pass
+                else:
+                    if item.get("type") == "text_delta" and item.get("content"):
+                        yield f"data: {_json.dumps(item)}\n\n"
+                    elif item.get("type") == "done":
+                        if item.get("result"):
+                            result = item["result"]
+                            from app.core.runtime.governance.context_pipeline import get_sources
+                            sources = get_sources(conv_id)
+                            if sources:
+                                yield f"data: {_json.dumps({'type': 'sources', 'sources': sources})}\n\n"
+                            if result.get("pending"):
+                                yield f"data: {_json.dumps({'type': 'confirmation_required', 'tool_name': result.get('tool_name',''), 'tool_args': result.get('tool_args',{}), 'approval_id': result.get('approval_id','')})}\n\n"
+                        yield f"data: {_json.dumps({'type': 'done'})}\n\n"
+                        return
+                    elif item.get("type") == "error":
+                        yield f"data: {_json.dumps({'type': 'error', 'content': item.get('content', '')})}\n\n"
+                        return
 
-                # Check for completion
+                # Fallback: check event_log for completion (robust against queue issues)
                 done = kernel.read_events(correlation_id=correlation_id, type="ChatDone")
                 if done:
                     completed = kernel.read_events(correlation_id=correlation_id, type="ChatCompleted")
                     if completed:
                         result = completed[0].payload
-                        # Emit sources (citations) before done
                         from app.core.runtime.governance.context_pipeline import get_sources
                         sources = get_sources(conv_id)
                         if sources:
@@ -154,10 +161,12 @@ async def send_message(conv_id: str, body: SendMessageRequest):
                             yield f"data: {_json.dumps({'type': 'confirmation_required', 'tool_name': result.get('tool_name',''), 'tool_args': result.get('tool_args',{}), 'approval_id': result.get('approval_id','')})}\n\n"
                         yield f"data: {_json.dumps({'type': 'done'})}\n\n"
                     return
-                await asyncio.sleep(0.1)
+
             yield f"data: {_json.dumps({'type': 'error', 'content': 'Chat request timed out'})}\n\n"
         except Exception as exc:
             yield f"data: {_json.dumps({'type': 'error', 'content': str(exc)})}\n\n"
+        finally:
+            unregister(correlation_id)
 
     return StreamingResponse(
         sse_stream(),
