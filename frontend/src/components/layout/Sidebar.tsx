@@ -16,6 +16,7 @@ import {
   BookOpen,
   Workflow,
   User,
+  Shield,
 } from "lucide-react";
 
 const PRIMARY_NAV = [
@@ -24,6 +25,7 @@ const PRIMARY_NAV = [
 
 const DATA_NAV = [
   { path: "/portrait", label: "画像", icon: User },
+  { path: "/trust", label: "信任报告", icon: Shield },
   { path: "/goals", label: "目标", icon: Target },
   { path: "/inbox", label: "收件箱", icon: Mail },
   { path: "/approvals", label: "审批", icon: ShieldCheck },

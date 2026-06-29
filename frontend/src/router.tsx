@@ -14,6 +14,7 @@ const KnowledgePage = lazy(() => import("./pages/Knowledge"));
 const WorkflowListPage = lazy(() => import("./pages/WorkflowList"));
 const WorkflowEditorPage = lazy(() => import("./pages/WorkflowEditor"));
 const PortraitPage = lazy(() => import("./pages/Portrait"));
+const TrustReportPage = lazy(() => import("./pages/TrustReport"));
 
 export const router = createBrowserRouter([
   {
@@ -27,6 +28,7 @@ export const router = createBrowserRouter([
       { path: "inbox", element: <InboxPage /> },
       { path: "memories", element: <MemoriesPage /> },
       { path: "portrait", element: <PortraitPage /> },
+      { path: "trust", element: <TrustReportPage /> },
       { path: "dashboard", element: <DashboardPage /> },
       { path: "settings", element: <SettingsPage /> },
       { path: "approvals", element: <ApprovalsPage /> },

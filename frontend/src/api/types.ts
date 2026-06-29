@@ -127,6 +127,7 @@ export interface SystemInfo {
   messages: number;
   goals: number;
   memories: number;
+  event_log: number;
 }
 
 export interface LlmProvidersResponse {
