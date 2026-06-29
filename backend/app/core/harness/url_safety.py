@@ -66,7 +66,7 @@ def _resolve_and_check(hostname: str) -> list[str]:
         for family, _, _, _, sockaddr in socket.getaddrinfo(host, None):
             if family not in (socket.AF_INET, socket.AF_INET6):
                 continue
-            ip_str = sockaddr[0]
+            ip_str = str(sockaddr[0])
             if _is_blocked_ip(ipaddress.ip_address(ip_str)):
                 raise UnsafeUrlError(
                     f"Hostname {hostname!r} resolves to blocked address {ip_str}"
