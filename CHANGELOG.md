@@ -24,6 +24,10 @@
 - **记忆 (Memories)**：长期记忆浏览、搜索、编辑
 - **仪表盘 (Dashboard)**：系统状态概览
 
+### 新增
+
+- **AI 画像 (Portrait)**：聚合用户画像（偏好、价值观、关系、健康、财务、职业）、习惯、目标，含置信度评分与来源追溯 — `GET /api/memory/portrait`
+
 ---
 
 [0.1.0]: https://github.com/yyyyyyyy/personal-ai-runtime/releases/tag/v0.1.0

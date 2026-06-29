@@ -94,7 +94,7 @@ async def get_portrait():
     response with confidence scores and source references.
 
     Returns:
-        dict with keys: profile, habits, goals, relationships
+        dict with keys: profile, habits, goals
     """
     # 1. Full structured profile
     profile = user_profile.get_profile()
@@ -106,6 +106,11 @@ async def get_portrait():
     try:
         goal_rows = kernel.query_state("goals", status="active", limit=20)
     except Exception:
+        import logging
+        logging.getLogger(__name__).warning(
+            "Portrait: failed to query goals projection, returning empty goals list",
+            exc_info=True,
+        )
         goal_rows = None
 
     goals_progress = []

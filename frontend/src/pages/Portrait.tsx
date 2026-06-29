@@ -4,7 +4,6 @@ import {
   AlertCircle, Loader2, RefreshCw, ChevronRight,
 } from "lucide-react";
 import { API_BASE, request } from "../api/core";
-import type { Goal } from "../api/types";
 
 interface ProfileItem {
   data: Record<string, string>;
