@@ -1,0 +1,11 @@
+{
+  "name": "personal-ai-runtime-assets",
+  "private": true,
+  "description": "README screenshot generation",
+  "scripts": {
+    "screenshots": "node capture-screenshots.mjs"
+  },
+  "devDependencies": {
+    "playwright": "^1.49.1"
+  }
+}

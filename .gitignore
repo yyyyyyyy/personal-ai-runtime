@@ -1,0 +1,54 @@
+# Environment
+.env
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+*.egg
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+htmlcov/
+
+# Data (local only)
+backend/data/
+data/
+backend/backend/
+*.db
+*.sqlite3
+*.sqlite
+
+# Node
+node_modules/
+frontend/dist/
+desktop/dist/
+*.tsbuildinfo
+frontend/test-results/
+frontend/playwright-report/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Git hooks (local development)
+.githooks/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Terminal files
+.cursor/
+.junie/
+backend/.coverage
+
+# MCP server runtime artifacts
+backend/.playwright-mcp/

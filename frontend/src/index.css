@@ -1,0 +1,90 @@
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    --color-surface-base: #030712;
+    --color-surface-raised: #111827;
+    --color-surface-overlay: #1f2937;
+    --color-primary: #059669;
+    --color-warning: #f59e0b;
+    --color-danger: #ef4444;
+  }
+
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: #374151 transparent;
+  }
+
+  *::-webkit-scrollbar {
+    width: 6px;
+  }
+
+  *::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  *::-webkit-scrollbar-thumb {
+    background-color: #374151;
+    border-radius: 3px;
+  }
+}
+
+@layer components {
+  .markdown-content h1 {
+    @apply text-xl font-bold mb-3 mt-4;
+  }
+  .markdown-content h2 {
+    @apply text-lg font-semibold mb-2 mt-3;
+  }
+  .markdown-content h3 {
+    @apply text-base font-semibold mb-2 mt-3;
+  }
+  .markdown-content p {
+    @apply mb-2 leading-relaxed;
+  }
+  .markdown-content ul {
+    @apply list-disc pl-5 mb-2;
+  }
+  .markdown-content ol {
+    @apply list-decimal pl-5 mb-2;
+  }
+  .markdown-content li {
+    @apply mb-1;
+  }
+  .markdown-content code:not(pre code) {
+    @apply bg-gray-800 px-1.5 py-0.5 rounded text-sm text-emerald-400;
+  }
+  .markdown-content pre {
+    @apply bg-gray-900 rounded-lg p-4 mb-3 overflow-x-auto;
+  }
+  .markdown-content pre code {
+    @apply text-sm;
+  }
+  .markdown-content blockquote {
+    @apply border-l-4 border-emerald-600 pl-4 italic text-gray-400 mb-2;
+  }
+  .markdown-content a {
+    @apply text-emerald-400 underline hover:text-emerald-300;
+  }
+  .markdown-content table {
+    @apply w-full mb-3 border-collapse;
+  }
+  .markdown-content th {
+    @apply border border-gray-700 px-3 py-2 text-left bg-gray-800;
+  }
+  .markdown-content td {
+    @apply border border-gray-700 px-3 py-2;
+  }
+}
+
+/* Streaming cursor animation */
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
+.typing-cursor::after {
+  content: "▍";
+  animation: blink 1s infinite;
+  @apply text-emerald-400;
+}

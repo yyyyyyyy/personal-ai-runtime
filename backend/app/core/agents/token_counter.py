@@ -1,0 +1,58 @@
+"""Token counting for LLM telemetry using tiktoken when available."""
+
+from __future__ import annotations
+
+import logging
+from functools import lru_cache
+
+logger = logging.getLogger(__name__)
+
+_DEFAULT_ENCODING = "cl100k_base"
+
+
+@lru_cache(maxsize=8)
+def _get_encoding(model: str):
+    try:
+        import tiktoken
+    except ImportError:
+        return None
+
+    try:
+        return tiktoken.encoding_for_model(model)
+    except KeyError:
+        return tiktoken.get_encoding(_DEFAULT_ENCODING)
+
+
+def _text_content(value: object) -> str:
+    if value is None:
+        return ""
+    if isinstance(value, str):
+        return value
+    return str(value)
+
+
+def count_message_tokens(messages: list[dict], *, model: str = "gpt-4") -> int:
+    """Count tokens for a chat messages array."""
+    encoding = _get_encoding(model)
+    if encoding is None:
+        return sum(len(_text_content(m.get("content"))) // 4 for m in messages)
+
+    total = 0
+    for message in messages:
+        total += 4  # message framing overhead (OpenAI chat format approximation)
+        for key, value in message.items():
+            if key == "content":
+                total += len(encoding.encode(_text_content(value)))
+            elif key == "tool_calls" and value:
+                total += len(encoding.encode(_text_content(value)))
+            elif isinstance(value, str):
+                total += len(encoding.encode(value))
+    return total
+
+
+def count_text_tokens(text: str, *, model: str = "gpt-4") -> int:
+    """Count tokens for a single text blob."""
+    encoding = _get_encoding(model)
+    if encoding is None:
+        return len(text) // 4
+    return len(encoding.encode(text or ""))

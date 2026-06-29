@@ -1,0 +1,137 @@
+{
+  "servers": [
+    {
+      "name": "filesystem",
+      "type": "builtin",
+      "enabled": true,
+      "config": {
+        "allowed_directories": ["~/Documents", "~/Desktop", "~/Downloads"]
+      }
+    },
+    {
+      "name": "time",
+      "type": "builtin",
+      "enabled": true
+    }
+  ],
+  "external_servers": [
+    {
+      "name": "playwright",
+      "type": "stdio",
+      "enabled": true,
+      "startup_connect": true,
+      "command": "npx",
+      "args": ["-y", "@playwright/mcp@latest", "--headless"],
+      "connect_timeout_seconds": 60,
+      "policy_default": "auto_allow",
+      "enabled_tools": [
+        "browser_navigate",
+        "browser_snapshot",
+        "browser_take_screenshot",
+        "browser_click",
+        "browser_type",
+        "browser_tabs",
+        "browser_close"
+      ],
+      "needs_user_tools": [
+        "browser_click",
+        "browser_type"
+      ],
+      "ingestion_tools": [
+        "browser_navigate",
+        "browser_snapshot",
+        "browser_take_screenshot",
+        "browser_tabs"
+      ]
+    },
+    {
+      "name": "brave",
+      "type": "stdio",
+      "enabled": true,
+      "startup_connect": false,
+      "command": "npx",
+      "args": ["-y", "@brave/brave-search-mcp-server"],
+      "required_env": ["BRAVE_API_KEY"],
+      "policy_default": "auto_allow",
+      "enabled_tools": ["brave_web_search"],
+      "ingestion_tools": ["brave_web_search"]
+    },
+    {
+      "name": "context7",
+      "type": "stdio",
+      "enabled": true,
+      "startup_connect": true,
+      "command": "npx",
+      "args": ["-y", "@upstash/context7-mcp"],
+      "optional_env": ["CONTEXT7_API_KEY"],
+      "connect_timeout_seconds": 30,
+      "policy_default": "auto_allow",
+      "ingestion_tools": ["resolve-library-id", "query-docs"]
+    },
+    {
+      "name": "github",
+      "type": "stdio",
+      "enabled": true,
+      "startup_connect": false,
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-github"],
+      "required_env": ["GITHUB_PERSONAL_ACCESS_TOKEN"],
+      "policy_default": "auto_allow",
+      "enabled_tools": [
+        "search_repositories",
+        "search_code",
+        "search_issues",
+        "get_pull_request",
+        "get_file_contents",
+        "list_pull_requests",
+        "get_pull_request_files",
+        "get_pull_request_status"
+      ],
+      "ingestion_tools": [
+        "search_repositories",
+        "search_code",
+        "search_issues",
+        "get_file_contents",
+        "get_pull_request",
+        "list_pull_requests",
+        "get_pull_request_files",
+        "get_pull_request_status"
+      ]
+    },
+    {
+      "name": "tavily",
+      "type": "stdio",
+      "enabled": true,
+      "startup_connect": true,
+      "command": "npx",
+      "args": ["-y", "tavily-mcp@latest"],
+      "optional_env": ["TAVILY_API_KEY"],
+      "connect_timeout_seconds": 30,
+      "policy_default": "auto_allow",
+      "enabled_tools": ["tavily_search", "tavily_extract"],
+      "ingestion_tools": ["tavily_search", "tavily_extract"]
+    },
+    {
+      "name": "notion",
+      "type": "stdio",
+      "enabled": true,
+      "startup_connect": false,
+      "command": "npx",
+      "args": ["-y", "@notionhq/notion-mcp-server"],
+      "required_env": ["NOTION_TOKEN"],
+      "policy_default": "auto_allow",
+      "enabled_tools": [
+        "API-post-search",
+        "API-retrieve-a-page",
+        "API-get-block-children",
+        "API-query-data-source"
+      ],
+      "ingestion_tools": [
+        "API-post-search",
+        "API-retrieve-a-page",
+        "API-get-block-children",
+        "API-query-data-source"
+      ]
+    }
+  ]
+}

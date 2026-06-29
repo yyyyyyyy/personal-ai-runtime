@@ -1,0 +1,46 @@
+"""Protocol defining the Kernel interface expected by mixins.
+
+GovernanceMixin and SovereigntyMixin are designed to be mixed into Kernel.
+They reference attributes (emit_event, _db, read_events, _sync_memory_index)
+that are defined on Kernel itself.  Declaring this Protocol allows mypy to
+understand the contract without circular imports.
+"""
+
+from __future__ import annotations
+
+from typing import Any, Protocol
+
+from .event import Event
+
+
+class _KernelMixinInterface(Protocol):
+    """Minimal Kernel surface needed by GovernanceMixin + SovereigntyMixin."""
+
+    _db: Any
+
+    def emit_event(
+        self,
+        type: str,
+        aggregate_type: str,
+        aggregate_id: str,
+        payload: dict[str, object] | None = None,
+        actor: str = "system",
+        caused_by: str | None = None,
+        correlation_id: str | None = None,
+    ) -> Event: ...
+
+    def read_events(
+        self,
+        aggregate_type: str | None = None,
+        aggregate_id: str | None = None,
+        type: str | None = None,
+        types: list[str] | None = None,
+        correlation_id: str | None = None,
+        since_seq: int = 0,
+        since_ts: str | None = None,
+        payload_goal_id: str | None = None,
+        limit: int | None = None,
+        order: str = "asc",
+    ) -> list[Event]: ...
+
+    def _sync_memory_index(self, event: Event) -> None: ...

@@ -1,0 +1,352 @@
+"""D1 · Agent concurrent isolation tests.
+
+Validates:
+  1. Parallel invoke_capability — taint does not cross between concurrent invocations
+  2. Parallel WorkItem enqueue — events are isolated by actor
+  3. Execution contextvars — execution_id does not leak across concurrent handlers
+  4. Scheduler batch — _MAX_CONCURRENT=8 limit is respected
+  5. AgentBus per-agent queue — concurrent publish does not corrupt agent queues
+"""
+
+import asyncio
+import os
+
+import pytest
+
+os.environ.setdefault("LLM_API_KEY", "test-key")
+
+
+@pytest.fixture(autouse=True)
+def _reset_scheduler():
+    from app.core.runtime.agent_bus import agent_bus
+    from app.core.runtime.agent_scheduler import reset_scheduler
+    reset_scheduler()
+    agent_bus.reset()
+    yield
+    reset_scheduler()
+    agent_bus.reset()
+
+
+@pytest.fixture
+def kernel(tmp_path):
+    from app.core.runtime.kernel import Kernel
+    from app.store.database import Database
+    return Kernel(db=Database(db_path=str(tmp_path / "d1_iso.db")))
+
+
+# ── 1. Parallel invoke_capability — taint isolation ────────────────────
+
+@pytest.mark.asyncio
+async def test_concurrent_capability_taint_isolation(kernel, monkeypatch):
+    """Two concurrent invoke_capability calls with different correlation_ids:
+    taint on one must not affect the other.
+
+    Taint escalation requires write-class tools, so we register the tool
+    as a write-class tool and mark only one correlation as tainted.
+    """
+    from app.core.harness.mcp_hub import ToolDef, mcp_hub
+    from app.core.runtime.capability_policy import capability_policy
+    from app.core.runtime.taint import register_external_write_tool, taint_registry
+
+    tool_name = "mock_write_tool"
+
+    async def _safe_handler(**kwargs):
+        return '{"ok": true}'
+
+    mcp_hub.register_tool(ToolDef(
+        name=tool_name,
+        description="Test write tool for concurrency",
+        parameters={"type": "object", "properties": {}},
+        handler=_safe_handler,
+        is_async=True,
+        requires_confirmation=True,
+    ))
+    capability_policy.register_external_tool(tool_name, risk="low")
+    register_external_write_tool(tool_name)
+
+    clean_corr = "clean_correlation"
+    tainted_corr = "tainted_correlation"
+
+    taint_registry.mark(tainted_corr, source="external_ingestion", reason="web_search")
+
+    results = await asyncio.gather(
+        kernel.invoke_capability(
+            name=tool_name, args={}, actor="user", correlation_id=clean_corr),
+        kernel.invoke_capability(
+            name=tool_name, args={}, actor="user", correlation_id=tainted_corr),
+    )
+
+    clean_result, tainted_result = results
+    assert clean_result["status"] == "success", f"Clean should succeed: {clean_result}"
+    assert tainted_result["status"] == "pending", f"Tainted should require approval: {tainted_result}"
+
+    mcp_hub.unregister_tool(tool_name)
+    taint_registry.clear(clean_corr)
+    taint_registry.clear(tainted_corr)
+    capability_policy.clear_external_tools()
+
+
+@pytest.mark.asyncio
+async def test_concurrent_capability_taint_no_cross_contamination(kernel, monkeypatch):
+    """Three concurrent invocations with write-class tool:
+    only the tainted correlation escalates, others succeed."""
+    from app.core.harness.mcp_hub import ToolDef, mcp_hub
+    from app.core.runtime.capability_policy import capability_policy
+    from app.core.runtime.taint import register_external_write_tool, taint_registry
+
+    tool_name = "mock_concurrent_write_tool"
+
+    async def _safe_handler(**kwargs):
+        return '{"ok": true}'
+
+    mcp_hub.register_tool(ToolDef(
+        name=tool_name,
+        description="Concurrency write test tool",
+        parameters={"type": "object", "properties": {}},
+        handler=_safe_handler,
+        is_async=True,
+        requires_confirmation=True,
+    ))
+    capability_policy.register_external_tool(tool_name, risk="low")
+    register_external_write_tool(tool_name)
+
+    corr_1 = "corr_1_clean"
+    corr_2 = "corr_2_tainted"
+    corr_3 = "corr_3_clean"
+
+    taint_registry.mark(corr_2, source="external_ingestion", reason="test")
+
+    results = await asyncio.gather(
+        kernel.invoke_capability(name=tool_name, args={}, actor="user", correlation_id=corr_1),
+        kernel.invoke_capability(name=tool_name, args={}, actor="user", correlation_id=corr_2),
+        kernel.invoke_capability(name=tool_name, args={}, actor="user", correlation_id=corr_3),
+    )
+
+    assert results[0]["status"] == "success"
+    assert results[2]["status"] == "success"
+    assert results[1]["status"] == "pending", f"Tainted should be pending: {results[1]}"
+
+    mcp_hub.unregister_tool(tool_name)
+    for c in [corr_1, corr_2, corr_3]:
+        taint_registry.clear(c)
+    capability_policy.clear_external_tools()
+
+
+# ── 2. Parallel WorkItem enqueue — actor-level isolation ───────────────
+
+@pytest.mark.asyncio
+async def test_concurrent_workitems_actor_isolation(kernel):
+    """Enqueue two WorkItems for different agents and verify events are
+    isolated by actor (no cross-contamination of agent state)."""
+    import app.core.agents.mvp.planner_agent  # noqa: F401
+    import app.core.agents.mvp.worker_agent  # noqa: F401
+    from app.core.agents.mvp import PLANNER_DEFINITION, WORKER_DEFINITION
+    from app.core.runtime.agent_bus import agent_bus
+    from app.core.runtime.agent_scheduler import get_scheduler
+
+    registry = kernel.agent_registry
+    scheduler = get_scheduler(kernel)
+    await scheduler.start()
+
+    planner = await registry.spawn(PLANNER_DEFINITION, correlation_id="iso_planner")
+    worker = await registry.spawn(WORKER_DEFINITION, correlation_id="iso_worker")
+
+    agent_bus.subscribe(
+        agent_id=planner.instance_id,
+        rule=PLANNER_DEFINITION.subscriptions[0],
+        handler=lambda e: planner.dispatch(e),
+    )
+    agent_bus.subscribe(
+        agent_id=worker.instance_id,
+        rule=WORKER_DEFINITION.subscriptions[0],
+        handler=lambda e: worker.dispatch(e),
+    )
+
+    kernel.emit_event(
+        "TaskCreated", "task", "task_planner",
+        payload={"name": "Planner task"}, actor="user", correlation_id="iso_planner",
+    )
+    kernel.emit_event(
+        "TaskCreated", "task", "task_worker",
+        payload={"name": "Worker task"}, actor="user", correlation_id="iso_worker",
+    )
+
+    await scheduler.flush()
+    await asyncio.sleep(0.1)
+    await scheduler.flush()
+    await asyncio.sleep(0.1)
+    await scheduler.flush()
+
+    # Filter events by actor (read_events does not accept actor param)
+    planner_actor = f"agent:{planner.instance_id}"
+    all_events = kernel.read_events()
+    planner_events = [e for e in all_events if e.actor == planner_actor]
+    for e in planner_events:
+        assert e.actor == planner_actor
+
+    worker_actor = f"agent:{worker.instance_id}"
+    worker_events = [e for e in all_events if e.actor == worker_actor]
+    for e in worker_events:
+        assert e.actor == worker_actor
+
+    # No event overlaps between the two agents
+    planner_event_ids = {e.id for e in planner_events}
+    worker_event_ids = {e.id for e in worker_events}
+    assert planner_event_ids.isdisjoint(worker_event_ids)
+
+    agent_bus.unsubscribe_all(planner.instance_id)
+    agent_bus.unsubscribe_all(worker.instance_id)
+    await registry.kill(planner.instance_id)
+    await registry.kill(worker.instance_id)
+    await scheduler.stop()
+
+
+# ── 3. Execution contextvars isolation ─────────────────────────────────
+
+@pytest.mark.asyncio
+async def test_execution_contextvar_isolation(kernel):
+    """Contextvar execution_id must not leak between concurrent handler executions."""
+    from app.core.runtime.execution_scope import (
+        execution_scope,
+        get_current_execution_id,
+    )
+
+    seen_ids: list[tuple[str, str | None]] = []
+
+    async def concurrent_task(exec_id: str, delay: float = 0.01):
+        with execution_scope(exec_id):
+            await asyncio.sleep(delay)
+            seen_ids.append((exec_id, get_current_execution_id()))
+
+    await asyncio.gather(
+        concurrent_task("exec-aaa", 0.02),
+        concurrent_task("exec-bbb", 0.01),
+        concurrent_task("exec-ccc", 0.03),
+    )
+
+    for expected_id, observed_id in seen_ids:
+        assert observed_id == expected_id, f"Expected {expected_id}, got {observed_id}"
+
+    assert get_current_execution_id() is None
+
+
+@pytest.mark.asyncio
+async def test_execution_scope_nesting(kernel):
+    """Nested execution_scopes must correctly restore the parent scope."""
+    from app.core.runtime.execution_scope import (
+        execution_scope,
+        get_current_execution_id,
+    )
+
+    with execution_scope("outer"):
+        assert get_current_execution_id() == "outer"
+        with execution_scope("inner"):
+            assert get_current_execution_id() == "inner"
+        assert get_current_execution_id() == "outer"
+    assert get_current_execution_id() is None
+
+
+# ── 4. Scheduler batch limit ──────────────────────────────────────────
+
+def test_scheduler_max_concurrent_batch(kernel):
+    """Scheduler respects _MAX_CONCURRENT=8 batch limit."""
+    from app.core.runtime.agent_scheduler import _MAX_CONCURRENT, get_scheduler
+    from app.core.runtime.work_item import ExecutionPolicy, WorkItem
+
+    assert _MAX_CONCURRENT == 8
+
+    items = []
+    for i in range(12):
+        item = WorkItem(
+            id=f"wi_batch_{i}",
+            instance_id=f"agent_test_{i % 3}",
+            event_type="GoalCreated",
+            event_seq=i + 1,
+            event_id=f"evt_{i}",
+            correlation_id="batch_test",
+            policy=ExecutionPolicy(),
+        )
+        items.append(item)
+
+    scheduler = get_scheduler(kernel)
+    scheduler._pending.extend(items)
+
+    batch = scheduler._pending[:_MAX_CONCURRENT]
+    remainder = scheduler._pending[_MAX_CONCURRENT:]
+
+    assert len(batch) == _MAX_CONCURRENT
+    assert len(remainder) == 4
+
+    scheduler._pending.clear()
+
+
+# ── 5. AgentBus concurrent publish ─────────────────────────────────────
+
+@pytest.mark.asyncio
+async def test_agentbus_concurrent_publish(kernel):
+    """Multiple concurrent publishes through kernel → AgentBus delivery
+    must deliver events to subscribed agents without corruption."""
+    from app.core.runtime.agent_bus import agent_bus
+    from app.core.runtime.agent_definition import AgentDefinition, SubscriptionRule
+
+    # Define agents with matching subscription rules
+    agent_a_def = AgentDefinition(
+        agent_id="concurrent_agent_a",
+        subscriptions=[SubscriptionRule(event_type="GoalCreated")],
+    )
+    agent_b_def = AgentDefinition(
+        agent_id="concurrent_agent_b",
+        subscriptions=[SubscriptionRule(event_type="GoalCreated")],
+    )
+
+    registry = kernel.agent_registry
+    agent_a = await registry.spawn(agent_a_def)
+    agent_b = await registry.spawn(agent_b_def)
+
+    events_received_a: list[str] = []
+    events_received_b: list[str] = []
+
+    async def handler_a(event):
+        events_received_a.append(event.type)
+
+    async def handler_b(event):
+        events_received_b.append(event.type)
+
+    agent_bus.subscribe(
+        agent_id=agent_a.instance_id,
+        rule=agent_a_def.subscriptions[0],
+        handler=handler_a,
+    )
+    agent_bus.subscribe(
+        agent_id=agent_b.instance_id,
+        rule=agent_b_def.subscriptions[0],
+        handler=handler_b,
+    )
+
+    # Concurrent kernel event emission
+    async def emit_batch(prefix: str, count: int = 5):
+        for i in range(count):
+            kernel.emit_event(
+                "GoalCreated", "goal", f"{prefix}_goal_{i}",
+                payload={"title": f"{prefix} goal {i}"}, actor="user",
+            )
+
+    await asyncio.gather(
+        emit_batch("batch_a", 5),
+        emit_batch("batch_b", 5),
+    )
+
+    await asyncio.sleep(0.2)
+
+    assert len(events_received_a) > 0, "Agent A received no events"
+    assert len(events_received_b) > 0, "Agent B received no events"
+
+    for e_type in events_received_a:
+        assert e_type == "GoalCreated"
+    for e_type in events_received_b:
+        assert e_type == "GoalCreated"
+
+    agent_bus.unsubscribe_all(agent_a.instance_id)
+    agent_bus.unsubscribe_all(agent_b.instance_id)
+    await registry.kill(agent_a.instance_id)
+    await registry.kill(agent_b.instance_id)

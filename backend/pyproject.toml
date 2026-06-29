@@ -1,0 +1,46 @@
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+addopts = ["-v", "--tb=short"]
+
+[project]
+name = "personal-ai-runtime-backend"
+requires-python = ">=3.12"
+# Canonical pinned set: requirements.txt (used by make install / CI).
+dependencies = [
+    "fastapi==0.115.6",
+    "uvicorn[standard]==0.34.0",
+    "openai==1.58.1",
+    "pydantic==2.10.4",
+    "pydantic-settings==2.7.1",
+    "python-dotenv==1.0.1",
+    "chromadb==0.5.23",
+    "apscheduler==3.11.0",
+    "httpx==0.28.1",
+    "mcp>=1.0.0",
+    "alembic==1.15.1",
+    "sqlalchemy==2.0.36",
+    "tiktoken==0.9.0",
+    "structlog==25.4.0",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I"]
+ignore = ["E501"]
+
+[tool.mypy]
+python_version = "3.12"
+ignore_missing_imports = true
+check_untyped_defs = true
+follow_imports = "silent"
+
+[tool.coverage.run]
+omit = [
+    "app/core/runtime/kernel/types.py",
+    "app/experimental/*",
+    "app/core/runtime/memory_decay.py",
+]

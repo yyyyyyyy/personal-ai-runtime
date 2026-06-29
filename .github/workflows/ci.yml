@@ -1,0 +1,227 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          cd backend
+          pip install -r requirements.txt
+          pip install pytest pytest-asyncio pytest-cov ruff mypy
+
+      - name: Python syntax check
+        run: |
+          cd backend
+          python -m compileall app/ -q
+
+      - name: Lint (ruff)
+        run: |
+          cd backend
+          ruff check app/
+
+      - name: Type check (mypy)
+        run: |
+          cd backend
+          mypy app/ scripts/ --ignore-missing-imports
+
+      - name: Run tests
+        run: |
+          cd backend
+          python -m pytest tests/ -v --cov=app/core/runtime --cov=app/core/harness --cov-report=term -m "not live_llm"
+          python -m coverage report --include='app/core/runtime/*' --fail-under=84
+
+      - name: Verify database schema (Alembic)
+        run: |
+          cd backend
+          python scripts/verify_alembic.py
+
+      - name: Verify MCP tools
+        run: |
+          cd backend
+          python -c "
+          import os
+          os.environ['LLM_API_KEY'] = 'test-key'
+          from app.core.harness.mcp_hub import mcp_hub
+          tools = mcp_hub.get_tool_defs_for_llm()
+          expected = {'get_current_time','read_file','write_file','apply_patch','list_directory','search_files','web_search','fetch_url','list_calendar_events','add_calendar_event','get_upcoming_events','check_inbox','read_inbox_email','send_email','open_web_page','search_and_extract','get_clipboard','ocr_image','shell_exec','git_status','git_log','git_diff','telegram_send','telegram_updates','create_goal','update_goal_progress','complete_goal','list_active_goals'}
+          actual = {t['function']['name'] for t in tools}
+          assert expected <= actual, f'Missing builtin tools: {expected - actual}'
+          assert len(actual) >= 28, f'Expected at least 28 builtin tools, got {len(actual)}'
+          assert mcp_hub.needs_confirmation('write_file') == True
+          assert mcp_hub.needs_confirmation('apply_patch') == True
+          assert mcp_hub.needs_confirmation('send_email') == True
+          assert mcp_hub.needs_confirmation('add_calendar_event') == True
+          assert mcp_hub.needs_confirmation('shell_exec') == True
+          assert mcp_hub.is_async('web_search') == True
+          assert mcp_hub.is_async('telegram_send') == True
+          print(f'OK: {len(tools)} tools registered')
+          "
+
+      - name: Verify API routes load
+        run: |
+          cd backend
+          python -c "
+          import os
+          os.environ['LLM_API_KEY'] = 'test-key'
+          import app.main as main_module
+          app = main_module.app
+          routes = [r.path for r in app.routes if hasattr(r, 'path')]
+          endpoints = [
+              '/api/chat/conversations',
+              '/api/chat/approvals/',
+              '/api/goals/',
+              '/api/memory/memories',
+              '/api/memory/memories/grouped',
+              '/api/memory/profile',
+              '/api/notifications/',
+              '/api/system/health',
+              '/api/tasks/',
+              '/api/telemetry/',
+              '/api/approvals/',
+              '/api/tasks/background',
+              '/api/triggers/',
+              '/api/inbox/',
+          ]
+          for ep in endpoints:
+              assert any(r.startswith(ep) for r in routes), f'Missing: {ep}'
+          print(f'OK: {len(endpoints)} core API modules loaded')
+          "
+
+      - name: Verify Event Log rebuild (Runtime invariant)
+        run: |
+          cd backend
+          python scripts/verify_rebuild.py
+
+      - name: Verify export roundtrip (data sovereignty)
+        run: |
+          cd backend
+          python scripts/verify_export_roundtrip.py
+
+      - name: Verify projection snapshot incremental rebuild
+        run: |
+          cd backend
+          python scripts/verify_snapshot_rebuild.py
+
+      - name: Kernel boundary guard (no direct writes to projection tables)
+        run: |
+          cd backend
+          python scripts/check_boundary.py
+
+      - name: Execution ownership guard (invoke_capability must carry execution_id)
+        run: |
+          cd backend
+          python scripts/check_execution_ownership.py
+
+      - name: Projection provenance guard (goals / approvals / handler_executions / conversations / messages)
+        run: |
+          cd backend
+          python scripts/check_projection_provenance.py
+
+      - name: Verify Conversation rebuild (source_event_id provenance)
+        run: |
+          cd backend
+          python scripts/verify_conversation_rebuild.py
+
+      - name: Verify Goal rebuild (parent_id provenance)
+        run: |
+          cd backend
+          python scripts/verify_goal_rebuild.py
+
+      - name: Verify Memory lifecycle
+        run: |
+          cd backend
+          python scripts/verify_memory_lifecycle.py
+
+      - name: Verify Inbox audit chain
+        run: |
+          cd backend
+          python scripts/verify_inbox_audit.py
+
+      - name: LLM Egress audit log
+        run: |
+          cd backend
+          python scripts/verify_egress.py
+
+      - name: Verify connector (calendar capture)
+        run: |
+          cd backend
+          python scripts/verify_connector.py
+
+      - name: Verify Pattern rebuild (cognitive layer)
+        run: |
+          cd backend
+          python scripts/verify_pattern_rebuild.py
+
+      - name: Verify Belief pipeline (cognitive layer)
+        run: |
+          cd backend
+          python scripts/verify_belief_pipeline.py
+
+      - name: Verify vector consistency (SQLite ↔ Chroma)
+        run: |
+          cd backend
+          python scripts/verify_vector_consistency.py
+
+      - name: Verify Belief quality (cognitive layer)
+        run: |
+          cd backend
+          python scripts/verify_belief_quality.py
+
+      - name: Verify Belief survival (cognitive layer)
+        run: |
+          cd backend
+          python scripts/verify_belief_survival.py
+
+      - name: Verify Pattern idempotency (cognitive layer)
+        run: |
+          cd backend
+          python scripts/verify_pattern_idempotency.py
+
+  frontend:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install dependencies
+        run: |
+          cd frontend
+          npm install
+
+      - name: TypeScript check
+        run: |
+          cd frontend
+          npx tsc --noEmit
+
+      - name: Frontend unit tests
+        run: |
+          cd frontend
+          npm test
+
+      - name: Install Playwright browser
+        run: |
+          cd frontend
+          npx playwright install chromium
+
+      - name: Frontend E2E tests
+        run: |
+          cd frontend
+          npm run test:e2e

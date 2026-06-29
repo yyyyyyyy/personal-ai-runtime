@@ -1,0 +1,55 @@
+{
+  "name": "personal-ai-runtime-desktop",
+  "version": "0.1.0",
+  "description": "Personal AI Runtime Desktop Client",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "build": "electron-builder",
+    "test": "vitest run --config vitest.config.js",
+    "postinstall": "python3 generate_icon.py"
+  },
+  "dependencies": {
+    "electron": "^33.0.0",
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "electron-builder": "^25.0.0",
+    "vitest": "^4.1.8"
+  },
+  "build": {
+    "appId": "com.personalairuntime.desktop",
+    "productName": "Personal AI Runtime",
+    "directories": {
+      "output": "dist",
+      "buildResources": "."
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "icon.png",
+      "generate_icon.py"
+    ],
+    "extraResources": [
+      {
+        "from": "../backend",
+        "to": "backend",
+        "filter": ["**/*", "!__pycache__", "!*.pyc", "!data/**"]
+      }
+    ],
+    "mac": {
+      "category": "public.app-category.productivity",
+      "target": ["dmg", "zip"],
+      "icon": "icon.png"
+    },
+    "win": {
+      "target": ["nsis", "portable"],
+      "icon": "icon.png"
+    },
+    "linux": {
+      "target": ["AppImage", "deb"],
+      "icon": "icon.png",
+      "category": "Office"
+    }
+  }
+}
