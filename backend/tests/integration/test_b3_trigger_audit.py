@@ -34,9 +34,8 @@ class TestTriggerAuditEvents:
 
         events = kernel.read_events(aggregate_type="trigger")
         created = [e for e in events if e.type == "TriggerCreated"]
-        assert len(created) == 2  # goal_stagnant_7d + email_backlog_50
+        assert len(created) == 1  # email_backlog_50 only (goal_stagnant removed v0.2)
         names = {e.payload["name"] for e in created}
-        assert "goal_stagnant_7d" in names
         assert "email_backlog_50" in names
 
     def test_seed_builtin_triggers_idempotent_audit(self, b3_setup):
@@ -46,7 +45,7 @@ class TestTriggerAuditEvents:
 
         events = kernel.read_events(aggregate_type="trigger")
         created = [e for e in events if e.type == "TriggerCreated"]
-        assert len(created) == 2  # no duplicate seeds
+        assert len(created) == 1  # no duplicate seeds
 
     def test_create_trigger_emits_audit(self, b3_setup):
         engine, kernel, db = b3_setup

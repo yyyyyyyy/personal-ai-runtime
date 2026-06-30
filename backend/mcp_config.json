@@ -1,19 +1,4 @@
 {
-  "servers": [
-    {
-      "name": "filesystem",
-      "type": "builtin",
-      "enabled": true,
-      "config": {
-        "allowed_directories": ["~/Documents", "~/Desktop", "~/Downloads"]
-      }
-    },
-    {
-      "name": "time",
-      "type": "builtin",
-      "enabled": true
-    }
-  ],
   "external_servers": [
     {
       "name": "playwright",

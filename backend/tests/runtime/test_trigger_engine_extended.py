@@ -27,7 +27,7 @@ def test_seed_builtin_triggers(engine_setup):
     with db.get_db() as conn:
         rows = conn.execute("SELECT name FROM triggers").fetchall()
     names = {r[0] for r in rows}
-    assert "goal_stagnant_7d" in names
+    assert "email_backlog_50" in names
 
 
 def test_evaluate_all_aggregates_suggestions(engine_setup, monkeypatch):
@@ -40,7 +40,7 @@ def test_evaluate_all_aggregates_suggestions(engine_setup, monkeypatch):
         lambda trigger: [{"trigger_id": trigger["id"], "content": "mock"}],
     )
     results = engine.evaluate_all()
-    assert len(results) >= 2
+    assert len(results) >= 1
 
 
 def test_evaluate_and_notify_pushes(engine_setup, monkeypatch):

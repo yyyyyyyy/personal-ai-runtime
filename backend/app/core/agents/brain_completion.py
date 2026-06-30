@@ -151,10 +151,11 @@ class BrainCompletionMixin:
                 "用中文直接回答用户最初的问题，不要再调用任何工具。"
             ),
         })
+        egress_messages, _egress_audit = prepare_llm_egress(synth_messages, purpose="synthesize_tool_results")
         try:
             response = await self.client.chat.completions.create(  # type: ignore
                 model=self.provider.model,
-                messages=synth_messages,
+                messages=egress_messages,
                 temperature=runtime_config.get_generation_params()[0],
                 max_tokens=runtime_config.get_generation_params()[1],
             )
@@ -173,10 +174,11 @@ class BrainCompletionMixin:
                 "(请直接文字回复。)"
             ),
         })
+        egress_messages, _egress_audit = prepare_llm_egress(retry_messages, purpose="complete_text_only")
         try:
             response = await self.client.chat.completions.create(  # type: ignore
                 model=self.provider.model,
-                messages=retry_messages,
+                messages=egress_messages,
                 temperature=runtime_config.get_generation_params()[0],
                 max_tokens=runtime_config.get_generation_params()[1],
             )

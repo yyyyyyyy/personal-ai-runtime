@@ -41,16 +41,19 @@ class MemoryExtractor:
 
     async def _cloud_extract(self, conversation_text: str) -> list[str]:
         from app.core.agents.llm_router import llm_router
+        from app.core.runtime.egress.egress_gate import prepare_llm_egress
 
         client, provider = llm_router.get_client()
         prompt = (
             "Extract key facts about the user from this conversation. "
             "One fact per line, no bullets.\n\n" + conversation_text[:3000]
         )
+        msg = {"role": "user", "content": prompt}
+        egress_messages, _egress_audit = prepare_llm_egress([msg], purpose="memory_extract")
         try:
             response = await client.chat.completions.create(
                 model=provider.model,
-                messages=[{"role": "user", "content": prompt}],
+                messages=egress_messages,
                 max_tokens=200,
                 temperature=0.3,
             )

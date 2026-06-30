@@ -17,13 +17,6 @@ class TriggerEngine:
     def __init__(self):
         self._builtin_triggers = [
             {
-                "name": "goal_stagnant_7d",
-                "trigger_type": "staleness",
-                "condition_json": json.dumps({"field": "goals.last_activity_at", "operator": "older_than", "days": 7}),
-                "action_type": "suggestion",
-                "action_config": json.dumps({"template": "目标「{goal_title}」已停滞7天，是否需要调整或放弃？"}),
-            },
-            {
                 "name": "email_backlog_50",
                 "trigger_type": "threshold",
                 "condition_json": json.dumps({"event_type": "InboxEmailRecorded", "count": 50, "window_days": 1}),
