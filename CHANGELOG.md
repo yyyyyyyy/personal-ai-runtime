@@ -6,7 +6,31 @@
 
 ---
 
-## [0.1.0] - 2026-06-29
+## [0.2.0] - 2026-06-30
+
+### 架构收敛（Architecture Consolidation）
+
+- **删除死子系统**：移除 `event_bus`（三套事件分发 → 两套）、`planner`/`critic`/`AgentManager`（多 Agent → 单 Brain）、`intent_predictor`（零 import）、`PatternAggregator` + `BeliefEngine`（认知管线无生产者）
+- **审批双路径统一**：`POST /api/approvals/{id}/approve` 现在真正执行工具并续聊，不再是只改投影状态
+- **Schema 单一来源**：新建 `v02_projection_tables` Alembic migration，`PROJECTION_TABLES` 从 `_OWNED_TABLES` 动态派生，消除 6 处定义漂移
+- **治理边界修复**：`_sync_memory_index` 的直接 UPDATE 改为 `emit_event("MemoryUpdated", ...)`，不再绕过 Kernel
+- **命名澄清**：`scheduler.py → cron_registry.py`、`llm_router.py → llm_failover.py`
+- **文档同步**：`ARCHITECTURE.md §8`、`CURRENT_STATE.md` 与代码真相对齐
+
+### 功能降级
+
+- **Workflow 可视化编辑器 / 场景模板 / 集成中心**：从默认 UI 导航移除，路由注销，API 保留。ROADMAP 标注为实验分支
+
+### 新增
+
+- **加密备份 UI**：Settings 页新增加密导入/导出（AES-GCM）和销毁全部数据按钮
+- **敏感操作默认启用**：`sensitive_ops_local` 默认 `True`，危险命令/密码参数自动升级风险
+
+### 变更统计
+
+- 删除 24 个 Python 模块、13 个测试/验证脚本
+- 净减少 3154 行代码（+231 / -3385）
+- 测试 706 passed, 14 skipped
 
 ### 变更
 

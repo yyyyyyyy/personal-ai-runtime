@@ -23,6 +23,7 @@ from .constants import (
     PROJECTION_SNAPSHOT_AGGREGATES,
 )
 
+
 # All projection tables (derived from _OWNED_TABLES so rebuild / import stay in sync).
 # Includes conversations, messages, and background_tasks which are owned by
 # the conversation and background_task aggregates respectively.
