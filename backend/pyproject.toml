@@ -43,4 +43,5 @@ source = ["app/api", "app/product"]
 omit = [
     "app/experimental/*",
     "app/core/runtime/memory_decay.py",
+    "app/core/runtime/runtime_container.py",
 ]

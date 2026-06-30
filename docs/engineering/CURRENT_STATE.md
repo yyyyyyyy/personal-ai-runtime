@@ -152,14 +152,19 @@
 | Sovereignty Export/Import | **Strong** | 往返 CI 验证 |
 | Execution Runtime | **Strong** | 事件流、shadow compare、恢复、execution_id 执法 |
 | Capability Governance | **Strong** | Gateway、taint、approval、boundary CI；Policy 事件溯源 |
-| Agent Runtime | **Stable** | AgentManager 单轨；AgentBus + Scheduler + WorkItem |
+| Agent Runtime | **Stable** | AgentManager 事件驱动完成判定；AgentBus + Scheduler + WorkItem |
 | Cognitive Pipeline | **Strong+** | Pattern/Belief/Vector 全 CI；quality/survival/idempotency 守卫 |
 | Multi-Agent Isolation | **Strong** | 并发 taint 隔离、WorkItem actor 隔离、contextvars 协程隔离 |
 | Causal Provenance | **Strong** | INV-P1 运行时执法 + INV-P7 join 门禁（goals/approvals/handler_executions）；messages 行级 provenance；conversation/goals/memory/inbox 领域 rebuild/audit CI |
+| API Input Validation | **Strong** | Pydantic BaseModel 全覆盖（goals/tasks/triggers/connectors/workflows），Swagger 完整类型生成 |
+| Security Hardening | **Strong** | SSRF 校验、fail-closed capability gateway、rate limiting、SSE 错误脱敏、taint 审批恢复链路修复、filename 清洗 |
+| Performance | **Stable** | SQLite 连接复用+synchronous=NORMAL、Fragment 并行 gather、CapabilityContextProvider 30s TTL、brain O(n) tool_name 查找 |
+| Observability | **Strong** | /live + /ready 端点、Docker healthcheck 分离、auth 定期 warning、CORS expose_headers |
+| Runtime Container | **Stable** | RuntimeContainer 集中注册 + reset() 测试隔离；各子系统独立 reset 方法 |
 | Distributed / Multi-tenant | **Not Started** | North Star NG1/NG4 非目标 |
 
-**阶段判断**：Runtime Governance 基线完成，核心产品域（Conversation/Memory/Goals/Inbox/Approvals）已落地。
-当前重点：**缩短首次价值路径，打磨核心体验**。
+**阶段判断**：Security Hardening + Performance 优化完成，API 全量 Pydantic 验证，事件驱动 AgentManager 落地。RuntimeContainer 为多 Kernel 实例铺路。
+当前重点：**核心体验打磨，规模化压测**。
 
 ---
 
