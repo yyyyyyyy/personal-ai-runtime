@@ -57,11 +57,14 @@ description: HARD ENFORCEMENT STATE MACHINE for the Architecture Evolution pipel
   "previous_stage": null,
   "active": false,
   "stage_history": [],
+  "skipped_stages": [],
   "cycle_count": 0,
   "last_updated": "YYYY-MM-DDTHH:MM:SSZ",
   "last_commit_sha": null
 }
 ```
+
+`skipped_stages` 记录被显式跳过的阶段及原因，例如 `[{"stage": "04_REALITY_VERIFICATION", "cycle": 2, "reason": "no code change since cycle 1"}]`。stage_history 中对应位置应记为 `04_REALITY_VERIFICATION:SKIPPED` 而非 completed。
 
 ### 状态文件生命周期
 
@@ -126,6 +129,20 @@ description: HARD ENFORCEMENT STATE MACHINE for the Architecture Evolution pipel
    - 如果不是 → 拒绝并返回禁止原因
 3. 检查阶段门禁条件是否满足
    - 如果不满足 → 拒绝并返回缺失依赖
+4. **Artifact 新鲜度检查（CRITICAL — 防止陈旧 artifact 骗过门禁）**
+   - 门禁不仅检查 artifact "是否存在"，还必须检查其**新鲜度**：artifact 头部记录的 `Commit SHA` / `Cycle` 必须匹配当前循环的 `last_commit_sha` / `cycle_count`
+   - 若 artifact 是上一循环的产物（commit 或 cycle 不匹配）→ 视为"该阶段本轮未执行"，拒绝放行下一阶段
+   - 适用对象：`TRUTH_AUDIT.md`, `VERIFICATION_REPORT.md`, `IMPLEMENTATION_PLAN.md`
+
+### 步骤 3.5: 阶段完成的真实性约束（禁止跳过仍记完成）
+
+一个阶段只能在**真正产出本轮新 artifact** 后才能在 `stage_history` 中标记为完成。
+
+- ❌ 禁止："代码无变化，跳过 S04 但仍把 `04_REALITY_VERIFICATION` 推入 stage_history"
+- ✅ 允许（两种之一）：
+  1. 真正执行该阶段，产出带当前 commit/cycle 的新 artifact，标记 completed
+  2. 显式跳过 → 在 stage_history 中记为 `04_REALITY_VERIFICATION:SKIPPED`（而非 completed），并在 RUNTIME_STATE 增加 `skipped_stages` 字段说明原因
+- 状态机的完整性铁律：**stage_history 中标记 completed 的阶段，必须有对应的当轮 artifact 可验证。**
 
 ### 步骤 4: 输出授权决定
 

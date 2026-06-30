@@ -21,7 +21,22 @@ description: Analyze repository implementation ONLY. Extract system truth — ru
 
 ## 输入
 
-本 Skill 不需要参数。它自动扫描整个仓库。
+本 Skill 不需要参数。支持两种模式：
+
+### 模式 A: 全量审计（首轮 / cycle_count=0）
+扫描整个仓库，建立完整 FACT 基线。
+
+### 模式 B: 增量审计（cycle_count ≥ 1，上一轮存在 TRUTH_AUDIT）
+当存在上一轮 TRUTH_AUDIT 且代码 diff 较小时使用，避免全量重扫的 churn：
+
+1. 读取上一轮 TRUTH_AUDIT 的 `Commit SHA` 作为 baseline
+2. `git diff <baseline>..HEAD --name-only -- backend/app/` 确定变更文件集
+3. **只对变更文件所属子系统**重新提取 FACTs（diff-scoped）
+4. **必须先消化**上一轮 `VERIFICATION_REPORT.md` 的 "FACT Corrections" 节——纠正的 FACT 要重新审计并给出正确结论，不得重复误判
+5. 未变更的子系统：在报告中标注 "UNCHANGED since cycle N"，不重复全文
+6. 输出头部标注 `Scope: Incremental (diff <baseline>..<HEAD>)`
+
+增量模式的 FACT 仍须满足全部证据强度规则与质量门禁。
 
 ## 执行流程
 

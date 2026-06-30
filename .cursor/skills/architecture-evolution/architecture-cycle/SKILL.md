@@ -45,6 +45,22 @@ description: Workflow orchestrator for the Architecture Evolution cycle. MUST ca
 
 ## 执行流程（更新版）
 
+### 步骤 -1: 变更价值闸门（启动新循环前必须先评估）
+
+在推荐启动一个**新循环**（current_stage=05 completed 或 IDLE after cycle）之前，必须评估自上一轮 TRUTH_AUDIT 的 `last_commit_sha` 起是否有**实质性代码变更**：
+
+```bash
+git diff <last_audit_commit>..HEAD --stat -- backend/app/
+```
+
+| diff 结果 | 推荐 |
+|-----------|------|
+| 有 `backend/app/` 源码变更（非纯注释） | 启动新循环（可用增量模式，见 01-truth-audit） |
+| 仅文档 / 测试 / 注释变更 | **建议 SKIP 循环** — 报告"无实质架构变更，循环空转无价值"，推荐执行 IMPLEMENTATION_PLAN 中的待办 PR 而非重跑审计 |
+| 零 diff | **拒绝启动** — 报告"代码未变，上一轮 artifact 仍然有效" |
+
+理由：流水线的价值在于**响应代码变化**。在零/微小变更上重跑 5 阶段只会翻新时间戳、churn 文档，违背"降低认知负荷"的初衷。闸门让流水线知道何时**不该**运行。
+
 ### 步骤 0: 状态获取（必须先执行）
 
 读取 `docs/engineering/RUNTIME_STATE.json`。
@@ -66,12 +82,27 @@ description: Workflow orchestrator for the Architecture Evolution cycle. MUST ca
 | 新循环（cycle_count ≥ 1） | false | IDLE | 建议 01-truth-audit，**并提示其先消化上一轮 VERIFICATION_REPORT 的 "FACT Corrections" 节**，不得重复同一误判 |
 | 阶段完成 | false | 01_TRUTH_AUDIT | 验证门禁 → 建议 02 |
 | 阶段完成 | false | 02_CONSTITUTION_UPDATE | 验证门禁 → 建议 03 |
-| 阶段完成 | false | 03_IMPLEMENTATION_EVOLUTION | 建议 PR 执行 → 然后 04 |
+| 阶段完成 | false | 03_IMPLEMENTATION_EVOLUTION | 进入 **PR 执行阶段**（见下），而非直接 04 |
+| PR 执行中 | false | 03_IMPLEMENTATION_EVOLUTION | PR 尚未全部执行 → 推荐执行下一个 PR（经 `dev-loop` skill），不推荐 04 |
+| PR 执行完成 | false | 03_IMPLEMENTATION_EVOLUTION | IMPLEMENTATION_PLAN 中至少 1 个 PR 已合并且 CI 通过 → 建议 04 |
 | 阶段完成 | false | 04_REALITY_VERIFICATION | 验证门禁 → 建议 05 |
 | 阶段完成 | false | 05_REALITY_SYNC | 循环 → 建议 01 |
 | 阶段进行中 | true | {any} | 报告活跃阶段，不推荐 |
 | 失败恢复 | false | IDLE (after failure) | 建议 01-truth-audit |
 | 被封锁 | false | BLOCKED | 报告封锁原因 |
+
+### 步骤 1.5: PR 执行桥（03 → 04 之间的缺失环节）
+
+`03-implementation-evolution` 只**输出 PR 计划**（禁止改代码）；`04-reality-verification` 验证**代码现实**。两者之间必须有真实的代码执行，否则 04 永远验证的是未改变的代码。
+
+**职责归属**：PR 的实际执行由 `dev-loop` skill 承担（每次执行一个 PR：改代码 → 测试 → CI → 提交，停在 review gate，不自动合并）。
+
+**桥接规则**：
+- `03_IMPLEMENTATION_EVOLUTION` 完成后，**不直接转 04**。先进入 PR 执行循环：
+  - 对 IMPLEMENTATION_PLAN 中的 PR，按依赖顺序逐个调用 `dev-loop` 执行
+  - 每个 PR 执行后 CI 必须通过才能进入下一个
+- 只有当**至少一个 PR 真正改变了代码并合并**后，04 才有验证对象，方可推荐 `04-reality-verification`
+- 04 的 `Code Commit SHA` 必须 > 03 完成时的 commit（证明代码确实变了），否则 04 的新鲜度门禁失败（见 00-runtime-controller 步骤 3）
 
 ### 步骤 2: 门禁验证
 
