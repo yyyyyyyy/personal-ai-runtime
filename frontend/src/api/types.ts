@@ -43,7 +43,7 @@ export interface SourceCitation {
 }
 
 export interface StreamEvent {
-  type: "text_delta" | "tool_call_start" | "tool_result" | "confirmation_required" | "done" | "error" | "sources";
+  type: "text_delta" | "tool_call_start" | "tool_result" | "confirmation_required" | "done" | "error" | "sources" | "ping";
   content?: string;
   tool_name?: string;
   tool_args?: Record<string, unknown>;
