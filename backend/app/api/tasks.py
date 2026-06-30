@@ -2,22 +2,11 @@
 
 from fastapi import APIRouter, HTTPException
 
-from app.api.models import CreateTaskRequest, RunPlanningTaskRequest, UpdateTaskStatusRequest
-from app.core.runtime.agent_manager import AgentManager
+from app.api.models import CreateTaskRequest, UpdateTaskStatusRequest
 from app.core.runtime.kernel_instance import kernel
 from app.core.runtime.task_engine import task_engine
 
 router = APIRouter(prefix="/api/tasks", tags=["tasks"])
-
-
-@router.post("/plan")
-async def run_planning_task(body: RunPlanningTaskRequest):
-    """Run multi-agent Planner + Worker pipeline via AgentBus."""
-    request = (body.request or body.prompt).strip()
-    if not request:
-        raise HTTPException(status_code=400, detail="request is required (field name: 'request' or 'prompt')")
-    manager = AgentManager(kernel)
-    return await manager.run(user_request=request)
 
 
 @router.post("/")

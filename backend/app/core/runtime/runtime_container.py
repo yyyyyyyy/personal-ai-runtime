@@ -20,7 +20,6 @@ if TYPE_CHECKING:
     from app.core.runtime.background_worker import BackgroundWorker
     from app.core.runtime.capability_decision import CapabilityGateway
     from app.core.runtime.capability_policy import CapabilityPolicy
-    from app.core.runtime.event_bus import EventBus
     from app.core.runtime.governance.context_pipeline import ContextPipeline
     from app.core.runtime.kernel.kernel import Kernel
     from app.core.runtime.taint import TaintRegistry
@@ -40,7 +39,6 @@ class RuntimeContainer:
         self._taint_registry: "TaintRegistry | None" = None
         self._agent_bus: "AgentBus | None" = None
         self._approval_engine: "ApprovalEngine | None" = None
-        self._event_bus: "EventBus | None" = None
         self._context_pipeline: "ContextPipeline | None" = None
 
     def inventory(self) -> list[dict]:
@@ -102,14 +100,6 @@ class RuntimeContainer:
             self._approval_engine = approval_engine
             self._inventory.append({"name": "approval_engine", "module": "app.core.runtime.approval_engine", "class": type(approval_engine).__name__})
         return self._approval_engine
-
-    @property
-    def event_bus(self) -> "EventBus":
-        if self._event_bus is None:
-            from app.core.runtime.event_bus import event_bus
-            self._event_bus = event_bus
-            self._inventory.append({"name": "event_bus", "module": "app.core.runtime.event_bus", "class": type(event_bus).__name__})
-        return self._event_bus
 
     @property
     def context_pipeline(self) -> "ContextPipeline":

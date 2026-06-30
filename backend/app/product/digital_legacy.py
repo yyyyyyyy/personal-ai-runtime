@@ -58,7 +58,6 @@ class DigitalLegacy:
                 "notifications": self._kernel.table_counts(("notifications",)).get(
                     "notifications", 0
                 ),
-                "schedules": self._kernel.table_counts(("schedules",)).get("schedules", 0),
             },
         }
 
@@ -215,7 +214,6 @@ class DigitalLegacy:
                 "goals",
                 "memories",
                 "notifications",
-                "schedules",
             )
         )
 

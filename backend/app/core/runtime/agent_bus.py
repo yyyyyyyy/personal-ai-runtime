@@ -31,7 +31,6 @@ import logging
 from typing import TYPE_CHECKING, Awaitable, Callable
 
 from .agent_definition import SubscriptionRule
-from .event_bus import event_bus
 
 if TYPE_CHECKING:
     from .kernel.event import Event
@@ -50,7 +49,6 @@ class AgentBus:
     """
 
     def __init__(self):
-        self._transport = event_bus
         self._running = False
 
         # agent_id → list of (SubscriptionRule, handler)

@@ -37,8 +37,8 @@
 
 | 类别 | 数量 | 含义 | 示例 |
 |------|------|------|------|
-| **GOVERNED** | 16 表 | 仅 Kernel 写入，经 Event Log 投影 | event_log, goals, memories, approvals, messages |
-| **APP_STORAGE** | 9 表 | 允许应用直写，有审计覆盖 | inbox_emails, llm_calls, tool_calls |
+| **GOVERNED** | 15 表 | 仅 Kernel 写入，经 Event Log 投影 | event_log, goals, memories, approvals, messages |
+| **APP_STORAGE** | 10 表 | 允许应用直写，有审计覆盖 | inbox_emails, llm_calls, tool_calls |
 
 ---
 
@@ -91,7 +91,7 @@
 | 组件 | 职责 | 写路径 |
 |------|------|--------|
 | timer_engine.py | cron/延迟，TimerFired → Execution | Kernel 事件 |
-| scheduler_v2.py | 12 个 cron 计划注册 | 经 TimerEngine |
+| scheduler.py | 8 个 cron 计划注册 | 经 TimerEngine |
 | trigger_engine.py | 条件触发、建议通知 | 直写 triggers（APP_STORAGE），读 event_log |
 | background_worker.py | 长任务轮询 | 直写 background_tasks（APP_STORAGE） |
 
@@ -117,11 +117,15 @@
 
 > 路由组随版本演进会增删；权威清单以 Swagger UI (`/docs`) 与 `backend/app/api/` 为准。
 
-### 2.7 认知管线（Pattern → Belief）
+### 2.7 认知管线（已移除）
 
-- **Pattern Aggregator**：scheduler 触发，`pattern/aggregators.py`
-- **Belief Engine**：只读投影，emit BeliefFormed，`belief_engine.py`
-- Pattern/Belief/Vector rebuild + quality/survival/idempotency 全部进 CI
+Pattern/Belief 认知管线（`pattern/aggregators.py` + `belief/belief_engine.py`）已在 v0.2 中移除。
+该管线在架构上定义了一条"证据→模式→信念→记忆"的通路，但生产环境中没有任何
+代码 emit `ActivityNormalized` 事件，导致整条管线始终空转。在此决策点选择了
+"删除而非接通"，因为近期产品聚焦于治理内核与核心领域功能。
+
+相关的 5 个 verify 脚本（`verify_belief_pipeline.py`、`verify_pattern_rebuild.py` 等）
+也已随管线本体一同移除。
 
 ### 2.8 领域治理（Domain Governance）
 
@@ -152,8 +156,7 @@
 | Sovereignty Export/Import | **Strong** | 往返 CI 验证 |
 | Execution Runtime | **Strong** | 事件流、shadow compare、恢复、execution_id 执法 |
 | Capability Governance | **Strong** | Gateway、taint、approval、boundary CI；Policy 事件溯源 |
-| Agent Runtime | **Stable** | AgentManager 事件驱动完成判定；AgentBus + Scheduler + WorkItem |
-| Cognitive Pipeline | **Strong+** | Pattern/Belief/Vector 全 CI；quality/survival/idempotency 守卫 |
+| Agent Runtime | **Stable** | 单 Agent CHAT_DEFINITION + handler 注册模型；AgentBus + WorkItem Scheduler |
 | Multi-Agent Isolation | **Strong** | 并发 taint 隔离、WorkItem actor 隔离、contextvars 协程隔离 |
 | Causal Provenance | **Strong** | INV-P1 运行时执法 + INV-P7 join 门禁（goals/approvals/handler_executions）；messages 行级 provenance；conversation/goals/memory/inbox 领域 rebuild/audit CI |
 | API Input Validation | **Strong** | Pydantic BaseModel 全覆盖（goals/tasks/triggers/connectors/workflows），Swagger 完整类型生成 |

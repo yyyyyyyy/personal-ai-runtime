@@ -37,15 +37,6 @@ _STAGE_RATIONALE: dict[CompileStage, str] = {
     "brief": "Summary-oriented: goals, calendar, world news; no conversation fragments",
 }
 
-# ── Policy scoring weights (shared constants for backward compat) ────────
-
-SUPPRESSION_REPEATED = -10
-SUPPRESSION_TOOL_AWARE = -15
-BOOST_STAGNATION = +20
-BOOST_FAILURE = +15
-BOOST_CAPABILITY_MATCH = +15
-SUPPRESSION_CAPABILITY_MISSING = -100_000
-
 # Fragment tag → scoring reason label (shared)
 _TAG_LABELS: dict[str, str] = {
     "calendar": "CalendarFragment",
@@ -128,13 +119,7 @@ class DefaultContextPolicy:
         self._analyzer = QueryAnalyzer()
         self._selector = FragmentSelector(self._registry)
 
-    def evaluate(
-        self,
-        request: CompileRequest,
-        *,
-        execution_context: object | None = None,
-        capability_context: object | None = None,
-    ) -> CompilePlan:
+    def evaluate(self, request: CompileRequest) -> CompilePlan:
         analysis = self._analyzer.analyze(request.user_message)
         fragments = self._selector.select_for_stage(analysis, request.stage)
         budget = _resolve_stage_budget(request.stage, request.context_budget)

@@ -8,10 +8,18 @@ class TestAgentBus:
         assert bus is not None
         assert not bus._running
 
-    def test_agent_bus_default_transport(self):
+    def test_agent_bus_reset_clears_subscriptions(self):
         from app.core.runtime.agent_bus import AgentBus
+        from app.core.runtime.agent_definition import SubscriptionRule
+        async def noop(e): pass
         bus = AgentBus()
-        assert bus._transport is not None
+        rule = SubscriptionRule(event_type="TestEvent", aggregate_type="test")
+        unsub = bus.subscribe("test_agent", rule, noop)
+        assert len(bus._subscriptions) == 1
+        unsub()
+        assert len(bus._subscriptions["test_agent"]) == 0
+        bus.reset()
+        assert len(bus._subscriptions) == 0
 
 
 class TestLegacyEventAdapter:

@@ -219,18 +219,3 @@ class TestProjectorsAux:
         rows = k.query_state("notifications")
         for r in rows:
             assert r["read"] == 1
-
-    def test_schedule_last_run_updated_projector(self, isolated_kernel):
-        k, _db = isolated_kernel
-        k.emit_event(
-            "ScheduleCreated", "schedule", "sch_cov",
-            payload={"name": "test_schedule", "task_type": "test"},
-            actor="system",
-        )
-        k.emit_event(
-            "ScheduleLastRunUpdated", "schedule", "sch_cov",
-            payload={"last_run_at": "2026-06-01T00:00:00"},
-            actor="system",
-        )
-        rows = k.query_state("schedules", id="sch_cov")
-        assert rows[0]["last_run_at"] == "2026-06-01T00:00:00"

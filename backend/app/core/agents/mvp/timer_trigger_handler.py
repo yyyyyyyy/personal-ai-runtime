@@ -19,25 +19,7 @@ async def _call_product(handler_name: str) -> None:
     from datetime import UTC, datetime, timedelta
 
     try:
-        if handler_name == "belief_reflection":
-            from app.core.belief.belief_engine import ReflectionContext, belief_engine
-            from app.core.runtime.kernel_instance import kernel
-
-            patterns = kernel.query_state("patterns", window_days=14, limit=20)
-            goals = kernel.query_state("goals", status="active", limit=10)
-            memories = kernel.query_state("memories", confidence_gt=0.3, limit=20)
-            if patterns:
-                ctx_ref = ReflectionContext(patterns=patterns, goals=goals, memories=memories)
-                beliefs = await belief_engine.reflect(ctx_ref)
-                logger.info("Belief reflection produced %d beliefs", len(beliefs))
-                if beliefs:
-                    from app.core.runtime.notification_channel import notification_router
-                    belief_summary = "\n".join([f"  · {b.get('content', '')[:80]}" for b in beliefs[:3]])
-                    await notification_router.notify(
-                        "AI 反思完成", f"产生了 {len(beliefs)} 条新认知:\n{belief_summary}",
-                        type_="belief_reflection",
-                    )
-        elif handler_name == "deadline_alert":
+        if handler_name == "deadline_alert":
             from app.core.runtime.kernel_instance import kernel
 
             candidates = kernel.query_state("goals", status="active", has_deadline=True, limit=500)

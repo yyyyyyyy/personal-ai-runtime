@@ -34,19 +34,12 @@ from app.context_runtime import (
     RuntimeContext,
     fragment_registry,
 )
-from app.core.runtime.governance.capability_context import (
-    CapabilityContext,
-    CapabilityContextProvider,
-)
 from app.core.runtime.governance.context_policy import (
     CompilePlan,
     CompileRequest,
     CompileStage,
     ContextPolicy,
     DefaultContextPolicy,
-)
-from app.core.runtime.governance.execution_context import (
-    GovernanceExecutionContext,
 )
 from app.core.runtime.principal import Principal
 
@@ -126,80 +119,15 @@ class ContextPipeline:
         """Return the most recent CompilePlan produced by this pipeline."""
         return self._last_plan
 
-    async def _build_execution_context(
-        self,
-        conversation_id: str,
-        execution_id: str,
-    ) -> GovernanceExecutionContext:
-        """Build a GovernanceExecutionContext from runtime state."""
-        provider_snapshot = GovernanceExecutionContext()
-        try:
-            from app.core.runtime.governance.execution_context import (
-                ExecutionContextProvider,
-            )
-
-            provider = ExecutionContextProvider()
-            provider_snapshot = await provider.build(
-                conversation_id=conversation_id,
-                execution_id=execution_id,
-            )
-        except Exception:
-            import logging
-            logging.getLogger(__name__).debug(
-                "ContextPipeline: execution context build failed", exc_info=True
-            )
-
-        return GovernanceExecutionContext(
-            recent_fragment_ids=tuple(self._recent_fragment_ids),
-            recent_tool_names=provider_snapshot.recent_tool_names,
-            recent_event_types=provider_snapshot.recent_event_types,
-            recent_failures=provider_snapshot.recent_failures,
-            stagnant_goal_ids=provider_snapshot.stagnant_goal_ids,
-        )
-
-    def _build_capability_context(
-        self,
-        principal: Principal | None = None,
-    ) -> CapabilityContext:
-        """Build a CapabilityContext from tool registry and runtime config.
-
-        Returns a default (empty) snapshot when the provider is unavailable.
-        """
-        try:
-            provider = CapabilityContextProvider()
-            return provider.build(principal=principal)
-        except Exception:
-            return CapabilityContext()
-
     def _record_fragment_ids(self, fragment_ids: tuple[str, ...]) -> None:
-        """Record fragment IDs from the current compilation for future suppression."""
         for fid in fragment_ids:
             if fid not in self._recent_fragment_ids:
                 self._recent_fragment_ids.append(fid)
 
     async def build_from_request(self, request: CompileRequest) -> str:
-        """Compile context from a structured request.
-
-        Builds a GovernanceExecutionContext and passes it to the policy
-        for runtime-aware decisions. Also builds a CapabilityContext and
-        passes it to the policy for capability-aware decisions. Stores
-        sources for citation tracking.
-        """
-        # Build execution context snapshot
-        exec_ctx = await self._build_execution_context(
-            conversation_id=request.conversation_id,
-            execution_id=request.execution_id,
-        )
-
-        # Build capability context snapshot
-        cap_ctx = self._build_capability_context(principal=request.principal)
-
-        # Evaluate policy with both runtime and capability context
-        plan = self._policy.evaluate(
-            request,
-            execution_context=exec_ctx,
-            capability_context=cap_ctx,
-        )
+        """Compile context from a structured request."""
+        # Evaluate policy
+        plan = self._policy.evaluate(request)
         self._last_plan = plan
         self._record_fragment_ids(plan.selected_fragment_ids)
 

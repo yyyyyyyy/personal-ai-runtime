@@ -8,7 +8,6 @@ import pytest
 os.environ.setdefault("LLM_API_KEY", "test-key")
 
 EXPECTED_SCHEDULE_NAMES = {
-    "belief_reflection",
     "deadline_alert",
     "trigger_evaluation",
     "memory_decay",
@@ -16,6 +15,7 @@ EXPECTED_SCHEDULE_NAMES = {
     "projection_snapshots",
     "inbox_poll",
     "inbox_digest",
+    "morning_brief",
 }
 
 
@@ -57,24 +57,6 @@ async def test_on_task_completed_starts_dependents(tmp_path, monkeypatch):
 
     task2 = k.query_state("tasks", id="t2")[0]
     assert task2["status"] == "running"
-
-
-def test_trigger_event_schedule_publishes(monkeypatch):
-    published: list[tuple] = []
-
-    def capture(event_type, payload):
-        published.append((event_type, payload))
-
-    monkeypatch.setattr(
-        "app.core.runtime.scheduler.event_bus.publish",
-        capture,
-    )
-
-    from app.core.runtime.event_bus import EventType
-    from app.core.runtime.scheduler import trigger_event_schedule
-
-    trigger_event_schedule("deadline_alert", {"foo": "bar"})
-    assert published == [(EventType.SCHEDULE_TRIGGERED, {"task_type": "deadline_alert", "payload": {"foo": "bar"}})]
 
 
 def test_shutdown_scheduler_stops_timer_engine(monkeypatch):

@@ -78,26 +78,6 @@ SAMPLE_SCENARIO: list[tuple[str, str, str, dict[str, Any]]] = [
         },
     ),
     ("NotificationRead", "notification", "n1", {}),
-    # Schedules
-    (
-        "ScheduleCreated",
-        "schedule",
-        "sch1",
-        {
-            "name": "memory_decay",
-            "cron_expr": "0 3 * * *",
-            "task_type": "memory_decay",
-            "trigger_type": "cron",
-            "enabled": True,
-            "created_at": "2026-06-10T00:00:00Z",
-        },
-    ),
-    (
-        "ScheduleLastRunUpdated",
-        "schedule",
-        "sch1",
-        {"last_run_at": "2026-06-10T08:00:00Z"},
-    ),
     # Policy (Phase 3)
     ("PolicyCreated", "policy", "policy_read_file", {"capability": "read_file", "risk_level": "low"}),
     ("PolicyCreated", "policy", "policy_shell_exec", {"capability": "shell_exec", "risk_level": "high"}),

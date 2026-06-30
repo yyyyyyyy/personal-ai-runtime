@@ -102,9 +102,6 @@ class Settings(BaseSettings):
     tool_timeout_seconds: int = 30
     total_tool_loop_timeout: int = 120
 
-    # --- Misc ---
-    review_narrative_llm_enabled: bool = True
-
     # --- Multi-Agent Runtime ---
     # The legacy AgentOrchestrator has been removed (M3 single-track).
     # AgentManager is always active via api/tasks.py.

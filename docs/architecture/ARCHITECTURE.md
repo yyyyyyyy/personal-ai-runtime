@@ -244,15 +244,21 @@ CI 有 `test_fragment_read_boundary.py` 做 AST 扫描守卫（INV-R1）。
 
 ## 8. 已确认不在生产路径的组件
 
-| 组件 | 文件 | 状态 |
+以下组件已从代码库中删除或归档：
+
+| 组件 | 原文件 | 状态 |
 |------|------|------|
-| GovernancePolicyEngine | `governance/governance_policy_engine.py` | 仅测试使用，生产走 DefaultContextPolicy |
-| GovernancePolicy | `governance/context_policy.py:162` | 包装器，零生产实例化 |
-| ExecutionPlan | `execution/execution_plan.py` | 零生产创建 |
-| ExecutionRuntime | `execution/execution_runtime.py` | 零生产实例化 |
-| ExecutionConstraints | `execution/execution_constraints.py` | 仅作为 ExecutionPlan 字段 |
-| execution/capability_gateway.py | `execution/capability_gateway.py` | 构造函数依赖不存在的 ExecutionPlan |
-| AGENT_MANAGER_V2 | `config.py:109` | 定义但从未被任何代码读取 |
+| event_bus (旧式事件总线) | `runtime/event_bus.py` | 已删除（v0.2） |
+| Planner Agent (LLM) | `agents/planner.py` | 已删除，解析由 Brain 工具循环处理 |
+| Critic Agent | `agents/critic.py` | 已删除，无生产调用路径 |
+| Intent Predictor | `agents/intent_predictor.py` | 已删除，由 QueryAnalyzer 替代 |
+| Agent Manager (多 Agent) | `runtime/agent_manager.py` | 已删除，单 Agent + handler 模型 |
+| MVP Planner/Worker | `agents/mvp/planner_agent.py`, `worker_agent.py` | 已删除，实验骨架 |
+| Pattern/Belief 认知管线 | `pattern/`, `belief/` | 已删除，管线无生产者 |
+| 认知管线验证脚本 | `scripts/verify_belief_*.py`, `verify_pattern_*.py`（5个） | 已删除 |
+| schedules 投影 | `projectors_aux.py` ScheduleCreated/LastRunUpdated | 已删除，由 timer_events 替代 |
+
+CI 门禁 `check_boundary.py` 自动检测新引入的死组件。 |
 
 ---
 
@@ -271,12 +277,8 @@ CI 有 `test_fragment_read_boundary.py` 做 AST 扫描守卫（INV-R1）。
 | `check_projection_provenance.py` | goals/approvals/handler_executions join event_log |
 | `verify_egress.py` | 出站审计事件 |
 | `verify_connector.py` | calendar connector 进 event_log |
-| `verify_pattern_rebuild.py` | Pattern 投影 rebuild |
-| `verify_belief_pipeline.py` | Pattern → BeliefFormed → memories rebuild |
 | `verify_vector_consistency.py` | SQLite ↔ Chroma ID 一致性 |
-| `verify_belief_quality.py` | Belief 质量（traceability/novelty/actionability） |
-| `verify_belief_survival.py` | Belief 存活率统计 |
-| `verify_pattern_idempotency.py` | Pattern 检测幂等性 |
+| `verify_memory_lifecycle.py` | Memory 生命周期 |
 
 全部 20+ 条不变量均为 **Tier 1（CI/测试阻断）**，详见 [INVARIANTS.md](INVARIANTS.md)。
 

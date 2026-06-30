@@ -40,22 +40,11 @@ EVENT_CONVERSATION_DELETED = "ConversationDeleted"
 EVENT_MESSAGE_APPENDED = "MessageAppended"
 
 EVENT_ACTION_CREATED = "ActionCreated"
-EVENT_ACTION_COMPLETED = "ActionCompleted"     # DEPRECATED — use ActionUpdated with status="completed"
-
-EVENT_PATTERN_RECORDED = "PatternRecorded"  # DEPRECATED — use PatternDetected (projector/belief engine use PatternDetected)
-
-EVENT_AGENT_MESSAGE_RECEIVED = "AgentMessageReceived"
-EVENT_AGENT_MESSAGE_SENT = "AgentMessageSent"
 
 EVENT_NOTIFICATION_CREATED = "NotificationCreated"
 EVENT_NOTIFICATION_UPDATED = "NotificationUpdated"
 EVENT_NOTIFICATION_READ = "NotificationRead"
 EVENT_NOTIFICATION_READ_ALL = "NotificationReadAll"
-
-EVENT_SCHEDULE_CREATED = "ScheduleCreated"
-EVENT_SCHEDULE_LAST_RUN_UPDATED = "ScheduleLastRunUpdated"
-
-EVENT_FEEDBACK_LOGGED = "FeedbackLogged"
 
 # ── Chat (ADR Unification) ──────────────────────────────────────────────────
 
@@ -81,11 +70,6 @@ EVENT_INBOX_EMAIL_RECORDED = "InboxEmailRecorded"
 EVENT_CHAT_TEXT_DELTA = "ChatTextDelta"   # DELIBERATELY NOT EMITTED TO EVENT_LOG — pushed to SSE queue to avoid polluting Truth Layer
 EVENT_CHAT_DONE = "ChatDone"
 
-# ── Document / Knowledge audit ─────────────────────────────────
-
-EVENT_DOCUMENT_IMPORTED = "DocumentImported"
-EVENT_DOCUMENT_DELETED = "DocumentDeleted"
-
 # ── Trigger audit ──────────────────────────────────────────────
 
 EVENT_TRIGGER_CREATED = "TriggerCreated"
@@ -93,7 +77,6 @@ EVENT_TRIGGER_DELETED = "TriggerDeleted"
 
 # ── Application audit ──────────────────────────────────────────
 
-EVENT_MORNING_BRIEF_GENERATED = "MorningBriefGenerated"
 EVENT_APP_CONFIG_CHANGED = "AppConfigChanged"
 
 # ── Execution aggregate (ADR-0007) ──────────────────────────────────────────
@@ -128,17 +111,13 @@ AGGREGATE_MEMORY = "memory"
 AGGREGATE_CONVERSATION = "conversation"
 AGGREGATE_ACTION = "action"
 AGGREGATE_PATTERN = "pattern"
-AGGREGATE_AGENT_MESSAGE = "agent_message"
-AGGREGATE_FEEDBACK = "feedback"
 AGGREGATE_NOTIFICATION = "notification"
-AGGREGATE_SCHEDULE = "schedule"
 AGGREGATE_EXECUTION = "execution"
 AGGREGATE_TIMER = "timer"
 AGGREGATE_POLICY = "policy"
 AGGREGATE_GRANT = "grant"
 AGGREGATE_BACKGROUND_TASK = "background_task"
 AGGREGATE_INBOX_EMAIL = "inbox_email"
-AGGREGATE_DOCUMENT = "document"
 AGGREGATE_TRIGGER = "trigger"
 
 # ── Timer aggregate ─────────────────────────────────────────────────────────
@@ -166,9 +145,7 @@ PROJECTION_TABLES = (
     "tasks",
     "memories",
     "approvals",
-    "patterns",
     "notifications",
-    "schedules",
     "handler_executions",
     "timer_events",
     "policy_events",

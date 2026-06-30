@@ -27,7 +27,6 @@ PROJECTION_TABLES = (
     "messages",
     "conversations",
     "notifications",
-    "schedules",
     "event_log",
     "timer_events",
     "policy_events",

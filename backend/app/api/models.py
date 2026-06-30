@@ -96,10 +96,6 @@ class CreateTriggerRequest(BaseModel):
     action_config: dict | None = None
 
 
-class RunPlanningTaskRequest(BaseModel):
-    request: str = ""
-    prompt: str = ""
-
 
 class CreateTaskRequest(BaseModel):
     name: str = ""

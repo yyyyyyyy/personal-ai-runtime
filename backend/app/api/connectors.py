@@ -133,13 +133,13 @@ def _get_builtin_tools(name: str) -> list[dict]:
         return [
             {"name": "check_inbox", "description": "检查收件箱新邮件"},
             {"name": "send_email", "description": "发送邮件"},
-            {"name": "search_emails", "description": "搜索邮件"},
+            {"name": "read_inbox_email", "description": "读取邮件详情"},
         ]
     if name == "calendar":
         return [
-            {"name": "list_events", "description": "列出日历事件"},
-            {"name": "create_event", "description": "创建日历事件"},
-            {"name": "get_upcoming", "description": "获取即将到来的事件"},
+            {"name": "list_calendar_events", "description": "列出日历事件"},
+            {"name": "add_calendar_event", "description": "创建日历事件"},
+            {"name": "get_upcoming_events", "description": "获取即将到来的事件"},
         ]
     return []
 

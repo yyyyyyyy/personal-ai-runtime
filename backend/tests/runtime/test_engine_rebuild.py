@@ -5,7 +5,6 @@ import os
 os.environ.setdefault("LLM_API_KEY", "test-key")
 
 from app.core.agents.memory_engine import MemoryEngine
-from app.core.runtime.approval_engine import ApprovalEngine
 from app.core.runtime.kernel import Kernel
 from app.core.runtime.task_engine import TaskEngine
 from app.store.database import Database
@@ -62,11 +61,14 @@ class TestEngineRebuildConsistency:
 
     def test_approval_engine_rebuild(self, tmp_path, monkeypatch):
         k, db = make_kernel(tmp_path)
-        monkeypatch.setattr("app.core.runtime.approval_engine.kernel", k)
 
-        engine = ApprovalEngine()
-        req = engine.request_approval("write_file", params={"path": "/tmp/x"}, proposed_by="brain")
-        engine.approve(req["id"], resolved_by="user")
+        result = k.request_approval(
+            action="write_file",
+            risk="high",
+            ctx={"args": {"path": "/tmp/x"}, "proposed_by": "brain"},
+            actor="brain",
+        )
+        k.grant_approval(result["approval_id"], action="write_file", actor="user", reason="test")
 
         before = snapshot_table(db, "approvals")
         k.rebuild("approval")

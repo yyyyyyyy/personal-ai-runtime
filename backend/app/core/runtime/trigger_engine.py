@@ -7,7 +7,6 @@ import json
 import uuid
 from datetime import UTC, datetime, timedelta
 
-from app.core.runtime.event_bus import EventType, event_bus
 from app.core.runtime.kernel_instance import kernel
 from app.store.database import db
 
@@ -128,12 +127,6 @@ class TriggerEngine:
                 "goal_id": goal.get("id"),
             })
 
-            event_bus.publish(EventType.SUGGESTION_GENERATED, {
-                "trigger": trigger["name"],
-                "content": msg,
-                "goal_id": goal.get("id"),
-            })
-
         return suggestions if suggestions else None
 
     def _eval_threshold(self, trigger: dict, condition: dict) -> list[dict] | None:
@@ -154,10 +147,6 @@ class TriggerEngine:
         actual_count = len(matched)
         if actual_count >= count:
             msg = template.format(count=actual_count)
-            event_bus.publish(EventType.SUGGESTION_GENERATED, {
-                "trigger": trigger["name"],
-                "content": msg,
-            })
             return [{"trigger_id": trigger["id"], "type": "suggestion", "content": msg}]
 
         return None

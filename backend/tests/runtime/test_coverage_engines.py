@@ -26,49 +26,55 @@ class TestTimerEngineCron:
 
 
 class TestApprovalEngine:
-    def test_request_approval(self, isolated_kernel):
-        from app.core.runtime.approval_engine import ApprovalEngine
-        engine = ApprovalEngine()
-        result = engine.request_approval(
-            action="write_file", params={"path": "/tmp/test"},
-            proposed_by="agent:planner",
+    def test_request_approval_via_kernel(self, isolated_kernel):
+        k, _db = isolated_kernel
+        result = k.request_approval(
+            action="write_file",
+            risk="high",
+            ctx={"args": {"path": "/tmp/test"}, "proposed_by": "agent:planner"},
+            actor="agent:planner",
         )
         assert result is not None
-        assert result.get("action") == "write_file"
+        assert result["status"] == "pending"
 
-    def test_approve_lifecycle(self, isolated_kernel):
-        from app.core.runtime.approval_engine import ApprovalEngine
-        engine = ApprovalEngine()
-        result = engine.request_approval(
-            action="read_file", params={"path": "/tmp/read"},
-            proposed_by="agent:planner",
+    def test_approve_lifecycle_via_kernel(self, isolated_kernel):
+        k, _db = isolated_kernel
+        result = k.request_approval(
+            action="read_file",
+            risk="high",
+            ctx={"args": {"path": "/tmp/read"}, "proposed_by": "agent:planner"},
+            actor="agent:planner",
         )
-        approved = engine.approve(result["id"])
-        assert approved is not None
-        assert approved["status"] == "approved"
+        k.grant_approval(result["approval_id"], action="read_file", actor="user", reason="test")
+        approval = k.query_state("approvals", id=result["approval_id"])
+        assert len(approval) == 1
+        assert approval[0]["status"] == "approved"
 
-    def test_reject_approval(self, isolated_kernel):
-        from app.core.runtime.approval_engine import ApprovalEngine
-        engine = ApprovalEngine()
-        result = engine.request_approval(
-            action="shell_exec", params={"command": "ls"},
-            proposed_by="agent:planner",
+    def test_reject_approval_via_kernel(self, isolated_kernel):
+        k, _db = isolated_kernel
+        result = k.request_approval(
+            action="shell_exec",
+            risk="high",
+            ctx={"args": {"command": "ls"}, "proposed_by": "agent:planner"},
+            actor="agent:planner",
         )
-        rejected = engine.reject(result["id"])
-        assert rejected is not None
-        assert rejected["status"] in ("rejected", "denied")
+        k.deny_approval(result["approval_id"], action="shell_exec", actor="user", reason="test reject")
+        approval = k.query_state("approvals", id=result["approval_id"])
+        assert len(approval) == 1
+        assert approval[0]["status"] in ("rejected", "denied")
 
     def test_get_approval_missing(self):
         from app.core.runtime.approval_engine import ApprovalEngine
         engine = ApprovalEngine()
         assert engine.get_approval("nonexistent") is None
 
-    def test_request_approval_with_task_id(self, isolated_kernel):
-        from app.core.runtime.approval_engine import ApprovalEngine
-        engine = ApprovalEngine()
-        result = engine.request_approval(
-            action="apply_patch", params={"old": "a", "new": "b"},
-            proposed_by="agent:planner", task_id="task_123",
+    def test_request_approval_with_task_id_via_kernel(self, isolated_kernel):
+        k, _db = isolated_kernel
+        result = k.request_approval(
+            action="apply_patch",
+            risk="high",
+            ctx={"task_id": "task_123", "args": {"old": "a", "new": "b"}, "proposed_by": "agent:planner"},
+            actor="agent:planner",
         )
         assert result is not None
 
@@ -77,10 +83,10 @@ class TestScheduler:
     def test_schedules_all_present(self):
         from app.core.runtime.scheduler import SCHEDULES
 
-        assert len(SCHEDULES) == 9
+        assert len(SCHEDULES) == 8
         names = {s["name"] for s in SCHEDULES}
         assert "inbox_poll" in names
-        assert "belief_reflection" in names
+        assert "morning_brief" in names
         for s in SCHEDULES:
             assert s["handler_name"] in names
 

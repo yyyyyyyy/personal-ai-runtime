@@ -30,8 +30,6 @@ class QueryStateMixin(_KernelMixinInterface):
             return self._query_patterns(filters)
         if selector == "notifications":
             return self._query_notifications(filters)
-        if selector == "schedules":
-            return self._query_schedules(filters)
         if selector == "timer_events":
             return self._query_timer_events(filters)
         if selector == "policy_events":
@@ -327,29 +325,6 @@ class QueryStateMixin(_KernelMixinInterface):
             rows = conn.execute(
                 f"SELECT * FROM notifications{where} ORDER BY {order_sql} LIMIT ?",
                 params,
-            ).fetchall()
-        return [dict(r) for r in rows]
-
-    def _query_schedules(self, filters: dict[str, Any]) -> list[dict]:
-        schedule_id = filters.get("id")
-        name = filters.get("name")
-        limit = filters.get("limit", 100)
-
-        with self._db.get_db() as conn:
-            if schedule_id:
-                row = conn.execute(
-                    "SELECT * FROM schedules WHERE id = ?", (schedule_id,)
-                ).fetchone()
-                return [dict(row)] if row else []
-            if name is not None:
-                row = conn.execute(
-                    "SELECT * FROM schedules WHERE name = ? LIMIT 1", (name,)
-                ).fetchone()
-                return [dict(row)] if row else []
-
-            rows = conn.execute(
-                "SELECT * FROM schedules ORDER BY created_at DESC LIMIT ?",
-                (limit,),
             ).fetchall()
         return [dict(r) for r in rows]
 

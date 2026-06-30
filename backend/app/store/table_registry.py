@@ -14,11 +14,9 @@ GOVERNED_TABLES: frozenset[str] = frozenset({
     "tasks",
     "memories",
     "approvals",
-    "patterns",
     "conversations",
     "messages",
     "notifications",
-    "schedules",
     "projection_checkpoints",
     "handler_executions",
     "timer_events",
@@ -58,6 +56,14 @@ APP_STORAGE_TABLES: frozenset[str] = frozenset({
     # Inbox emails — IMAP-fetched raw mail cache. The authoritative record
     # is InboxEmailRecorded in event_log; this table holds the raw payload.
     "inbox_emails",
+    # Legacy patterns table — superseded. Pattern detection was part of the
+    # Evidence→Pattern→Belief pipeline which has been removed.  Table is
+    # retained for backward compatibility with existing databases.
+    "patterns",
+    # Legacy schedules table — superseded by timer_events + TimerEngine.
+    # Cron scheduling now goes through timer_event projection; this table
+    # is retained for backward compatibility with existing databases.
+    "schedules",
     # App settings (UI preferences, LLM/Email connection config). Local-only
     # operational config; not a governed fact.
     "app_settings",
@@ -85,10 +91,6 @@ GOVERNED_SCHEMA: dict[str, frozenset[str]] = {
         "id", "task_id", "action", "params", "proposed_by", "status",
         "created_at", "expires_at", "resolved_at", "resolved_by",
     }),
-    "patterns": frozenset({
-        "id", "pattern_type", "metric", "window_days", "statistics",
-        "evidence_chain", "created_at",
-    }),
     "conversations": frozenset({
         "id", "title", "summary", "created_at", "updated_at",
     }),
@@ -98,10 +100,6 @@ GOVERNED_SCHEMA: dict[str, frozenset[str]] = {
     }),
     "notifications": frozenset({
         "id", "type", "title", "content", "read", "created_at",
-    }),
-    "schedules": frozenset({
-        "id", "name", "cron_expr", "task_type", "trigger_type", "trigger_config",
-        "config", "enabled", "last_run_at", "created_at",
     }),
     "event_log": frozenset({
         "seq", "id", "type", "aggregate_type", "aggregate_id", "actor", "payload",

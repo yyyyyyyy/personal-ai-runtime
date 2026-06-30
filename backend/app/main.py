@@ -33,8 +33,6 @@ from app.api import (
 from app.config import settings
 from app.core.logging_config import configure_logging
 from app.core.runtime.background_worker import background_worker
-from app.core.runtime.event_bus import event_bus
-from app.core.runtime.pattern.aggregators import pattern_aggregator
 from app.core.runtime.scheduler import init_scheduler, shutdown_scheduler
 from app.core.startup_health import enrich_with_mcp_status, run_startup_checks
 
@@ -209,10 +207,6 @@ async def lifespan(app: FastAPI):
     else:
         logger.info("API authentication enabled (Bearer token)")
 
-    await event_bus.start()
-    # EventBus remains for internal pub/sub (SCHEDULE_TRIGGERED, trigger_engine SUGGESTION_GENERATED).
-    pattern_aggregator.start()
-
     init_scheduler()
 
     # Seed governance events from capability_policy.json
@@ -264,9 +258,7 @@ async def lifespan(app: FastAPI):
             pass
 
     await background_worker.stop()
-    pattern_aggregator.stop()
     shutdown_scheduler()
-    await event_bus.stop()
 
     async with _ws_lock:
         for ws in _ws_connections:

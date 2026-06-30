@@ -18,13 +18,11 @@ import asyncio
 import logging
 from datetime import UTC, datetime, timedelta
 
-from app.core.runtime.event_bus import EventType, event_bus
 from app.core.runtime.kernel_instance import kernel
 
 logger = logging.getLogger(__name__)
 
 SCHEDULES: list[dict] = [
-    {"name": "belief_reflection", "cron_expr": "hour=21,minute=30", "schedule_type": "cron", "handler_name": "belief_reflection"},
     {"name": "morning_brief", "cron_expr": "hour=8,minute=0", "schedule_type": "cron", "handler_name": "morning_brief"},
     {"name": "deadline_alert", "cron_expr": "hour=9,minute=0", "schedule_type": "cron", "handler_name": "deadline_alert"},
     {"name": "trigger_evaluation", "cron_expr": "minute=*/30", "schedule_type": "cron", "handler_name": "trigger_evaluation"},
@@ -100,10 +98,3 @@ def _deadline_target_dates() -> set:
     today_utc = datetime.now(UTC).date()
     return {today_utc + timedelta(days=offset) for offset in (1, 3)}
 
-
-def trigger_event_schedule(task_type: str, payload: dict | None = None):
-    """Programmatically trigger a scheduled task via event (for testing)."""
-    event_bus.publish(EventType.SCHEDULE_TRIGGERED, {
-        "task_type": task_type,
-        "payload": payload or {},
-    })

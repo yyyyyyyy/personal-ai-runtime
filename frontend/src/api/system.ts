@@ -5,7 +5,6 @@ import type {
   HealthResponse,
   SystemInfo,
   LlmProvidersResponse,
-  McpStatusResponse,
   DashboardData,
 } from "./types";
 
@@ -19,10 +18,6 @@ export async function fetchSystemInfo(): Promise<SystemInfo> {
 
 export async function getLlmProviders(): Promise<LlmProvidersResponse> {
   return request<LlmProvidersResponse>(`${API_BASE}/system/llm-providers`);
-}
-
-export async function getMcpStatus(): Promise<McpStatusResponse> {
-  return request<McpStatusResponse>(`${API_BASE}/system/mcp-status`);
 }
 
 export async function getDashboard(): Promise<DashboardData> {
