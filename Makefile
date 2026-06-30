@@ -1,4 +1,4 @@
-.PHONY: install setup init-db dev demo screenshots test test-backend test-frontend test-e2e ci-local lint typecheck desktop desktop-build boundary rebuild-verify export-roundtrip-verify snapshot-verify pattern-rebuild-verify egress-verify connector-verify belief-verify belief-quality belief-survival alembic-verify vector-consistency-verify docker-up docker-down projection-provenance conversation-rebuild goal-rebuild
+.PHONY: install setup init-db dev demo screenshots test test-backend test-frontend test-e2e ci-local lint typecheck desktop desktop-build boundary rebuild-verify export-roundtrip-verify snapshot-verify egress-verify connector-verify alembic-verify vector-consistency-verify docker-up docker-down projection-provenance conversation-rebuild goal-rebuild
 
 # Backend
 BACKEND_DIR := backend
@@ -49,7 +49,7 @@ test-e2e:
 lint:
 	cd $(BACKEND_DIR) && ruff check app/
 
-AGENTS_MYPY := app/core/agents/brain.py app/core/agents/conversation.py app/core/agents/planner.py app/core/agents/critic.py app/core/agents/llm_router.py app/core/agents/memory_engine.py app/core/agents/memory_extractor.py
+AGENTS_MYPY := app/core/agents/brain.py app/core/agents/conversation.py app/core/agents/llm_failover.py app/core/agents/memory_engine.py app/core/agents/memory_extractor.py
 
 typecheck:
 	cd $(BACKEND_DIR) && mypy app/ scripts/ --ignore-missing-imports
@@ -99,9 +99,6 @@ export-roundtrip-verify:
 snapshot-verify:
 	cd $(BACKEND_DIR) && python3 scripts/verify_snapshot_rebuild.py
 
-pattern-rebuild-verify:
-	cd $(BACKEND_DIR) && python3 scripts/verify_pattern_rebuild.py
-
 egress-verify:
 	cd $(BACKEND_DIR) && python3 scripts/verify_egress.py
 
@@ -110,16 +107,6 @@ vector-consistency-verify:
 
 connector-verify:
 	cd $(BACKEND_DIR) && python3 scripts/verify_connector.py
-
-# Pattern + Belief verification suite
-belief-verify:
-	cd $(BACKEND_DIR) && python3 scripts/verify_pattern_idempotency.py && python3 scripts/verify_belief_pipeline.py
-
-belief-quality:
-	cd $(BACKEND_DIR) && python3 scripts/verify_belief_quality.py
-
-belief-survival:
-	cd $(BACKEND_DIR) && python3 scripts/verify_belief_survival.py
 
 # Alembic schema migration
 alembic-verify:

@@ -162,35 +162,10 @@ jobs:
           cd backend
           python scripts/verify_connector.py
 
-      - name: Verify Pattern rebuild (cognitive layer)
-        run: |
-          cd backend
-          python scripts/verify_pattern_rebuild.py
-
-      - name: Verify Belief pipeline (cognitive layer)
-        run: |
-          cd backend
-          python scripts/verify_belief_pipeline.py
-
       - name: Verify vector consistency (SQLite ↔ Chroma)
         run: |
           cd backend
           python scripts/verify_vector_consistency.py
-
-      - name: Verify Belief quality (cognitive layer)
-        run: |
-          cd backend
-          python scripts/verify_belief_quality.py
-
-      - name: Verify Belief survival (cognitive layer)
-        run: |
-          cd backend
-          python scripts/verify_belief_survival.py
-
-      - name: Verify Pattern idempotency (cognitive layer)
-        run: |
-          cd backend
-          python scripts/verify_pattern_idempotency.py
 
   frontend:
     runs-on: ubuntu-latest

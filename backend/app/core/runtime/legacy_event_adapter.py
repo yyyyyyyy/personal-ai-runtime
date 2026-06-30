@@ -1,4 +1,12 @@
-"""Map Runtime event_log entries to legacy events-table shape for API/UI consumers."""
+"""Map Runtime event_log entries to legacy events-table shape for API/UI consumers.
+
+DEPRECATED — The legacy `events` table is retained for backward compatibility with existing
+databases. This adapter maps event_log entries to the old events-table shape. No new code
+should depend on this adapter; it exists solely for migration support.
+
+TODO: Remove this adapter and the `events` APP_STORAGE table after a sufficient migration
+window (target: v0.3.0 or when no active databases reference the legacy events table).
+"""
 
 from __future__ import annotations
 
