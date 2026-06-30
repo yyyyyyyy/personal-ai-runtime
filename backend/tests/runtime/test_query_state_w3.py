@@ -306,3 +306,95 @@ class TestSovereigntyGaps:
         result = k.bootstrap_chat_from_snapshot(convs, msgs, [])
         assert result["conversations"] == 1
         assert result["messages"] == 1
+
+
+class TestKernelReadEvents:
+
+    def test_read_events_by_id(self, tmp_path):
+        k = _kernel(tmp_path, "rid")
+        k.emit_event("GoalCreated", "goal", "g-id", payload={"title": "X"})
+        events = k.read_events()
+        results = k.read_events(id=events[0].id)
+        assert len(results) == 1 and results[0].id == events[0].id
+
+    def test_read_events_by_aggregate_type(self, tmp_path):
+        k = _kernel(tmp_path, "rat")
+        k.emit_event("GoalCreated", "goal", "g-at", payload={"title": "T"})
+        results = k.read_events(aggregate_type="goal")
+        assert all(e.aggregate_type == "goal" for e in results)
+        assert len(results) >= 1
+
+    def test_read_events_by_types(self, tmp_path):
+        k = _kernel(tmp_path, "rty")
+        k.emit_event("GoalCreated", "goal", "g-ty", payload={"title": "T"})
+        k.emit_event("GoalCompleted", "goal", "g-ty", payload={})
+        results = k.read_events(types=["GoalCreated"])
+        assert all(e.type == "GoalCreated" for e in results)
+
+    def test_read_events_by_seqs(self, tmp_path):
+        k = _kernel(tmp_path, "rseq")
+        k.emit_event("GoalCreated", "goal", "g-s1", payload={"title": "S1"})
+        k.emit_event("GoalCreated", "goal", "g-s2", payload={"title": "S2"})
+        seqs = [e.seq for e in k.read_events()[:2]]
+        if len(seqs) >= 2:
+            results = k.read_events_by_seqs(seqs)
+            assert len(results) == 2
+        # Empty should return []
+        assert k.read_events_by_seqs([]) == []
+
+    def test_submit_command_timeout(self, tmp_path):
+        k = _kernel(tmp_path, "to")
+
+        async def _run():
+            result = await k.submit_command(
+                type="TaskRequested", aggregate_type="task",
+                aggregate_id="to", payload={}, actor="user",
+                correlation_id="no-one-completes", timeout=0.1,
+            )
+            return result
+
+        result = asyncio.run(_run())
+        assert result["error"] == "timeout"
+
+
+class TestQueryGapFill:
+
+    def test_inbox_emails_by_id(self, tmp_path):
+        k = _kernel(tmp_path, "ieid")
+        with k._db.get_db() as conn:
+            conn.execute(
+                """INSERT INTO inbox_emails (id, created_at)
+                   VALUES (?, ?)""",
+                ("ie-x", "2024-01-01"),
+            )
+        results = k.query_state("inbox_emails", id="ie-x")
+        assert len(results) == 1 and results[0]["id"] == "ie-x"
+
+    def test_memories_by_id(self, tmp_path):
+        k = _kernel(tmp_path, "mid")
+        k.emit_event("MemoryDerived", "memory", "m-id", payload={
+            "category": "test", "content": "By ID", "source": "test",
+            "confidence": 0.5, "origin": "self_report",
+        })
+        results = k.query_state("memories", id="m-id")
+        assert len(results) == 1 and results[0]["id"] == "m-id"
+
+    def test_patterns_by_metric_and_window(self, tmp_path):
+        k = _kernel(tmp_path, "pmw")
+        with k._db.get_db() as conn:
+            conn.execute(
+                """INSERT INTO patterns (id, pattern_type, metric, window_days,
+                   statistics, evidence_chain, created_at)
+                   VALUES (?, ?, ?, ?, ?, ?, ?)""",
+                ("pmw-1", "trend", "avg_val", 14, "{}", "[]", "2024-01-01"),
+            )
+        results = k.query_state("patterns", metric="avg_val", window_days=14)
+        assert len(results) == 1 and results[0]["id"] == "pmw-1"
+
+    def test_notifications_by_type_and_title(self, tmp_path):
+        k = _kernel(tmp_path, "ntt")
+        k.emit_event("NotificationCreated", "notification", "nt-x", payload={
+            "type": "goal_stagnant", "title": "Special", "content": "...",
+        })
+        results = k.query_state("notifications", type="goal_stagnant", title="Special")
+        assert len(results) == 1 and results[0]["id"] == "nt-x"
