@@ -5,6 +5,8 @@ alongside ChromaDB embeddings, surviving backend restarts.
 """
 
 import json
+import logging
+import re
 import uuid
 from datetime import UTC, datetime
 from pathlib import Path
@@ -14,11 +16,24 @@ from fastapi import APIRouter, File, HTTPException, Query, UploadFile
 from app.store.database import db
 from app.store.vector import vector_store
 
+logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/knowledge", tags=["knowledge"])
 
 KNOWLEDGE_CATEGORY = "knowledge_docs"
 MAX_FILE_SIZE = 10 * 1024 * 1024
 ALLOWED_EXTENSIONS = {".pdf", ".md", ".txt", ".markdown", ".json", ".csv"}
+
+_MAX_FILENAME_LENGTH = 200
+_FILENAME_CONTROL_RE = re.compile(r"[\x00-\x1f\x7f]")
+
+
+def _sanitize_filename(filename: str) -> str:
+    """Sanitize user-supplied filename for safe storage in metadata."""
+    name = Path(filename).name
+    name = _FILENAME_CONTROL_RE.sub("", name)
+    if len(name) > _MAX_FILENAME_LENGTH:
+        name = name[:_MAX_FILENAME_LENGTH]
+    return name or "unnamed"
 
 
 def _load_documents() -> dict[str, dict]:
@@ -32,7 +47,7 @@ def _load_documents() -> dict[str, dict]:
         if row:
             return json.loads(row["data_json"])
     except Exception:
-        pass
+        logger.warning("Failed to load knowledge documents", exc_info=True)
     return {}
 
 
@@ -121,10 +136,11 @@ async def upload_document(file: UploadFile = File(...)):
 
     for i, chunk in enumerate(chunks):
         chunk_id = f"{doc_id}_chunk_{i}"
+        safe_name = _sanitize_filename(file.filename)
         vector_store.add_knowledge_chunk(
             content=chunk,
             metadata={
-                "source_file": file.filename,
+                "source_file": safe_name,
                 "chunk_index": i,
                 "total_chunks": len(chunks),
                 "document_id": doc_id,

@@ -54,7 +54,7 @@ def _load_workflows() -> dict[str, dict]:
         if row:
             return json.loads(row["data_json"])
     except Exception:
-        pass
+        logger.warning("Failed to load workflows from app_settings", exc_info=True)
     return {}
 
 

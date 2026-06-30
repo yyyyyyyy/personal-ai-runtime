@@ -4,6 +4,7 @@ Includes registry for discovering and installing community MCP servers.
 """
 
 import json as _json
+import logging
 from pathlib import Path as _Path
 
 from fastapi import APIRouter, HTTPException
@@ -16,6 +17,7 @@ from app.core.harness.mcp_config import (
 from app.core.runtime import read_ports
 
 router = APIRouter(prefix="/api/connectors", tags=["connectors"])
+logger = logging.getLogger(__name__)
 
 
 def _get_connector_status(config: ExternalMCPServerConfig) -> dict:
@@ -178,6 +180,7 @@ def _load_registry() -> list[dict]:
     try:
         return _json.loads(_REGISTRY_PATH.read_text(encoding="utf-8"))
     except Exception:
+        logger.warning("Failed to load connector registry from %s", _REGISTRY_PATH, exc_info=True)
         return []
 
 

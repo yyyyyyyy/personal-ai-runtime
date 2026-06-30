@@ -201,6 +201,35 @@ class Kernel(QueryStateMixin, GovernanceMixin, SovereigntyMixin):
             caused_by=caused_by,
             correlation_id=correlation_id,
         )
+
+        # For memory events, pre-compute the ChromaDB embedding_id so the
+        # projector can write it in the same SQLite transaction. This
+        # eliminates the cross-connection UPDATE that previously happened
+        # in _sync_memory_index after commit.
+        if type in MEMORY_INDEX_EVENT_TYPES and type != "MemoryDeleted":
+            try:
+                p = event.payload
+                content = str(p.get("content", ""))
+                if content:
+                    from app.store.vector import vector_store
+                    vector_store.delete_memory(aggregate_id)
+                    embedding_id = vector_store.add_memory(
+                        content=content,
+                        metadata={
+                            "category": str(p.get("category", "general")),
+                            "source": str(p.get("source", "")),
+                        },
+                        memory_id=aggregate_id,
+                    )
+                    p["embedding_id"] = embedding_id
+            except Exception:
+                logger.debug(
+                    "Pre-compute ChromaDB embedding failed for %s — "
+                    "embedding_id will be NULL in projection; sync will retry",
+                    aggregate_id,
+                    exc_info=True,
+                )
+
         with self._db.get_db() as conn:
             cur = conn.execute(
                 """INSERT INTO event_log
@@ -305,40 +334,54 @@ class Kernel(QueryStateMixin, GovernanceMixin, SovereigntyMixin):
         """Keep ChromaDB as a derived index of memory projection events.
 
         Runs after the SQL transaction commits so Chroma failures cannot roll
-        back governed memory events or projections.
+        back governed memory events or projections. The embedding_id is now
+        pre-computed in emit_event and written by the projector in the same
+        transaction — this method only handles Chroma reconciliation and
+        frontend notification.
         """
         if event.type not in MEMORY_INDEX_EVENT_TYPES:
             return
         try:
-            from app.store.vector import vector_store
+            p = event.payload
+            content = p.get("content", "")
 
             if event.type == "MemoryDeleted":
+                from app.store.vector import vector_store
                 vector_store.delete_memory(event.aggregate_id)
-                # Frontends must invalidate even on delete — otherwise a
-                # deleted row stays visible until next manual refresh.
                 self._notify_memory_changed(event, "")
                 return
 
-            p = event.payload
-            vector_store.delete_memory(event.aggregate_id)
-            category = p.get("category", "general")
-            content = p.get("content", "")
-            embedding_id = vector_store.add_memory(
-                content=content,
-                metadata={"category": category, "source": p.get("source", "")},
-                memory_id=event.aggregate_id,
-            )
-            with self._db.get_db() as conn:
-                conn.execute(
-                    "UPDATE memories SET embedding_id = ? WHERE id = ?",
-                    (embedding_id, event.aggregate_id),
+            # Embedding was already written by the projector in the same
+            # transaction. Only reconcile Chroma if the pre-compute failed
+            # (embedding_id is still None in the payload).
+            if not p.get("embedding_id"):
+                from app.store.vector import vector_store
+
+                category = p.get("category", "general")
+                embedding_id = vector_store.add_memory(
+                    content=str(content),
+                    metadata={
+                        "category": str(category),
+                        "source": str(p.get("source", "")),
+                    },
+                    memory_id=event.aggregate_id,
                 )
-            # Notify frontend subscribers that a memory projection changed,
-            # so they can invalidate their cache without polling. This is a
-            # pure transport event — it carries no new truth (the MemoryDerived
-            # event above is the authoritative record) and never blocks on the
-            # WS path failing.
-            self._notify_memory_changed(event, content)
+                # Best-effort backfill: pre-compute may have failed transiently.
+                try:
+                    with self._db.get_db() as conn:
+                        conn.execute(
+                            "UPDATE memories SET embedding_id = ? WHERE id = ?",
+                            (embedding_id, event.aggregate_id),
+                        )
+                except Exception:
+                    logger.debug(
+                        "Backfill embedding_id for %s failed; "
+                        "reconcile will fix on next consistency check",
+                        event.aggregate_id,
+                        exc_info=True,
+                    )
+
+            self._notify_memory_changed(event, str(content) if content else "")
         except Exception as exc:
             repair_hint = "Run `make vector-consistency-verify` to reconcile SQLite and Chroma."
             _pending_memory_index_repairs.append(

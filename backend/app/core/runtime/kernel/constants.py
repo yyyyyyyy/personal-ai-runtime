@@ -16,8 +16,8 @@ EVENT_TASK_COMPLETED = "TaskCompleted"
 EVENT_TASK_FAILED = "TaskFailed"
 EVENT_TASK_STATUS_CHANGED = "TaskStatusChanged"
 
-EVENT_AGENT_SPAWNED = "AgentSpawned"
-EVENT_AGENT_TERMINATED = "AgentTerminated"
+EVENT_AGENT_SPAWNED = "AgentSpawned"      # UNUSED — reserved for future multi-agent lifecycle
+EVENT_AGENT_TERMINATED = "AgentTerminated"  # UNUSED — reserved for future multi-agent lifecycle
 
 EVENT_APPROVAL_REQUESTED = "ApprovalRequested"
 EVENT_APPROVAL_GRANTED = "ApprovalGranted"
@@ -40,9 +40,9 @@ EVENT_CONVERSATION_DELETED = "ConversationDeleted"
 EVENT_MESSAGE_APPENDED = "MessageAppended"
 
 EVENT_ACTION_CREATED = "ActionCreated"
-EVENT_ACTION_COMPLETED = "ActionCompleted"
+EVENT_ACTION_COMPLETED = "ActionCompleted"     # DEPRECATED — use ActionUpdated with status="completed"
 
-EVENT_PATTERN_RECORDED = "PatternRecorded"
+EVENT_PATTERN_RECORDED = "PatternRecorded"  # DEPRECATED — use PatternDetected (projector/belief engine use PatternDetected)
 
 EVENT_AGENT_MESSAGE_RECEIVED = "AgentMessageReceived"
 EVENT_AGENT_MESSAGE_SENT = "AgentMessageSent"
@@ -78,7 +78,7 @@ EVENT_INBOX_POLL_REQUESTED = "InboxPollRequested"
 EVENT_INBOX_POLL_COMPLETED = "InboxPollCompleted"
 EVENT_INBOX_EMAIL_RECORDED = "InboxEmailRecorded"
 
-EVENT_CHAT_TEXT_DELTA = "ChatTextDelta"
+EVENT_CHAT_TEXT_DELTA = "ChatTextDelta"   # DELIBERATELY NOT EMITTED TO EVENT_LOG — pushed to SSE queue to avoid polluting Truth Layer
 EVENT_CHAT_DONE = "ChatDone"
 
 # ── Document / Knowledge audit ─────────────────────────────────
