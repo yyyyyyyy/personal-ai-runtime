@@ -14,10 +14,32 @@ interface PendingConfirmation {
   assistantMsgId: string;
 }
 
+// Session-level trust key for localStorage so trust survives page refresh
+const TRUST_KEY_PREFIX = "par_trust_session_";
+
+function _loadTrustedTools(convId: string): Set<string> {
+  try {
+    const raw = sessionStorage.getItem(TRUST_KEY_PREFIX + convId);
+    return raw ? new Set(JSON.parse(raw)) : new Set();
+  } catch {
+    return new Set();
+  }
+}
+
+function _saveTrustedTools(convId: string, tools: Set<string>) {
+  try {
+    sessionStorage.setItem(TRUST_KEY_PREFIX + convId, JSON.stringify([...tools]));
+  } catch {
+    // sessionStorage may be full or disabled
+  }
+}
+
 export function useApprovalFlow(conversationId: string) {
   const [pendingConfirmation, setPendingConfirmation] = useState<PendingConfirmation | null>(null);
-  // 会话级信任缓存：记录当前对话中被信任的工具名
-  const trustedToolsRef = useRef<Set<string>>(new Set());
+  // 会话级信任缓存：记录当前对话中被信任的工具名（持久化到 sessionStorage）
+  const trustedToolsRef = useRef<Set<string>>(_loadTrustedTools(conversationId));
+  // 正在处理中的 approval_id 去重集合：防止并发重复提交
+  const inflightApprovalsRef = useRef<Set<string>>(new Set());
 
   const confirm = useCallback(
     async (
@@ -31,6 +53,7 @@ export function useApprovalFlow(conversationId: string) {
 
       if (trustSession) {
         trustedToolsRef.current.add(pc.toolCall.function_name);
+        _saveTrustedTools(conversationId, trustedToolsRef.current);
       }
 
       try {
@@ -151,30 +174,31 @@ export function useApprovalFlow(conversationId: string) {
   const setFromEvent = useCallback(
     (assistantMsgId: string, event: { tool_name?: string; approval_id?: string; tool_args?: Record<string, unknown>; tool_call_id?: string }) => {
       const toolName = event.tool_name || "";
+      const approvalId = event.approval_id || "";
 
       // 会话级信任缓存：如果此工具已被信任，自动确认（不弹窗）
-      if (toolName && trustedToolsRef.current.has(toolName) && event.approval_id) {
+      if (toolName && trustedToolsRef.current.has(toolName) && approvalId) {
+        // 去重：同一个 approval_id 已在自动处理中，不再重复提交
+        if (inflightApprovalsRef.current.has(approvalId)) {
+          return;
+        }
+        inflightApprovalsRef.current.add(approvalId);
+
         // 触发自动确认
         resolveApproval(
-          event.approval_id,
+          approvalId,
           "approve",
           toolName,
           event.tool_args || {},
           conversationId,
           event.tool_call_id || "",
-        ).catch(() => {
-          // 自动确认失败则回退到手动
-          setPendingConfirmation({
-            toolCall: {
-              index: 0,
-              id: event.tool_call_id || "",
-              function_name: toolName,
-              arguments: JSON.stringify(event.tool_args || {}),
-            },
-            approvalId: event.approval_id || "",
-            assistantMsgId,
+        )
+          .catch(() => {
+            // 自动确认失败则回退到手动（仅当 409 冲突时 backend 已拒绝，不再弹窗）
+          })
+          .finally(() => {
+            inflightApprovalsRef.current.delete(approvalId);
           });
-        });
         return;
       }
 
@@ -185,7 +209,7 @@ export function useApprovalFlow(conversationId: string) {
           function_name: toolName,
           arguments: JSON.stringify(event.tool_args || {}),
         },
-        approvalId: event.approval_id || "",
+        approvalId: approvalId,
         assistantMsgId,
       });
     },

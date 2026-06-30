@@ -110,7 +110,7 @@ async def send_message(conv_id: str, body: SendMessageRequest):
     kernel.emit_event(
         "ChatRequested",
         "chat",
-        f"chat_{conv_id}_{uuid.uuid4().hex[:8]}",
+        conv_id,  # aggregate_id = conversation dimension, not per-message UUID
         payload={
             "user_message": content,
             "conversation_id": conv_id,

@@ -16,8 +16,11 @@ Output ONLY valid JSON:
   "estimated_steps": 3, "confidence": 0.8
 }
 
-Available tools: web_search, fetch_url, read_file, write_file, apply_patch, get_current_time, list_directory, search_files, computer_screenshot, computer_click, computer_type, voice_tts, voice_stt.
-"""
+Available tools will be injected by the caller from the MCP registry at runtime."""
+# NOTE: Tool list is injected dynamically via PlannerAgent.plan() which calls
+# kernel.list_capability_definitions(). The hardcoded list above was stale
+# and has been removed. See prompt_compiler.py for the canonical pattern.
+
 
 REPLAN_PROMPT = """Previous plan failed. Generate a NEW plan avoiding failed tools.
 

@@ -39,6 +39,10 @@ class AgentRegistry:
         """Return an instance by id, or None."""
         return self._instances.get(instance_id)
 
+    def __len__(self) -> int:
+        """Number of tracked instances (running+paused+terminated)."""
+        return len(self._instances)
+
     def list_by_status(self, status: str) -> list[AgentInstance]:
         """Return all instances with the given status."""
         return [i for i in self._instances.values() if i.status == status]

@@ -52,7 +52,10 @@ class CriticAgent:
             except (json.JSONDecodeError, TypeError):
                 pass
 
-        dangerous_tools = {"apply_patch", "write_file", "shell_exec", "git_push", "send_email"}
+        # Write-class tool safety: sourced from taint.WRITE_CLASS_TOOLS for
+        # consistency with INV-8 (taint escalation). No hardcoded duplication.
+        from app.core.runtime.taint import WRITE_CLASS_TOOLS
+        dangerous_tools = WRITE_CLASS_TOOLS
         if tool_name in dangerous_tools and not params.get("_approved", False):
             self.total_rejections += 1
             return False

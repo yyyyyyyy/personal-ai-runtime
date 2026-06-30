@@ -52,7 +52,6 @@ class AgentBus:
     def __init__(self):
         self._transport = event_bus
         self._running = False
-        self._worker_task: asyncio.Task | None = None
 
         # agent_id → list of (SubscriptionRule, handler)
         self._subscriptions: dict[str, list[tuple[SubscriptionRule, AgentHandler]]] = {}
@@ -63,22 +62,20 @@ class AgentBus:
     # --- lifecycle -------------------------------------------------------
 
     async def start(self) -> None:
-        """Start the delivery worker."""
+        """Start the AgentBus."""
         if self._running:
             return
         self._running = True
-        self._worker_task = asyncio.create_task(self._delivery_loop())
         logger.info("AgentBus started")
 
     async def stop(self) -> None:
-        """Stop the delivery worker."""
+        """Stop the AgentBus."""
         self._running = False
-        if self._worker_task:
-            self._worker_task.cancel()
-            try:
-                await self._worker_task
-            except asyncio.CancelledError:
-                pass
+        # Wake any waiting deliver_to callers
+        for queue in self._queues.values():
+            await queue.put(None)
+        self._subscriptions.clear()
+        self._queues.clear()
         logger.info("AgentBus stopped")
 
     # --- subscribe / unsubscribe -----------------------------------------
@@ -125,11 +122,9 @@ class AgentBus:
     async def publish(self, event: "Event") -> None:
         """Publish an event to the AgentBus.
 
-        Resolves matching subscribers and both (a) invokes their handlers
-        and (b) delivers the event to per-agent queues.
-
-        Handler failures are logged but do not stop delivery to other
-        subscribers.
+        Invokes matching handler callbacks synchronously AND delivers to
+        per-agent queues for agents that use the pull-based deliver_to API.
+        Handler failures are logged but do not stop delivery to other subscribers.
         """
         subscriptions = self._resolve_subscriptions(event)
         for agent_id, handler in subscriptions:
@@ -179,14 +174,6 @@ class AgentBus:
         if agent_id not in self._queues:
             self._queues[agent_id] = asyncio.Queue(maxsize=256)
         return self._queues[agent_id]
-
-    async def _delivery_loop(self) -> None:
-        """Background worker that drains per-agent queues."""
-        while self._running:
-            try:
-                await asyncio.sleep(0.1)
-            except asyncio.CancelledError:
-                break
 
     async def deliver_to(self, agent_id: str, timeout: float = 5.0) -> "Event | None":
         """Block until an event is available for the agent, or timeout.

@@ -817,7 +817,7 @@ class Kernel(QueryStateMixin, GovernanceMixin, SovereigntyMixin):
     def metrics(self) -> dict[str, int]:
         """Return runtime health/counters for observability."""
         return {
-            "registry_instances": len(self.agent_registry._instances),
+            "registry_instances": len(self.agent_registry),
         }
 
     # --- WorkItem persistence (Execution Model) ---------------------------

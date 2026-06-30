@@ -3,8 +3,6 @@
 All writes to the `approvals` projection go through the Kernel.
 """
 
-import re
-
 from app.core.runtime.kernel_instance import kernel
 
 
@@ -113,35 +111,60 @@ class ApprovalEngine:
         enriched = []
         for a in pending:
             corr_id = correlation_map.get(a["id"], "")
-
-            # Determine flow type and label
-            flow_type = "未知"
-            flow_label = ""
-            if a.get("task_id") and a["task_id"] in task_map:
-                flow_type = "任务"
-                flow_label = task_map[a["task_id"]]
-            elif corr_id:
-                if re.match(r"^chat_", corr_id):
-                    flow_type = "对话"
-                    flow_label = f"对话流程 ({corr_id})"
-                elif re.match(r"^sched_", corr_id) or re.match(r"^trigger_", corr_id):
-                    flow_type = "定时任务"
-                    flow_label = corr_id
-                elif corr_id == "approval-resolve-test":
-                    flow_type = "测试"
-                    flow_label = "审批解析测试"
-                else:
-                    flow_type = "系统"
-                    flow_label = corr_id
-
             enriched.append({
                 **a,
                 "correlation_id": corr_id,
-                "flow_type": flow_type,
-                "flow_label": flow_label,
+                "flow_type": _classify_flow(corr_id, a.get("task_id"), task_map),
+                "flow_label": _label_flow(corr_id, a.get("task_id"), task_map),
             })
 
         return enriched
+
+
+# ── Flow classification helpers ───────────────────────────────────────
+
+# Registry-based matching: avoids treating correlation_id naming
+# conventions as a type system.
+_CORR_PREFIX_MAP: list[tuple[str, str]] = [
+    ("chat_", "对话"),
+    ("sched_", "定时任务"),
+    ("trigger_", "定时任务"),
+]
+_CORR_EXACT_MAP: dict[str, tuple[str, str]] = {
+    "approval-resolve-test": ("测试", "审批解析测试"),
+}
+
+
+def _classify_flow(
+    corr_id: str,
+    task_id: str | None,
+    task_map: dict[str, str],
+) -> str:
+    if task_id and task_id in task_map:
+        return "任务"
+    for prefix, label in _CORR_PREFIX_MAP:
+        if corr_id.startswith(prefix):
+            return label
+    exact = _CORR_EXACT_MAP.get(corr_id)
+    if exact:
+        return exact[0]
+    return "系统" if corr_id else "未知"
+
+
+def _label_flow(
+    corr_id: str,
+    task_id: str | None,
+    task_map: dict[str, str],
+) -> str:
+    if task_id and task_id in task_map:
+        return task_map[task_id]
+    for prefix, label in _CORR_PREFIX_MAP:
+        if corr_id.startswith(prefix):
+            return f"{label} ({corr_id})"
+    exact = _CORR_EXACT_MAP.get(corr_id)
+    if exact:
+        return exact[1]
+    return corr_id or ""
 
 
 approval_engine = ApprovalEngine()
