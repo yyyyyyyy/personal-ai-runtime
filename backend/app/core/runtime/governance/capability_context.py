@@ -25,6 +25,7 @@ Architecture:
 from __future__ import annotations
 
 import logging
+import time
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Literal
 
@@ -32,6 +33,10 @@ if TYPE_CHECKING:
     from app.core.runtime.principal import Principal
 
 logger = logging.getLogger(__name__)
+
+# TTL cache for tool definitions to avoid full table scans on hot path
+_TOOL_CACHE_TTL = 30.0
+_tool_cache: tuple[float, frozenset[str]] | None = None
 
 # ── Runtime Mode ────────────────────────────────────────────────────────
 
@@ -184,13 +189,25 @@ class CapabilityContextProvider:
         unavailable: set[str] = set()
         granted: set[str] = set()
 
-        # 1. Derive available capabilities from tool registry
+        # 1. Derive available capabilities from tool registry (cached)
         try:
             from app.core.runtime.kernel_instance import kernel
 
-            tool_defs = kernel.list_capability_definitions()
-            for tool_def in tool_defs:
-                tool_name = tool_def.get("function", {}).get("name", "")
+            now = time.monotonic()
+            global _tool_cache
+            if _tool_cache is not None and now - _tool_cache[0] < _TOOL_CACHE_TTL:
+                tool_names = _tool_cache[1]
+            else:
+                tool_defs = kernel.list_capability_definitions()
+                names: set[str] = set()
+                for tool_def in tool_defs:
+                    tool_name = tool_def.get("function", {}).get("name", "")
+                    if tool_name:
+                        names.add(tool_name)
+                _tool_cache = (now, frozenset(names))
+                tool_names = _tool_cache[1]
+
+            for tool_name in tool_names:
                 capability = _TOOL_TO_CAPABILITY.get(tool_name)
                 if capability:
                     available.add(capability)

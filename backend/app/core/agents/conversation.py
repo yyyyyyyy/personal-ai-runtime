@@ -31,11 +31,17 @@ class ConversationManager:
     def _k(self):
         return self.kernel or default_kernel
 
-    def get_history(self) -> list[dict]:
-        """Get recent messages within the sliding window."""
+    def get_history(self, *, since_created_at: str | None = None) -> list[dict]:
+        """Get recent messages within the sliding window.
+
+        If since_created_at is provided, only return messages created after
+        that timestamp (enables incremental fetching for long conversations).
+        """
         messages = db.get_recent_messages(self.conversation_id, limit=settings.max_recent_messages)
         result = []
         for msg in messages:
+            if since_created_at and msg["created_at"] <= since_created_at:
+                continue
             item = {"role": msg["role"], "content": msg["content"]}
             if msg["tool_calls"]:
                 try:

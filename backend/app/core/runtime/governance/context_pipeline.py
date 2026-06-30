@@ -24,6 +24,7 @@ Usage:
 
 from __future__ import annotations
 
+import threading
 import time as _time
 from collections import deque
 
@@ -56,32 +57,35 @@ _MAX_RECENT_FRAGMENT_HISTORY = 5
 # TTL-based cleanup prevents memory leaks when SSE connections drop before get_sources().
 _SOURCE_TTL_SECONDS = 300  # 5 minutes
 _source_registry: dict[str, tuple[list[dict], float]] = {}
+_source_registry_lock = threading.Lock()  # guard for concurrent SSE streams
 
 
 def get_sources(conversation_id: str) -> list[dict]:
-    """Retrieve and clear sources for a conversation (one-shot read)."""
-    entry = _source_registry.pop(conversation_id, None)
+    """Retrieve and clear sources for a conversation (one-shot read). Thread-safe."""
+    with _source_registry_lock:
+        entry = _source_registry.pop(conversation_id, None)
     if entry is None:
         return []
     sources, ts = entry
     if _time.monotonic() - ts > _SOURCE_TTL_SECONDS:
-        return []  # expired
+        return []
     return sources
 
 
 def _store_sources(conversation_id: str, sources: list[dict]) -> None:
-    """Store sources for later retrieval by SSE stream.
+    """Store sources for later retrieval by SSE stream. Thread-safe.
 
     Also purges expired entries to prevent unbounded growth.
     """
     # Lazy cleanup: remove expired entries on every write
     now = _time.monotonic()
-    expired = [k for k, (_, ts) in _source_registry.items() if now - ts > _SOURCE_TTL_SECONDS]
-    for k in expired:
-        _source_registry.pop(k, None)
+    with _source_registry_lock:
+        expired = [k for k, (_, ts) in _source_registry.items() if now - ts > _SOURCE_TTL_SECONDS]
+        for k in expired:
+            _source_registry.pop(k, None)
 
-    if sources:
-        _source_registry[conversation_id] = (sources, now)
+        if sources:
+            _source_registry[conversation_id] = (sources, now)
 
 
 class ContextPipeline:
@@ -237,3 +241,9 @@ class ContextPipeline:
 
 # Global singleton
 context_pipeline = ContextPipeline()
+
+
+def reset_source_registry() -> None:
+    """Clear the citation source registry — for test isolation."""
+    with _source_registry_lock:
+        _source_registry.clear()
