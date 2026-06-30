@@ -6,7 +6,7 @@ from fastapi import APIRouter, HTTPException
 from openai import AsyncOpenAI
 from pydantic import BaseModel, field_validator
 
-from app.core.agents.llm_router import llm_router
+from app.core.agents.llm_failover import llm_router
 from app.core.runtime.runtime_config import PROVIDER_PRESETS, runtime_config
 
 router = APIRouter(prefix="/api/settings", tags=["settings"])

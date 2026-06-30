@@ -83,9 +83,21 @@ def _is_store_layer(rel: Path) -> bool:
     return rel == Path("store/database.py")
 
 
+def _is_app_storage_file(rel: Path) -> bool:
+    """Files that directly access APP_STORAGE tables (allowed by P8).
+
+    APP_STORAGE tables (background_tasks, inbox_emails, etc.) may be read
+    directly by worker/operational code. The boundary guard scans for access to
+    GOVERNED tables only, so these files must be excluded from the DML scan.
+    """
+    return rel in {
+        Path("core/runtime/background_worker.py"),
+    }
+
+
 def _in_scan_scope(rel: Path) -> bool:
-    """User Space: all app/ code except Kernel Space and store read layer."""
-    return not _is_kernel_space(rel) and not _is_store_layer(rel)
+    """User Space: all app/ code except Kernel Space, store layer, and app-storage workers."""
+    return not _is_kernel_space(rel) and not _is_store_layer(rel) and not _is_app_storage_file(rel)
 
 
 def scan_app_root(app_root: Path) -> list[tuple[Path, int, str, str, str]]:

@@ -11,7 +11,7 @@ from app.api.models import (
     ImportRequest,
 )
 from app.config import settings
-from app.core.agents.llm_router import llm_router
+from app.core.agents.llm_failover import llm_router
 from app.core.startup_health import sanitize_startup_for_public
 from app.product.digital_legacy import digital_legacy
 from app.version import VERSION

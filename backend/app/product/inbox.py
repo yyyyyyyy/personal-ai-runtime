@@ -61,7 +61,7 @@ async def _classify_emails(emails: list[dict]) -> list[dict]:
     if not emails:
         return []
 
-    from app.core.agents.llm_router import llm_router
+    from app.core.agents.llm_failover import llm_router
 
     client, provider = llm_router.get_client()
     user_prompt = (

@@ -81,7 +81,7 @@ class TestApprovalEngine:
 
 class TestScheduler:
     def test_schedules_all_present(self):
-        from app.core.runtime.scheduler import SCHEDULES
+        from app.core.runtime.cron_registry import SCHEDULES
 
         assert len(SCHEDULES) == 8
         names = {s["name"] for s in SCHEDULES}
@@ -91,7 +91,7 @@ class TestScheduler:
             assert s["handler_name"] in names
 
     def test_init_scheduler_registers_timers(self, isolated_kernel):
-        from app.core.runtime.scheduler import init_scheduler, shutdown_scheduler
+        from app.core.runtime.cron_registry import init_scheduler, shutdown_scheduler
 
         k, db = isolated_kernel
         init_scheduler()

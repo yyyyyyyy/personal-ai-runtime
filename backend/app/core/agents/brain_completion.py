@@ -6,7 +6,7 @@ import logging
 import time
 from typing import TYPE_CHECKING, Any
 
-from app.core.agents.llm_router import llm_router
+from app.core.agents.llm_failover import llm_router
 from app.core.agents.tool_markup import strip_tool_markup
 from app.core.runtime.egress.egress_gate import prepare_llm_egress
 from app.core.runtime.kernel_instance import kernel
@@ -23,7 +23,7 @@ class BrainCompletionMixin:
     """Mixin: non-streaming LLM completion paths used after tool loops."""
 
     if TYPE_CHECKING:
-        from app.core.agents.llm_router import LLMProvider
+        from app.core.agents.llm_failover import LLMProvider
 
         _build_messages: Any
         provider: LLMProvider
@@ -109,7 +109,7 @@ class BrainCompletionMixin:
         """Try primary LLM provider, then fallbacks."""
         from openai import AsyncOpenAI
 
-        from app.core.agents.llm_router import LLMProvider
+        from app.core.agents.llm_failover import LLMProvider
 
         candidates: list[tuple[AsyncOpenAI, LLMProvider]] = [
             (self.client, self.provider),

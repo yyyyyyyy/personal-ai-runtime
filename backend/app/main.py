@@ -32,7 +32,7 @@ from app.api import (
 from app.config import settings
 from app.core.logging_config import configure_logging
 from app.core.runtime.background_worker import background_worker
-from app.core.runtime.scheduler import init_scheduler, shutdown_scheduler
+from app.core.runtime.cron_registry import init_scheduler, shutdown_scheduler
 from app.core.startup_health import enrich_with_mcp_status, run_startup_checks
 
 configure_logging()

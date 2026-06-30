@@ -13,7 +13,7 @@ from typing import AsyncIterator
 from app.config import settings
 from app.core.agents.brain_completion import BrainCompletionMixin
 from app.core.agents.conversation import ConversationManager
-from app.core.agents.llm_router import llm_router
+from app.core.agents.llm_failover import llm_router
 from app.core.agents.memory_extractor import memory_extractor
 from app.core.agents.token_counter import count_message_tokens, count_text_tokens
 from app.core.agents.tool_dispatcher import ToolDispatcher

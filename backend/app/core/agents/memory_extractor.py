@@ -40,7 +40,7 @@ class MemoryExtractor:
         return []
 
     async def _cloud_extract(self, conversation_text: str) -> list[str]:
-        from app.core.agents.llm_router import llm_router
+        from app.core.agents.llm_failover import llm_router
         from app.core.runtime.egress.egress_gate import prepare_llm_egress
 
         client, provider = llm_router.get_client()
