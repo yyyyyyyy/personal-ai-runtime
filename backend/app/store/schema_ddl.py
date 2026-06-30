@@ -64,6 +64,7 @@ CREATE TABLE IF NOT EXISTS messages (
     FOREIGN KEY (conversation_id) REFERENCES conversations(id)
 );
 
+-- Legacy events table (superseded by event_log via legacy_event_adapter) --
 CREATE TABLE IF NOT EXISTS events (
     id TEXT PRIMARY KEY,
     type TEXT NOT NULL,
@@ -83,6 +84,7 @@ CREATE TABLE IF NOT EXISTS notifications (
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
+-- Legacy schedules table (superseded by timer_events + TimerEngine) --
 CREATE TABLE IF NOT EXISTS schedules (
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL,
@@ -184,6 +186,7 @@ CREATE TABLE IF NOT EXISTS user_profile (
     UNIQUE(category)
 );
 
+-- Legacy patterns table (superseded; Pattern→Belief pipeline removed v0.2) --
 CREATE TABLE IF NOT EXISTS patterns (
     id TEXT PRIMARY KEY,
     pattern_type TEXT NOT NULL,

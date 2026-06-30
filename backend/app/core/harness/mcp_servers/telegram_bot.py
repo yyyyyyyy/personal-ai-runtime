@@ -1,8 +1,8 @@
 """Telegram Bot MCP Server — send/receive messages via Telegram Bot API."""
 
 import json
-import os
 
+from app.config import settings
 from app.core.harness.url_safety import create_ssrf_safe_async_client
 
 
@@ -10,8 +10,8 @@ class TelegramBotServer:
     """Telegram Bot integration for messaging."""
 
     def __init__(self):
-        self.token = os.getenv("TELEGRAM_BOT_TOKEN", "")
-        self.chat_id = os.getenv("TELEGRAM_CHAT_ID", "")
+        self.token = settings.telegram_bot_token
+        self.chat_id = settings.telegram_chat_id
 
     async def send_message(self, text: str, parse_mode: str = "Markdown") -> str:
         """Send a message via Telegram Bot."""

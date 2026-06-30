@@ -88,7 +88,7 @@ class Settings(BaseSettings):
 
     # --- Memory ---
     memory_extractor: str = "ollama"
-    sensitive_ops_local: bool = False
+    sensitive_ops_local: bool = True
 
     # --- Filesystem (agent coding) ---
     filesystem_allowed_dirs: str = ""
