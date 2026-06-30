@@ -1,216 +1,193 @@
-# CURRENT_STATE
+# CURRENT STATE
 
-> 本文档回答：**项目今天实际上是什么状态？**
->
-> **Lifecycle Stage**：**Early Development**（Runtime Governance 基线完成，核心领域 Conversation/Memory/Goals/Inbox/Approvals 已落地）
-> **文档角色**：Architecture Ledger——能力清单、成熟度评级与维护协议的权威来源。
->
-> **权威来源**：描述「系统今天是什么」时，**以本文档为准**。
-> 如有冲突，以本文 + 代码 + 测试 + CI 为准。
->
-> 目标愿景见 [NORTH_STAR.md](NORTH_STAR.md)，不可破坏规则见 [INVARIANTS.md](INVARIANTS.md)，
-> 架构总览见 [ARCHITECTURE](../architecture/ARCHITECTURE.md)，未来方向见 [ROADMAP](../product/ROADMAP.md)，
-> 已完成里程碑见 [HISTORY.md](HISTORY.md)。
+> 本文档仅包含**可测量的架构事实**。无意见、无计划、无历史讨论。
+> 它是架构的"体检报告"，由 CI 和数据统计自动生成。
+> 最后更新: 2026-06-30 (Architecture Evolution Cycle #1, Stage 05)
 
 ---
 
-## 1. 当前系统概要
+## 1. 架构 KPI
 
-### 1.1 技术栈
-
-| 层 | 技术 | 证据 |
-|----|------|------|
-| 后端 | Python 3.12、FastAPI、uvicorn | `backend/app/main.py` |
-| 前端 | Node 20、Vite、React | `frontend/` |
-| 主存储 | SQLite（WAL、外键） | `backend/app/store/database.py:22-25` |
-| 向量 | ChromaDB PersistentClient | `backend/app/store/vector.py:33-37` |
-| Schema | Alembic（生产路径）或 raw DDL（测试） | `backend/app/store/schema_init.py:49-62` |
-| LLM | OpenAI 兼容 API（默认 DeepSeek） | `backend/app/config.py` |
-
-### 1.2 进程与部署形态
-
-- **单进程 FastAPI 应用**：启动时初始化 Kernel、Scheduler、TimerEngine、BackgroundWorker、MCP Mesh 等。
-- **本地优先**：默认 `HOST=127.0.0.1`；可选 Docker Compose、Electron 桌面壳。
-- **非分布式**：无多节点、无服务网格。
-
-### 1.3 表分类
-
-| 类别 | 数量 | 含义 | 示例 |
-|------|------|------|------|
-| **GOVERNED** | 15 表 | 仅 Kernel 写入，经 Event Log 投影 | event_log, goals, memories, approvals, messages |
-| **APP_STORAGE** | 10 表 | 允许应用直写，有审计覆盖 | inbox_emails, llm_calls, tool_calls |
-
----
-
-## 2. 已实现能力
-
-### 2.1 Kernel 与事件溯源
-
-| 能力 | 证据 |
-|------|------|
-| Event Log append-only（DB trigger 强制） | `kernel/kernel.py` EVENT_LOG_SCHEMA + triggers |
-| emit_event 唯一写入口，同事务投影 | `kernel.emit_event` → projectors |
-| 投影注册与 rebuild（12 表字节级一致） | `projectors_registry.py`, `kernel_sovereignty.rebuild` |
-| export / import 事件流往返 | `SovereigntyMixin`，CI `verify_export_roundtrip.py` |
-| Shadow compare（热路径 0 mismatch） | `execution_shadow_compare.py` |
-| 事件驱动恢复 | `test_execution_recovery.py` |
-
-### 2.2 Execution 模型
-
-| 能力 | 证据 |
-|------|------|
-| Execution 事件流（8 种事件） | `projectors_execution.py`, `constants.py` |
-| WorkItem + Scheduler | `work_item.py`, `agent_scheduler.py` |
-| ExecutionContext 传给 handler | `execution_context.py`, `test_execution_context.py` |
-| Principal + IdentityResolver | `principal.py`, `identity_resolver.py` |
-| execution_id → capability caused_by | `kernel.py:621` |
-
-### 2.3 Capability 与治理
-
-| 能力 | 证据 |
-|------|------|
-| CapabilityGateway 四门授权 | `capability_decision.py` |
-| Policy / Grant 事件溯源 | `projectors_governance.py`, `capability_policy.py` |
-| Approval 流程（绑定参数、不可重放） | `approval_engine.py` |
-| Taint 污点升级 | `taint.py`, `test_taint.py` |
-| 内置 MCP 工具（含全部覆盖 CI 校验） | `mcp_hub.py`，CI MCP tools step |
-| 外部 MCP Mesh | `mcp_mesh.py`, `mcp_lifecycle.py` |
-| Egress 审计（非脱敏） | `egress_gate.py` |
-
-### 2.4 Agent 子系统
-
-| 组件 | 角色 |
-|------|------|
-| AgentDefinition / AgentInstance | persona + 订阅缓存 |
-| AgentRegistry / AgentBus | spawn/kill + 订阅路由 |
-| HandlerRegistry + @subscribe | 事件类型 → handler |
-| AgentManager | Planner→Worker 流水线（单轨） |
-
-### 2.5 定时与后台
-
-| 组件 | 职责 | 写路径 |
-|------|------|--------|
-| timer_engine.py | cron/延迟，TimerFired → Execution | Kernel 事件 |
-| scheduler.py | 8 个 cron 计划注册 | 经 TimerEngine |
-| trigger_engine.py | 条件触发、建议通知 | 直写 triggers（APP_STORAGE），读 event_log |
-| background_worker.py | 长任务轮询 | 直写 background_tasks（APP_STORAGE） |
-
-### 2.6 API 与产品功能
-
-| 路由组 | 主要能力 |
-|--------|----------|
-| chat | 对话 SSE、对话内审批 resolve |
-| goals | 目标、子任务（actions）、停滞检测 |
-| tasks | 任务树、状态机 |
-| tasks/background | 后台任务队列 |
-| memory | 记忆 CRUD、语义搜索、用户画像、记忆图谱 |
-| approvals | 列出 / 批准 / 拒绝 |
-| dashboard | 仪表盘概览 |
-| inbox | 邮件轮询、摘要、状态更新 |
-| telemetry | LLM 成本、工具统计、健康快照 |
-| system | 健康、export / import / destroy、MCP 状态 |
-| settings | LLM / Email 配置与连接测试 |
-| connectors | 外部连接器（如 calendar） |
-| notifications | 通知列表、已读标记 |
-| triggers | 触发器定义与评估 |
-| `/ws` | WebSocket 实时通知 |
-
-> 路由组随版本演进会增删；权威清单以 Swagger UI (`/docs`) 与 `backend/app/api/` 为准。
-
-### 2.7 认知管线（已移除）
-
-Pattern/Belief 认知管线（`pattern/aggregators.py` + `belief/belief_engine.py`）已在 v0.2 中移除。
-该管线在架构上定义了一条"证据→模式→信念→记忆"的通路，但生产环境中没有任何
-代码 emit `ActivityNormalized` 事件，导致整条管线始终空转。在此决策点选择了
-"删除而非接通"，因为近期产品聚焦于治理内核与核心领域功能。
-
-相关的 5 个 verify 脚本（`verify_belief_pipeline.py`、`verify_pattern_rebuild.py` 等）
-也已随管线本体一同移除。
-
-### 2.8 领域治理（Domain Governance）
-
-| 领域 | CI 守卫 | 证据 |
-|------|---------|------|
-| Conversation | messages 行级 `source_event_id` + rebuild | `verify_conversation_rebuild.py` |
-| Memory | 生命周期 + provenance | `verify_memory_lifecycle.py` |
-| Goals | `parent_id` / action provenance + rebuild | `verify_goal_rebuild.py` |
-| Inbox | InboxEmailRecorded 审计链 + provenance | `verify_inbox_audit.py` |
-
-### 2.9 测试覆盖
-
-- `backend/tests/runtime/` 与 `backend/tests/integration/`：覆盖 event sourcing、execution、capability、taint、boundary、agent、coverage、approval flow、dashboard、trigger、settings 等
-- Runtime 模块 CI 要求 coverage ≥84%（见 `.github/workflows/ci.yml` `--fail-under=84`）
-- 后端测试规模与通过数：以本机实测为准，运行 `cd backend && python3 -m pytest -m "not live_llm" --collect-only -q | tail -1`（测试数随版本演进，不在此硬编码）
-- 前端：Vitest 单元测试 + Playwright E2E（`frontend/e2e/chat-approval.spec.ts`，CI 阻断）
+| KPI | 值 | 来源 |
+|---|---|---|
+| Python 源文件数 | 163 | `find backend/app -name "*.py"` (excl tests) |
+| Python 源代码行数 | 21,899 | `wc -l` 聚合 |
+| Python 测试文件数 | 121 | `find backend/tests -name "*.py"` |
+| Python 测试代码行数 | 12,797 | `wc -l` 聚合 |
+| Alembic + Scripts 文件数 | 19 | `find backend/alembic backend/scripts -name "*.py"` |
+| Alembic + Scripts 行数 | 2,684 | `wc -l` 聚合 |
+| GOVERNED 表 | 14 | `table_registry.py` → GOVERNED_TABLES (含 event_log, projection_checkpoints) |
+| APP_STORAGE 表 | 11 | `table_registry.py` → APP_STORAGE_TABLES |
+| Builtin 工具注册数 | **37** | `mcp_hub.py` register_tool 计数 (Truth Audit FACT-27) |
+| Builtin 工具类别 | **13** | `mcp_hub.py` _register_*_tools 方法计数 |
+| API 路由组 | **16** | `main.py` include_router 计数 |
+| API 端点总数 | **106** | `api/` 目录下 @router 装饰器计数 |
+| Cron 定时任务 | 8 | `cron_registry.py` SCHEDULES 列表 |
+| Handler 注册数 | 6 | `@subscribe` 装饰器计数 (Truth Audit FACT-17) |
+| Kernel 文件数 | 19 | `kernel/` 目录 |
+| Kernel 行数 | 3,233 | `wc -l` 聚合 |
+| 模块级单例 | **11** | Verification Report §A10 |
+| 死事件类型 | **3** | Truth Audit FACT-38/39 |
+| 休眠治理组件 | **2** | Truth Audit FACT-36 |
+| 重复系统 | **3** | Truth Audit FACT-35/37/45 |
+| 遗留适配器 | **1** (ACTIVE) | Truth Audit FACT-43, Verification 重分类 |
 
 ---
 
-## 3. 架构成熟度
+## 2. 运行时概念清单
 
-> 回答「成熟到什么程度」，基于能力、CI 守护与生产路径的综合判断。
+| 序号 | 概念 | 文件 | 分类 | 活跃状态 |
+|------|------|------|------|----------|
+| 1 | Event | `kernel/event.py` | Core | Active |
+| 2 | Kernel | `kernel/kernel.py` | Core | Active |
+| 3 | Projector | `kernel/projectors*.py` (7 modules) | Core | Active |
+| 4 | CapabilityGateway | `capability_decision.py` | Core | Active |
+| 5 | CapabilityPolicy | `capability_policy.py` | Core | Active |
+| 6 | AgentBus | `agent_bus.py` | Core | Active |
+| 7 | Scheduler | `agent_scheduler.py` | Core | Active |
+| 8 | WorkItem | `work_item.py` | Core | Active |
+| 9 | HandlerRegistry | `handler_registry.py` | Core | Active |
+| 10 | ExecutionContext | `execution_context.py` | Core | Active |
+| 11 | Principal | `principal.py` | Core | Active |
+| 12 | AgentInstance | `agent_instance.py` | Core | Active |
+| 13 | AgentDefinition | `agent_definition.py` | Core | Active |
+| 14 | AgentRegistry | `agent_registry.py` | Core | Active |
+| 15 | TimerEngine | `timer_engine.py` | Core | Active |
+| 16 | CronRegistry | `cron_registry.py` | Core | Active |
+| 17 | TaskEngine | `task_engine.py` | Supporting | Active |
+| 18 | StateManager | `state_manager.py` | Supporting | Active |
+| 19 | BackgroundWorker | `background_worker.py` | Supporting | Active |
+| 20 | TriggerEngine | `trigger_engine.py` | Supporting | Active |
+| 21 | ApprovalEngine | `approval_engine.py` | Supporting | Active |
+| 22 | ContextPipeline | `governance/context_pipeline.py` | Supporting | Active |
+| 23 | ContextPolicy | `governance/context_policy.py` | Supporting | Active |
+| 24 | FragmentSelector | `governance/fragment_selector.py` | Supporting | Active |
+| 25 | QueryAnalyzer | `governance/query_analyzer.py` | Supporting | Active |
+| 26 | ReadPorts | `read_ports.py` | Supporting | Active |
+| 27 | TaintRegistry | `taint.py` | Supporting | Active |
+| 28 | SensitiveRouter | `sensitive_router.py` | Supporting | Active |
+| 29 | RuntimeContainer | `runtime_container.py` | Supporting | Active |
+| 30 | MCPHub | `harness/mcp_hub.py` | Supporting | Active |
+| 31 | MCPMesh | `harness/mcp_mesh.py` | Supporting | Active |
+| 32 | Brain | `agents/brain.py` | Supporting | Active |
+| 33 | ToolDispatcher | `agents/tool_dispatcher.py` | Supporting | Active |
+| 34 | ConversationManager | `agents/conversation.py` | Supporting | Active |
+| 35 | MemoryEngine | `agents/memory_engine.py` | Supporting | Active |
+| 36 | MemoryExtractor | `agents/memory_extractor.py` | Supporting | Active |
+| 37 | LLMFailoverRouter | `agents/llm_failover.py` | Supporting | Active |
+| 38 | PromptCompiler | `chat/prompt_compiler.py` | Supporting | Active |
+| 39 | ContextAssembler | `assembler/context_assembler.py` | Supporting | Active |
+| 40 | FragmentRegistry | `context_runtime.py` | Supporting | Active |
+| 41 | ConversationRecorder | `conversation_recorder.py` | Supporting | Active |
+| 42 | NotificationBridge | `notification_bridge.py` | Supporting | Active |
+| 43 | EgressGate | `egress/egress_gate.py` | Supporting | Active |
+| 44 | SSEQueueRegistry | `sse_queue_registry.py` | Supporting | Active |
+| 45 | ExecutionContextProvider | `governance/execution_context.py` | Supporting | **Dormant** (FACT-36) |
+| 46 | CapabilityContextProvider | `governance/capability_context.py` | Supporting | **Dormant** (FACT-36) |
+| 47 | LegacyEventAdapter | `legacy_event_adapter.py` | Supporting | **Active** (Verification 重分类: 3 callers) |
+| 48 | WorkflowEditor | (frontend) | Experimental | Downgraded |
+| 49 | SceneTemplates | (frontend) | Experimental | Downgraded |
+| 50 | IntegrationsHub | (frontend) | Experimental | Downgraded |
+| 51 | RecallRanker | `agents/user_profile.py` | Supporting | **Dormant** (FACT-44, 0 imports) |
 
-| 领域 | 成熟度 | 依据 |
-|------|--------|------|
-| Event Sourcing（真相层） | **Strong + SSOT** | append-only + rebuild CI；生产路径零 INSERT INTO events |
-| Projection Rebuild | **Strong** | 12 表 byte-identical 验证 |
-| Sovereignty Export/Import | **Strong** | 往返 CI 验证 |
-| Execution Runtime | **Strong** | 事件流、shadow compare、恢复、execution_id 执法 |
-| Capability Governance | **Strong** | Gateway、taint、approval、boundary CI；Policy 事件溯源 |
-| Agent Runtime | **Stable** | 单 Agent CHAT_DEFINITION + handler 注册模型；AgentBus + WorkItem Scheduler |
-| Multi-Agent Isolation | **Strong** | 并发 taint 隔离、WorkItem actor 隔离、contextvars 协程隔离 |
-| Causal Provenance | **Strong** | INV-P1 运行时执法 + INV-P7 join 门禁（goals/approvals/handler_executions）；messages 行级 provenance；conversation/goals/memory/inbox 领域 rebuild/audit CI |
-| API Input Validation | **Strong** | Pydantic BaseModel 全覆盖（goals/tasks/triggers/connectors/workflows），Swagger 完整类型生成 |
-| Security Hardening | **Strong** | SSRF 校验、fail-closed capability gateway、rate limiting、SSE 错误脱敏、taint 审批恢复链路修复、filename 清洗 |
-| Performance | **Stable** | SQLite 连接复用+synchronous=NORMAL、Fragment 并行 gather、CapabilityContextProvider 30s TTL、brain O(n) tool_name 查找 |
-| Observability | **Strong** | /live + /ready 端点、Docker healthcheck 分离、auth 定期 warning、CORS expose_headers |
-| Runtime Container | **Stable** | RuntimeContainer 集中注册 + reset() 测试隔离；各子系统独立 reset 方法 |
-| Distributed / Multi-tenant | **Not Started** | North Star NG1/NG4 非目标 |
-
-**阶段判断**：Security Hardening + Performance 优化完成，API 全量 Pydantic 验证，事件驱动 AgentManager 落地。RuntimeContainer 为多 Kernel 实例铺路。
-当前重点：**核心体验打磨，规模化压测**。
+**概念总数：51**（Core: 16, Supporting: 32, Experimental: 3）
 
 ---
 
-## 4. Ledger 维护协议
+## 3. 重复系统
 
-> 防止 Ledger 与代码、测试、CI 分叉。
+| 重复项 | 说明 | Truth Audit | 状态 |
+|---|---|---|---|
+| `events` 表 vs `event_log` 表 | 旧事件格式与统一格式 | — | 已知，需清理 |
+| `schedules` 表 vs `timer_events` 表 | 旧 cron 方案 vs TimerEngine | — | 已知，保留兼容 |
+| `patterns` 表 | Evidence→Pattern→Belief 管道已移除 | — | 遗留 |
+| 审批双路径读取 | ApprovalEngine vs Kernel._consume_pre_approved | FACT-35 | **重复 (Verification 确认)** |
+| SQL 构建重复 | kernel_query_state.py 手写 WHERE vs query_builder.py | FACT-45 | **重复 (Verification 确认)** |
+| 通知去重失效 | _query_notifications 不支持 related_id/notification_type | FACT-37 | **Bug (Verification 确认)** |
 
-### 4.1 何时必须更新本文
+---
 
-| 触发事件 | 必须更新的章节 |
-|----------|----------------|
-| 新增能力或移除能力 | §2 表 |
-| 架构成熟度显著变化 | §3 表 |
-| 新增 APP_STORAGE 直写或绕过 Execution 的路径 | §3 成熟度（降级）；同步 ROADMAP（见 [ROADMAP](../product/ROADMAP.md)） |
-| 新增 verify/check 脚本进 CI 或移除 | 同步 ARCHITECTURE.md §9（见 [ARCHITECTURE](../architecture/ARCHITECTURE.md)） |
-| 仅产品功能、无治理边界变化 | **不必**改本文 |
+## 4. 已删除的子系统（v0.2.0）
 
-### 4.2 谁维护、如何评审
+| 模块 | 删除原因 |
+|---|---|
+| Planner/Critic | 不属于 Runtime 治理领域 |
+| EventBus | 被 AgentBus 替代 |
+| PatternAggregator | 已移除 |
+| BeliefEngine | 已移除 |
+| `scheduler.py` | 重命名为 `cron_registry.py` |
+| `llm_router.py` | 重命名为 `llm_failover.py` |
 
-- **作者**：任何改动 Runtime / 存储 / CI 边界 PR 的提交者
-- **评审**：PR reviewer 检查 Ledger 项是否随代码更新
-- **禁止**：在 README / ADR 中更新「当前状态」——只能改本文
+净减少代码：-3,154 行。
 
-### 4.3 防漂移机制
+---
 
-| 机制 | 状态 |
-|------|------|
-| PR 模板勾选 | 建议：「是否触及治理边界？若是，已更新 CURRENT_STATE」 |
-| `check_boundary` / ownership CI | 已有——代码侧执法 |
-| 定期 Ledger 审计 | 建议：每季度对照代码 grep 复核 |
+## 5. 测试覆盖
 
-**原则**：CI 守护代码真相；**人工 + PR 规则**守护 Ledger 真相。
+| 指标 | 值 |
+|---|---|
+| 测试框架 | pytest (asyncio_mode=auto) |
+| 运行时覆盖率门槛 (CI) | >= 84% |
+| API 覆盖率门槛 (CI) | >= 70% |
+| live_llm 标记的测试 | 在 CI 中跳过 |
 
-### 4.4 文档变更频率预期
+---
 
-| 文档 | 预期频率 |
-|------|----------|
-| NORTH_STAR | 极少（宪法修订需新版本号） |
-| INVARIANTS | 低（Tier 升降、新 INV） |
-| HISTORY | 极少（归档已完成的里程碑） |
-| ARCHITECTURE | 低（架构变更时更新） |
-| GOVERNANCE | 中（治理机制演进） |
-| ROADMAP | 中（任务推进） |
-| **CURRENT_STATE** | **高**（能力与成熟度随开发推移） |
+## 6. CI 状态
 
-维护 CURRENT_STATE 不是「文档工作」，而是 **架构治理的一部分**。
+| CI 步骤 | 状态 |
+|---|---|
+| Syntax check (compileall) | Pass |
+| Ruff lint | Pass |
+| Mypy type check | Pass |
+| Pytest (runtime coverage >= 84%) | Pass |
+| Pytest (API coverage >= 70%) | Pass |
+| Alembic schema verify | Pass |
+| MCP tools verify | Pass |
+| API route loading verify | Pass |
+| Event Log rebuild | Pass |
+| Export roundtrip | Pass |
+| Snapshot rebuild | Pass |
+| Kernel boundary guard | Pass |
+| Execution ownership guard | Pass |
+| Projection provenance | Pass |
+| Conversation rebuild | Pass |
+| Goal rebuild | Pass |
+| Memory lifecycle | Pass |
+| Inbox audit | Pass |
+| LLM egress audit | Pass |
+| Connector verify | Pass |
+| Vector consistency | Pass |
+
+---
+
+## 7. 版本
+
+| 属性 | 值 |
+|---|---|
+| 项目版本 | ⚠️ 漂移：代码 `version.py`=0.1.0, 文档=v0.2.0, `main.py`="local" |
+| Python | >= 3.12 |
+| Node | >= 20 |
+| FastAPI | 0.115.6 |
+| SQLite | WAL mode |
+| ChromaDB | 0.5.23 |
+| 前端框架 | React 19 + Vite 6 + TanStack Query 5 |
+| 桌面框架 | Electron 33 |
+
+---
+
+## 8. 架构进化指标
+
+| 指标 | 值 | 来源 |
+|---|---|---|
+| Truth Audit FACTs | 48 | Stage 01 (2026-06-30) |
+| Constitution Invariants | 7 | Stage 02 (v3.0) |
+| Constitution Boundaries | 8 | Stage 02 |
+| ADRs | 6 | Stage 02 (新增: 003 ChromaDB, 004 三循环, 005 休眠快照, 006 UserProfile) |
+| Invariant Compliance | 5/7 (71.4%) | Stage 04 |
+| Boundary Compliance | 7/8 (87.5%) | Stage 04 |
+| Budget Compliance | 0% (15指标超标) | Stage 04 |
+| Implementation PRs Planned | 12 | Stage 03 |
+| 计划代码变更 | +1025 / -1393 (= -368 net) | Stage 03 |
+| 预计工时 | 46h | Stage 03 |
+| Overall Verdict | ⚠️ PARTIALLY COMPLIANT | Stage 04 |

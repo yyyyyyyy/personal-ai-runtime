@@ -6,6 +6,40 @@
 
 ---
 
+## [Unreleased]
+
+### 架构进化循环 #1（2026-06-30）
+
+执行了完整的 5 阶段 Architecture Evolution 循环：
+
+- **Stage 01 — Truth Audit**: 扫描 ~234 个 Python 文件，提取 48 条客观事实（10 Runtime、11 Execution Flow、6 Memory、7 Tool、5 Governance、4 Duplication、4 Dead Code、4 Dormant）
+- **Stage 02 — Constitution Update (v3.0)**: 新增 7 个 Invariants (I-001~I-007, 每条追溯 FACT)、8 个子系统边界 (B-001~B-008)、6 个 ADR (含 2 个 2026 年新增决议)
+- **Stage 03 — Implementation Plan**: 输出 12 个 PR 执行计划，预计净减少 368 行代码（+1025 / -1393），覆盖死代码清理、bug 修复、统一调度、审批合并、单例消除、工具外部化
+- **Stage 04 — Reality Verification**: Invariant 5/7 (71.4%) compliant、Boundary 7/8 (87.5%) compliant、Budget 0% compliant (15 项超标)。Overall: PARTIALLY COMPLIANT
+- **Stage 05 — Reality Sync**: 更新 CURRENT_STATE.md (51 概念清单)、API.md (16 路由组 + SSE 事件详述)、CHANGELOG.md
+
+### 文档变更
+
+- 创建 `docs/engineering/TRUTH_AUDIT.md` (48 FACTs)
+- 创建 `docs/engineering/RUNTIME_STATE.json` (状态机持久化)
+- 创建 `docs/engineering/IMPLEMENTATION_PLAN.md` (12 PR 计划)
+- 创建 `docs/engineering/VERIFICATION_REPORT.md` (合规报告)
+- 创建 `docs/engineering/CURRENT_STATE_STRUCTURE.md` (字段结构定义)
+- 更新 `docs/CONSTITUTION.md` → v3.0
+- 更新 `docs/architecture/ARCHITECTURE.md` → v3.0
+- 更新 `docs/product/ROADMAP.md` → v3.0
+- 更新 `docs/ARCHITECTURE_BUDGET.md` → v3.0
+
+### 关键发现
+
+- Builtin 工具实际数量：37（非估算的 28+），13 类别（非 12）
+- 休眠组件：ExecutionContextProvider、CapabilityContextProvider（全量实现，零生产消费者）
+- legacy_event_adapter: 重新分类为 ACTIVE（3 个生产模块活跃导入）
+- 功能 Bug：`_smart_notification_check` 通知去重失效（FILTER-37）
+- 架构偏离：`UserProfile` 直写 SQLite 绕过 Kernel（ADR-2026-006）
+
+---
+
 ## [0.2.0] - 2026-06-30
 
 ### 架构收敛（Architecture Consolidation）
