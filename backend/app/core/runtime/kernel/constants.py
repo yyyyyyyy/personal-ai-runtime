@@ -16,9 +16,6 @@ EVENT_TASK_COMPLETED = "TaskCompleted"
 EVENT_TASK_FAILED = "TaskFailed"
 EVENT_TASK_STATUS_CHANGED = "TaskStatusChanged"
 
-EVENT_AGENT_SPAWNED = "AgentSpawned"      # UNUSED — reserved for future multi-agent lifecycle
-EVENT_AGENT_TERMINATED = "AgentTerminated"  # UNUSED — reserved for future multi-agent lifecycle
-
 EVENT_APPROVAL_REQUESTED = "ApprovalRequested"
 EVENT_APPROVAL_GRANTED = "ApprovalGranted"
 EVENT_APPROVAL_DENIED = "ApprovalDenied"

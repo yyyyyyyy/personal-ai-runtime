@@ -90,41 +90,4 @@ class UserProfile:
                         )
 
 
-class RecallRanker:
-    """Three-factor scoring for memory recall: relevance x recency x confidence."""
-
-    def rank(self, query: str, memories: list[dict], top_k: int = 10) -> list[dict]:
-        """Score and rank memories by relevance, recency, and confidence."""
-        scored = []
-        for mem in memories:
-            relevance = self._relevance_score(query, mem.get("content", ""))
-            recency = self._recency_score(mem.get("created_at", ""))
-            confidence = mem.get("confidence", 0.5)
-
-            total_score = relevance * 0.5 + recency * 0.3 + confidence * 0.2
-            scored.append({**mem, "score": round(total_score, 4)})
-
-        scored.sort(key=lambda m: m["score"], reverse=True)
-        return [m for m in scored[:top_k] if m["score"] > 0.3]
-
-    def _relevance_score(self, query: str, content: str) -> float:
-        """Simple word overlap relevance score."""
-        query_words = set(query.lower().split())
-        content_words = set(content.lower().split())
-        if not query_words:
-            return 0.5
-        overlap = len(query_words & content_words)
-        return min(overlap / len(query_words), 1.0)
-
-    def _recency_score(self, created_at: str) -> float:
-        """Exponential decay based on age. Newer = higher score."""
-        try:
-            created = datetime.fromisoformat(created_at)
-        except (ValueError, TypeError):
-            return 0.3
-        days_old = (datetime.now(UTC) - created).days
-        return max(0.1, 2.0 ** (-days_old / 30))
-
-
 user_profile = UserProfile()
-recall_ranker = RecallRanker()
