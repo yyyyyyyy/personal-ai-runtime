@@ -76,7 +76,7 @@ self.register_tool(ToolDef(
 ### 2.2 编写 Handler
 
 ```python
-# 新建 backend/app/core/harness/mcp_servers/my_tool.py
+# 新建 backend/app/core/harness/builtin_tools/my_tool.py
 import json
 
 async def my_handler(params: dict) -> str:

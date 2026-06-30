@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from app.core.harness.mcp_servers.filesystem import FilesystemServer
+from app.core.harness.builtin_tools.filesystem import FilesystemServer
 
 
 @pytest.fixture
@@ -204,10 +204,10 @@ def test_default_protected_paths_appends_extra(monkeypatch, tmp_path):
     extra = tmp_path / "extra_secret"
     extra.mkdir()
     monkeypatch.setattr(
-        "app.core.harness.mcp_servers.filesystem.settings.filesystem_protected_paths",
+        "app.core.harness.builtin_tools.filesystem.settings.filesystem_protected_paths",
         str(extra),
     )
-    from app.core.harness.mcp_servers.filesystem import default_protected_paths
+    from app.core.harness.builtin_tools.filesystem import default_protected_paths
 
     paths = default_protected_paths()
     assert any("kernel" in p for p in paths)

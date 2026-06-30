@@ -10,17 +10,17 @@ from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from typing import cast
 
-from app.core.harness.mcp_servers.browser import browser_server
-from app.core.harness.mcp_servers.calendar import calendar_server
-from app.core.harness.mcp_servers.clipboard_ocr import clipboard_ocr_server
-from app.core.harness.mcp_servers.email import email_server
-from app.core.harness.mcp_servers.fetch import fetch_server
-from app.core.harness.mcp_servers.filesystem import filesystem_server
-from app.core.harness.mcp_servers.git import git_server
-from app.core.harness.mcp_servers.goals import goals_server
-from app.core.harness.mcp_servers.shell import shell_server
-from app.core.harness.mcp_servers.telegram_bot import telegram_bot_server
-from app.core.harness.mcp_servers.web_search import web_search_server
+from app.core.harness.builtin_tools.browser import browser_server
+from app.core.harness.builtin_tools.calendar import calendar_server
+from app.core.harness.builtin_tools.clipboard_ocr import clipboard_ocr_server
+from app.core.harness.builtin_tools.email import email_server
+from app.core.harness.builtin_tools.fetch import fetch_server
+from app.core.harness.builtin_tools.filesystem import filesystem_server
+from app.core.harness.builtin_tools.git import git_server
+from app.core.harness.builtin_tools.goals import goals_server
+from app.core.harness.builtin_tools.shell import shell_server
+from app.core.harness.builtin_tools.telegram_bot import telegram_bot_server
+from app.core.harness.builtin_tools.web_search import web_search_server
 from app.core.telemetry.telemetry import ToolCallRecord, telemetry
 
 
@@ -547,7 +547,7 @@ class MCPHub:
         return count
 
     def _register_computer_use_tools(self):
-        from app.core.harness.mcp_servers.computer_use import computer_use_server
+        from app.core.harness.builtin_tools.computer_use import computer_use_server
 
         self.register_tool(ToolDef(
             name="computer_screenshot",
@@ -635,7 +635,7 @@ class MCPHub:
         ))
 
     def _register_voice_tools(self):
-        from app.core.harness.mcp_servers.voice import voice_server
+        from app.core.harness.builtin_tools.voice import voice_server
 
         self.register_tool(ToolDef(
             name="voice_tts",

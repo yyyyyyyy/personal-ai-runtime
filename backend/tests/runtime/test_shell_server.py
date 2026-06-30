@@ -5,7 +5,7 @@ import sys
 
 import pytest
 
-from app.core.harness.mcp_servers.shell import shell_server
+from app.core.harness.builtin_tools.shell import shell_server
 
 
 def _error(result: str) -> str:

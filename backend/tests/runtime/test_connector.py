@@ -4,7 +4,7 @@ from datetime import datetime
 from pathlib import Path
 
 from app.core.connectors.calendar_capture import capture_calendar_observations
-from app.core.harness.mcp_servers.calendar import CalendarServer
+from app.core.harness.builtin_tools.calendar import CalendarServer
 from app.core.runtime.kernel import Kernel
 from app.store.database import Database
 
@@ -20,7 +20,7 @@ def test_capture_emits_observation(tmp_path: Path):
         "SUMMARY:Unit Test Event\nEND:VCALENDAR\n",
         encoding="utf-8",
     )
-    import app.core.harness.mcp_servers.calendar as cal_mod
+    import app.core.harness.builtin_tools.calendar as cal_mod
 
     cal_mod.calendar_server = CalendarServer(ics_dir=str(tmp_path))
     ids = capture_calendar_observations(k, date=today)

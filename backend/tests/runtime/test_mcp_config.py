@@ -8,7 +8,7 @@ from app.core.harness.mcp_config import (
     load_external_server_configs,
     mcp_external_enabled,
     normalize_tool_name,
-    parse_mcp_servers_enabled,
+    parse_builtin_tools_enabled,
 )
 
 
@@ -51,10 +51,10 @@ def test_external_servers_disabled_by_settings(monkeypatch):
     assert load_external_server_configs() == []
 
 
-def test_mcp_servers_enabled_filter(monkeypatch, tmp_path):
+def test_builtin_tools_enabled_filter(monkeypatch, tmp_path):
     reset_settings()
     monkeypatch.setattr(config_module.settings, "mcp_external_enabled", True)
-    monkeypatch.setattr(config_module.settings, "mcp_servers_enabled", "context7,tavily")
+    monkeypatch.setattr(config_module.settings, "builtin_tools_enabled", "context7,tavily")
     assert mcp_external_enabled() is True
     config_path = tmp_path / "mcp_config.json"
     config_path.write_text(
@@ -70,10 +70,10 @@ def test_mcp_servers_enabled_filter(monkeypatch, tmp_path):
     assert [c.name for c in configs] == ["context7"]
 
 
-def test_parse_mcp_servers_enabled_wildcard(monkeypatch):
+def test_parse_builtin_tools_enabled_wildcard(monkeypatch):
     reset_settings()
-    monkeypatch.setattr(config_module.settings, "mcp_servers_enabled", "*")
-    assert parse_mcp_servers_enabled() is None
+    monkeypatch.setattr(config_module.settings, "builtin_tools_enabled", "*")
+    assert parse_builtin_tools_enabled() is None
 
 
 def test_github_requires_token(monkeypatch, tmp_path):

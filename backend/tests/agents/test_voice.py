@@ -1,7 +1,7 @@
 """Unit tests for Voice MCP server (import-safe, no API key needed)."""
 import json
 
-from app.core.harness.mcp_servers.voice import VoiceServer
+from app.core.harness.builtin_tools.voice import VoiceServer
 
 
 class TestVoiceServer:
@@ -44,5 +44,5 @@ class TestVoiceServer:
             assert result["status"] == "error"
 
     def test_server_singleton(self):
-        from app.core.harness.mcp_servers.voice import voice_server
+        from app.core.harness.builtin_tools.voice import voice_server
         assert isinstance(voice_server, VoiceServer)

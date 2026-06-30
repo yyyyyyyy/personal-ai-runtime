@@ -4,7 +4,7 @@ import json
 
 import pytest
 
-from app.core.harness.mcp_servers.fetch import fetch_server
+from app.core.harness.builtin_tools.fetch import fetch_server
 
 
 @pytest.mark.asyncio

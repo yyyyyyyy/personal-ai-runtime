@@ -25,7 +25,7 @@ _FORBIDDEN_IMPORT_MODULES = frozenset({
     "app.core.runtime.kernel_instance",
     "app.core.agents.memory_engine",
     "app.core.agents.world_model",
-    "app.core.harness.mcp_servers.calendar",
+    "app.core.harness.builtin_tools.calendar",
 })
 
 _ALLOWED_RUNTIME_IMPORTS = frozenset({

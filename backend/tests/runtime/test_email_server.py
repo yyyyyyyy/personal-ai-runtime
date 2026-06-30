@@ -2,7 +2,7 @@
 
 import email
 
-from app.core.harness.mcp_servers.email import (
+from app.core.harness.builtin_tools.email import (
     EmailServer,
     _format_date,
     _stable_message_id,

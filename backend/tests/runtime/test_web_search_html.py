@@ -4,7 +4,7 @@ import json
 
 import pytest
 
-from app.core.harness.mcp_servers.web_search import WebSearchServer
+from app.core.harness.builtin_tools.web_search import WebSearchServer
 
 SAMPLE_HTML = """
 <html><body>

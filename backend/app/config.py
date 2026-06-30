@@ -76,7 +76,7 @@ class Settings(BaseSettings):
     capability_policy_path: str = str(BASE_DIR / "backend" / "capability_policy.json")
     mcp_external_enabled: bool = True
     """Enable external MCP mesh. Set false to use builtin tools only."""
-    mcp_servers_enabled: str = "*"
+    builtin_tools_enabled: str = "*"
     """Comma-separated MCP server names to load, or * for all in mcp_config.json."""
 
     # External MCP credentials (optional — servers skip connect when required keys missing)

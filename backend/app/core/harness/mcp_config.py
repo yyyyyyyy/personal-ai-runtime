@@ -26,11 +26,11 @@ def mcp_external_enabled() -> bool:
     return settings.mcp_external_enabled
 
 
-def parse_mcp_servers_enabled() -> set[str] | None:
+def parse_builtin_tools_enabled() -> set[str] | None:
     """Optional env override: comma-separated server names. None = use json config."""
     from app.config import settings
 
-    raw = settings.mcp_servers_enabled.strip()
+    raw = settings.builtin_tools_enabled.strip()
     if not raw or raw == "*":
         return None
     return {part.strip() for part in raw.split(",") if part.strip()}
@@ -130,7 +130,7 @@ def load_external_server_configs(path: str | Path | None = None) -> list[Externa
     if not mcp_external_enabled():
         return []
 
-    allowed = parse_mcp_servers_enabled()
+    allowed = parse_builtin_tools_enabled()
     data = load_mcp_config(path)
     configs: list[ExternalMCPServerConfig] = []
     for raw in data.get("external_servers", []):

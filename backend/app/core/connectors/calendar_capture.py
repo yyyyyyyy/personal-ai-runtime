@@ -17,7 +17,7 @@ def capture_calendar_observations(
     actor: str = "connector:calendar",
 ) -> list[str]:
     """Ingest calendar events as ObservationRecorded events. Returns observation ids."""
-    from app.core.harness.mcp_servers import calendar as cal_mod
+    from app.core.harness.builtin_tools import calendar as cal_mod
 
     raw = cal_mod.calendar_server.list_events(
         calendar=calendar, date=date or "", days=days

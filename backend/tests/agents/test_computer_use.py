@@ -1,7 +1,7 @@
 """Unit tests for Computer Use MCP server (import-safe, no hardware required)."""
 import json
 
-from app.core.harness.mcp_servers.computer_use import ComputerUseServer
+from app.core.harness.builtin_tools.computer_use import ComputerUseServer
 
 
 class TestComputerUseServer:
@@ -34,7 +34,7 @@ class TestComputerUseServer:
             FAILSAFE = True
             @staticmethod
             def typewrite(text, interval=0.05): return None
-        import app.core.harness.mcp_servers.computer_use as m
+        import app.core.harness.builtin_tools.computer_use as m
         m.pyautogui = FakePyautogui()  # type: ignore[attr-defined]
         try:
             s._pyautogui = FakePyautogui()
@@ -65,7 +65,7 @@ class TestComputerUseServer:
         assert result["status"] == "error"
 
     def test_server_singleton(self):
-        from app.core.harness.mcp_servers.computer_use import computer_use_server
+        from app.core.harness.builtin_tools.computer_use import computer_use_server
         assert isinstance(computer_use_server, ComputerUseServer)
 
     def test_screenshot_full_vs_primary(self):

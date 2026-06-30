@@ -15,6 +15,7 @@ Runtime Governance v1 的三个战略里程碑于 **2026-06-17** 全部达成。
 | **M2 · Single Source of Truth（单一真相）** | 2026-06-17 | Trigger 读 event_log（B3）、生产路径零 `INSERT INTO events`（C1）、Inbox/Knowledge 审计事件（B2） |
 | **M3 · Runtime v1** | 2026-06-17 | 单轨 AgentManager（C2）、外部 MCP Policy 事件溯源（C3）、Agent 并发隔离（D1） |
 | **H1 · Memory 强化** | 2026-06-18 | Pattern/Belief 幂等/质量/存活 CI 守护，INV-P6 升 Tier 1 |
+| **H2 · 架构收敛** | 2026-06-30 | 删除死子系统、Schema 统一、审批归一、命名澄清，净删 3154 行 |
 
 ---
 
@@ -130,5 +131,22 @@ H1 ≈ Memory Re-derive   → North Star P1 + INV-P6
 | INV-P3 | Tier 2 | Tier 1 | A2 | 2026-06-17 |
 | INV-P5 | Tier 2 | Tier 1 | M3 (D1) | 2026-06-17 |
 | INV-P6 | Tier 2 | Tier 1 | H1 | 2026-06-18 |
+
+## H2 · 架构收敛（Architecture Consolidation）
+
+**达成标志（2026-06-30）**：
+
+- 删除 24 个死模块：`event_bus`、`planner`/`critic`/`AgentManager`、`intent_predictor`、`PatternAggregator` + `BeliefEngine` 等
+- 审批双路径统一：`POST /api/approvals/{id}/approve` 改用 `submit_command → ApproveRequested handler`
+- Schema 单一来源：`v02_projection_tables` Alembic migration，`PROJECTION_TABLES` 从 `_OWNED_TABLES` 派生
+- 命名澄清：`scheduler.py → cron_registry.py`、`llm_router.py → llm_failover.py`
+- Workflow / 场景模板 / 集成中心降级为实验分支
+- 测试 706 passed，净删除 3154 行代码
+
+### 里程碑与 North Star 对应
+
+```text
+H2 ≈ Architecture Discipline → North Star G1 + G4（代码即文档，治理优先）
+```
 
 ---

@@ -4,7 +4,7 @@ import json
 
 import pytest
 
-from app.core.harness.mcp_servers.browser import browser_server
+from app.core.harness.builtin_tools.browser import browser_server
 
 
 @pytest.mark.asyncio

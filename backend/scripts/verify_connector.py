@@ -15,7 +15,7 @@ if str(_BACKEND_ROOT) not in sys.path:
 os.environ.setdefault("LLM_API_KEY", "test-key")
 
 from app.core.connectors.calendar_capture import capture_calendar_observations
-from app.core.harness.mcp_servers.calendar import CalendarServer
+from app.core.harness.builtin_tools.calendar import CalendarServer
 from app.core.runtime.kernel import Kernel
 from app.store.database import Database
 
@@ -27,7 +27,7 @@ def main() -> int:
     db = Database(db_path=str(db_path))
     k = Kernel(db=db)
 
-    import app.core.harness.mcp_servers.calendar as cal_mod
+    import app.core.harness.builtin_tools.calendar as cal_mod
     import app.core.runtime.kernel_instance as ki
 
     ki.kernel = k

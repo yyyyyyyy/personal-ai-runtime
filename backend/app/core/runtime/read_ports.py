@@ -105,14 +105,14 @@ def query_world_context() -> str:
 
 
 def query_calendar_upcoming(*, days: int = 7) -> dict[str, Any]:
-    from app.core.harness.mcp_servers.calendar import calendar_server
+    from app.core.harness.builtin_tools.calendar import calendar_server
 
     raw = calendar_server.get_upcoming(days=days)
     return json.loads(raw)
 
 
 def query_calendar_today_events() -> dict[str, Any]:
-    from app.core.harness.mcp_servers.calendar import calendar_server
+    from app.core.harness.builtin_tools.calendar import calendar_server
 
     today = date_type.today().isoformat()
     raw = calendar_server.list_events(date=today, days=1)
