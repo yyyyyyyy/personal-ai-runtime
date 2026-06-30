@@ -277,7 +277,9 @@ sql, params = build_where(filters)
 
 - `backend/app/core/runtime/timer_engine.py` — 计时扫描合并到 RuntimeLoop (FACT-12)
 - `backend/app/core/runtime/background_worker.py` — 后台轮询合并到 RuntimeLoop (FACT-13)
-- `backend/app/core/runtime/legacy_event_adapter.py` — 删除 window 到期 (FACT-43, target v0.3.0)
+- `backend/app/core/runtime/legacy_event_adapter.py` — 删除 window 到期 (FACT-C2-01: ACTIVE-deprecated, 3 个调用者需先迁移)
+- `backend/app/api/goals.py:L11` — 移除 `from app.core.runtime.legacy_event_adapter import goal_legacy_events`，改为直接读 event_log
+- `backend/app/core/agents/world_model.py:L11` — 移除 `from app.core.runtime.legacy_event_adapter import to_legacy_dict`，改为直接构造
 
 ### Files to MODIFY (级联)
 

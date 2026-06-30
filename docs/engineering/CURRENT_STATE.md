@@ -2,7 +2,7 @@
 
 > 本文档仅包含**可测量的架构事实**。无意见、无计划、无历史讨论。
 > 它是架构的"体检报告"，由 CI 和数据统计自动生成。
-> 最后更新: 2026-06-30 (Architecture Evolution Cycle #1, Stage 05)
+> 最后更新: 2026-06-30 (Architecture Evolution Cycle #2, Stage 05)
 
 ---
 
@@ -84,7 +84,7 @@
 | 44 | SSEQueueRegistry | `sse_queue_registry.py` | Supporting | Active |
 | 45 | ExecutionContextProvider | `governance/execution_context.py` | Supporting | **Dormant** (FACT-36) |
 | 46 | CapabilityContextProvider | `governance/capability_context.py` | Supporting | **Dormant** (FACT-36) |
-| 47 | LegacyEventAdapter | `legacy_event_adapter.py` | Supporting | **Active** (Verification 重分类: 3 callers) |
+| 47 | LegacyEventAdapter | `legacy_event_adapter.py` | Supporting | **Active-deprecated** (FACT-C2-01: 3 callers — read_ports, goals, world_model) |
 | 48 | WorkflowEditor | (frontend) | Experimental | Downgraded |
 | 49 | SceneTemplates | (frontend) | Experimental | Downgraded |
 | 50 | IntegrationsHub | (frontend) | Experimental | Downgraded |
@@ -180,14 +180,13 @@
 
 | 指标 | 值 | 来源 |
 |---|---|---|
-| Truth Audit FACTs | 48 | Stage 01 (2026-06-30) |
-| Constitution Invariants | 7 | Stage 02 (v3.0) |
+| Truth Audit FACTs | 5 (循环 #2 增量) + 48 (循环 #1) | Stage 01 Cycle #2 (2026-06-30) |
+| Constitution Invariants | 7 | Stage 02 (v3.1) |
 | Constitution Boundaries | 8 | Stage 02 |
-| ADRs | 6 | Stage 02 (新增: 003 ChromaDB, 004 三循环, 005 休眠快照, 006 UserProfile) |
-| Invariant Compliance | 5/7 (71.4%) | Stage 04 |
-| Boundary Compliance | 7/8 (87.5%) | Stage 04 |
-| Budget Compliance | 0% (15指标超标) | Stage 04 |
-| Implementation PRs Planned | 12 | Stage 03 |
-| 计划代码变更 | +1025 / -1393 (= -368 net) | Stage 03 |
-| 预计工时 | 46h | Stage 03 |
-| Overall Verdict | ⚠️ PARTIALLY COMPLIANT | Stage 04 |
+| ADRs | 7 (新增: 007 Legacy Adapter ACTIVE) | Stage 02 Cycle #2 |
+| Invariant Compliance | 5/7 (71.4%) — 循环 #2 未重新验证 | Stage 04 Cycle #1 |
+| Boundary Compliance | 7/8 (87.5%) | Stage 04 Cycle #1 |
+| Implementation PRs | 12 (PR-06 已修订: +goals.py +world_model.py 迁移) | Stage 03 Cycle #2 |
+| 计划代码变更 | +1025 / -1393 | Stage 03 |
+| Overall Verdict | ⚠️ PARTIALLY COMPLIANT | Stage 04 Cycle #1 |
+| Runtime Coverage | 84% | CI (Cycle #2 达标) |

@@ -252,6 +252,12 @@ Each invariant maps to a FACT from `docs/engineering/TRUTH_AUDIT.md` and must be
 **Decision**: 待定。选项：(a) 将 UserProfile 事件溯源化，(b) 接受其为 APP_STORAGE 并承担无审计风险，(c) 限制 UserProfile 只读。
 **Consequences**: 当前状态：用户画像数据不在审计链中。若画像影响 Agent 行为，后果可能是无法追溯的偏差。
 
+### ADR-2026-007: Legacy Event Adapter — Deprecated but Active
+**Status**: Accepted
+**Context**: Cycle #1 FACT-43 classified `legacy_event_adapter.py` as DORMANT/DEPRECATED with removal target v0.3.0. Stage 04 verification discovered 3 production callers: `read_ports.py` (recent_legacy_events), `goals.py` (goal_legacy_events), `world_model.py` (to_legacy_dict). The module is deprecated in intent but actively consumed.
+**Decision**: Reclassify from "DORMANT-可删" to "ACTIVE-deprecated". Any removal PR must first migrate all 3 callers. Removal timeline deferred until callers are eliminated.
+**Consequences**: S03 IMPLEMENTATION_PLAN PR-06 deletion estimate is incomplete (must include goals.py + world_model.py migration). ROADMAP M1's "消除遗留适配器" claim is revised per FACT-C2-01.
+
 ---
 
 ## 6. 明确不做的事（Non-Goals）

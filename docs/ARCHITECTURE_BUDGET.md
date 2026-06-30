@@ -25,7 +25,8 @@
 | B-001..B-008 | Core（核心概念） | 15 | ≤ 10 | FACT-1..20 | Event/Kernel/Capability/Scheduler 是真正核心。其余应降为 Supporting。 |
 | — | Supporting（支撑概念） | 32 | ≤ 20 | FACT-21..48 | 支撑概念是实现细节。当前暴露过多。合并审批、统一调度可大幅缩减。 |
 | — | Dormant（休眠） | 2 | 激活或删除 | FACT-36 | ExecutionContextProvider, CapabilityContextProvider 全量实现但无消费者。 |
-| — | Deprecated（废弃） | 3 | 0 | FACT-38/39/43 | BeliefFormed, AgentSpawned/Terminated, legacy_event_adapter。 |
+| — | Deprecated（废弃） | 3 | 0 | FACT-38/39 | BeliefFormed, AgentSpawned/Terminated。 |
+| — | Deprecated-but-active（声明废弃但活跃） | 1 | 0 | FACT-C2-01 | legacy_event_adapter — 3 个生产调用者，删除前必须迁移。 |
 | — | Dead（死） | 1 | 0 | FACT-44 | RecallRanker 未使用。 |
 
 ---
@@ -148,7 +149,7 @@ Truth Audit 发现的具体死代码项：
 | 死事件类型 | 3 (BeliefFormed, AgentSpawned, AgentTerminated) | 0 | FACT-38/39 |
 | 废弃函数 | 2 (estimate_tokens, log_activity) | 0 | FACT-41/42 |
 | 未使用类 | 1 (RecallRanker) | 0 | FACT-44 |
-| 遗留适配器 | 1 (legacy_event_adapter) | 0 | FACT-43 |
+| 遗留适配器 | 1 (legacy_event_adapter, ACTIVE-deprecated) | 0 (not before caller migration) | FACT-C2-01 |
 | 空查询路径 | 1 (_APPLICATION_EVENT_TYPES) | 0 | FACT-40 |
 | 重复 SQL 构建 | 1 (query_state vs query_builder) | 0 | FACT-45 |
 | 功能 bug | 1 (_smart_notification_check 过滤失效) | 0 | FACT-37 |
@@ -172,7 +173,7 @@ Truth Audit 发现的具体死代码项：
 | GOVERNED 表 | 14 | 14 | ≤ 12 |
 | APP_STORAGE 表 | 11 | 11 | ≤ 6 |
 | 重复系统 | 3 | 3 | 0 |
-| 遗留适配器 | 1 | 1 | 0 |
+| 遗留适配器 | 1 | 1 (ACTIVE) | 0 (caller migration required) |
 | 死事件类型 | 未知 | **3** | 0 |
 | 休眠治理组件 | 未知 | **2** | 0 |
 | 未使用类 | 未知 | **1** | 0 |

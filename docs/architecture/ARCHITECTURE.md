@@ -399,7 +399,7 @@ FACT-31: 工具调用通过 `telemetry.record_tool_call()` 记录到 `tool_calls
 | `runtime_container.py` | 集中式子系统注册表（12+ lazy properties） |
 | `conversation_recorder.py` | 对话记录 |
 | `notification_bridge.py` | WebSocket 通知桥接（sync/async 双模式） |
-| `legacy_event_adapter.py` | 遗留事件格式适配（DEPRECATED, target v0.3） |
+| `legacy_event_adapter.py` | 遗留事件格式适配（DEPRECATED but ACTIVE — 3 callers: read_ports, goals, world_model） |
 
 ### Agent Layer（`core/agents/`）
 
@@ -493,6 +493,6 @@ API Layer (FastAPI routers, 17 route groups)
 | 审批双路径读取 | 低 | FACT-35 | ApprovalEngine 和 Kernel._consume_pre_approved 复制相同读取逻辑。 |
 | Governance snapshots 未消费 | 中 | FACT-36 | ExecutionContextProvider / CapabilityContextProvider 全量实现但无接入点。 |
 | 三个独立后台循环 | 中 | FACT-7/12/13 | Scheduler, TimerEngine, BackgroundWorker 三循环计划在 v0.3 统一（ROADMAP M1）。 |
-| legacy_event_adapter 仍活跃 | 中 | FACT-43 | 标记 DEPRECATED (target v0.3) 但仍被 read_ports.py 导入使用。 |
+| legacy_event_adapter 仍活跃 | 中 | FACT-C2-01 | 标记 DEPRECATED 但 3 个生产调用者（read_ports, goals, world_model）。删除前必须先迁移。 |
 | 死事件类型未删除 | 低 | FACT-38/39 | BeliefFormed, AgentSpawned, AgentTerminated 声明但永不 emit。 |
 | _smart_notification_check 过滤失效 | 高 | FACT-37 | 传递不被支持的 filter 参数导致去重逻辑无效。 |
