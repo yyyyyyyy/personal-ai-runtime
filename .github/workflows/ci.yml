@@ -41,8 +41,9 @@ jobs:
       - name: Run tests
         run: |
           cd backend
-          python -m pytest tests/ -v --cov=app/core/runtime --cov=app/core/harness --cov-report=term -m "not live_llm"
+          python -m pytest tests/ -v --cov=app/core/runtime --cov=app/core/harness --cov=app/api --cov-report=term -m "not live_llm"
           python -m coverage report --include='app/core/runtime/*' --fail-under=84
+          python -m coverage report --include='app/api/*' --fail-under=70 || echo "WARNING: API coverage below 70% — add tests for uncovered endpoints"
 
       - name: Verify database schema (Alembic)
         run: |

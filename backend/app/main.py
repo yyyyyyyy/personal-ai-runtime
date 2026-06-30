@@ -1,5 +1,6 @@
 """Personal AI Runtime — FastAPI Application Entry Point."""
 
+import asyncio
 import json
 import logging
 import secrets
@@ -97,6 +98,12 @@ class AuthMiddleware:
             await self.app(scope, receive, send)
             return
 
+        # Rate limiting for sensitive endpoints (only when auth is enabled)
+        from app.core.rate_limit import check_rate_limit
+        if not check_rate_limit(path):
+            await self._too_many_requests(send)
+            return
+
         token = self._extract_bearer(scope)
         if not _tokens_match(token, expected):
             await self._unauthorized(send)
@@ -129,6 +136,21 @@ class AuthMiddleware:
         })
         await send({"type": "http.response.body", "body": body})
 
+    @staticmethod
+    async def _too_many_requests(send: Send) -> None:
+        body = json.dumps(
+            {"detail": "Too many requests. Please slow down."}
+        ).encode("utf-8")
+        await send({
+            "type": "http.response.start",
+            "status": 429,
+            "headers": [
+                (b"content-type", b"application/json"),
+                (b"content-length", str(len(body)).encode("ascii")),
+            ],
+        })
+        await send({"type": "http.response.body", "body": body})
+
 
 # ── Lifespan ─────────────────────────────────────────────────────────────────
 
@@ -137,6 +159,8 @@ class AuthMiddleware:
 async def lifespan(app: FastAPI):
     """Startup and shutdown events."""
     app.state.startup_health = run_startup_checks()
+
+    app.state._auth_warning_interval = 600  # seconds between repeated warnings
 
     if not settings.auth_token:
         if settings.host in _EXPOSED_HOSTS:
@@ -153,6 +177,9 @@ async def lifespan(app: FastAPI):
                 "Set AUTH_TOKEN in .env for production security.",
                 settings.host,
             )
+            # Periodic warning to prevent one-time messages from being buried
+            app.state._auth_exposed_no_token = True
+            app.state._last_auth_warning_at = 0.0
         elif settings.host not in _LOCALHOST_HOSTS:
             logger.warning(
                 "AUTH_TOKEN is not set while listening on %s — set AUTH_TOKEN for non-localhost binds.",
@@ -193,11 +220,31 @@ async def lifespan(app: FastAPI):
 
     app.state.startup_health = enrich_with_mcp_status(app.state.startup_health)
 
+    # Start periodic auth warning if exposed without token
+    _auth_warn_task = None
+    if getattr(app.state, "_auth_exposed_no_token", False):
+        async def _auth_warning_loop():
+            while True:
+                await asyncio.sleep(app.state._auth_warning_interval)
+                logger.warning(
+                    "SECURITY: API running on %s with no AUTH_TOKEN (ALLOW_NO_AUTH_ON_EXPOSED=true). "
+                    "All data is accessible without authentication.",
+                    settings.host,
+                )
+        _auth_warn_task = asyncio.create_task(_auth_warning_loop())
+
     yield
 
     from app.core.harness.mcp_lifecycle import stop_mcp_mesh
 
     await stop_mcp_mesh()
+
+    if _auth_warn_task is not None:
+        _auth_warn_task.cancel()
+        try:
+            await _auth_warn_task
+        except asyncio.CancelledError:
+            pass
 
     await background_worker.stop()
     pattern_aggregator.stop()
@@ -270,10 +317,16 @@ app.include_router(workflows.router)
 
 @app.get("/")
 async def root():
-    return {
+    response_body: dict = {
         "message": "Personal AI Runtime is running",
         "docs": "/docs",
     }
+    if getattr(app.state, "_auth_exposed_no_token", False):
+        response_body["SECURITY_WARNING"] = (
+            "API is running on an exposed host without authentication. "
+            "Set AUTH_TOKEN in .env to enable Bearer token protection."
+        )
+    return response_body
 
 
 @app.websocket("/ws")

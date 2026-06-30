@@ -8,6 +8,7 @@ from pathlib import Path as _Path
 
 from fastapi import APIRouter, HTTPException
 
+from app.api.models import InstallConnectorRequest
 from app.core.harness.mcp_config import (
     ExternalMCPServerConfig,
     load_external_server_configs,
@@ -187,8 +188,8 @@ async def list_registry():
 
 
 @router.post("/install")
-async def install_new_connector(body: dict):
-    server_name = body.get("name", "").strip()
+async def install_new_connector(body: InstallConnectorRequest):
+    server_name = body.name.strip()
     if not server_name:
         raise HTTPException(status_code=400, detail="Server name is required")
     registry = _load_registry()

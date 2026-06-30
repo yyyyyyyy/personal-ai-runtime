@@ -30,24 +30,11 @@ class ImportRequest(BaseModel):
 
 
 class EncryptedExportRequest(BaseModel):
-    """Body for AES-GCM encrypted export.
-
-    Password is sent in the body (not query) so it stays out of access logs,
-    shell history, and browser history.
-    """
-
     password: str
     confirm: str = ""
 
 
 class EncryptedImportRequest(BaseModel):
-    """Body for AES-GCM encrypted import.
-
-    Requires the same confirm code as plaintext write import, because the
-    underlying path rewrites event_log (drops append-only triggers, clears,
-    reinserts) — that is a destructive sovereignty operation.
-    """
-
     data: str
     password: str
     confirm: str = ""
@@ -79,4 +66,74 @@ class UpdateMemoryRequest(BaseModel):
                 f"category must be one of: {', '.join(sorted(MEMORY_CATEGORIES))}"
             )
         return value
+
+
+# ── Goal & Action models ──────────────────────────────────────────────────
+
+
+class CreateGoalRequest(BaseModel):
+    title: str
+    description: str = ""
+    importance: float = Field(default=0.5, ge=0.0, le=1.0)
+    urgency: float = Field(default=0.5, ge=0.0, le=1.0)
+    parent_id: str | None = None
+    deadline: str | None = None
+
+
+class CreateActionRequest(BaseModel):
+    title: str
+    goal_id: str = ""
+
+
+# ── Trigger models ────────────────────────────────────────────────────────
+
+
+class CreateTriggerRequest(BaseModel):
+    name: str
+    trigger_type: str = ""
+    condition: dict = Field(default_factory=dict)
+    action_type: str = "suggestion"
+    action_config: dict | None = None
+
+
+class RunPlanningTaskRequest(BaseModel):
+    request: str = ""
+    prompt: str = ""
+
+
+class CreateTaskRequest(BaseModel):
+    name: str = ""
+    title: str = ""
+    description: str = ""
+    goal_id: str = ""
+    parent_goal_id: str | None = None
+    parent_task_id: str | None = None
+    priority: int = 0
+    dependencies: list[str] | None = None
+
+
+class UpdateTaskStatusRequest(BaseModel):
+    status: str
+    result: str = ""
+
+
+class CreateBackgroundTaskRequest(BaseModel):
+    user_request: str
+    plan: dict | None = None
+
+
+# ── Workflow model ────────────────────────────────────────────────────────
+
+
+class CreateWorkflowRequest(BaseModel):
+    name: str = "未命名工作流"
+    description: str = ""
+    nodes: list[dict] = Field(default_factory=list)
+    edges: list[dict] = Field(default_factory=list)
+    enabled: bool = False
+
+
+class InstallConnectorRequest(BaseModel):
+    name: str
+    config: dict = Field(default_factory=dict)
 

@@ -39,8 +39,8 @@ check_untyped_defs = true
 follow_imports = "silent"
 
 [tool.coverage.run]
+source = ["app/api", "app/product"]
 omit = [
-    "app/core/runtime/kernel/types.py",
     "app/experimental/*",
     "app/core/runtime/memory_decay.py",
 ]

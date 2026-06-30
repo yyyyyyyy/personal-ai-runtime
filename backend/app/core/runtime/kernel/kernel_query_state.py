@@ -367,7 +367,9 @@ class QueryStateMixin(_KernelMixinInterface):
 
     def recall_knowledge(self, query: str, k: int = 5) -> list[dict]:
         """Semantic recall from knowledge base documents."""
-        return []
+        from app.store.vector import vector_store
+
+        return vector_store.search_knowledge(query, n_results=k)
 
     def _query_messages(self, filters: dict[str, Any]) -> list[dict]:
         conversation_id = filters.get("conversation_id")

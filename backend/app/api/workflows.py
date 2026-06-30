@@ -12,6 +12,7 @@ from datetime import UTC, datetime
 
 from fastapi import APIRouter, HTTPException
 
+from app.api.models import CreateWorkflowRequest
 from app.core.runtime.kernel_instance import kernel
 from app.store.database import db
 
@@ -78,24 +79,25 @@ async def list_workflows():
 
 
 @router.post("")
-async def create_workflow(body: dict):
+async def create_workflow(body: CreateWorkflowRequest):
     wf_id = str(uuid.uuid4())
     now = datetime.now(UTC).isoformat()
 
+    wf_name: str = body.name
     wf_data = {
         "id": wf_id,
-        "name": body.get("name", "未命名工作流"),
-        "description": body.get("description", ""),
-        "nodes": body.get("nodes", []),
-        "edges": body.get("edges", []),
-        "enabled": body.get("enabled", False),
+        "name": wf_name,
+        "description": body.description,
+        "nodes": body.nodes,
+        "edges": body.edges,
+        "enabled": body.enabled,
         "created_at": now,
         "updated_at": now,
     }
     all_wf = _load_workflows()
     all_wf[wf_id] = wf_data
     _save_workflows(all_wf)
-    _emit_audit("created", wf_id, wf_data["name"])
+    _emit_audit("created", wf_id, wf_name)
     return wf_data
 
 

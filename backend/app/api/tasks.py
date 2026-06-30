@@ -2,6 +2,7 @@
 
 from fastapi import APIRouter, HTTPException
 
+from app.api.models import CreateTaskRequest, RunPlanningTaskRequest, UpdateTaskStatusRequest
 from app.core.runtime.agent_manager import AgentManager
 from app.core.runtime.kernel_instance import kernel
 from app.core.runtime.task_engine import task_engine
@@ -10,9 +11,9 @@ router = APIRouter(prefix="/api/tasks", tags=["tasks"])
 
 
 @router.post("/plan")
-async def run_planning_task(body: dict):
+async def run_planning_task(body: RunPlanningTaskRequest):
     """Run multi-agent Planner + Worker pipeline via AgentBus."""
-    request = body.get("request", body.get("prompt", "")).strip()
+    request = (body.request or body.prompt).strip()
     if not request:
         raise HTTPException(status_code=400, detail="request is required (field name: 'request' or 'prompt')")
     manager = AgentManager(kernel)
@@ -20,18 +21,18 @@ async def run_planning_task(body: dict):
 
 
 @router.post("/")
-async def create_task(body: dict):
-    name = body.get("name", body.get("title", "")).strip()
+async def create_task(body: CreateTaskRequest):
+    name = (body.name or body.title).strip()
     if not name:
         raise HTTPException(status_code=400, detail="Name is required (field name: 'name' or 'title')")
 
     task = task_engine.create_task(
         name=name,
-        description=body.get("description", ""),
-        parent_goal_id=body.get("parent_goal_id"),
-        parent_task_id=body.get("parent_task_id"),
-        priority=body.get("priority", 0),
-        dependencies=body.get("dependencies"),
+        description=body.description,
+        parent_goal_id=body.parent_goal_id,
+        parent_task_id=body.parent_task_id,
+        priority=body.priority,
+        dependencies=body.dependencies,
     )
     return task
 
@@ -88,8 +89,8 @@ _STATUS_ALIASES = {
 
 
 @router.patch("/{task_id}/status")
-async def update_task_status(task_id: str, body: dict):
-    status = body.get("status")
+async def update_task_status(task_id: str, body: UpdateTaskStatusRequest):
+    status = body.status
     if not status:
         raise HTTPException(status_code=400, detail="Status is required")
 

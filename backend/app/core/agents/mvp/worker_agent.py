@@ -1,4 +1,12 @@
-"""Worker Agent handler — MVP implementation.
+"""Worker Agent handler — MVP implementation (EXPERIMENTAL).
+
+THIS MODULE IS EXPERIMENTAL SKELETON CODE. The worker currently extracts
+hardcoded steps without calling the LLM-based CriticAgent in
+core/agents/critic.py. See the project review report for details.
+
+To enable real multi-agent execution, wire this handler to use
+CriticAgent.audit_step for safety checks. DO NOT remove this module
+until the refactor is complete.
 
 Handles TaskPlanned events.  The Runtime dispatches by event.type so
 the handler never needs to check event.type itself.

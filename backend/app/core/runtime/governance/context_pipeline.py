@@ -122,7 +122,7 @@ class ContextPipeline:
         """Return the most recent CompilePlan produced by this pipeline."""
         return self._last_plan
 
-    def _build_execution_context(
+    async def _build_execution_context(
         self,
         conversation_id: str,
         execution_id: str,
@@ -130,24 +130,15 @@ class ContextPipeline:
         """Build a GovernanceExecutionContext from runtime state."""
         provider_snapshot = GovernanceExecutionContext()
         try:
-            import asyncio
-
             from app.core.runtime.governance.execution_context import (
                 ExecutionContextProvider,
             )
 
             provider = ExecutionContextProvider()
-            try:
-                loop = asyncio.get_running_loop()  # noqa: F841
-                provider_snapshot = _run_async_sync(provider.build(
-                    conversation_id=conversation_id,
-                    execution_id=execution_id,
-                ))
-            except RuntimeError:
-                provider_snapshot = asyncio.run(provider.build(
-                    conversation_id=conversation_id,
-                    execution_id=execution_id,
-                ))
+            provider_snapshot = await provider.build(
+                conversation_id=conversation_id,
+                execution_id=execution_id,
+            )
         except Exception:
             import logging
             logging.getLogger(__name__).debug(
@@ -191,7 +182,7 @@ class ContextPipeline:
         sources for citation tracking.
         """
         # Build execution context snapshot
-        exec_ctx = self._build_execution_context(
+        exec_ctx = await self._build_execution_context(
             conversation_id=request.conversation_id,
             execution_id=request.execution_id,
         )
@@ -242,16 +233,6 @@ class ContextPipeline:
             context_budget=budget,
         )
         return await self.build_from_request(request)
-
-
-def _run_async_sync(coro):
-    """Run an async coroutine synchronously when already inside an event loop."""
-    import asyncio
-    import concurrent.futures
-
-    with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
-        future = executor.submit(asyncio.run, coro)
-        return future.result()
 
 
 # Global singleton

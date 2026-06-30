@@ -64,6 +64,7 @@ async def on_approve_requested(ctx: "ExecutionContext", event: "Event") -> None:
         pre_approved=True,
         approval_id=approval_id,
         execution_id=ctx.execution_id,
+        correlation_id=ctx.correlation_id,
     )
     if cap_result["status"] == "success":
         result_str = cap_result["result"]
@@ -138,7 +139,7 @@ async def on_execute_requested(ctx: "ExecutionContext", event: "Event") -> None:
         if step.get("depends_on_output") and previous_output:
             params["_previous_output"] = previous_output
 
-        cap = await kernel.invoke_capability(name=tool_name, args=params, actor="executor", execution_id=ctx.execution_id)
+        cap = await kernel.invoke_capability(name=tool_name, args=params, actor="executor", execution_id=ctx.execution_id, correlation_id=ctx.correlation_id)
         if cap["status"] == "success":
             step_status, step_result = "success", cap["result"]
         elif cap["status"] == "pending":
@@ -216,6 +217,7 @@ async def on_bg_task_requested(ctx: "ExecutionContext", event: "Event") -> None:
                 args=params,
                 actor="background",
                 execution_id=ctx.execution_id,
+                correlation_id=ctx.correlation_id,
             )
             if cap["status"] == "pending":
                 progress = 0.1 + (0.8 * i / max(len(steps), 1))
@@ -271,6 +273,7 @@ async def on_inbox_poll_requested(ctx: "ExecutionContext", event: "Event") -> No
         {"unread_only": True, "limit": max(limit, 50)},
         actor="scheduler",
         execution_id=ctx.execution_id,
+        correlation_id=ctx.correlation_id,
     )
     if cap.get("status") != "success":
         raw_error = cap.get("error", "check_inbox failed")

@@ -1,7 +1,7 @@
 """Context Assembler — 收集 Fragment、按 priority 排序、在 budget 内组装。
 
 流程：
-  1. collect() 所有 Fragment
+  1. 并行 collect() 所有 Fragment（asyncio.gather）
   2. 按 priority 降序排序
   3. 在 budget 内组装
   4. join 为最终 system prompt
@@ -10,14 +10,15 @@
 
 from __future__ import annotations
 
+import asyncio
 from dataclasses import dataclass, field
 
 from app.context_runtime import (
     ContextFragment,
     FragmentResult,
     RuntimeContext,
-    estimate_tokens,
 )
+from app.core.agents.token_counter import count_text_tokens
 
 
 @dataclass
@@ -56,11 +57,16 @@ class ContextAssembler:
         if not fragments:
             return AssemblyResult()
 
-        # 1. 并发 collect() 所有 Fragment
+        # 1. 并行 collect() 所有 Fragment
+        collected = await asyncio.gather(
+            *(f.collect(ctx) for f in fragments),
+            return_exceptions=True,
+        )
         results: list[tuple[ContextFragment, FragmentResult]] = []
-        for f in fragments:
-            result = await f.collect(ctx)
-            results.append((f, result))
+        for i, result in enumerate(collected):
+            if isinstance(result, BaseException):
+                continue  # skip fragments that raised
+            results.append((fragments[i], result))
 
         # 2. 按 priority 降序排序
         results.sort(key=lambda x: x[0].priority, reverse=True)
@@ -71,7 +77,7 @@ class ContextAssembler:
         used = 0
 
         for frag, result in results:
-            token_count = estimate_tokens(result.content) if result.content else 0
+            token_count = count_text_tokens(result.content) if result.content else 0
 
             # Identity Fragment 永不被丢弃（priority=100）
             if frag.priority >= 100:

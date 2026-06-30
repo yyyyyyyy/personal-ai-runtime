@@ -64,7 +64,16 @@ class SovereigntyMixin(_KernelMixinInterface):
         *,
         rebuild_projections: bool = True,
     ) -> int:
-        """Bulk-import events preserving seq/id; optionally rebuild all projections."""
+        """Bulk-import events preserving seq/id; optionally rebuild all projections.
+
+        DESTRUCTIVE OPERATION: This drops event_log guards, clears event_log
+        and all projection tables, then rewrites them. If rebuild_projections
+        fails mid-way, some projection tables may be left empty. Callers
+        should take a file-level backup before invoking this method.
+
+        For atomic import+rebuild, wrap in a single connection context
+        (TODO: Phase 3 architectural improvement).
+        """
         with self._db.get_db() as conn:
             self._drop_event_log_guards(conn)
             for table in PROJECTION_TABLES:

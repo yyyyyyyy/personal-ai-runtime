@@ -44,12 +44,19 @@ class Brain(BrainCompletionMixin):
         *,
         system_prompt: str,
         execution_id: str = "",
+        correlation_id: str = "",
     ) -> AsyncIterator[dict]:
         """Process a user message and stream the response.
 
         system_prompt must be pre-compiled by PromptCompiler before calling Brain.
+
+        correlation_id is used to track the taint chain across tool calls and
+        approval recovery. When provided (e.g. from scheduler ExecutionContext),
+        it replaces the internally-generated default to keep taint propagation
+        consistent (INV-8).
         """
-        correlation_id = f"chat-{uuid.uuid4().hex[:16]}"
+        if not correlation_id:
+            correlation_id = f"chat-{uuid.uuid4().hex[:16]}"
         taint_registry.clear(correlation_id)
 
         # Step 1: Build the messages array

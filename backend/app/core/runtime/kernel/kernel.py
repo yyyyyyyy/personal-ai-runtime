@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import json
 import logging
+import threading
 from collections import deque
 from typing import TYPE_CHECKING, Any, Callable
 
@@ -156,6 +157,7 @@ class Kernel(QueryStateMixin, GovernanceMixin, SovereigntyMixin):
         self._db = db
         self._subscribers: list[tuple[dict, Subscriber]] = []
         self._pending_commands: dict[tuple[str, str], "asyncio.Future"] = {}
+        self._commands_lock = threading.Lock()
         self._ensure_schema()
 
     @property
@@ -269,7 +271,8 @@ class Kernel(QueryStateMixin, GovernanceMixin, SovereigntyMixin):
         loop = asyncio.get_running_loop()
         future: asyncio.Future = loop.create_future()
         key = (correlation_id, completion_type)
-        self._pending_commands[key] = future
+        with self._commands_lock:
+            self._pending_commands[key] = future
 
         try:
             self.emit_event(
@@ -295,7 +298,8 @@ class Kernel(QueryStateMixin, GovernanceMixin, SovereigntyMixin):
             # single source of truth for key removal — _dispatch also pops
             # on successful resolve, but pop(key, None) here is a safe no-op
             # in that case.
-            self._pending_commands.pop(key, None)
+            with self._commands_lock:
+                self._pending_commands.pop(key, None)
 
     def _sync_memory_index(self, event: Event) -> None:
         """Keep ChromaDB as a derived index of memory projection events.
@@ -519,7 +523,8 @@ class Kernel(QueryStateMixin, GovernanceMixin, SovereigntyMixin):
         # When a "Completed" event with matching correlation_id arrives,
         # resolve the Future so the await in submit_command returns.
         key = (event.correlation_id or "", event.type)
-        future = self._pending_commands.pop(key, None)
+        with self._commands_lock:
+            future = self._pending_commands.pop(key, None)
         if future is not None and not future.done():
             try:
                 loop = asyncio.get_running_loop()
@@ -542,7 +547,8 @@ class Kernel(QueryStateMixin, GovernanceMixin, SovereigntyMixin):
         # Background tasks: Failed also resolves Requested → Completed waiters.
         if event.type == "BackgroundTaskFailed" and event.correlation_id:
             fail_key = (event.correlation_id, "BackgroundTaskCompleted")
-            fail_future = self._pending_commands.pop(fail_key, None)
+            with self._commands_lock:
+                fail_future = self._pending_commands.pop(fail_key, None)
             if fail_future is not None and not fail_future.done():
                 try:
                     loop = asyncio.get_running_loop()

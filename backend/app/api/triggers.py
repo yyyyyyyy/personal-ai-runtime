@@ -2,18 +2,19 @@
 
 from fastapi import APIRouter, HTTPException
 
+from app.api.models import CreateTriggerRequest
 from app.core.runtime.trigger_engine import trigger_engine
 
 router = APIRouter(prefix="/api/triggers", tags=["triggers"])
 
 
 @router.post("/")
-async def create_trigger(body: dict):
-    name = body.get("name", "").strip()
-    trigger_type = body.get("trigger_type", "")
-    condition = body.get("condition", {})
-    action_type = body.get("action_type", "suggestion")
-    action_config = body.get("action_config")
+async def create_trigger(body: CreateTriggerRequest):
+    name = body.name.strip()
+    trigger_type = body.trigger_type
+    condition = body.condition
+    action_type = body.action_type
+    action_config = body.action_config
 
     if not name or not trigger_type or not condition:
         raise HTTPException(status_code=400, detail="name, trigger_type, and condition are required")

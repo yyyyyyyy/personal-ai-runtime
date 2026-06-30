@@ -68,6 +68,8 @@ export async function sendMessage(
 
   const decoder = new TextDecoder();
   let buffer = "";
+  let lastByteTime = Date.now();
+  const SSE_IDLE_TIMEOUT_MS = 30_000;
 
   while (true) {
     const { done, value } = await reader.read();
@@ -76,6 +78,7 @@ export async function sendMessage(
       break;
     }
 
+    lastByteTime = Date.now();
     buffer += decoder.decode(value, { stream: true });
     const lines = buffer.split("\n");
     buffer = lines.pop() || "";
@@ -92,7 +95,9 @@ export async function sendMessage(
 
       try {
         const event: StreamEvent = JSON.parse(data);
-        onEvent(event);
+        if (event.type !== "ping") {
+          onEvent(event);
+        }
         if (event.type === "done" || event.type === "error") {
           onDone();
           return;
@@ -100,6 +105,13 @@ export async function sendMessage(
       } catch {
         // Skip parse errors
       }
+    }
+
+    // Abort if no data received for too long (silent server hang)
+    if (Date.now() - lastByteTime > SSE_IDLE_TIMEOUT_MS) {
+      reader.cancel().catch(() => {});
+      onError("连接超时，服务端无响应。请重试。");
+      return;
     }
   }
 }

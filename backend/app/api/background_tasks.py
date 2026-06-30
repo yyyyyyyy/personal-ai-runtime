@@ -2,18 +2,19 @@
 
 from fastapi import APIRouter, HTTPException
 
+from app.api.models import CreateBackgroundTaskRequest
 from app.core.runtime.background_worker import background_worker
 
 router = APIRouter(prefix="/api/tasks/background", tags=["background_tasks"])
 
 
 @router.post("/")
-async def create_background_task(body: dict):
-    user_request = body.get("user_request", "").strip()
+async def create_background_task(body: CreateBackgroundTaskRequest):
+    user_request = body.user_request.strip()
     if not user_request:
         raise HTTPException(status_code=400, detail="user_request is required")
 
-    plan = body.get("plan")
+    plan = body.plan
     task = background_worker.create_task(user_request=user_request, plan=plan)
     return task
 

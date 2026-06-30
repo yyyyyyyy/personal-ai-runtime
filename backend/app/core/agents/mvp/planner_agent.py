@@ -1,4 +1,12 @@
-"""Planner Agent handlers — MVP implementation.
+"""Planner Agent handlers — MVP implementation (EXPERIMENTAL).
+
+THIS MODULE IS EXPERIMENTAL SKELETON CODE. The planner currently returns
+hardcoded plans without calling the LLM-based PlannerAgent in
+core/agents/planner.py. See the project review report for details.
+
+To enable real multi-agent planning, wire this handler to use
+PlannerAgent directly. DO NOT remove this module until the refactor
+is complete.
 
 Each handler is registered via @subscribe for a specific event type.
 The Runtime dispatches events to the correct handler — handlers never

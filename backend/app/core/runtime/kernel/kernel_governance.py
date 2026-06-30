@@ -80,23 +80,37 @@ class GovernanceMixin(_KernelMixinInterface):
     def expire_stale_approvals(self) -> int:
         """Expire all pending approvals whose expires_at has passed.
 
+        Uses a single-transaction atomic UPDATE with rowcount to prevent
+        duplicate ApprovalExpired events from concurrent workers (TOCTOU fix).
+        Only emits events for rows that were actually transitioned.
+
         Returns the count of approvals expired.
         """
-        expired_ids: list[str] = []
+        now_iso = datetime.now(UTC).isoformat()
+        expired_ids: list[tuple[str, str]] = []  # (approval_id, action)
+
         with self._db.get_db() as conn:
             rows = conn.execute(
-                "SELECT id, action FROM approvals WHERE status = 'pending' AND expires_at IS NOT NULL AND expires_at <= ?",
-                (datetime.now(UTC).isoformat(),),
+                "SELECT id, action FROM approvals "
+                "WHERE status = 'pending' AND expires_at IS NOT NULL AND expires_at <= ?",
+                (now_iso,),
             ).fetchall()
-            for row in rows:
-                expired_ids.append(row["id"])
 
-        for approval_id in expired_ids:
+            for row in rows:
+                cur = conn.execute(
+                    "UPDATE approvals SET status = 'expired' "
+                    "WHERE id = ? AND status = 'pending'",
+                    (row["id"],),
+                )
+                if cur.rowcount > 0:
+                    expired_ids.append((row["id"], row["action"] or ""))
+
+        for approval_id, action in expired_ids:
             self.emit_event(
                 type="ApprovalExpired",
                 aggregate_type="approval",
                 aggregate_id=approval_id,
-                payload={"action": "", "reason": "auto_expired"},
+                payload={"action": action, "reason": "auto_expired"},
                 actor="kernel",
             )
         return len(expired_ids)

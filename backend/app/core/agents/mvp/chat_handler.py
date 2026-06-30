@@ -61,6 +61,7 @@ async def on_chat_requested(ctx: "ExecutionContext", event: "Event") -> None:
     async for evt in brain.chat_stream(
         conversation, user_message,
         execution_id=ctx.execution_id,
+        correlation_id=ctx.correlation_id,
         system_prompt=system_prompt,
     ):
         if evt.get("type") == "text_delta" and evt.get("content"):

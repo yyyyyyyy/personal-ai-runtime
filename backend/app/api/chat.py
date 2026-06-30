@@ -123,12 +123,17 @@ async def send_message(conv_id: str, body: SendMessageRequest):
         try:
             loop = asyncio.get_running_loop()
             deadline = loop.time() + settings.total_tool_loop_timeout + 10.0
+            last_ping = loop.time()
             while loop.time() < deadline:
                 # Read text deltas from the in-memory queue (no event_log writes)
                 try:
                     item = await asyncio.wait_for(sse_queue.get(), timeout=0.1)
                 except asyncio.TimeoutError:
-                    pass
+                    # Send heartbeat ping every 15s to prevent proxy timeouts
+                    now = loop.time()
+                    if now - last_ping >= 15.0:
+                        yield f"data: {_json.dumps({'type': 'ping'})}\n\n"
+                        last_ping = now
                 else:
                     if item.get("type") == "text_delta" and item.get("content"):
                         yield f"data: {_json.dumps(item)}\n\n"
@@ -164,7 +169,9 @@ async def send_message(conv_id: str, body: SendMessageRequest):
 
             yield f"data: {_json.dumps({'type': 'error', 'content': 'Chat request timed out'})}\n\n"
         except Exception as exc:
-            yield f"data: {_json.dumps({'type': 'error', 'content': str(exc)})}\n\n"
+            import logging as _logging
+            _logging.getLogger(__name__).warning("SSE stream error for %s: %s", correlation_id, exc, exc_info=True)
+            yield f"data: {_json.dumps({'type': 'error', 'content': 'An internal error occurred. Please try again.'})}\n\n"
         finally:
             unregister(correlation_id)
 

@@ -41,7 +41,11 @@ class FragmentResult:
 # ── estimate_tokens ──────────────────────────────────────────────────────
 
 def estimate_tokens(text: str) -> int:
-    """简单 token 估算 — len(text) // 4。后续可替换为 tiktoken。"""
+    """粗略 token 估算 — len(text) // 4。
+
+    DEPRECATED: 对于 budget 决策，优先使用 app.core.agents.token_counter.count_text_tokens
+    （tiktoken，对中英文 token 计数更准确）。
+    """
     return max(1, len(text) // 4)
 
 

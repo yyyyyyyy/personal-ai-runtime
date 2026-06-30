@@ -6,6 +6,7 @@ from datetime import UTC, datetime
 
 from fastapi import APIRouter, HTTPException, Query
 
+from app.api.models import CreateActionRequest, CreateGoalRequest
 from app.core.runtime.kernel_instance import kernel
 from app.core.runtime.legacy_event_adapter import goal_legacy_events
 
@@ -41,21 +42,21 @@ def _validate_goal_update_fields(body: dict) -> None:
 # --- Goal CRUD ---------------------------------------------------------------
 
 @router.post("/")
-async def create_goal(body: dict):
+async def create_goal(body: CreateGoalRequest):
     """Create a new goal."""
-    title = body.get("title", "").strip()
+    title = body.title.strip()
     if not title:
         raise HTTPException(status_code=400, detail="Title is required")
 
     goal_id = str(uuid.uuid4())
     now = datetime.now(UTC).isoformat()
 
-    description = body.get("description", "")
-    importance = _validate_score_field("importance", body.get("importance", 0.5))
-    urgency = _validate_score_field("urgency", body.get("urgency", 0.5))
+    description = body.description
+    importance = body.importance
+    urgency = body.urgency
 
-    deadline = body.get("deadline")
-    parent_id = body.get("parent_id")
+    deadline = body.deadline
+    parent_id = body.parent_id
 
     kernel.emit_event(
         type="GoalCreated",
@@ -183,9 +184,9 @@ async def delete_goal(goal_id: str):
 # --- Actions CRUD (event-sourced via Kernel) ---------------------------------
 
 @router.post("/{goal_id}/actions")
-async def create_action(goal_id: str, body: dict):
+async def create_action(goal_id: str, body: CreateActionRequest):
     """Create an action for a goal."""
-    title = body.get("title", "").strip()
+    title = body.title.strip()
     if not title:
         raise HTTPException(status_code=400, detail="Title is required")
 

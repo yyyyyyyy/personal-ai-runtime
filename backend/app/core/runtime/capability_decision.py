@@ -128,7 +128,7 @@ class CapabilityGateway:
 
         system + user principals always pass (wildcard grants).
         agent principals must have an active grant.
-        Gracefully tolerates missing grant_events table.
+        On DB failure, fail-closed for agent principals (deny).
         """
         if principal.type in ("system", "user"):
             return True
@@ -153,8 +153,13 @@ class CapabilityGateway:
             )
             return len(grants) > 0
         except Exception:
-            # Fallback: check Principal's inline capabilities
-            return principal.is_capable_of(capability)
+            import logging
+            logging.getLogger(__name__).warning(
+                "grant_events query failed for agent principal %s (capability=%s) "
+                "— fail-closed: denying",
+                principal.principal_id, capability, exc_info=True,
+            )
+            return False
 
 
 capability_gateway = CapabilityGateway()
