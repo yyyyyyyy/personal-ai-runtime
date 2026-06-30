@@ -15,6 +15,9 @@ COPY backend/ .
 ENV PYTHONPATH=/app/backend
 ENV DATA_DIR=/app/backend/data
 
+RUN useradd -m -u 1000 par && chown -R par:par /app/backend
+USER par
+
 EXPOSE 8000
 
 CMD ["python3", "-m", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]

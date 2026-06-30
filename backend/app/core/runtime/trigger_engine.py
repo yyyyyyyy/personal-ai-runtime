@@ -1,6 +1,9 @@
 """Trigger Engine — condition-based event triggers for proactive behavior.
 
 Scans event_log periodically, matches trigger conditions, generates suggestions.
+
+v0.2.1: All writes go through Kernel events + projectors.
+Reads go through kernel.query_state.
 """
 
 import json
@@ -8,7 +11,6 @@ import uuid
 from datetime import UTC, datetime, timedelta
 
 from app.core.runtime.kernel_instance import kernel
-from app.store.database import db
 
 
 class TriggerEngine:
@@ -26,48 +28,31 @@ class TriggerEngine:
         ]
 
     def seed_builtin_triggers(self):
-        """Ensure built-in triggers exist in the database."""
-        to_audit: list[dict] = []
-        with db.get_db() as conn:
-            for trigger in self._builtin_triggers:
-                existing = conn.execute(
-                    "SELECT id FROM triggers WHERE name = ?", (trigger["name"],)
-                ).fetchone()
-                if not existing:
-                    tid = str(uuid.uuid4())
-                    conn.execute(
-                        """INSERT INTO triggers (id, name, trigger_type, condition_json,
-                           action_type, action_config, enabled, created_at)
-                           VALUES (?, ?, ?, ?, ?, ?, 1, ?)""",
-                        (tid, trigger["name"], trigger["trigger_type"],
-                         trigger["condition_json"], trigger["action_type"],
-                         trigger["action_config"], datetime.now(UTC).isoformat()),
-                    )
-                    to_audit.append({"tid": tid, "trigger": trigger})
-        # B3: emit audit events outside the transaction to avoid SQLite lock
-        for item in to_audit:
-            kernel.emit_event(
-                "TriggerCreated",
-                "trigger",
-                item["tid"],
-                payload={
-                    "name": item["trigger"]["name"],
-                    "trigger_type": item["trigger"]["trigger_type"],
-                    "action_type": item["trigger"]["action_type"],
-                },
-                actor="system",
-            )
+        """Ensure built-in triggers exist via Kernel events."""
+        for trigger in self._builtin_triggers:
+            existing = kernel.query_state("triggers", name=trigger["name"])
+            if not existing:
+                tid = trigger.get("id") or str(uuid.uuid4())
+                kernel.emit_event(
+                    "TriggerCreated",
+                    "trigger",
+                    tid,
+                    payload={
+                        "name": trigger["name"],
+                        "trigger_type": trigger["trigger_type"],
+                        "condition": json.loads(trigger.get("condition_json", "{}")),
+                        "action_type": trigger["action_type"],
+                        "action_config": json.loads(trigger.get("action_config", "{}")),
+                    },
+                    actor="system",
+                )
 
     def evaluate_all(self) -> list[dict]:
         """Evaluate all enabled triggers and return generated suggestions."""
-        with db.get_db() as conn:
-            triggers = conn.execute(
-                "SELECT * FROM triggers WHERE enabled = 1"
-            ).fetchall()
+        triggers = kernel.query_state("triggers", enabled=True)
 
         suggestions = []
         for trigger in triggers:
-            trigger = dict(trigger)
             result = self._evaluate_trigger(trigger)
             if result:
                 suggestions.extend(result)
@@ -153,15 +138,6 @@ class TriggerEngine:
         action_config: dict | None = None,
     ) -> dict | None:
         tid = str(uuid.uuid4())
-        now = datetime.now(UTC).isoformat()
-        with db.get_db() as conn:
-            conn.execute(
-                """INSERT INTO triggers (id, name, trigger_type, condition_json, action_type, action_config, created_at)
-                   VALUES (?, ?, ?, ?, ?, ?, ?)""",
-                (tid, name, trigger_type, json.dumps(condition), action_type,
-                 json.dumps(action_config) if action_config else None, now),
-            )
-        # B3: emit audit event to event_log
         kernel.emit_event(
             "TriggerCreated",
             "trigger",
@@ -169,27 +145,23 @@ class TriggerEngine:
             payload={
                 "name": name,
                 "trigger_type": trigger_type,
+                "condition": condition,
                 "action_type": action_type,
+                "action_config": action_config or {},
             },
             actor="system",
         )
         return self.get_trigger(tid)
 
     def get_trigger(self, tid: str) -> dict | None:
-        with db.get_db() as conn:
-            row = conn.execute("SELECT * FROM triggers WHERE id = ?", (tid,)).fetchone()
-        return dict(row) if row else None
+        rows = kernel.query_state("triggers", id=tid)
+        return rows[0] if rows else None
 
     def list_triggers(self) -> list[dict]:
-        with db.get_db() as conn:
-            rows = conn.execute("SELECT * FROM triggers ORDER BY created_at DESC").fetchall()
-        return [dict(r) for r in rows]
+        return kernel.query_state("triggers", limit=500)
 
     def delete_trigger(self, tid: str):
-        # B3: emit audit event to event_log before deletion
         existing = self.get_trigger(tid)
-        with db.get_db() as conn:
-            conn.execute("DELETE FROM triggers WHERE id = ?", (tid,))
         if existing:
             kernel.emit_event(
                 "TriggerDeleted",

@@ -14,7 +14,6 @@ from app.core.runtime.kernel.constants import (
     EVENT_NOTIFICATION_CREATED,
 )
 from app.core.runtime.kernel_instance import kernel
-from app.store.database import db
 
 logger = logging.getLogger(__name__)
 
@@ -120,14 +119,12 @@ class BackgroundWorker:
             logger.exception("Failed smart notification check")
 
     async def _process_pending(self):
-        with db.get_db() as conn:
-            rows = conn.execute(
-                "SELECT * FROM background_tasks WHERE status = 'pending' ORDER BY created_at ASC LIMIT 1"
-            ).fetchall()
+        rows = kernel.query_state(
+            "background_tasks", status="pending", limit=1, order="created_at_asc"
+        )
 
         for row in rows:
-            task = dict(row)
-            await self._execute_background_task(task)
+            await self._execute_background_task(row)
 
     async def _execute_background_task(self, task: dict):
         """Execute a background task via the Kernel command pipeline."""
@@ -182,16 +179,11 @@ class BackgroundWorker:
         return task
 
     def get_task(self, task_id: str) -> dict | None:
-        with db.get_db() as conn:
-            row = conn.execute("SELECT * FROM background_tasks WHERE id = ?", (task_id,)).fetchone()
-        return dict(row) if row else None
+        rows = kernel.query_state("background_tasks", id=task_id)
+        return rows[0] if rows else None
 
     def list_tasks(self, limit: int = 50) -> list[dict]:
-        with db.get_db() as conn:
-            rows = conn.execute(
-                "SELECT * FROM background_tasks ORDER BY created_at DESC LIMIT ?", (limit,)
-            ).fetchall()
-        return [dict(r) for r in rows]
+        return kernel.query_state("background_tasks", limit=limit)
 
 
 background_worker = BackgroundWorker()

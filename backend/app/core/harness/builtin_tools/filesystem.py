@@ -31,6 +31,12 @@ def default_protected_paths() -> list[str]:
         str(runtime / "sensitive_router.py"),
         str(base / ".env"),
         str(base / ".git"),
+        # Sensitive host files — prevent LLM from reading SSH keys, AWS creds, shell history
+        str(Path.home() / ".ssh"),
+        str(Path.home() / ".aws"),
+        str(Path.home() / ".zsh_history"),
+        str(Path.home() / ".bash_history"),
+        str(Path.home() / ".config" / "google-chrome"),
     ]
     extra = [item.strip() for item in settings.filesystem_protected_paths.split(",") if item.strip()]
     return defaults + extra

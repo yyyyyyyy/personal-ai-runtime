@@ -56,9 +56,10 @@ def test_blocked_patterns_still_rejected():
 
 
 def test_curl_internal_url_blocked():
-    assert "Blocked URL" in _error(
-        shell_server.execute("curl http://127.0.0.1/admin")
-    )
+    # curl/wget have been removed from ALLOWED_COMMANDS (v0.2.1) to prevent
+    # SSRF bypass. All network requests must go through the DNS-pinned fetch_url tool.
+    result = _error(shell_server.execute("curl http://127.0.0.1/admin"))
+    assert "not in whitelist" in result, result
 
 
 def test_allowed_hostname_executes():

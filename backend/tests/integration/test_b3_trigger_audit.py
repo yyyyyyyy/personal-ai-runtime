@@ -18,7 +18,6 @@ def b3_setup(tmp_path, monkeypatch):
     db_path = str(tmp_path / "b3_trigger.db")
     db = Database(db_path=db_path)
     k = Kernel(db=db)
-    monkeypatch.setattr("app.core.runtime.trigger_engine.db", db)
     monkeypatch.setattr("app.core.runtime.trigger_engine.kernel", k)
     monkeypatch.setattr("app.core.runtime.kernel_instance.kernel", k)
     engine = TriggerEngine()

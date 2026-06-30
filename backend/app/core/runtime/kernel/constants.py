@@ -98,6 +98,8 @@ EXECUTION_EVENT_TYPES = frozenset({
     EVENT_EXECUTION_CANCELLED,
 })
 
+EVENT_USER_PROFILE_UPDATED = "UserProfileUpdated"
+
 # ── Aggregate types ─────────────────────────────────────────────────────────
 
 AGGREGATE_GOAL = "goal"

@@ -208,7 +208,26 @@ function createMiniWindow() {
 function createTray() {
   tray = new Tray(createTrayIcon());
 
-  const contextMenu = Menu.buildFromTemplate([
+  const contextMenu = Menu.buildFromTemplate(createTrayMenuItems());
+
+  tray.setToolTip("Personal AI Runtime");
+  tray.setContextMenu(contextMenu);
+
+  // Rebuild menu on click to reflect toggle state
+  tray.on("click", () => {
+    if (mainWindow) {
+      mainWindow.isVisible() ? mainWindow.hide() : mainWindow.show();
+    }
+    tray.setContextMenu(Menu.buildFromTemplate(createTrayMenuItems()));
+  });
+  tray.on("right-click", () => {
+    tray.setContextMenu(Menu.buildFromTemplate(createTrayMenuItems()));
+  });
+}
+... 3 lines not shown ...
+function createTrayMenuItems() {
+  const autoLaunchEnabled = app.getLoginItemSettings().openAtLogin;
+  return [
     {
       label: "打开 Personal AI Runtime",
       click: () => {
@@ -234,6 +253,18 @@ function createTray() {
     },
     { type: "separator" },
     {
+      label: autoLaunchEnabled ? "✓ 开机自启" : "开机自启",
+      type: "checkbox",
+      checked: autoLaunchEnabled,
+      click: (menuItem) => {
+        app.setLoginItemSettings({
+          openAtLogin: menuItem.checked,
+          openAsHidden: true,
+        });
+      },
+    },
+    { type: "separator" },
+    {
       label: "关于",
       click: () => {
         const statusText = backendProcess ? "后端运行中" : "后端未运行（需手动启动 backend）";
@@ -254,16 +285,8 @@ function createTray() {
         app.quit();
       },
     },
-  ]);
-
-  tray.setToolTip("Personal AI Runtime");
-  tray.setContextMenu(contextMenu);
-
-  tray.on("click", () => {
-    if (mainWindow) {
-      mainWindow.isVisible() ? mainWindow.hide() : mainWindow.show();
-    }
-  });
+  ];
+}
 }
 
 function registerGlobalShortcuts() {
@@ -307,7 +330,28 @@ function showNotification(title, body) {
 
 // ── App Lifecycle ────────────────────────────────────────────────────
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
+  // First-run: ask for auto-launch consent (was previously forced).
+  try {
+    const settings = app.getLoginItemSettings();
+    if (!settings.openAtLogin && !settings.wasOpenedAtLogin) {
+      const result = await dialog.showMessageBox({
+        type: "question",
+        title: "Personal AI Runtime",
+        message: "是否允许开机自启？",
+        detail: "开机自启后，AI 可以在后台持续为你工作。你可以在托盘菜单中随时切换。",
+        buttons: ["允许", "暂不"],
+        defaultId: 0,
+        cancelId: 1,
+      });
+      if (result.response === 0) {
+        app.setLoginItemSettings({ openAtLogin: true, openAsHidden: true });
+      }
+    }
+  } catch {
+    // login item settings not supported on this platform — skip silently
+  }
+
   // Auto-start backend
   startBackend();
 
@@ -335,10 +379,16 @@ app.on("before-quit", () => {
   stopBackend();
 });
 
-app.setLoginItemSettings({
-  openAtLogin: true,
-  openAsHidden: true,
-});
+// Check if auto-launch was previously consented; if not, ask on first run.
+const launchKey = "autoLaunchAccepted";
+try {
+  const launchAccepted = app.getLoginItemSettings().openAtLogin;
+  if (!launchAccepted) {
+    // Will be prompted below (after app ready)
+  }
+} catch {
+  // ignore — platform may not support login items
+}
 
 // ── WebSocket ────────────────────────────────────────────────────────
 

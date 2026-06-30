@@ -391,7 +391,7 @@ export default function ChatView({ conversationId }: Props) {
               </div>
             )}
             <div className="flex gap-3 items-end bg-gray-900 rounded-xl border border-gray-700 focus-within:border-emerald-600 transition-colors p-3">
-              <VoiceInput onTranscript={handleVoiceTranscript} disabled={true} />
+              <VoiceInput onTranscript={handleVoiceTranscript} disabled={isLoading || !!pendingConfirmation} />
               <textarea
                 ref={inputRef}
                 value={input}

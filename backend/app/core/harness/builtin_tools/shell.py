@@ -40,8 +40,6 @@ class ShellServer:
         # Text processing
         "grep", "egrep", "rg", "awk", "sed", "sort", "uniq", "cut",
         "tr", "diff", "find", "xargs", "tee",
-        # HTTP clients
-        "curl", "wget",
         # Docker (read-only operations)
         "docker",
         # Formatting

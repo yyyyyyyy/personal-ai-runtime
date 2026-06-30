@@ -60,7 +60,6 @@ def bg_test_env(tmp_path, monkeypatch):
     k = Kernel(db=db)
     monkeypatch.setattr("app.core.runtime.kernel_instance.kernel", k)
     monkeypatch.setattr("app.core.runtime.background_worker.kernel", k)
-    monkeypatch.setattr("app.core.runtime.background_worker.db", db)
     monkeypatch.setattr("app.store.database.db", db)
     return db, k
 

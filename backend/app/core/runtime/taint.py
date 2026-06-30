@@ -5,12 +5,21 @@ subsequent write-class capability invocations in the same correlation chain
 MUST require user approval.
 
 Tool names MUST match mcp_hub registrations and capability_policy.json.
+
+v0.2.1: Taint marks moved from contextvars.ContextVar to an instance-level dict
+with TTL-based expiry. ContextVar was async-task-local and broke under
+asyncio.gather fan-out in the Scheduler, silently dropping taint across tasks
+that share the same correlation_id.
 """
 
 from __future__ import annotations
 
-import contextvars
+import time
 from typing import Any
+
+# TTL for taint marks in seconds (5 minutes).
+# After this duration, the mark is considered expired and cleaned up on next access.
+_TAINT_TTL_SECONDS = 300
 
 # Builtin MCP tools that ingest untrusted external content (see mcp_hub).
 _BUILTIN_EXTERNAL_INGESTION_TOOLS = frozenset({
@@ -51,41 +60,47 @@ WRITE_CLASS_TOOLS = frozenset({
 })
 
 
-_taint_marks: contextvars.ContextVar[dict[str, dict[str, Any]] | None] = contextvars.ContextVar(
-    "taint_marks",
-    default=None,
-)
-
-
 class TaintRegistry:
-    """Async/task-local taint marks keyed by correlation_id."""
+    """Instance-level taint marks keyed by correlation_id with TTL expiry.
 
-    def _store(self) -> dict[str, dict[str, Any]]:
-        store = _taint_marks.get()
-        if store is None:
-            store = {}
-            _taint_marks.set(store)
-        return store
+    Uses a plain dict instead of contextvars.ContextVar so that taint
+    propagates across asyncio task boundaries (e.g. asyncio.gather in the
+    Scheduler). Each mark carries a timestamp; entries older than
+    _TAINT_TTL_SECONDS are silently evicted on access via _expire().
+    """
+
+    def __init__(self):
+        self._store: dict[str, dict[str, Any]] = {}
+
+    def _expire(self) -> None:
+        """Remove stale taint marks older than _TAINT_TTL_SECONDS."""
+        now = time.monotonic()
+        stale = [cid for cid, m in self._store.items()
+                 if now - m.get("_ts", 0) > _TAINT_TTL_SECONDS]
+        for cid in stale:
+            self._store.pop(cid, None)
 
     def mark(self, correlation_id: str | None, *, source: str, reason: str = "") -> None:
         if not correlation_id:
             return
-        self._store()[correlation_id] = {
+        self._store[correlation_id] = {
             "source": source,
             "reason": reason or source,
+            "_ts": time.monotonic(),
         }
 
     def is_tainted(self, correlation_id: str | None) -> bool:
         if not correlation_id:
             return False
-        return correlation_id in self._store()
+        self._expire()
+        return correlation_id in self._store
 
     def clear(self, correlation_id: str | None) -> None:
         if correlation_id:
-            self._store().pop(correlation_id, None)
+            self._store.pop(correlation_id, None)
 
     def clear_all(self) -> None:
-        self._store().clear()
+        self._store.clear()
 
 
 taint_registry = TaintRegistry()

@@ -34,6 +34,7 @@ from app.core.logging_config import configure_logging
 from app.core.runtime.background_worker import background_worker
 from app.core.runtime.cron_registry import init_scheduler, shutdown_scheduler
 from app.core.startup_health import enrich_with_mcp_status, run_startup_checks
+from app.version import VERSION
 
 configure_logging()
 logger = logging.getLogger(__name__)
@@ -289,7 +290,7 @@ All data stored locally (SQLite + ChromaDB), never leaves your machine.
 
 See [USER_GUIDE.md](https://github.com/yyyyyyyy/personal-ai-runtime/blob/main/docs/USER_GUIDE.md)
 for setup and usage instructions.""",
-    version="local",
+    version=VERSION,
     lifespan=lifespan,
 )
 

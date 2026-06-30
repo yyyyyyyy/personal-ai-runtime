@@ -40,6 +40,12 @@ class QueryStateMixin(_KernelMixinInterface):
             return self._query_messages(filters)
         if selector == "inbox_emails":
             return self._query_inbox_emails(filters)
+        if selector == "background_tasks":
+            return self._query_background_tasks(filters)
+        if selector == "triggers":
+            return self._query_triggers(filters)
+        if selector == "user_profile":
+            return self._query_user_profile(filters)
         raise ValueError(f"Unknown state selector: {selector!r}")
 
     def _query_goals(self, filters: dict[str, Any]) -> list[dict]:
@@ -290,6 +296,8 @@ class QueryStateMixin(_KernelMixinInterface):
         title = filters.get("title")
         unread_only = filters.get("unread_only")
         created_on_date = filters.get("created_on_date")
+        related_id = filters.get("related_id")
+        notification_type = filters.get("notification_type")
         limit = filters.get("limit", 50)
         order = filters.get("order", "created_at_desc")
 
@@ -319,6 +327,12 @@ class QueryStateMixin(_KernelMixinInterface):
             if created_on_date is not None:
                 clauses.append("date(created_at) = date(?)")
                 params.append(created_on_date)
+            if related_id is not None:
+                clauses.append("related_id = ?")
+                params.append(related_id)
+            if notification_type is not None:
+                clauses.append("notification_type = ?")
+                params.append(notification_type)
 
             where = f" WHERE {' AND '.join(clauses)}" if clauses else ""
             params.append(limit)
@@ -490,4 +504,76 @@ class QueryStateMixin(_KernelMixinInterface):
                 f"SELECT * FROM grant_events{where} ORDER BY capability ASC LIMIT ?",
                 params,
             ).fetchall()
+        return [dict(r) for r in rows]
+
+    def _query_background_tasks(self, filters: dict[str, Any]) -> list[dict]:
+        task_id = filters.get("id")
+        status = filters.get("status")
+        limit = filters.get("limit", 50)
+        order = filters.get("order", "created_at_desc")
+
+        order_clause = "created_at DESC" if order == "created_at_desc" else "created_at ASC"
+
+        with self._db.get_db() as conn:
+            if task_id:
+                row = conn.execute(
+                    "SELECT * FROM background_tasks WHERE id = ?", (task_id,)
+                ).fetchone()
+                return [dict(row)] if row else []
+
+            clauses: list[str] = []
+            params: list[Any] = []
+            if status is not None:
+                clauses.append("status = ?")
+                params.append(status)
+
+            where = f" WHERE {' AND '.join(clauses)}" if clauses else ""
+            params.append(limit)
+            rows = conn.execute(
+                f"SELECT * FROM background_tasks{where} ORDER BY {order_clause} LIMIT ?",
+                params,
+            ).fetchall()
+        return [dict(r) for r in rows]
+
+    def _query_triggers(self, filters: dict[str, Any]) -> list[dict]:
+        trigger_id = filters.get("id")
+        name = filters.get("name")
+        enabled = filters.get("enabled")
+        limit = filters.get("limit", 100)
+
+        with self._db.get_db() as conn:
+            if trigger_id:
+                row = conn.execute(
+                    "SELECT * FROM triggers WHERE id = ?", (trigger_id,)
+                ).fetchone()
+                return [dict(row)] if row else []
+            if name:
+                row = conn.execute(
+                    "SELECT * FROM triggers WHERE name = ?", (name,)
+                ).fetchone()
+                return [dict(row)] if row else []
+
+            clauses: list[str] = []
+            params: list[Any] = []
+            if enabled is not None:
+                clauses.append("enabled = ?")
+                params.append(1 if enabled else 0)
+
+            where = f" WHERE {' AND '.join(clauses)}" if clauses else ""
+            params.append(limit)
+            rows = conn.execute(
+                f"SELECT * FROM triggers{where} ORDER BY created_at DESC LIMIT ?",
+                params,
+            ).fetchall()
+        return [dict(r) for r in rows]
+
+    def _query_user_profile(self, filters: dict[str, Any]) -> list[dict]:
+        category = filters.get("id")
+        with self._db.get_db() as conn:
+            if category:
+                row = conn.execute(
+                    "SELECT * FROM user_profile WHERE category = ?", (category,)
+                ).fetchone()
+                return [dict(row)] if row else []
+            rows = conn.execute("SELECT * FROM user_profile ORDER BY category").fetchall()
         return [dict(r) for r in rows]

@@ -15,7 +15,6 @@ from app.store.database import Database
 def engine_setup(tmp_path, monkeypatch):
     db = Database(db_path=str(tmp_path / "trigger.db"))
     kernel = Kernel(db=db)
-    monkeypatch.setattr("app.core.runtime.trigger_engine.db", db)
     monkeypatch.setattr("app.core.runtime.trigger_engine.kernel", kernel)
     engine = TriggerEngine()
     return engine, kernel, db
