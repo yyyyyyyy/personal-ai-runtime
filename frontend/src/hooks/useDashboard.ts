@@ -71,7 +71,7 @@ export function useDashboard() {
   });
 
   const notifications = useQuery<Notification[]>({
-    queryKey: queryKeys.dashboard,
+    queryKey: ["notifications", "dashboard"],
     queryFn: () => listNotifications(10).catch(() => [] as Notification[]),
     refetchInterval: DASHBOARD_STALE_MS,
     staleTime: 30_000,

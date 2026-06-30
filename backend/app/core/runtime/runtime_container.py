@@ -12,7 +12,7 @@ subsystem list, populated lazily on first access.
 from __future__ import annotations
 
 import threading
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from app.core.runtime.agent_bus import AgentBus
