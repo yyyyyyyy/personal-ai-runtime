@@ -131,14 +131,6 @@ async def contest_memory(memory_id: str):
     return {"status": "ok", "claim_status": "contested"}
 
 
-# --- User Profile endpoints (Memory v2) ---
-
-@router.get("/profile")
-async def get_profile():
-    """Get the structured user profile."""
-    return user_profile.get_profile()
-
-
 # --- AI Portrait endpoint (Phase 1: Trust Moat) ---
 
 @router.get("/portrait")
@@ -198,13 +190,6 @@ async def get_portrait():
         ],
         "goals": goals_progress,
     }
-
-
-@router.post("/profile/refresh")
-async def refresh_profile():
-    """Recalculate time decay and refresh profile confidence scores."""
-    user_profile.refresh_all()
-    return {"status": "ok", "profile": user_profile.get_profile()}
 
 
 # --- Memory Graph endpoints ---

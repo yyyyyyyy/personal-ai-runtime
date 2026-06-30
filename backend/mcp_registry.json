@@ -4,16 +4,16 @@
     "description": "Browser automation - navigate pages, take screenshots, click elements",
     "category": "browser",
     "install_command": "npx",
-    "install_args": ["-y", "@anthropic/mcp-server-playwright"],
+    "install_args": ["-y", "@playwright/mcp@latest", "--headless"],
     "env_vars": {},
     "icon": "globe"
   },
   {
-    "name": "brave-search",
+    "name": "brave",
     "description": "Brave web search API - search the web for real-time information",
     "category": "search",
     "install_command": "npx",
-    "install_args": ["-y", "@anthropic/mcp-server-brave-search"],
+    "install_args": ["-y", "@brave/brave-search-mcp-server"],
     "env_vars": {"BRAVE_API_KEY": "从 https://brave.com/search/api/ 获取"},
     "icon": "search"
   },
@@ -31,7 +31,7 @@
     "description": "GitHub API - manage repos, issues, PRs from AI",
     "category": "developer",
     "install_command": "npx",
-    "install_args": ["-y", "@anthropic/mcp-server-github"],
+    "install_args": ["-y", "@modelcontextprotocol/server-github"],
     "env_vars": {"GITHUB_PERSONAL_ACCESS_TOKEN": "GitHub 个人访问令牌"},
     "icon": "github"
   },
@@ -40,7 +40,7 @@
     "description": "Tavily AI search - deep web search and content extraction",
     "category": "search",
     "install_command": "npx",
-    "install_args": ["-y", "@anthropic/mcp-server-tavily"],
+    "install_args": ["-y", "tavily-mcp@latest"],
     "env_vars": {"TAVILY_API_KEY": "从 https://tavily.com 获取"},
     "icon": "search"
   },
@@ -49,44 +49,8 @@
     "description": "Notion integration - search and retrieve Notion pages",
     "category": "productivity",
     "install_command": "npx",
-    "install_args": ["-y", "@anthropic/mcp-server-notion"],
+    "install_args": ["-y", "@notionhq/notion-mcp-server"],
     "env_vars": {"NOTION_TOKEN": "Notion 集成令牌"},
     "icon": "file-text"
-  },
-  {
-    "name": "filesystem",
-    "description": "Filesystem MCP - secure file read/write operations",
-    "category": "system",
-    "install_command": "npx",
-    "install_args": ["-y", "@anthropic/mcp-server-filesystem", "/path/to/allowed/dir"],
-    "env_vars": {},
-    "icon": "folder"
-  },
-  {
-    "name": "memory",
-    "description": "Memory MCP - knowledge graph based persistent memory",
-    "category": "ai",
-    "install_command": "npx",
-    "install_args": ["-y", "@anthropic/mcp-server-memory"],
-    "env_vars": {},
-    "icon": "brain"
-  },
-  {
-    "name": "slack",
-    "description": "Slack integration - read messages, list channels",
-    "category": "communication",
-    "install_command": "npx",
-    "install_args": ["-y", "@anthropic/mcp-server-slack"],
-    "env_vars": {"SLACK_BOT_TOKEN": "Slack Bot Token"},
-    "icon": "message-square"
-  },
-  {
-    "name": "postgres",
-    "description": "PostgreSQL MCP - query databases from AI",
-    "category": "developer",
-    "install_command": "npx",
-    "install_args": ["-y", "@anthropic/mcp-server-postgres", "postgresql://user:pass@localhost/db"],
-    "env_vars": {},
-    "icon": "database"
   }
 ]

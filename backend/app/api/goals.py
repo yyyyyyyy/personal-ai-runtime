@@ -4,7 +4,7 @@ import json
 import uuid
 from datetime import UTC, datetime
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException
 
 from app.api.models import CreateActionRequest, CreateGoalRequest
 from app.core.runtime.kernel_instance import kernel
@@ -84,28 +84,6 @@ async def list_goals(status: str | None = None, limit: int = 50):
     if status:
         filters["status"] = status
     return kernel.query_state("goals", **filters)
-
-
-@router.get("/priorities/sorted")
-async def get_prioritized_goals():
-    """Get goals sorted by priority (importance x urgency x stagnation_time)."""
-    goals = kernel.query_state("goals", status="active", limit=500)
-    scored = [{**g, "priority_score": _goal_priority_score(g)} for g in goals]
-    scored.sort(key=lambda g: g["priority_score"], reverse=True)
-    return scored[:20]
-
-
-@router.get("/stagnant")
-async def get_stagnant_goals(days: int = Query(3, ge=1)):
-    """Get goals that haven't been updated in the specified number of days."""
-    result = kernel.query_state(
-        "goals",
-        status="active",
-        last_activity_older_than_days=days,
-        order="last_activity_asc",
-        limit=500,
-    )
-    return result if result else []
 
 
 @router.get("/{goal_id}")
@@ -267,25 +245,6 @@ async def delete_action(goal_id: str, action_id: str):
         actor="user",
     )
     return {"status": "ok"}
-
-
-# --- Priority & Stagnation (read-only queries) -------------------------------
-
-def _goal_priority_score(goal: dict) -> float:
-    """Match legacy SQL: importance * urgency * days since last activity."""
-    from datetime import datetime
-
-    importance = float(goal.get("importance") or 0)
-    urgency = float(goal.get("urgency") or 0)
-    activity_at = goal.get("last_activity_at") or goal.get("created_at")
-    if not activity_at:
-        return 0.0
-    try:
-        activity_dt = datetime.fromisoformat(activity_at)
-    except ValueError:
-        return importance * urgency
-    days_stale = max((datetime.now(UTC) - activity_dt).total_seconds() / 86400.0, 0.0)
-    return importance * urgency * days_stale
 
 
 def _get_goal(goal_id: str) -> dict | None:
