@@ -35,7 +35,10 @@ IMPORT_CONFIRM = "DESTROY_AND_IMPORT"
 
 @router.get("/health")
 async def health_check(request: Request):
-    """Health check endpoint with startup diagnostics."""
+    """Health check endpoint with startup diagnostics.
+
+    Use /live for liveness probes (no DB dependency).
+    """
     startup = getattr(request.app.state, "startup_health", None)
     if startup and not _request_has_valid_auth(request):
         startup = sanitize_startup_for_public(startup)
@@ -46,6 +49,29 @@ async def health_check(request: Request):
         "auth_required": bool(settings.auth_token),
         "startup": startup,
     }
+
+
+@router.get("/live")
+async def liveness():
+    """Liveness probe — returns 200 as long as the process is running.
+
+    No DB or LLM dependencies. Safe for Docker healthcheck.
+    """
+    return {"status": "ok", "service": "personal-ai-runtime"}
+
+
+@router.get("/ready")
+async def readiness(request: Request):
+    """Readiness probe — checks DB is initialised and writable.
+
+    Safe for k8s readiness probes; Docker healthcheck can use /live instead.
+    """
+    from app.core.runtime.kernel_instance import kernel
+    try:
+        kernel.table_counts(("event_log",))
+    except Exception:
+        raise HTTPException(status_code=503, detail="Database not ready")
+    return {"status": "ok", "service": "personal-ai-runtime"}
 
 
 @router.get("/llm-providers")

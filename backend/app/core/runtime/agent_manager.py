@@ -19,7 +19,7 @@ from typing import TYPE_CHECKING
 import app.core.agents.mvp.planner_agent  # noqa: F401
 import app.core.agents.mvp.worker_agent  # noqa: F401
 from app.core.agents.mvp import PLANNER_DEFINITION, WORKER_DEFINITION
-from app.core.runtime.agent_bus import agent_bus
+from app.core.runtime.agent_bus import SubscriptionRule, agent_bus
 
 if TYPE_CHECKING:
     from app.core.runtime.kernel.kernel import Kernel
@@ -99,26 +99,20 @@ class AgentManager:
         )
 
         try:
-            # Wait for pipeline completion by polling event log
-            planner_events_seen = 0
-            worker_events_seen = 0
-            deadline = asyncio.get_event_loop().time() + _AGENT_EVENT_TIMEOUT
+            # Wait for pipeline completion via event-driven subscription
+            completion_event = asyncio.Event()
 
-            while deadline > asyncio.get_event_loop().time():
-                events = self._kernel.read_events(correlation_id=correlation_id)
-                planner_events_seen = len([
-                    e for e in events
-                    if e.type in {"TaskCreated", "TaskPlanned", "TaskCompleted"}
-                    and e.actor.startswith("agent:")
-                ])
-                worker_events_seen = len([
-                    e for e in events
-                    if e.type in {"TaskPlanned", "TaskCompleted"}
-                    and e.actor.startswith("agent:")
-                ])
-                if planner_events_seen >= 2 and worker_events_seen >= 1:
-                    break
-                await asyncio.sleep(0.2)
+            def _on_completion(evt):  # type: ignore[no-untyped-def]
+                if evt.type in {"TaskCompleted", "TaskFailed"}:
+                    completion_event.set()
+
+            agent_bus.subscribe(worker.instance_id, SubscriptionRule(event_type="Task*"), _on_completion)
+
+            try:
+                await asyncio.wait_for(completion_event.wait(), timeout=_AGENT_EVENT_TIMEOUT)
+                status = "ok"
+            except asyncio.TimeoutError:
+                status = "timeout"
 
             # 6. Clean up
             agent_bus.unsubscribe_all(planner.instance_id)
@@ -127,8 +121,16 @@ class AgentManager:
             await registry.kill(planner.instance_id, reason="completed")
             await registry.kill(worker.instance_id, reason="completed")
 
+            results = self._kernel.read_events(correlation_id=correlation_id)
+            planner_events_seen = len([
+                e for e in results if e.type in {"TaskCreated", "TaskPlanned", "TaskCompleted"}
+            ])
+            worker_events_seen = len([
+                e for e in results if e.type in {"TaskPlanned", "TaskCompleted"}
+            ])
+
             return {
-                "status": "ok",
+                "status": status,
                 "task_id": task_id,
                 "correlation_id": correlation_id,
                 "planner_events": planner_events_seen,

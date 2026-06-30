@@ -47,7 +47,7 @@ _ws_lock = Lock()
 
 # ── Auth middleware ──────────────────────────────────────────────────────────
 
-SKIP_AUTH_PATHS = frozenset({"/", "/api/system/health", "/docs", "/redoc", "/openapi.json"})
+SKIP_AUTH_PATHS = frozenset({"/", "/api/system/health", "/api/system/live", "/docs", "/redoc", "/openapi.json"})
 
 
 def _path_requires_auth(path: str) -> bool:

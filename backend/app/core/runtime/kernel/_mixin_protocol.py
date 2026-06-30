@@ -14,7 +14,12 @@ from .event import Event
 
 
 class _KernelMixinInterface(Protocol):
-    """Minimal Kernel surface needed by GovernanceMixin + SovereigntyMixin."""
+    """Minimal Kernel surface needed by GovernanceMixin + SovereigntyMixin.
+
+    NOTE: This is deliberately incomplete — mypy treats un-declared attributes
+    on Protocol types as Any, which is acceptable for mixin type-checking.
+    Only the most commonly referenced methods are declared.
+    """
 
     _db: Any
 
@@ -44,3 +49,5 @@ class _KernelMixinInterface(Protocol):
     ) -> list[Event]: ...
 
     def _sync_memory_index(self, event: Event) -> None: ...
+    def rebuild(self, aggregate_type: str, agent_id: str = "kernel") -> int: ...
+    def rebuild_all(self) -> dict[str, int]: ...

@@ -284,7 +284,7 @@ class TestConversationStateFragment:
 
         f = ConversationStateFragment()
         assert f.id == "core.conversation_state"
-        assert f.priority == 90
+        assert f.priority == 80  # reduced from 90: Brain handles full history separately
         assert "conversation" in f.tags
 
         # 新会话（无 conversation_id）
@@ -297,7 +297,7 @@ class TestConversationStateFragment:
         from app.fragments.universal.conversation_state import ConversationStateFragment
 
         f = ConversationStateFragment()
-        assert f.max_tokens == 1500  # 有上限
+        assert f.max_tokens == 800  # reduced from 1500: Brain injects full history
 
 
 # ═══════════════════════════════════════════════════════════════════════════

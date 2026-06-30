@@ -19,8 +19,8 @@ class ConversationStateFragment(ContextFragment):
     """当前会话认知状态 — 摘要而非原始 transcript。"""
 
     id: str = field(default="core.conversation_state", init=False)
-    priority: int = field(default=90, init=False)
-    max_tokens: int = field(default=1500, init=False)
+    priority: int = field(default=80, init=False)  # priority tier threshold; Brain handles full history separately
+    max_tokens: int = field(default=800, init=False)  # reduced from 1500: Brain injects full history
     tags: frozenset[str] = field(default_factory=lambda: frozenset({"conversation", "universal"}), init=False)
 
     async def collect(self, ctx: RuntimeContext) -> FragmentResult:

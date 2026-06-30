@@ -215,3 +215,74 @@ CREATE TABLE IF NOT EXISTS app_settings (
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 """
+
+# ── Kernel-space DDL ──────────────────────────────────────────────────────
+# Moved from kernel.py to keep schema concerns in the store layer.
+
+EVENT_LOG_SCHEMA = """
+CREATE TABLE IF NOT EXISTS event_log (
+    seq            INTEGER PRIMARY KEY AUTOINCREMENT,
+    id             TEXT NOT NULL UNIQUE,
+    type           TEXT NOT NULL,
+    aggregate_type TEXT NOT NULL,
+    aggregate_id   TEXT NOT NULL,
+    actor          TEXT NOT NULL DEFAULT 'system',
+    payload        TEXT,
+    caused_by      TEXT,
+    correlation_id TEXT,
+    ts             DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_event_log_aggregate
+    ON event_log (aggregate_type, aggregate_id, seq);
+CREATE INDEX IF NOT EXISTS idx_event_log_correlation
+    ON event_log (correlation_id);
+CREATE TRIGGER IF NOT EXISTS event_log_no_update
+    BEFORE UPDATE ON event_log
+    BEGIN SELECT RAISE(ABORT, 'event_log is append-only: UPDATE forbidden'); END;
+CREATE TRIGGER IF NOT EXISTS event_log_no_delete
+    BEFORE DELETE ON event_log
+    BEGIN SELECT RAISE(ABORT, 'event_log is append-only: DELETE forbidden'); END;
+"""
+
+PROJECTION_CHECKPOINTS_SCHEMA = """
+CREATE TABLE IF NOT EXISTS projection_checkpoints (
+    agent_id         TEXT NOT NULL DEFAULT 'kernel',
+    aggregate_type   TEXT NOT NULL,
+    last_applied_seq INTEGER NOT NULL,
+    snapshot_json    TEXT NOT NULL,
+    created_at       TEXT NOT NULL,
+    PRIMARY KEY (agent_id, aggregate_type)
+);
+"""
+
+HANDLER_EXECUTIONS_SCHEMA = """
+CREATE TABLE IF NOT EXISTS handler_executions (
+    id               TEXT PRIMARY KEY,
+    event_seq        INTEGER NOT NULL,
+    event_id         TEXT NOT NULL,
+    event_type       TEXT NOT NULL,
+    handler_name     TEXT NOT NULL,
+    instance_id      TEXT NOT NULL,
+    status           TEXT NOT NULL DEFAULT 'pending',
+    retry_count      INTEGER NOT NULL DEFAULT 0,
+    policy_json      TEXT NOT NULL DEFAULT '{}',
+    correlation_id   TEXT NOT NULL DEFAULT '',
+    created_at       TEXT NOT NULL,
+    started_at       TEXT NOT NULL DEFAULT '',
+    completed_at     TEXT NOT NULL DEFAULT '',
+    error            TEXT NOT NULL DEFAULT ''
+);
+CREATE INDEX IF NOT EXISTS idx_handler_executions_status
+    ON handler_executions (status);
+CREATE INDEX IF NOT EXISTS idx_handler_executions_instance
+    ON handler_executions (instance_id);
+"""
+
+MEMORIES_LEGACY_DDL = [
+    "ALTER TABLE memories ADD COLUMN confidence REAL DEFAULT 0.5",
+    "ALTER TABLE memories ADD COLUMN derived_from_event TEXT",
+    "ALTER TABLE memories ADD COLUMN decayed_at DATETIME",
+    "ALTER TABLE memories ADD COLUMN status TEXT DEFAULT 'active'",
+    "ALTER TABLE memories ADD COLUMN origin TEXT DEFAULT 'claim'",
+    "ALTER TABLE memories ADD COLUMN claim_status TEXT",
+]

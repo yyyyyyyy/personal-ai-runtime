@@ -47,13 +47,13 @@ def _migrate_messages_sources(conn) -> None:
 
 def apply_raw_ddl(db: Database) -> None:
     """Apply inline DDL for test/custom databases (no Alembic)."""
-    from app.core.runtime.kernel.kernel import (
+    from app.store.schema_ddl import (
+        APP_STORAGE_DDL,
         EVENT_LOG_SCHEMA,
         HANDLER_EXECUTIONS_SCHEMA,
         MEMORIES_LEGACY_DDL,
         PROJECTION_CHECKPOINTS_SCHEMA,
     )
-    from app.store.schema_ddl import APP_STORAGE_DDL
 
     with db.get_db() as conn:
         conn.executescript(APP_STORAGE_DDL)

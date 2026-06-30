@@ -105,10 +105,38 @@ class CapabilityPolicy:
     def register_external_tool(self, name: str, *, risk: str) -> None:
         """Register an external MCP tool policy and emit the appropriate event.
 
-        Updates in-memory cache (fast path for risk_for) and emits
-        PolicyCreated / PolicyUpdated to the event log.
+        Emits PolicyCreated/PolicyUpdated to the event log FIRST (projection
+        is the single source of truth), then updates the in-memory cache.
+        Previously the in-memory cache was updated before the emit, which
+        could leave it stale if the emit failed.
         """
-        # Update in-memory cache
+        # Emit event for event-sourced persistence (projection = SSOT)
+        if self._kernel is not None:
+            existing_rows = self._kernel.query_state("policy_events", capability=name, limit=1)
+            if existing_rows:
+                existing = existing_rows[0]
+                if existing.get("status") == "revoked":
+                    self._kernel.emit_event(
+                        "PolicyCreated", "policy", f"policy_{name}",
+                        payload={"capability": name, "risk_level": risk},
+                        actor="kernel",
+                    )
+                else:
+                    existing_risk = existing.get("risk_level")
+                    if existing_risk != risk:
+                        self._kernel.emit_event(
+                            "PolicyUpdated", "policy", f"policy_{name}",
+                            payload={"capability": name, "risk_level": risk},
+                            actor="kernel",
+                        )
+            else:
+                self._kernel.emit_event(
+                    "PolicyCreated", "policy", f"policy_{name}",
+                    payload={"capability": name, "risk_level": risk},
+                    actor="kernel",
+                )
+
+        # Update in-memory cache AFTER emit (read-through mirror of projection)
         self._external_auto_allow.discard(name)
         self._external_needs_user.discard(name)
         self._external_forbidden.discard(name)
@@ -118,41 +146,6 @@ class CapabilityPolicy:
             self._external_needs_user.add(name)
         else:
             self._external_auto_allow.add(name)
-
-        # Emit event for event-sourced persistence
-        if self._kernel is None:
-            return
-
-        existing_rows = self._kernel.query_state("policy_events", capability=name, limit=1)
-        if existing_rows:
-            existing = existing_rows[0]
-            if existing.get("status") == "revoked":
-                # Re-activate after shutdown: PolicyCreated resets status via INSERT OR REPLACE
-                self._kernel.emit_event(
-                    "PolicyCreated",
-                    "policy",
-                    f"policy_{name}",
-                    payload={"capability": name, "risk_level": risk},
-                    actor="kernel",
-                )
-            else:
-                existing_risk = existing.get("risk_level")
-                if existing_risk != risk:
-                    self._kernel.emit_event(
-                        "PolicyUpdated",
-                        "policy",
-                        f"policy_{name}",
-                        payload={"capability": name, "risk_level": risk},
-                        actor="kernel",
-                    )
-        else:
-            self._kernel.emit_event(
-                "PolicyCreated",
-                "policy",
-                f"policy_{name}",
-                payload={"capability": name, "risk_level": risk},
-                actor="kernel",
-            )
 
     def clear_external_tools(self) -> None:
         """Revoke all external tool policies and clear in-memory cache.
