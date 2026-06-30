@@ -367,17 +367,21 @@ class Brain(BrainCompletionMixin):
             i += 1
 
         # Second pass: build messages respecting the validated structure
+        # Pre-build tool_name lookup from tool_call_id to tool name (O(n) once)
+        tool_name_by_id: dict[str, str] = {}
+        for tc_msg in tagged:
+            if tc_msg.get("role") == "assistant" and tc_msg.get("tool_calls"):
+                for tcall in tc_msg["tool_calls"]:
+                    if tcall.get("id"):
+                        tool_name_by_id[tcall["id"]] = tcall.get("function", {}).get("name", "")
+
         for idx, msg in enumerate(tagged):
             if msg["role"] == "tool":
                 if keep_tool_result.get(idx):
                     tool_content = msg["content"] or ""
-                    tool_name_guess = ""
-                    for tc in tagged:
-                        if tc.get("role") == "assistant" and tc.get("tool_calls"):
-                            for tcall in tc["tool_calls"]:
-                                if tcall.get("id") == msg.get("tool_call_id"):
-                                    tool_name_guess = tcall.get("function", {}).get("name", "")
+                    tool_name_guess = tool_name_by_id.get(msg.get("tool_call_id") or "", "")
                     if tool_name_guess:
+                        tool_content = compact_for_llm(tool_name_guess, tool_content)
                         tool_content = compact_for_llm(tool_name_guess, tool_content)
                     messages.append({
                         "role": "tool",

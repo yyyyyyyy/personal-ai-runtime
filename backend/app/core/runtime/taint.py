@@ -103,5 +103,12 @@ def clear_external_write_tools() -> None:
     _EXTERNAL_WRITE_DYNAMIC.clear()
 
 
+def reset_external_tools() -> None:
+    """Clear all dynamic external tool registrations — for test isolation."""
+    _EXTERNAL_INGESTION_DYNAMIC.clear()
+    _EXTERNAL_WRITE_DYNAMIC.clear()
+    taint_registry.clear_all()
+
+
 def is_write_class_tool(name: str) -> bool:
     return name in WRITE_CLASS_TOOLS or name in _EXTERNAL_WRITE_DYNAMIC

@@ -179,5 +179,17 @@ class CapabilityPolicy:
     def is_forbidden(self, name: str, kernel=None) -> bool:
         return self.risk_for(name, kernel=kernel) == "forbidden"
 
+    def reset(self) -> None:
+        """Clear in-memory caches — for test isolation.
+
+        The event-sourced projection (policy_events) remains intact;
+        only the fast-path cache is cleared. Next risk_for() call will
+        re-derive from the projection.
+        """
+        self._external_auto_allow.clear()
+        self._external_needs_user.clear()
+        self._external_forbidden.clear()
+        self._kernel = None
+
 
 capability_policy = CapabilityPolicy()
