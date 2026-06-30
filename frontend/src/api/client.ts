@@ -48,7 +48,10 @@ export {
   fetchSystemInfo,
   getLlmProviders,
   exportData,
+  exportEncryptedData,
   importData,
+  importEncryptedData,
+  destroyAllData,
   getDashboard,
 } from "./system";
 

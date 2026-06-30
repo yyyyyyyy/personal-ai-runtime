@@ -44,3 +44,24 @@ export async function importData(
     body: JSON.stringify(body),
   });
 }
+
+export async function exportEncryptedData(password: string): Promise<{ format: string; data: string }> {
+  return request(`${API_BASE}/system/export/encrypted`, {
+    method: "POST",
+    body: JSON.stringify({ confirm: "EXPORT_ALL_DATA", password }),
+  });
+}
+
+export async function importEncryptedData(data: string, password: string): Promise<Record<string, unknown>> {
+  return request(`${API_BASE}/system/import/encrypted`, {
+    method: "POST",
+    body: JSON.stringify({ confirm: "DESTROY_AND_IMPORT", data, password }),
+  });
+}
+
+export async function destroyAllData(): Promise<Record<string, unknown>> {
+  return request(`${API_BASE}/system/data`, {
+    method: "DELETE",
+    body: JSON.stringify({ confirm: "DESTROY_ALL_DATA" }),
+  });
+}

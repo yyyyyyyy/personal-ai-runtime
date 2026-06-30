@@ -3,7 +3,10 @@ import { API_BASE } from "../api/core";
 import {
   getSystemHealth,
   exportData,
+  exportEncryptedData,
   importData,
+  importEncryptedData,
+  destroyAllData,
   getLlmSettings,
   updateLlmSettings,
   testLlmConnection,
@@ -71,6 +74,10 @@ export default function SettingsPage() {
   const [exporting, setExporting] = useState(false);
   const [importing, setImporting] = useState(false);
   const [importConfirm, setImportConfirm] = useState("");
+  const [encryptPassword, setEncryptPassword] = useState("");
+  const [encryptExporting, setEncryptExporting] = useState(false);
+  const [encryptImporting, setEncryptImporting] = useState(false);
+  const [destroying, setDestroying] = useState(false);
   const [savingLlm, setSavingLlm] = useState(false);
   const [savingEmail, setSavingEmail] = useState(false);
   const [testingLlm, setTestingLlm] = useState<string | null>(null);
@@ -175,6 +182,59 @@ export default function SettingsPage() {
       addError("无法解析备份文件", "设置");
     } finally {
       e.target.value = "";
+    }
+  };
+
+  const handleEncryptedExport = async () => {
+    if (!encryptPassword) { addError("请输入加密密码", "设置"); return; }
+    setEncryptExporting(true);
+    try {
+      const result = await exportEncryptedData(encryptPassword);
+      const blob = new Blob([JSON.stringify(result, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `personal-ai-encrypted-backup-${new Date().toISOString().slice(0, 10)}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      const msg = err instanceof ApiError ? err.message : "加密导出失败";
+      addError(msg, "设置");
+    } finally {
+      setEncryptExporting(false);
+    }
+  };
+
+  const handleEncryptedImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !encryptPassword) { addError("请选择文件并输入密码", "设置"); return; }
+    setEncryptImporting(true);
+    try {
+      const raw = await file.text();
+      const { data, password } = JSON.parse(raw);
+      await importEncryptedData(data, password || encryptPassword);
+      addError("加密导入成功", "设置");
+      await load();
+    } catch {
+      addError("加密导入失败，请检查密码和文件", "设置");
+    } finally {
+      setEncryptImporting(false);
+      setEncryptPassword("");
+      e.target.value = "";
+    }
+  };
+
+  const handleDestroy = async () => {
+    if (!window.confirm("确定销毁全部个人数据？此操作不可撤销！")) return;
+    setDestroying(true);
+    try {
+      await destroyAllData();
+      addError("数据已销毁，请重新启动应用", "设置");
+    } catch (err) {
+      const msg = err instanceof ApiError ? err.message : "销毁失败";
+      addError(msg, "设置");
+    } finally {
+      setDestroying(false);
     }
   };
 
@@ -720,6 +780,45 @@ export default function SettingsPage() {
                 onChange={(e) => handleImportFile(e, true)}
               />
             </label>
+          </div>
+          <hr className="mt-4 border-gray-800" />
+          <div className="mt-4">
+            <h4 className="text-xs font-medium text-gray-400 mb-2">加密备份（端到端加密）</h4>
+            <div className="flex flex-wrap gap-3 items-end">
+              <Input
+                value={encryptPassword}
+                onChange={(e) => setEncryptPassword(e.target.value)}
+                placeholder="输入加密密码"
+                className="flex-1 text-xs"
+              />
+              <Button onClick={handleEncryptedExport} disabled={encryptExporting || !encryptPassword}>
+                {encryptExporting ? "加密导出中…" : "加密导出"}
+              </Button>
+              <label className="inline-block">
+                <span className={`inline-flex px-4 py-2 text-sm rounded-lg font-medium cursor-pointer ${encryptImporting || !encryptPassword ? "bg-gray-800 text-gray-600" : "bg-gray-700 hover:bg-gray-600 text-gray-100"}`}>
+                  {encryptImporting ? "导入中…" : "加密导入"}
+                </span>
+                <input
+                  type="file"
+                  accept=".json"
+                  className="hidden"
+                  disabled={encryptImporting || !encryptPassword}
+                  onChange={handleEncryptedImport}
+                />
+              </label>
+            </div>
+          </div>
+          <hr className="mt-4 border-gray-800" />
+          <div className="mt-4">
+            <h4 className="text-xs font-medium text-red-400 mb-2">危险操作</h4>
+            <Button
+              onClick={handleDestroy}
+              disabled={destroying}
+              className="bg-red-700 hover:bg-red-600 text-white text-sm"
+            >
+              {destroying ? "销毁中…" : "销毁全部数据"}
+            </Button>
+            <p className="text-xs text-gray-600 mt-1">永久删除所有对话、记忆、目标和事件。不可恢复。</p>
           </div>
         </Card>
       </div>

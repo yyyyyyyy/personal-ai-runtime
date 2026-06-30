@@ -295,13 +295,16 @@ class Kernel(QueryStateMixin, GovernanceMixin, SovereigntyMixin):
                     },
                     memory_id=event.aggregate_id,
                 )
-                # Best-effort backfill: pre-compute may have failed transiently.
+                # Backfill embedding_id through the Kernel so the projector
+                # writes it in the governed memories table (no direct DML).
                 try:
-                    with self._db.get_db() as conn:
-                        conn.execute(
-                            "UPDATE memories SET embedding_id = ? WHERE id = ?",
-                            (embedding_id, event.aggregate_id),
-                        )
+                    self.emit_event(
+                        "MemoryUpdated",
+                        "memory",
+                        event.aggregate_id,
+                        payload={"embedding_id": embedding_id},
+                        actor="kernel",
+                    )
                 except Exception:
                     logger.debug(
                         "Backfill embedding_id for %s failed; "
