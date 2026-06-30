@@ -44,8 +44,8 @@ async def test_on_task_completed_starts_dependents(tmp_path, monkeypatch):
     )
     k.emit_event("TaskStatusChanged", "task", "t1", payload={"status": "completed"}, actor="user")
 
-    from app.core.runtime.kernel.event import Event
     from app.core.runtime.cron_registry import _on_task_completed
+    from app.core.runtime.kernel.event import Event
 
     evt = Event(
         type="TaskCompleted",

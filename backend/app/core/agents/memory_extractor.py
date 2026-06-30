@@ -53,7 +53,7 @@ class MemoryExtractor:
         try:
             response = await client.chat.completions.create(
                 model=provider.model,
-                messages=egress_messages,
+                messages=egress_messages,  # type: ignore[arg-type]
                 max_tokens=200,
                 temperature=0.3,
             )
