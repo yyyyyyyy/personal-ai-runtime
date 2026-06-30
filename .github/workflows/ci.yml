@@ -87,7 +87,7 @@ jobs:
               '/api/goals/',
               '/api/memory/memories',
               '/api/memory/memories/grouped',
-              '/api/memory/profile',
+              '/api/memory/portrait',
               '/api/notifications/',
               '/api/system/health',
               '/api/tasks/',
