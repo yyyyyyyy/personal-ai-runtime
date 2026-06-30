@@ -28,7 +28,6 @@ from app.api import (
     telemetry_api,
     timeline,
     triggers,
-    workflows,
 )
 from app.config import settings
 from app.core.logging_config import configure_logging
@@ -322,7 +321,6 @@ app.include_router(inbox.router)
 app.include_router(connectors.router)
 app.include_router(timeline.router)
 app.include_router(knowledge.router)
-app.include_router(workflows.router)
 
 
 @app.get("/")

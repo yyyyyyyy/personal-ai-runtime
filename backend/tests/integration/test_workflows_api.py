@@ -1,5 +1,12 @@
-"""Integration tests for Workflow API — CRUD, export, palette."""
+"""Integration tests for Workflow API — CRUD, export, palette.
+
+Downgraded in v0.2: Workflow router is no longer registered in main.py.
+Tests are preserved but skipped pending decision to restore the feature.
+"""
+import pytest
 from starlette.testclient import TestClient
+
+pytestmark = pytest.mark.skip(reason="Workflow router downgraded in v0.2 — API not registered")
 
 
 def test_node_palette(client: TestClient):
