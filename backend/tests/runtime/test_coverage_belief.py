@@ -1,5 +1,4 @@
 """Coverage tests for Belief projectors (BeliefFormed / Strengthened / Revoked)."""
-import pytest
 
 
 def test_belief_formed_inserts_memory(isolated_kernel):

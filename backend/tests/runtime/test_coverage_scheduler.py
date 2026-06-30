@@ -1,5 +1,6 @@
 """Coverage tests for agent_scheduler start/stop lifecycle."""
 import pytest
+
 from app.core.runtime.agent_scheduler import Scheduler
 
 

@@ -1,11 +1,10 @@
 """Coverage tests for read_ports."""
-import pytest
 from app.core.runtime.read_ports import (
-    query_pending_actions,
-    query_top_active_goals,
     query_conversation_messages,
+    query_pending_actions,
     query_recent_inbox_emails,
     query_recent_legacy_events,
+    query_top_active_goals,
 )
 
 

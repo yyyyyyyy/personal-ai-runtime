@@ -112,12 +112,11 @@ class RuntimeContainer:
         connections or projections. Safe to call between tests.
         """
         with self._lock:
-            bus = self._agent_bus
-            if bus is not None:
-                bus.reset()
-            policy = self._capability_policy
-            if policy is not None:
-                policy.reset()
+            # Use lazy-loaded properties, not _internal fields.
+            # This ensures even the first call to reset() will find
+            # the live singleton.
+            self.agent_bus.reset()
+            self.capability_policy.reset()
             from app.core.runtime.governance.context_pipeline import reset_source_registry
             reset_source_registry()
             from app.core.runtime.taint import reset_external_tools

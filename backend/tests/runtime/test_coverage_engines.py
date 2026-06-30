@@ -1,6 +1,5 @@
 """Coverage tests for timer_engine, approval_engine, scheduler."""
-import pytest
-from app.core.runtime.timer_engine import _next_cron_fire, TimerEngine
+from app.core.runtime.timer_engine import TimerEngine, _next_cron_fire
 
 
 class TestTimerEngineCron:

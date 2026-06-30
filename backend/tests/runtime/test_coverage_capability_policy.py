@@ -1,8 +1,9 @@
 """Coverage tests for capability_policy external MCP tool registration."""
 import pytest
+
+from app.core.runtime.capability_policy import capability_policy
 from app.core.runtime.kernel import Kernel
 from app.store.database import Database
-from app.core.runtime.capability_policy import capability_policy
 
 
 @pytest.fixture

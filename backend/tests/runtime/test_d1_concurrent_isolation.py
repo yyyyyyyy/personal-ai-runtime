@@ -18,13 +18,10 @@ os.environ.setdefault("LLM_API_KEY", "test-key")
 
 @pytest.fixture(autouse=True)
 def _reset_scheduler():
-    from app.core.runtime.agent_bus import agent_bus
     from app.core.runtime.agent_scheduler import reset_scheduler
     reset_scheduler()
-    agent_bus.reset()
     yield
     reset_scheduler()
-    agent_bus.reset()
 
 
 @pytest.fixture

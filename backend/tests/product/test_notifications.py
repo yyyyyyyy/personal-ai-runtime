@@ -6,11 +6,11 @@ import pytest
 
 os.environ.setdefault("LLM_API_KEY", "test-key")
 
+from app.core.runtime.kernel import Kernel  # noqa: E402
 from app.product.notifications import (  # noqa: E402
     create_notification,
     parse_related_id,
 )
-from app.core.runtime.kernel import Kernel  # noqa: E402
 from app.store.database import Database  # noqa: E402
 
 

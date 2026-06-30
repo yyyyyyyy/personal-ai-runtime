@@ -1,5 +1,4 @@
 """Coverage tests for conversation projector edges."""
-import pytest
 
 
 def test_conversation_updated(isolated_kernel):

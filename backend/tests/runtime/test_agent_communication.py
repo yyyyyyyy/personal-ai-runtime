@@ -13,14 +13,14 @@ os.environ.setdefault("LLM_API_KEY", "test-key")
 
 @pytest.fixture(autouse=True)
 def _reset_scheduler():
-    """Reset the global scheduler singleton between tests."""
-    from app.core.runtime.agent_bus import agent_bus
+    """Reset the global scheduler singleton between tests.
+
+    agent_bus is cleaned by conftest._reset_runtime via RuntimeContainer.
+    """
     from app.core.runtime.agent_scheduler import reset_scheduler
     reset_scheduler()
-    agent_bus.reset()
     yield
     reset_scheduler()
-    agent_bus.reset()
 
 
 @pytest.fixture

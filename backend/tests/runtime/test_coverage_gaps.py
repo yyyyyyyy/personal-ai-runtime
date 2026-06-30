@@ -1,8 +1,6 @@
 """Coverage gap closure — targeted tests for modules missing 1-2 branches."""
 import os
 
-import pytest
-
 os.environ.setdefault("LLM_API_KEY", "test-key")
 
 

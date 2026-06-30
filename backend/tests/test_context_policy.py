@@ -145,8 +145,8 @@ class TestBehavioralParity:
 
     @pytest.mark.asyncio
     async def test_pipeline_build_from_request_matches_build(self, monkeypatch):
-        from app.core.runtime.governance.context_pipeline import ContextPipeline
         from app.assembler.context_assembler import AssemblyResult
+        from app.core.runtime.governance.context_pipeline import ContextPipeline
 
         registry = FragmentRegistry()
         register_all_fragments(registry)

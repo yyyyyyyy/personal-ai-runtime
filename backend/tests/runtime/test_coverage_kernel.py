@@ -1,5 +1,4 @@
 """Coverage tests for kernel_sovereignty export/rebuild and runtime_config."""
-import pytest
 
 
 def test_export_events_roundtrip(isolated_kernel):

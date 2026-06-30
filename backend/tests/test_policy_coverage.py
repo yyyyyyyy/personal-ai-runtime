@@ -105,11 +105,11 @@ class TestPromptCompilerRoutesThroughPipeline:
 class TestCompilePlanVisibility:
     @pytest.mark.asyncio
     async def test_pipeline_last_compile_plan_after_brief(self, monkeypatch):
+        from app.assembler.context_assembler import AssemblyResult
         from app.context_runtime import FragmentRegistry
         from app.core.runtime.governance.context_pipeline import ContextPipeline
         from app.core.runtime.governance.context_policy import CompileRequest
         from app.fragments.register import register_all_fragments
-        from app.assembler.context_assembler import AssemblyResult
 
         registry = FragmentRegistry()
         register_all_fragments(registry)

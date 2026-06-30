@@ -4,8 +4,9 @@ import pytest
 
 class TestTimerEngineMore:
     def test_next_cron_fire_with_from_ts(self):
-        from app.core.runtime.timer_engine import _next_cron_fire
         from datetime import UTC, datetime
+
+        from app.core.runtime.timer_engine import _next_cron_fire
         base = datetime(2026, 6, 19, 9, 0, 0, tzinfo=UTC)
         result = _next_cron_fire("hour=10,minute=0", from_ts=base)
         assert "T10:00" in result or "10:00:00" in result

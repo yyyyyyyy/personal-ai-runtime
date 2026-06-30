@@ -8,7 +8,7 @@ import pytest
 
 os.environ.setdefault("LLM_API_KEY", "test-key")
 
-from app.product.inbox import generate_inbox_digest, poll_inbox, apply_inbox_poll_payload
+from app.product.inbox import apply_inbox_poll_payload, generate_inbox_digest, poll_inbox
 from app.store.database import Database
 
 

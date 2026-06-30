@@ -1,5 +1,4 @@
 """Coverage tests for agent_bus, legacy_event_adapter edge cases."""
-import pytest
 
 
 class TestAgentBus:

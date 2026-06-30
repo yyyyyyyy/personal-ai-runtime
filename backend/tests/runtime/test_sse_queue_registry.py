@@ -1,12 +1,13 @@
 """Coverage tests for sse_queue_registry."""
 
 import asyncio
+
 import pytest
 
 
 def test_register_creates_and_returns_queue():
     """register() creates a new queue and returns it."""
-    from app.core.runtime.sse_queue_registry import register, unregister, _registry
+    from app.core.runtime.sse_queue_registry import _registry, register, unregister
 
     cid = "test_register"
     q = register(cid)
@@ -19,7 +20,7 @@ def test_register_creates_and_returns_queue():
 
 def test_unregister_removes_queue():
     """unregister() removes the queue from the registry."""
-    from app.core.runtime.sse_queue_registry import register, unregister, _registry
+    from app.core.runtime.sse_queue_registry import _registry, register, unregister
 
     cid = "test_unregister"
     register(cid)
@@ -37,7 +38,7 @@ def test_unregister_missing_key_is_noop():
 @pytest.mark.asyncio
 async def test_push_to_registered_queue():
     """push() delivers payload to the registered asyncio.Queue."""
-    from app.core.runtime.sse_queue_registry import register, unregister, push
+    from app.core.runtime.sse_queue_registry import push, register, unregister
 
     cid = "test_push"
     q = register(cid)

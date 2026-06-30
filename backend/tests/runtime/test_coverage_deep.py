@@ -1,5 +1,4 @@
 """Deep coverage tests for timer_engine scan loop and agent_bus publish/subscribe."""
-import asyncio
 import pytest
 
 
@@ -7,8 +6,9 @@ class TestTimerEngineScan:
     @pytest.mark.asyncio
     async def test_scan_fires_due_timer(self, isolated_kernel):
         """Create a timer with past fire_at, start engine, verify TimerFired emitted."""
-        from app.core.runtime.timer_engine import TimerEngine
         from datetime import UTC, datetime, timedelta
+
+        from app.core.runtime.timer_engine import TimerEngine
         k, db = isolated_kernel
 
         past = (datetime.now(UTC) - timedelta(minutes=5)).isoformat()
@@ -34,8 +34,9 @@ class TestTimerEngineScan:
     @pytest.mark.asyncio
     async def test_scan_skips_future_timer(self, isolated_kernel):
         """Timer with future fire_at should not fire."""
-        from app.core.runtime.timer_engine import TimerEngine
         from datetime import UTC, datetime, timedelta
+
+        from app.core.runtime.timer_engine import TimerEngine
         k, db = isolated_kernel
 
         future = (datetime.now(UTC) + timedelta(hours=1)).isoformat()
