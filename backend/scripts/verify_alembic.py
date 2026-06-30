@@ -23,7 +23,6 @@ REQUIRED_TABLES = [
     "events",
     "memories",
     "notifications",
-    "schedules",
     "activity_log",
     "tasks",
     "llm_calls",

@@ -281,6 +281,52 @@ CREATE INDEX IF NOT EXISTS idx_handler_executions_instance
     ON handler_executions (instance_id);
 """
 
+TIMER_EVENTS_SCHEMA = """
+CREATE TABLE IF NOT EXISTS timer_events (
+    id               TEXT PRIMARY KEY,
+    handler_name     TEXT NOT NULL,
+    schedule_type    TEXT NOT NULL DEFAULT 'cron',
+    cron_expr        TEXT NOT NULL DEFAULT '',
+    delay_seconds    REAL NOT NULL DEFAULT 0,
+    fire_at          TEXT NOT NULL DEFAULT '',
+    status           TEXT NOT NULL DEFAULT 'active',
+    created_at       TEXT NOT NULL,
+    fired_at         TEXT NOT NULL DEFAULT ''
+);
+CREATE INDEX IF NOT EXISTS idx_timer_events_status
+    ON timer_events (status, fire_at);
+"""
+
+POLICY_EVENTS_SCHEMA = """
+CREATE TABLE IF NOT EXISTS policy_events (
+    id               TEXT PRIMARY KEY,
+    capability       TEXT NOT NULL,
+    risk_level       TEXT NOT NULL DEFAULT 'low',
+    status           TEXT NOT NULL DEFAULT 'active',
+    created_at       TEXT NOT NULL,
+    updated_at       TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_policy_events_capability
+    ON policy_events (capability);
+CREATE INDEX IF NOT EXISTS idx_policy_events_status
+    ON policy_events (status);
+"""
+
+GRANT_EVENTS_SCHEMA = """
+CREATE TABLE IF NOT EXISTS grant_events (
+    id               TEXT PRIMARY KEY,
+    principal_id     TEXT NOT NULL,
+    capability       TEXT NOT NULL,
+    status           TEXT NOT NULL DEFAULT 'active',
+    created_at       TEXT NOT NULL,
+    revoked_at       TEXT NOT NULL DEFAULT ''
+);
+CREATE INDEX IF NOT EXISTS idx_grant_events_principal
+    ON grant_events (principal_id);
+CREATE INDEX IF NOT EXISTS idx_grant_events_capability
+    ON grant_events (principal_id, capability);
+"""
+
 MEMORIES_LEGACY_DDL = [
     "ALTER TABLE memories ADD COLUMN confidence REAL DEFAULT 0.5",
     "ALTER TABLE memories ADD COLUMN derived_from_event TEXT",

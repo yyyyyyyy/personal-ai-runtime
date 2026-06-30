@@ -50,9 +50,12 @@ def apply_raw_ddl(db: Database) -> None:
     from app.store.schema_ddl import (
         APP_STORAGE_DDL,
         EVENT_LOG_SCHEMA,
+        GRANT_EVENTS_SCHEMA,
         HANDLER_EXECUTIONS_SCHEMA,
         MEMORIES_LEGACY_DDL,
+        POLICY_EVENTS_SCHEMA,
         PROJECTION_CHECKPOINTS_SCHEMA,
+        TIMER_EVENTS_SCHEMA,
     )
 
     with db.get_db() as conn:
@@ -60,16 +63,24 @@ def apply_raw_ddl(db: Database) -> None:
         conn.executescript(EVENT_LOG_SCHEMA)
         conn.executescript(PROJECTION_CHECKPOINTS_SCHEMA)
         conn.executescript(HANDLER_EXECUTIONS_SCHEMA)
+        conn.executescript(TIMER_EVENTS_SCHEMA)
+        conn.executescript(POLICY_EVENTS_SCHEMA)
+        conn.executescript(GRANT_EVENTS_SCHEMA)
         for stmt in MEMORIES_LEGACY_DDL:
             try:
                 conn.execute(stmt)
             except Exception:
                 logger.warning("Legacy DDL statement failed (may be expected): %s", stmt[:80])
-    apply_projection_ddl(db)
+        _migrate_messages_sources(conn)
 
 
 def ensure_schema(db: Database) -> None:
-    """Initialize schema: Alembic on production path, raw DDL elsewhere."""
+    """Initialize schema: Alembic on production path, raw DDL elsewhere.
+
+    The v02_projection_tables Alembic migration now creates timer_events,
+    policy_events, grant_events and adds messages.sources — so the
+    Alembic path no longer needs apply_projection_ddl().
+    """
     if not uses_alembic(db.db_path):
         apply_raw_ddl(db)
         return
@@ -78,7 +89,6 @@ def ensure_schema(db: Database) -> None:
         from app.store.alembic_runner import run_migrations
 
         run_migrations()
-        apply_projection_ddl(db)
     except Exception as exc:
         logger.warning("Alembic migrations unavailable, using raw DDL: %s", exc)
         apply_raw_ddl(db)

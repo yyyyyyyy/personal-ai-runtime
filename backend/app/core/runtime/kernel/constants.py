@@ -137,21 +137,6 @@ EVENT_POLICY_REVOKED = "PolicyRevoked"
 EVENT_GRANT_CREATED = "GrantCreated"
 EVENT_GRANT_REVOKED = "GrantRevoked"
 
-# ── Projection tables ───────────────────────────────────────────────────────
-
-PROJECTION_TABLES = (
-    "goals",
-    "actions",
-    "tasks",
-    "memories",
-    "approvals",
-    "notifications",
-    "handler_executions",
-    "timer_events",
-    "policy_events",
-    "grant_events",
-)
-
 # ── Snapshot-eligible aggregates ─────────────────────────────────────────────
 
 PROJECTION_SNAPSHOT_AGGREGATES = ("goal", "task", "memory", "conversation")

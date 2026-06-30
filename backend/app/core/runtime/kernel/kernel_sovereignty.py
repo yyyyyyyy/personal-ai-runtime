@@ -21,8 +21,16 @@ from .constants import (
     CHAT_EVENT_TYPES,
     MEMORY_INDEX_EVENT_TYPES,
     PROJECTION_SNAPSHOT_AGGREGATES,
-    PROJECTION_TABLES,
 )
+
+# All projection tables (derived from _OWNED_TABLES so rebuild / import stay in sync).
+# Includes conversations, messages, and background_tasks which are owned by
+# the conversation and background_task aggregates respectively.
+def _all_projection_tables() -> set[str]:
+    result: set[str] = set()
+    for tables in projectors._OWNED_TABLES.values():
+        result.update(tables)
+    return result
 
 
 class SovereigntyMixin(_KernelMixinInterface):
@@ -76,7 +84,7 @@ class SovereigntyMixin(_KernelMixinInterface):
         """
         with self._db.get_db() as conn:
             self._drop_event_log_guards(conn)
-            for table in PROJECTION_TABLES:
+            for table in _all_projection_tables():
                 conn.execute(f"DELETE FROM {table}")
             conn.execute("DELETE FROM event_log")
 
