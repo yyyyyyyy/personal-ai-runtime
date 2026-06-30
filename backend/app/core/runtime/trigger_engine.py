@@ -222,3 +222,4 @@ class TriggerEngine:
 
 
 trigger_engine = TriggerEngine()
+# registered in RuntimeContainer.inventory()

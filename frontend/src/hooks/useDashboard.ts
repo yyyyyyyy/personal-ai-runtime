@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback } from "react";
+import { useQuery } from "@tanstack/react-query";
 import {
   getCostSummary,
   getCostByModel,
@@ -16,75 +17,117 @@ import {
   type DashboardData,
 } from "../api/client";
 import { useErrorStore } from "../stores/errorStore";
+import { queryKeys } from "./useWsInvalidationBridge";
 
-interface DashboardState {
-  cost: CostSummary | null;
-  costByModel: ModelCostItem[];
-  tools: ToolSummaryItem[];
-  memory: MemoryStats | null;
-  health: HealthSnapshot | null;
-  notifications: Notification[];
-  dashboard: DashboardData | null;
-}
+/**
+ * Dashboard data — decomposed into independent TanStack Query hooks
+ * so each subset is independently cached and invalidated by the
+ * WebSocket invalidation bridge (useWsInvalidationBridge).
+ */
+
+const DASHBOARD_STALE_MS = 60_000; // 1-minute refetch interval
 
 export function useDashboard() {
-  const [data, setData] = useState<DashboardState>({
-    cost: null,
-    costByModel: [],
-    tools: [],
-    memory: null,
-    health: null,
-    notifications: [],
-    dashboard: null,
-  });
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
-  const fetchIdRef = useRef(0);
   const addError = useErrorStore((s) => s.addError);
 
-  const fetchData = useCallback(async () => {
-    const fetchId = ++fetchIdRef.current;
-    setLoading(true);
-    setError("");
+  const cost = useQuery<CostSummary>({
+    queryKey: ["telemetry", "costSummary"],
+    queryFn: () => getCostSummary(7),
+    refetchInterval: DASHBOARD_STALE_MS,
+    staleTime: 30_000,
+    retry: 1,
+  });
 
-    try {
-      const [costData, modelCostData, toolData, memData, healthData, notifData, dashData] = await Promise.all([
-        getCostSummary(7),
-        getCostByModel(7),
-        getToolSummary(7),
-        getMemoryStats(),
-        getHealth(),
-        listNotifications(10).catch(() => [] as Notification[]),
-        getDashboard().catch(() => null),
-      ]);
+  const costByModel = useQuery<ModelCostItem[]>({
+    queryKey: ["telemetry", "costByModel"],
+    queryFn: () => getCostByModel(7),
+    refetchInterval: DASHBOARD_STALE_MS,
+    staleTime: 30_000,
+    retry: 1,
+  });
 
-      // Abort if a newer fetch superseded this one
-      if (fetchId !== fetchIdRef.current) return;
+  const tools = useQuery<ToolSummaryItem[]>({
+    queryKey: ["telemetry", "toolSummary"],
+    queryFn: () => getToolSummary(7),
+    refetchInterval: DASHBOARD_STALE_MS,
+    staleTime: 30_000,
+    retry: 1,
+  });
 
-      setData({
-        cost: costData,
-        costByModel: modelCostData,
-        tools: toolData,
-        memory: memData,
-        health: healthData,
-        notifications: notifData,
-        dashboard: dashData,
-      });
-    } catch (e) {
-      if (fetchId !== fetchIdRef.current) return;
-      const msg = e instanceof Error ? e.message : "无法连接到后端服务，请确认后端已启动";
-      setError(msg);
-      addError(msg, "仪表盘");
-    } finally {
-      if (fetchId === fetchIdRef.current) {
-        setLoading(false);
-      }
-    }
-  }, [addError]);
+  const memory = useQuery<MemoryStats>({
+    queryKey: ["telemetry", "memoryStats"],
+    queryFn: () => getMemoryStats(),
+    refetchInterval: DASHBOARD_STALE_MS,
+    staleTime: 30_000,
+    retry: 1,
+  });
 
-  useEffect(() => {
-    fetchData();
-  }, [fetchData]);
+  const health = useQuery<HealthSnapshot>({
+    queryKey: ["telemetry", "health"],
+    queryFn: () => getHealth(),
+    refetchInterval: DASHBOARD_STALE_MS,
+    staleTime: 30_000,
+    retry: 1,
+  });
 
-  return { ...data, loading, error, refresh: fetchData };
+  const notifications = useQuery<Notification[]>({
+    queryKey: queryKeys.dashboard,
+    queryFn: () => listNotifications(10).catch(() => [] as Notification[]),
+    refetchInterval: DASHBOARD_STALE_MS,
+    staleTime: 30_000,
+    retry: 1,
+  });
+
+  const dashboard = useQuery<DashboardData | null>({
+    queryKey: queryKeys.dashboard,
+    queryFn: () => getDashboard().catch(() => null),
+    refetchInterval: DASHBOARD_STALE_MS,
+    staleTime: 30_000,
+    retry: 1,
+  });
+
+  // Aggregate loading/error states
+  const loading =
+    cost.isLoading ||
+    costByModel.isLoading ||
+    tools.isLoading ||
+    memory.isLoading ||
+    health.isLoading ||
+    notifications.isLoading ||
+    dashboard.isLoading;
+
+  const errors = [
+    cost.error, costByModel.error, tools.error,
+    memory.error, health.error, notifications.error, dashboard.error,
+  ].filter(Boolean);
+
+  if (errors.length > 0 && !loading) {
+    const msg = errors[0] instanceof Error
+      ? (errors[0] as Error).message
+      : "无法连接到后端服务，请确认后端已启动";
+    addError(msg, "仪表盘");
+  }
+
+  const refresh = useCallback(() => {
+    cost.refetch();
+    costByModel.refetch();
+    tools.refetch();
+    memory.refetch();
+    health.refetch();
+    notifications.refetch();
+    dashboard.refetch();
+  }, [cost, costByModel, tools, memory, health, notifications, dashboard]);
+
+  return {
+    cost: cost.data ?? null,
+    costByModel: costByModel.data ?? [],
+    tools: tools.data ?? [],
+    memory: memory.data ?? null,
+    health: health.data ?? null,
+    notifications: notifications.data ?? [],
+    dashboard: dashboard.data ?? null,
+    loading,
+    error: errors.length > 0 ? String(errors[0]) : "",
+    refresh,
+  };
 }

@@ -239,3 +239,4 @@ class BackgroundWorker:
 
 
 background_worker = BackgroundWorker()
+# registered in RuntimeContainer.inventory()

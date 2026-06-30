@@ -7,9 +7,7 @@ def test_runtime_container_lazy_load():
 
     c = RuntimeContainer()
     assert c._kernel is None
-    assert c._agent_bus is None
-    assert c._capability_policy is None
-    assert c._taint_registry is None
+    assert len(c._inventory) == 0
 
 
 def test_runtime_container_kernel_access():
@@ -82,3 +80,32 @@ def test_global_runtime_singleton_is_available():
     assert runtime is not None
     k = runtime.kernel
     assert k is not None
+
+
+def test_runtime_container_inventory():
+    """inventory() returns registered subsystems after lazy resolution."""
+    from app.core.runtime.runtime_container import RuntimeContainer
+
+    c = RuntimeContainer()
+    # Before any access, inventory is empty (lazy init)
+    inv = c.inventory()
+    assert isinstance(inv, list)
+
+    # Touch a few subsystems to populate the registry
+    c.agent_bus
+    c.capability_policy
+    c.taint_registry
+    c.kernel
+
+    inv = c.inventory()
+    names = {e["name"] for e in inv}
+    assert "kernel" in names
+    assert "agent_bus" in names
+    assert "capability_policy" in names
+    assert "taint_registry" in names
+    # Each entry has the expected keys
+    for entry in inv:
+        assert "name" in entry
+        assert "module" in entry
+        assert "class" in entry
+        assert entry["class"] != ""

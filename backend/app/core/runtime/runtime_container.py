@@ -1,34 +1,31 @@
 """Runtime Container — centralized registry for Runtime subsystems.
 
-Every subsystem singleton (capability gateway, policy, taint, agent bus,
-etc.) is accessible from a single container. This enables:
+Every subsystem singleton is accessible from a single container.
+This enables single-point reset() for test isolation and future
+multi-Kernel instances.
 
-1. Single-point reset() for test isolation
-2. Future multi-Kernel instances (one container per Kernel)
-3. Backward compatibility: module-level singletons continue to work
-   by lazily resolving from the container.
-
-Architecture note (Phase 3 roadmap):
-  This is a transitional pattern. The long-term goal is to inject each
-  subsystem into Kernel.__init__ so every test creates its own instance.
-  For now, this container provides 80% of the benefit with <5% of the
-  migration effort.
+Properties use direct singleton imports (no __import__ dynamic resolution)
+to avoid circular import deadlocks. inventory() returns the authoritative
+subsystem list, populated lazily on first access.
 """
 
 from __future__ import annotations
 
 import threading
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from app.core.runtime.agent_bus import AgentBus
     from app.core.runtime.approval_engine import ApprovalEngine
+    from app.core.runtime.background_worker import BackgroundWorker
     from app.core.runtime.capability_decision import CapabilityGateway
     from app.core.runtime.capability_policy import CapabilityPolicy
     from app.core.runtime.event_bus import EventBus
     from app.core.runtime.governance.context_pipeline import ContextPipeline
     from app.core.runtime.kernel.kernel import Kernel
     from app.core.runtime.taint import TaintRegistry
+    from app.core.runtime.task_engine import TaskEngine
+    from app.core.runtime.trigger_engine import TriggerEngine
 
 
 class RuntimeContainer:
@@ -36,6 +33,7 @@ class RuntimeContainer:
 
     def __init__(self):
         self._lock = threading.Lock()
+        self._inventory: list[dict] = []
         self._kernel: "Kernel | None" = None
         self._capability_gateway: "CapabilityGateway | None" = None
         self._capability_policy: "CapabilityPolicy | None" = None
@@ -45,22 +43,32 @@ class RuntimeContainer:
         self._event_bus: "EventBus | None" = None
         self._context_pipeline: "ContextPipeline | None" = None
 
+    def inventory(self) -> list[dict]:
+        """Return list of registered subsystems (lazily populated on first access)."""
+        return list(self._inventory)
+
+    # ── Kernel ───────────────────────────────────────────────────────
+
     @property
     def kernel(self) -> "Kernel":
         if self._kernel is None:
             from app.core.runtime.kernel_instance import kernel as k
             self._kernel = k
+            self._inventory.append({"name": "kernel", "module": "app.core.runtime.kernel_instance", "class": type(k).__name__})
         return self._kernel
 
     @kernel.setter
     def kernel(self, value: "Kernel") -> None:
         self._kernel = value
 
+    # ── Subsystem properties (direct imports, no dynamic resolution) ──
+
     @property
     def capability_gateway(self) -> "CapabilityGateway":
         if self._capability_gateway is None:
             from app.core.runtime.capability_decision import capability_gateway
             self._capability_gateway = capability_gateway
+            self._inventory.append({"name": "capability_gateway", "module": "app.core.runtime.capability_decision", "class": type(capability_gateway).__name__})
         return self._capability_gateway
 
     @property
@@ -68,6 +76,7 @@ class RuntimeContainer:
         if self._capability_policy is None:
             from app.core.runtime.capability_policy import capability_policy
             self._capability_policy = capability_policy
+            self._inventory.append({"name": "capability_policy", "module": "app.core.runtime.capability_policy", "class": type(capability_policy).__name__})
         return self._capability_policy
 
     @property
@@ -75,6 +84,7 @@ class RuntimeContainer:
         if self._taint_registry is None:
             from app.core.runtime.taint import taint_registry
             self._taint_registry = taint_registry
+            self._inventory.append({"name": "taint_registry", "module": "app.core.runtime.taint", "class": type(taint_registry).__name__})
         return self._taint_registry
 
     @property
@@ -82,6 +92,7 @@ class RuntimeContainer:
         if self._agent_bus is None:
             from app.core.runtime.agent_bus import agent_bus
             self._agent_bus = agent_bus
+            self._inventory.append({"name": "agent_bus", "module": "app.core.runtime.agent_bus", "class": type(agent_bus).__name__})
         return self._agent_bus
 
     @property
@@ -89,6 +100,7 @@ class RuntimeContainer:
         if self._approval_engine is None:
             from app.core.runtime.approval_engine import approval_engine
             self._approval_engine = approval_engine
+            self._inventory.append({"name": "approval_engine", "module": "app.core.runtime.approval_engine", "class": type(approval_engine).__name__})
         return self._approval_engine
 
     @property
@@ -96,6 +108,7 @@ class RuntimeContainer:
         if self._event_bus is None:
             from app.core.runtime.event_bus import event_bus
             self._event_bus = event_bus
+            self._inventory.append({"name": "event_bus", "module": "app.core.runtime.event_bus", "class": type(event_bus).__name__})
         return self._event_bus
 
     @property
@@ -103,18 +116,30 @@ class RuntimeContainer:
         if self._context_pipeline is None:
             from app.core.runtime.governance.context_pipeline import context_pipeline
             self._context_pipeline = context_pipeline
+            self._inventory.append({"name": "context_pipeline", "module": "app.core.runtime.governance.context_pipeline", "class": type(context_pipeline).__name__})
         return self._context_pipeline
 
-    def reset(self) -> None:
-        """Reset all subsystem state — for test isolation.
+    @property
+    def task_engine(self) -> "TaskEngine":
+        # Lazily loaded — not used in reset() path
+        from app.core.runtime.task_engine import task_engine
+        return task_engine
 
-        Clears per-instance caches and registries without tearing down
-        connections or projections. Safe to call between tests.
-        """
+    @property
+    def trigger_engine(self) -> "TriggerEngine":
+        from app.core.runtime.trigger_engine import trigger_engine
+        return trigger_engine
+
+    @property
+    def background_worker(self) -> "BackgroundWorker":
+        from app.core.runtime.background_worker import background_worker
+        return background_worker
+
+    # ── Lifecycle ────────────────────────────────────────────────────
+
+    def reset(self) -> None:
+        """Reset all subsystem state — for test isolation."""
         with self._lock:
-            # Use lazy-loaded properties, not _internal fields.
-            # This ensures even the first call to reset() will find
-            # the live singleton.
             self.agent_bus.reset()
             self.capability_policy.reset()
             from app.core.runtime.governance.context_pipeline import reset_source_registry
@@ -123,5 +148,4 @@ class RuntimeContainer:
             reset_external_tools()
 
 
-# Global singleton for backward compatibility
 runtime = RuntimeContainer()

@@ -193,3 +193,4 @@ class CapabilityPolicy:
 
 
 capability_policy = CapabilityPolicy()
+# registered in RuntimeContainer.inventory()

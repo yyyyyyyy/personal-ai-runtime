@@ -98,3 +98,4 @@ class EventType:
 
 # Global singleton
 event_bus = EventBus()
+# registered in RuntimeContainer.inventory()

@@ -89,6 +89,7 @@ class TaintRegistry:
 
 
 taint_registry = TaintRegistry()
+# registered in RuntimeContainer.inventory()
 
 
 def is_external_ingestion_tool(name: str) -> bool:

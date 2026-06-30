@@ -129,3 +129,4 @@ class TaskEngine:
 
 # Global singleton
 task_engine = TaskEngine()
+# registered in RuntimeContainer.inventory()

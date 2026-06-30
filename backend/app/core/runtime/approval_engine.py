@@ -168,3 +168,4 @@ def _label_flow(
 
 
 approval_engine = ApprovalEngine()
+# registered in RuntimeContainer.inventory()

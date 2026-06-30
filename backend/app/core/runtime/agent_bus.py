@@ -190,3 +190,4 @@ class AgentBus:
 
 # Global singleton for inter-agent communication.
 agent_bus = AgentBus()
+# registered in RuntimeContainer.inventory()

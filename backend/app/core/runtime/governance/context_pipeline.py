@@ -241,6 +241,7 @@ class ContextPipeline:
 
 # Global singleton
 context_pipeline = ContextPipeline()
+# registered in RuntimeContainer.inventory()
 
 
 def reset_source_registry() -> None:

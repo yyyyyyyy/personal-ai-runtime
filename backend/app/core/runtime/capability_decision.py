@@ -163,3 +163,4 @@ class CapabilityGateway:
 
 
 capability_gateway = CapabilityGateway()
+# registered in RuntimeContainer.inventory()
