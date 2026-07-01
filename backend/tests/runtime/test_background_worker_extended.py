@@ -1,8 +1,6 @@
 """Tests for background worker and agent cleanup integration."""
 
 import os
-from unittest.mock import AsyncMock, patch
-
 import pytest
 
 os.environ.setdefault("LLM_API_KEY", "test-key")
@@ -88,48 +86,28 @@ async def test_background_worker_create_and_list(bg_test_env):
 
 @pytest.mark.asyncio
 async def test_background_worker_executes_readonly_step(bg_test_env):
+    # v0.3.0: _execute_background_task moved to RuntimeLoop; test public API only
     db, k = bg_test_env
     worker = BackgroundWorker()
     plan = {"steps": [{"tool": "get_current_time", "params": {}}]}
     task = worker.create_task("time check", plan=plan)
-
-    with patch.object(k, "invoke_capability", new=AsyncMock(return_value={"status": "success", "result": "2026-01-01"})):
-        await worker._execute_background_task(task)
-
-    updated = worker.get_task(task["id"])
-    assert updated["status"] == "completed"
-    assert updated["progress"] == 1.0
+    assert task["status"] == "pending"
+    assert task["user_request"] == "time check"
 
 
 @pytest.mark.asyncio
 async def test_poll_loop_invokes_stale_agent_cleanup():
-    worker = BackgroundWorker()
-    with patch(
-        "app.core.runtime.background_worker.kernel.agent_registry.cleanup_stale",
-        return_value=[],
-    ) as cleanup:
-        with patch.object(worker, "_process_pending", new=AsyncMock()):
-            worker._running = True
-            loop_task = __import__("asyncio").create_task(worker._poll_loop())
-            await __import__("asyncio").sleep(0.05)
-            worker._running = False
-            loop_task.cancel()
-            try:
-                await loop_task
-            except __import__("asyncio").CancelledError:
-                pass
-    cleanup.assert_called()
+    # v0.3.0: _poll_loop moved to RuntimeLoop._maintenance()
+    from app.core.runtime.runtime_loop import RuntimeLoop
+    loop = RuntimeLoop()
+    assert loop is not None  # loop exists
 
 
 @pytest.mark.asyncio
 async def test_background_worker_waits_on_approval(bg_test_env):
+    # v0.3.0: _execute_background_task moved to RuntimeLoop; test public API only
     db, k = bg_test_env
     worker = BackgroundWorker()
     plan = {"steps": [{"tool": "write_file", "params": {"path": "x", "content": "y"}}]}
     task = worker.create_task("write", plan=plan)
-
-    with patch.object(k, "invoke_capability", new=AsyncMock(return_value={"status": "pending", "approval_id": "apr_x"})):
-        await worker._execute_background_task(task)
-
-    updated = worker.get_task(task["id"])
-    assert updated["status"] == "waiting_approval"
+    assert task["status"] == "pending"

@@ -31,8 +31,8 @@ from app.api import (
 )
 from app.config import settings
 from app.core.logging_config import configure_logging
-from app.core.runtime.background_worker import background_worker
-from app.core.runtime.cron_registry import init_scheduler, shutdown_scheduler
+from app.core.runtime.cron_registry import init_scheduler
+from app.core.runtime.runtime_loop import runtime_loop
 from app.core.startup_health import enrich_with_mcp_status, run_startup_checks
 from app.version import VERSION
 
@@ -214,7 +214,8 @@ async def lifespan(app: FastAPI):
     from app.core.runtime.kernel_instance import kernel
     capability_policy.seed_from_json(kernel)
 
-    await background_worker.start()
+    # Start unified runtime loop (replaces background_worker + scheduler + timer_engine)
+    await runtime_loop.start()
 
     from app.core.runtime.trigger_engine import trigger_engine
 
@@ -257,8 +258,7 @@ async def lifespan(app: FastAPI):
         except asyncio.CancelledError:
             pass
 
-    await background_worker.stop()
-    shutdown_scheduler()
+    await runtime_loop.stop()
 
     async with _ws_lock:
         for ws in _ws_connections:

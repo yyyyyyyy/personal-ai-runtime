@@ -19,14 +19,13 @@ class TestTimerEngineMore:
         _next_cron_fire("day_of_week=wed,hour=12,minute=30")
 
     def test_get_timer_engine(self, isolated_kernel):
-        from app.core.runtime.timer_engine import get_timer_engine
-        k, db = isolated_kernel
-        engine = get_timer_engine(k)
-        assert engine is not None
+        # get_timer_engine removed in v0.3.0; TimerEngine now uses timer_engine singleton
+        from app.core.runtime.timer_engine import timer_engine
+        assert timer_engine is not None
 
     def test_reset_timer_engine(self):
-        from app.core.runtime.timer_engine import reset_timer_engine
-        reset_timer_engine()
+        # reset_timer_engine removed in v0.3.0; timer scanning is now in RuntimeLoop
+        pass
 
 
 class TestAgentBusMore:

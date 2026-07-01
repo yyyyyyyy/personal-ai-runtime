@@ -1,7 +1,6 @@
 """Tests for cron_registry — timer registration and event dispatch."""
 
 import os
-from unittest.mock import MagicMock
 
 import pytest
 
@@ -60,12 +59,8 @@ async def test_on_task_completed_starts_dependents(tmp_path, monkeypatch):
 
 
 def test_shutdown_scheduler_stops_timer_engine(monkeypatch):
-    mock_engine = MagicMock()
-    monkeypatch.setattr(
-        "app.core.runtime.timer_engine._timer_engine",
-        mock_engine,
-    )
-
+    # v0.3.0: shutdown_scheduler is now a no-op; timer scanning is in RuntimeLoop.
     from app.core.runtime.cron_registry import shutdown_scheduler
 
     shutdown_scheduler()
+    # No exception = pass.

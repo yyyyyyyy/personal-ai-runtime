@@ -1,20 +1,11 @@
 """Cron scheduler — timer-driven scheduling via Runtime Timer Engine.
 
-Distinct from agent_scheduler.py (WorkItem execution): this module
-registers cron schedules and starts the TimerEngine. It does not execute
-handlers itself — TimerFired events flow into the WorkItem engine.
-
-Timers are Runtime aggregates: TimerCreated events register future fire times
-in the timer_events projection. The TimerEngine scans every second and emits
-TimerFired when due. The timer_trigger_handler subscribes to TimerFired and
-executes product functions within Execution context.
-
-Dependency triggers (TaskCompleted → dependent task start) are kernel-event-driven.
+v0.3.0: Timer scanning is now driven by RuntimeLoop. This module retains
+cron registration (ensure_schedules) and dependency triggers.
 """
 
 from __future__ import annotations
 
-import asyncio
 import logging
 from datetime import UTC, datetime, timedelta
 
@@ -35,42 +26,17 @@ SCHEDULES: list[dict] = [
 
 
 def init_scheduler():
-    """Register timer schedules and start the TimerEngine."""
+    """Register timer schedules and dependency triggers."""
     kernel.subscribe_events(_on_task_completed, type="TaskCompleted")
     kernel.subscribe_events(_on_task_completed, type="TaskStatusChanged")
     _init_timers()
 
 
 def _init_timers():
-    """Register TimerCreated events and start the TimerEngine."""
-    from app.core.runtime.timer_engine import get_timer_engine
+    """Register TimerCreated events for all scheduled cron jobs."""
+    from app.core.runtime.timer_engine import timer_engine
 
-    engine = get_timer_engine(kernel)
-    engine.ensure_schedules(SCHEDULES)
-
-    import asyncio as _asyncio
-
-    try:
-        loop = _asyncio.get_running_loop()
-    except RuntimeError:
-        loop = None
-    if loop and loop.is_running():
-        loop.create_task(engine.start())
-    else:
-        logger.info("TimerEngine start deferred (no running loop)")
-
-
-def shutdown_scheduler():
-    """Shutdown the TimerEngine gracefully."""
-    from app.core.runtime.timer_engine import get_current_timer_engine
-
-    engine = get_current_timer_engine()
-    if engine is not None:
-        try:
-            loop = asyncio.get_running_loop()
-            loop.create_task(engine.stop())
-        except RuntimeError:
-            pass
+    timer_engine.ensure_schedules(SCHEDULES)
 
 
 def _on_task_completed(event):
@@ -98,3 +64,7 @@ def _deadline_target_dates() -> set:
     today_utc = datetime.now(UTC).date()
     return {today_utc + timedelta(days=offset) for offset in (1, 3)}
 
+
+def shutdown_scheduler():
+    """Shutdown stub — timer scanning is now handled by RuntimeLoop."""
+    pass
