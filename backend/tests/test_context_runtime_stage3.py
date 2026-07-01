@@ -264,11 +264,16 @@ class TestContextAssembler:
         assert "X" not in result  # HugeContext dropped due to budget
 
     def test_estimate_tokens(self):
-        from app.context_runtime import estimate_tokens
+        # estimate_tokens() removed in v0.3.1; FragmentResult.__post_init__
+        # now computes token count inline as max(1, len(content) // 4).
+        from app.context_runtime import FragmentResult
 
-        assert estimate_tokens("") == 1
-        assert estimate_tokens("hello") == 1  # len=5 // 4 = 1
-        assert estimate_tokens("X" * 100) == 25  # 100 // 4 = 25
+        r = FragmentResult(content="")
+        assert r.token_count == 0
+        r2 = FragmentResult(content="hello")
+        assert r2.token_count == 1  # len=5 // 4 = 1
+        r3 = FragmentResult(content="X" * 100)
+        assert r3.token_count == 25  # 100 // 4 = 25
 
 
 # ═══════════════════════════════════════════════════════════════════════════

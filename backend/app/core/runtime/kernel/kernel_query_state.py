@@ -26,8 +26,6 @@ class QueryStateMixin(_KernelMixinInterface):
             return self._query_actions(filters)
         if selector == "memories":
             return self._query_memories(filters)
-        if selector == "patterns":
-            return self._query_patterns(filters)
         if selector == "notifications":
             return self._query_notifications(filters)
         if selector == "timer_events":
@@ -252,40 +250,6 @@ class QueryStateMixin(_KernelMixinInterface):
             params.append(limit)
             rows = conn.execute(
                 f"SELECT * FROM memories{where} ORDER BY confidence DESC, created_at DESC LIMIT ?",
-                params,
-            ).fetchall()
-        return [dict(r) for r in rows]
-
-    def _query_patterns(self, filters: dict[str, Any]) -> list[dict]:
-        pattern_id = filters.get("id")
-        pattern_type = filters.get("pattern_type")
-        metric = filters.get("metric")
-        window_days = filters.get("window_days")
-        limit = filters.get("limit", 50)
-
-        with self._db.get_db() as conn:
-            if pattern_id:
-                row = conn.execute(
-                    "SELECT * FROM patterns WHERE id = ?", (pattern_id,)
-                ).fetchone()
-                return [dict(row)] if row else []
-
-            clauses: list[str] = []
-            params: list[Any] = []
-            if pattern_type is not None:
-                clauses.append("pattern_type = ?")
-                params.append(pattern_type)
-            if metric is not None:
-                clauses.append("metric = ?")
-                params.append(metric)
-            if window_days is not None:
-                clauses.append("window_days = ?")
-                params.append(int(window_days))
-
-            where = f" WHERE {' AND '.join(clauses)}" if clauses else ""
-            params.append(limit)
-            rows = conn.execute(
-                f"SELECT * FROM patterns{where} ORDER BY created_at DESC LIMIT ?",
                 params,
             ).fetchall()
         return [dict(r) for r in rows]

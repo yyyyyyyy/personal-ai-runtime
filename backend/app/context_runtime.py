@@ -35,18 +35,7 @@ class FragmentResult:
 
     def __post_init__(self):
         if self.token_count == 0 and self.content:
-            self.token_count = estimate_tokens(self.content)
-
-
-# ── estimate_tokens ──────────────────────────────────────────────────────
-
-def estimate_tokens(text: str) -> int:
-    """粗略 token 估算 — len(text) // 4。
-
-    DEPRECATED: 对于 budget 决策，优先使用 app.core.agents.token_counter.count_text_tokens
-    （tiktoken，对中英文 token 计数更准确）。
-    """
-    return max(1, len(text) // 4)
+            self.token_count = max(1, len(self.content) // 4)
 
 
 # ── ContextFragment ──────────────────────────────────────────────────────

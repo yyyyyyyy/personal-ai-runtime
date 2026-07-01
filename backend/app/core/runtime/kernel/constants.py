@@ -29,7 +29,6 @@ EVENT_CAPABILITY_DEFERRED = "CapabilityDeferred"
 EVENT_MEMORY_DERIVED = "MemoryDerived"
 EVENT_MEMORY_UPDATED = "MemoryUpdated"
 EVENT_MEMORY_DELETED = "MemoryDeleted"
-EVENT_BELIEF_FORMED = "BeliefFormed"  # DEPRECATED — Pattern/Belief pipeline removed in v0.2 (H2); kept for event_log backward compat
 
 EVENT_CONVERSATION_CREATED = "ConversationCreated"
 EVENT_CONVERSATION_UPDATED = "ConversationUpdated"
@@ -109,7 +108,6 @@ AGGREGATE_CAPABILITY = "capability"
 AGGREGATE_MEMORY = "memory"
 AGGREGATE_CONVERSATION = "conversation"
 AGGREGATE_ACTION = "action"
-AGGREGATE_PATTERN = "pattern"  # DEPRECATED — Pattern pipeline removed in v0.2 (H2); kept for event_log backward compat
 AGGREGATE_NOTIFICATION = "notification"
 AGGREGATE_EXECUTION = "execution"
 AGGREGATE_TIMER = "timer"
@@ -146,7 +144,6 @@ MEMORY_INDEX_EVENT_TYPES = frozenset({
     EVENT_MEMORY_DERIVED,
     EVENT_MEMORY_UPDATED,
     EVENT_MEMORY_DELETED,
-    EVENT_BELIEF_FORMED,  # DEPRECATED — no longer emitted post-v0.2; kept for backward compat
 })
 
 # ── Chat bootstrap event types ──────────────────────────────────────────────

@@ -56,14 +56,6 @@ APP_STORAGE_TABLES: frozenset[str] = frozenset({
     # Inbox emails — IMAP-fetched raw mail cache. The authoritative record
     # is InboxEmailRecorded in event_log; this table holds the raw payload.
     "inbox_emails",
-    # Legacy patterns table — superseded. Pattern detection was part of the
-    # Evidence→Pattern→Belief pipeline which has been removed.  Table is
-    # retained for backward compatibility with existing databases.
-    "patterns",
-    # Legacy schedules table — superseded by timer_events + TimerEngine.
-    # Cron scheduling now goes through timer_event projection; this table
-    # is retained for backward compatibility with existing databases.
-    "schedules",
     # App settings (UI preferences, LLM/Email connection config). Local-only
     # operational config; not a governed fact.
     "app_settings",

@@ -194,33 +194,6 @@ class TestKernelEdgePaths:
 
 class TestUncoveredSelectors:
 
-    def test_query_patterns_by_id(self, tmp_path):
-        k = _kernel(tmp_path, "pt")
-        with k._db.get_db() as conn:
-            conn.execute(
-                """INSERT INTO patterns (id, pattern_type, metric, window_days,
-                   statistics, evidence_chain, created_at)
-                   VALUES (?, ?, ?, ?, ?, ?, ?)""",
-                ("pt-1", "habit", "count", 7, "{}", "[]", "2024-01-01"),
-            )
-        results = k.query_state("patterns", id="pt-1")
-        assert len(results) == 1 and results[0]["pattern_type"] == "habit"
-
-    def test_query_patterns_filtered(self, tmp_path):
-        k = _kernel(tmp_path, "pt2")
-        with k._db.get_db() as conn:
-            conn.executemany(
-                """INSERT INTO patterns (id, pattern_type, metric, window_days,
-                   statistics, evidence_chain, created_at)
-                   VALUES (?, ?, ?, ?, ?, ?, ?)""",
-                [("a", "habit", "count", 7, "{}", "[]", "2024-01-01"),
-                 ("b", "trend", "avg", 30, "{}", "[]", "2024-01-02")],
-            )
-        results = k.query_state("patterns", pattern_type="habit", limit=10)
-        assert len(results) == 1 and results[0]["id"] == "a"
-        results2 = k.query_state("patterns", limit=5)
-        assert len(results2) == 2
-
     def test_query_inbox_emails(self, tmp_path):
         k = _kernel(tmp_path, "ie")
         with k._db.get_db() as conn:
@@ -378,18 +351,6 @@ class TestQueryGapFill:
         })
         results = k.query_state("memories", id="m-id")
         assert len(results) == 1 and results[0]["id"] == "m-id"
-
-    def test_patterns_by_metric_and_window(self, tmp_path):
-        k = _kernel(tmp_path, "pmw")
-        with k._db.get_db() as conn:
-            conn.execute(
-                """INSERT INTO patterns (id, pattern_type, metric, window_days,
-                   statistics, evidence_chain, created_at)
-                   VALUES (?, ?, ?, ?, ?, ?, ?)""",
-                ("pmw-1", "trend", "avg_val", 14, "{}", "[]", "2024-01-01"),
-            )
-        results = k.query_state("patterns", metric="avg_val", window_days=14)
-        assert len(results) == 1 and results[0]["id"] == "pmw-1"
 
     def test_notifications_by_type_and_title(self, tmp_path):
         k = _kernel(tmp_path, "ntt")

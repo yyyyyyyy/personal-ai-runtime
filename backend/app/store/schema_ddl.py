@@ -84,20 +84,6 @@ CREATE TABLE IF NOT EXISTS notifications (
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
--- Legacy schedules table (superseded by timer_events + TimerEngine) --
-CREATE TABLE IF NOT EXISTS schedules (
-    id TEXT PRIMARY KEY,
-    name TEXT NOT NULL,
-    cron_expr TEXT NOT NULL,
-    task_type TEXT NOT NULL,
-    trigger_type TEXT DEFAULT 'cron',
-    trigger_config TEXT,
-    config TEXT,
-    enabled INTEGER DEFAULT 1,
-    last_run_at DATETIME,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-);
-
 CREATE TABLE IF NOT EXISTS activity_log (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     type TEXT NOT NULL,
@@ -184,17 +170,6 @@ CREATE TABLE IF NOT EXISTS user_profile (
     confidence REAL DEFAULT 0.5,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(category)
-);
-
--- Legacy patterns table (superseded; Pattern→Belief pipeline removed v0.2) --
-CREATE TABLE IF NOT EXISTS patterns (
-    id TEXT PRIMARY KEY,
-    pattern_type TEXT NOT NULL,
-    metric TEXT NOT NULL,
-    window_days INTEGER NOT NULL,
-    statistics TEXT NOT NULL,
-    evidence_chain TEXT NOT NULL,
-    created_at TEXT NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS inbox_emails (
