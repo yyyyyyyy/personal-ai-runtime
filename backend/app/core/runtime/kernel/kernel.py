@@ -563,32 +563,15 @@ class Kernel(QueryStateMixin, GovernanceMixin, SovereigntyMixin):
         actor: str,
         correlation_id: str | None,
     ) -> dict | None:
-        """Verify a pending approval matches this invocation; grant or return error."""
-        rows = self.query_state("approvals", id=approval_id)
-        if not rows:
-            return {"status": "error", "error": f"Approval not found: {approval_id}"}
-        approval = rows[0]
-        if approval.get("status") != "pending":
-            return {
-                "status": "error",
-                "error": f"Approval not pending: {approval.get('status')}",
-            }
-        if approval.get("action") != name:
-            return {"status": "error", "error": "Approval action does not match capability"}
-        try:
-            recorded_args = self._parse_approval_params(approval)
-        except (json.JSONDecodeError, TypeError):
-            return {"status": "error", "error": "Approval record has invalid params"}
-        if recorded_args != args:
-            return {"status": "error", "error": "Approval params do not match capability args"}
-        self.grant_approval(
-            approval_id,
-            action=name,
-            actor=actor,
-            reason="pre_approved",
-            correlation_id=correlation_id,
+        """Delegate to CapabilityGovernance (v0.4.0 consolidated).
+
+        Backward-compatible shim — all approval validation now lives in one place.
+        """
+        from app.core.runtime.capability_governance import CapabilityGovernance
+        return CapabilityGovernance._consume_pre_approved(
+            self, approval_id, name, args,
+            actor=actor, correlation_id=correlation_id,
         )
-        return None
 
     def _handler_execution_exists(self, execution_id: str) -> bool:
         with self._db.get_db() as conn:
@@ -621,7 +604,7 @@ class Kernel(QueryStateMixin, GovernanceMixin, SovereigntyMixin):
         """
         args = args or {}
         from app.core.harness.mcp_hub import mcp_hub
-        from app.core.runtime.capability_decision import capability_gateway
+        from app.core.runtime.capability_governance import capability_governance
         from app.core.runtime.identity_resolver import identity_resolver
 
         tool = mcp_hub.get_tool(name)
@@ -668,7 +651,7 @@ class Kernel(QueryStateMixin, GovernanceMixin, SovereigntyMixin):
         capability_caused_by = resolved_execution_id or caused_by
 
         # Unified authorization decision (Step 9)
-        decision = capability_gateway.decide(
+        decision = capability_governance.decide(
             principal,
             name,
             args,

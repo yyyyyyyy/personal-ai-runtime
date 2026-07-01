@@ -7,6 +7,9 @@ multi-Kernel instances.
 Properties use direct singleton imports (no __import__ dynamic resolution)
 to avoid circular import deadlocks. inventory() returns the authoritative
 subsystem list, populated lazily on first access.
+
+v0.4.0: CapabilityGateway + CapabilityPolicy + ApprovalEngine consolidated
+into single CapabilityGovernance.
 """
 
 from __future__ import annotations
@@ -16,10 +19,8 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from app.core.runtime.agent_bus import AgentBus
-    from app.core.runtime.approval_engine import ApprovalEngine
     from app.core.runtime.background_worker import BackgroundWorker
-    from app.core.runtime.capability_decision import CapabilityGateway
-    from app.core.runtime.capability_policy import CapabilityPolicy
+    from app.core.runtime.capability_governance import CapabilityGovernance
     from app.core.runtime.governance.context_pipeline import ContextPipeline
     from app.core.runtime.kernel.kernel import Kernel
     from app.core.runtime.taint import TaintRegistry
@@ -34,11 +35,9 @@ class RuntimeContainer:
         self._lock = threading.Lock()
         self._inventory: list[dict] = []
         self._kernel: "Kernel | None" = None
-        self._capability_gateway: "CapabilityGateway | None" = None
-        self._capability_policy: "CapabilityPolicy | None" = None
+        self._capability_governance: "CapabilityGovernance | None" = None
         self._taint_registry: "TaintRegistry | None" = None
         self._agent_bus: "AgentBus | None" = None
-        self._approval_engine: "ApprovalEngine | None" = None
         self._context_pipeline: "ContextPipeline | None" = None
 
     def inventory(self) -> list[dict]:
@@ -59,23 +58,15 @@ class RuntimeContainer:
     def kernel(self, value: "Kernel") -> None:
         self._kernel = value
 
-    # ── Subsystem properties (direct imports, no dynamic resolution) ──
+    # ── Subsystem properties ──
 
     @property
-    def capability_gateway(self) -> "CapabilityGateway":
-        if self._capability_gateway is None:
-            from app.core.runtime.capability_decision import capability_gateway
-            self._capability_gateway = capability_gateway
-            self._inventory.append({"name": "capability_gateway", "module": "app.core.runtime.capability_decision", "class": type(capability_gateway).__name__})
-        return self._capability_gateway
-
-    @property
-    def capability_policy(self) -> "CapabilityPolicy":
-        if self._capability_policy is None:
-            from app.core.runtime.capability_policy import capability_policy
-            self._capability_policy = capability_policy
-            self._inventory.append({"name": "capability_policy", "module": "app.core.runtime.capability_policy", "class": type(capability_policy).__name__})
-        return self._capability_policy
+    def capability_governance(self) -> "CapabilityGovernance":
+        if self._capability_governance is None:
+            from app.core.runtime.capability_governance import capability_governance
+            self._capability_governance = capability_governance
+            self._inventory.append({"name": "capability_governance", "module": "app.core.runtime.capability_governance", "class": type(capability_governance).__name__})
+        return self._capability_governance
 
     @property
     def taint_registry(self) -> "TaintRegistry":
@@ -94,14 +85,6 @@ class RuntimeContainer:
         return self._agent_bus
 
     @property
-    def approval_engine(self) -> "ApprovalEngine":
-        if self._approval_engine is None:
-            from app.core.runtime.approval_engine import approval_engine
-            self._approval_engine = approval_engine
-            self._inventory.append({"name": "approval_engine", "module": "app.core.runtime.approval_engine", "class": type(approval_engine).__name__})
-        return self._approval_engine
-
-    @property
     def context_pipeline(self) -> "ContextPipeline":
         if self._context_pipeline is None:
             from app.core.runtime.governance.context_pipeline import context_pipeline
@@ -111,7 +94,6 @@ class RuntimeContainer:
 
     @property
     def task_engine(self) -> "TaskEngine":
-        # Lazily loaded — not used in reset() path
         from app.core.runtime.task_engine import task_engine
         return task_engine
 
@@ -131,7 +113,7 @@ class RuntimeContainer:
         """Reset all subsystem state — for test isolation."""
         with self._lock:
             self.agent_bus.reset()
-            self.capability_policy.reset()
+            self.capability_governance.reset()
             from app.core.runtime.governance.context_pipeline import reset_source_registry
             reset_source_registry()
             from app.core.runtime.taint import reset_external_tools

@@ -42,7 +42,7 @@ async def test_concurrent_capability_taint_isolation(kernel, monkeypatch):
     as a write-class tool and mark only one correlation as tainted.
     """
     from app.core.harness.mcp_hub import ToolDef, mcp_hub
-    from app.core.runtime.capability_policy import capability_policy
+    from app.core.runtime.capability_governance import capability_governance
     from app.core.runtime.taint import register_external_write_tool, taint_registry
 
     tool_name = "mock_write_tool"
@@ -58,7 +58,7 @@ async def test_concurrent_capability_taint_isolation(kernel, monkeypatch):
         is_async=True,
         requires_confirmation=True,
     ))
-    capability_policy.register_external_tool(tool_name, risk="low")
+    capability_governance.register_external_tool(tool_name, risk="low")
     register_external_write_tool(tool_name)
 
     clean_corr = "clean_correlation"
@@ -80,7 +80,7 @@ async def test_concurrent_capability_taint_isolation(kernel, monkeypatch):
     mcp_hub.unregister_tool(tool_name)
     taint_registry.clear(clean_corr)
     taint_registry.clear(tainted_corr)
-    capability_policy.clear_external_tools()
+    capability_governance.clear_external_tools()
 
 
 @pytest.mark.asyncio
@@ -88,7 +88,7 @@ async def test_concurrent_capability_taint_no_cross_contamination(kernel, monkey
     """Three concurrent invocations with write-class tool:
     only the tainted correlation escalates, others succeed."""
     from app.core.harness.mcp_hub import ToolDef, mcp_hub
-    from app.core.runtime.capability_policy import capability_policy
+    from app.core.runtime.capability_governance import capability_governance
     from app.core.runtime.taint import register_external_write_tool, taint_registry
 
     tool_name = "mock_concurrent_write_tool"
@@ -104,7 +104,7 @@ async def test_concurrent_capability_taint_no_cross_contamination(kernel, monkey
         is_async=True,
         requires_confirmation=True,
     ))
-    capability_policy.register_external_tool(tool_name, risk="low")
+    capability_governance.register_external_tool(tool_name, risk="low")
     register_external_write_tool(tool_name)
 
     corr_1 = "corr_1_clean"
@@ -126,7 +126,7 @@ async def test_concurrent_capability_taint_no_cross_contamination(kernel, monkey
     mcp_hub.unregister_tool(tool_name)
     for c in [corr_1, corr_2, corr_3]:
         taint_registry.clear(c)
-    capability_policy.clear_external_tools()
+    capability_governance.clear_external_tools()
 
 
 # ── 3. Execution contextvars isolation ─────────────────────────────────

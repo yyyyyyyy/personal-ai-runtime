@@ -4,7 +4,7 @@ import json
 
 from fastapi import APIRouter, HTTPException
 
-from app.core.runtime.approval_engine import approval_engine
+from app.core.runtime.capability_governance import capability_governance
 from app.core.runtime.kernel_instance import kernel
 
 router = APIRouter(prefix="/api/approvals", tags=["approvals"])
@@ -20,16 +20,16 @@ async def list_approvals(limit: int = 50, pending_only: bool = False, enriched: 
       - correlation_id: event correlation identifier
     """
     if pending_only and enriched:
-        return approval_engine.list_pending_enriched()
+        return capability_governance.list_pending_enriched(kernel)
     if pending_only:
-        return approval_engine.list_pending()
-    return approval_engine.list_all(limit=limit)
+        return capability_governance.list_pending(kernel)
+    return capability_governance.list_all(kernel, limit=limit)
 
 
 @router.get("/{approval_id}")
 async def get_approval(approval_id: str):
     """Get a single approval by ID."""
-    approval = approval_engine.get_approval(approval_id)
+    approval = capability_governance.get_approval(kernel, approval_id)
     if not approval:
         raise HTTPException(status_code=404, detail="Approval not found")
     return approval
@@ -47,7 +47,7 @@ async def approve(approval_id: str):
     from app.core.runtime.agent_bootstrap import ensure_agent
     from app.core.runtime.agent_scheduler import get_scheduler
 
-    approval = approval_engine.get_approval(approval_id)
+    approval = capability_governance.get_approval(kernel, approval_id)
     if not approval:
         raise HTTPException(status_code=404, detail="Approval not found")
     if approval.get("status") != "pending":
@@ -113,7 +113,7 @@ async def reject(approval_id: str, reason: str = ""):
     from app.core.runtime.agent_bootstrap import ensure_agent
     from app.core.runtime.agent_scheduler import get_scheduler
 
-    approval = approval_engine.get_approval(approval_id)
+    approval = capability_governance.get_approval(kernel, approval_id)
     if not approval:
         raise HTTPException(status_code=404, detail="Approval not found")
     if approval.get("status") != "pending":

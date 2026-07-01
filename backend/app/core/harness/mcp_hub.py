@@ -514,7 +514,7 @@ class MCPHub:
     def register_mesh_tools(self, discovered: list) -> int:
         """Register tools discovered from external MCP servers."""
         from app.core.harness.mcp_mesh import mcp_mesh
-        from app.core.runtime.capability_policy import capability_policy
+        from app.core.runtime.capability_governance import capability_governance
         from app.core.runtime.taint import (
             register_external_ingestion_tool,
             register_external_write_tool,
@@ -535,7 +535,7 @@ class MCPHub:
                 is_async=True,
                 requires_confirmation=item.requires_confirmation,
             ))
-            capability_policy.register_external_tool(
+            capability_governance.register_external_tool(
                 registered_name,
                 risk=item.policy_risk,
             )

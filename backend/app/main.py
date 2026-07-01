@@ -209,10 +209,10 @@ async def lifespan(app: FastAPI):
 
     init_scheduler()
 
-    # Seed governance events from capability_policy.json
-    from app.core.runtime.capability_policy import capability_policy
+    # Seed governance events from capability_policy.json (v0.4.0: unified governance)
+    from app.core.runtime.capability_governance import capability_governance
     from app.core.runtime.kernel_instance import kernel
-    capability_policy.seed_from_json(kernel)
+    capability_governance.seed_from_json(kernel)
 
     # Start unified runtime loop (replaces background_worker + scheduler + timer_engine)
     await runtime_loop.start()

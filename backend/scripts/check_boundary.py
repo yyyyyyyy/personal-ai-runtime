@@ -73,7 +73,8 @@ def _capability_subsystem_file(rel: Path) -> bool:
     return rel in {
         Path("core/runtime/capability_policy.py"),
         Path("core/runtime/sensitive_router.py"),
-        Path("core/runtime/capability_decision.py"),  # ADR-0007 Step 9: CapabilityGateway
+        Path("core/runtime/capability_decision.py"),  # ADR-0007 Step 9: CapabilityGateway (deprecated v0.4.0)
+        Path("core/runtime/capability_governance.py"),  # v0.4.0: merged governance
         Path("core/runtime/read_ports.py"),  # Fragment-facing read abstractions
     }
 

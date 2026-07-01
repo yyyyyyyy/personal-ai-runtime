@@ -150,7 +150,7 @@ class MCPMesh:
                 self._lazy_task = None
 
             from app.core.harness.mcp_hub import mcp_hub
-            from app.core.runtime.capability_policy import capability_policy
+            from app.core.runtime.capability_governance import capability_governance
             from app.core.runtime.taint import (
                 clear_external_ingestion_tools,
                 clear_external_write_tools,
@@ -158,7 +158,7 @@ class MCPMesh:
 
             for name in list(self._tool_index):
                 mcp_hub.unregister_tool(name)
-            capability_policy.clear_external_tools()
+            capability_governance.clear_external_tools()
             clear_external_ingestion_tools()
             clear_external_write_tools()
 

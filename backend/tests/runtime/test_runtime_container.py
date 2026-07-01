@@ -51,14 +51,15 @@ def test_runtime_container_reset_clears_taint():
 
 
 def test_runtime_container_reset_clears_capability_policy():
-    from app.core.runtime.capability_policy import capability_policy
+    # v0.4.0: CapabilityGovernance replaced CapabilityPolicy
+    from app.core.runtime.capability_governance import capability_governance
     from app.core.runtime.runtime_container import runtime
 
-    capability_policy.register_external_tool("test-ext-write", risk="high")
-    assert capability_policy.risk_for("test-ext-write") == "high"
+    capability_governance.register_external_tool("test-ext-write", risk="high")
+    assert capability_governance.risk_for("test-ext-write") == "high"
 
     runtime.reset()
-    assert capability_policy.risk_for("test-ext-write") == "low"
+    assert capability_governance.risk_for("test-ext-write") == "low"
 
 
 def test_runtime_container_reset_clears_source_registry():
@@ -93,7 +94,7 @@ def test_runtime_container_inventory():
 
     # Touch a few subsystems to populate the registry
     c.agent_bus
-    c.capability_policy
+    c.capability_governance
     c.taint_registry
     c.kernel
 
@@ -101,7 +102,7 @@ def test_runtime_container_inventory():
     names = {e["name"] for e in inv}
     assert "kernel" in names
     assert "agent_bus" in names
-    assert "capability_policy" in names
+    assert "capability_governance" in names
     assert "taint_registry" in names
     # Each entry has the expected keys
     for entry in inv:
