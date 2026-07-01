@@ -6,13 +6,7 @@ const LazySyntaxBlock = lazy(async () => {
     import("react-syntax-highlighter/dist/esm/styles/prism"),
   ]);
   return {
-    default: function SyntaxBlock({
-      language,
-      code,
-    }: {
-      language: string;
-      code: string;
-    }) {
+    default: function SyntaxBlock({ language, code }: { language: string; code: string }) {
       return (
         <Prism style={oneDark} language={language} PreTag="div">
           {code}

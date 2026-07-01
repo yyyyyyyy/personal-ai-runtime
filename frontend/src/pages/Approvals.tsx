@@ -1,5 +1,16 @@
 import { useEffect, useState } from "react";
-import { Check, X, RefreshCw, Clock, AlertTriangle, FileText, Terminal, Mail, Calendar, Send } from "lucide-react";
+import {
+  Check,
+  X,
+  RefreshCw,
+  Clock,
+  AlertTriangle,
+  FileText,
+  Terminal,
+  Mail,
+  Calendar,
+  Send,
+} from "lucide-react";
 import {
   listEnrichedPendingApprovals,
   approveApproval,
@@ -13,7 +24,10 @@ import Badge from "../components/ui/Badge";
 import Card from "../components/ui/Card";
 
 /** 将 action 名称映射为中文标签和图标 */
-const ACTION_META: Record<string, { label: string; icon: React.ComponentType<{ size?: number; className?: string }> }> = {
+const ACTION_META: Record<
+  string,
+  { label: string; icon: React.ComponentType<{ size?: number; className?: string }> }
+> = {
   write_file: { label: "写入文件", icon: FileText },
   apply_patch: { label: "应用补丁", icon: FileText },
   shell_exec: { label: "执行命令", icon: Terminal },
@@ -24,12 +38,12 @@ const ACTION_META: Record<string, { label: string; icon: React.ComponentType<{ s
 
 /** 流程类型对应的 Badge 色调 */
 const FLOW_TONE: Record<string, "info" | "success" | "warning" | "default" | "danger"> = {
-  "对话": "info",
-  "任务": "success",
-  "定时任务": "warning",
-  "测试": "default",
-  "系统": "default",
-  "未知": "default",
+  对话: "info",
+  任务: "success",
+  定时任务: "warning",
+  测试: "default",
+  系统: "default",
+  未知: "default",
 };
 
 export default function ApprovalsPage() {
@@ -51,7 +65,9 @@ export default function ApprovalsPage() {
     }
   };
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => {
+    load();
+  }, []);
 
   const handleApprove = async (id: string) => {
     setResolving((prev) => new Set(prev).add(id));
@@ -62,7 +78,11 @@ export default function ApprovalsPage() {
       const msg = err instanceof ApiError ? err.message : "审批操作失败";
       addError(msg, "审批");
     } finally {
-      setResolving((prev) => { const n = new Set(prev); n.delete(id); return n; });
+      setResolving((prev) => {
+        const n = new Set(prev);
+        n.delete(id);
+        return n;
+      });
     }
   };
 
@@ -75,7 +95,11 @@ export default function ApprovalsPage() {
       const msg = err instanceof ApiError ? err.message : "拒绝操作失败";
       addError(msg, "审批");
     } finally {
-      setResolving((prev) => { const n = new Set(prev); n.delete(id); return n; });
+      setResolving((prev) => {
+        const n = new Set(prev);
+        n.delete(id);
+        return n;
+      });
     }
   };
 
@@ -121,14 +145,10 @@ export default function ApprovalsPage() {
         <div className="flex items-center justify-between mb-6">
           <div>
             <h2 className="text-2xl font-semibold text-gray-100">审批管理</h2>
-            <p className="text-sm text-gray-500 mt-1">
-              管理所有需要人工确认的高风险操作
-            </p>
+            <p className="text-sm text-gray-500 mt-1">管理所有需要人工确认的高风险操作</p>
           </div>
           <div className="flex items-center gap-2">
-            {approvals.length > 0 && (
-              <Badge tone="warning">{approvals.length} 条待处理</Badge>
-            )}
+            {approvals.length > 0 && <Badge tone="warning">{approvals.length} 条待处理</Badge>}
             <Button variant="secondary" size="sm" onClick={load} disabled={loading}>
               <RefreshCw size={14} className={`inline mr-1 ${loading ? "animate-spin" : ""}`} />
               刷新
@@ -185,7 +205,10 @@ function ApprovalCard({
   resolving: boolean;
   onApprove: () => void;
   onReject: () => void;
-  getActionMeta: (action?: string) => { label: string; icon: React.ComponentType<{ size?: number; className?: string }> };
+  getActionMeta: (action?: string) => {
+    label: string;
+    icon: React.ComponentType<{ size?: number; className?: string }>;
+  };
   paramsSummary: (params?: string) => string;
   formatTime: (iso: string) => string;
   formatTimeAgo: (iso: string) => string;
@@ -208,9 +231,7 @@ function ApprovalCard({
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap mb-1">
             <span className="text-sm font-medium text-gray-200">{meta.label}</span>
-            <Badge tone={FLOW_TONE[item.flow_type] || "default"}>
-              {item.flow_type}
-            </Badge>
+            <Badge tone={FLOW_TONE[item.flow_type] || "default"}>{item.flow_type}</Badge>
             {isExpiringSoon && (
               <Badge tone="danger">
                 <AlertTriangle size={10} className="inline mr-0.5" />
@@ -242,9 +263,7 @@ function ApprovalCard({
                 过期：{formatTime(item.expires_at)}
               </span>
             )}
-            {item.proposed_by && (
-              <span>发起：{item.proposed_by}</span>
-            )}
+            {item.proposed_by && <span>发起：{item.proposed_by}</span>}
             {item.correlation_id && (
               <span className="text-gray-700 truncate max-w-[200px]" title={item.correlation_id}>
                 ID: {item.correlation_id}

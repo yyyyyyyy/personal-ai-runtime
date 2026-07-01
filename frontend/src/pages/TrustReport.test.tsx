@@ -11,7 +11,14 @@ const mockGetReport = vi.mocked(getTrustReport);
 const BASE: TrustReportData = {
   system: { conversations: 1, messages: 10, goals: 0, memories: 0, event_log: 1 },
   approvals: [],
-  cost: { total_calls: 1, total_prompt_tokens: 10, total_completion_tokens: 5, total_cost: 0, avg_latency_ms: 500, failed_calls: 0 },
+  cost: {
+    total_calls: 1,
+    total_prompt_tokens: 10,
+    total_completion_tokens: 5,
+    total_cost: 0,
+    avg_latency_ms: 500,
+    failed_calls: 0,
+  },
   costByModel: [],
   tools: [],
   memory: { total_memories: 0, categories: {}, recent_7d: 0 },
@@ -20,7 +27,11 @@ const BASE: TrustReportData = {
 };
 
 function renderPage() {
-  return render(<MemoryRouter><TrustReportPage /></MemoryRouter>);
+  return render(
+    <MemoryRouter>
+      <TrustReportPage />
+    </MemoryRouter>,
+  );
 }
 
 describe("TrustReportPage", () => {
@@ -57,8 +68,27 @@ describe("TrustReportPage", () => {
     mockGetReport.mockResolvedValue({
       ...BASE,
       system: { conversations: 1, messages: 10, goals: 0, memories: 0, event_log: 50 },
-      cost: { total_calls: 15, total_prompt_tokens: 1000, total_completion_tokens: 500, total_cost: 0.01, avg_latency_ms: 600, failed_calls: 1 },
-      costByModel: [{ provider: "openai", model: "gpt-4", total_calls: 15, prompt_tokens: 1000, completion_tokens: 500, total_tokens: 1500, cost: 0.01, avg_latency_ms: 600, failed_calls: 1 }],
+      cost: {
+        total_calls: 15,
+        total_prompt_tokens: 1000,
+        total_completion_tokens: 500,
+        total_cost: 0.01,
+        avg_latency_ms: 600,
+        failed_calls: 1,
+      },
+      costByModel: [
+        {
+          provider: "openai",
+          model: "gpt-4",
+          total_calls: 15,
+          prompt_tokens: 1000,
+          completion_tokens: 500,
+          total_tokens: 1500,
+          cost: 0.01,
+          avg_latency_ms: 600,
+          failed_calls: 1,
+        },
+      ],
     });
     renderPage();
     await waitFor(() => {
@@ -78,8 +108,24 @@ describe("TrustReportPage", () => {
     mockGetReport.mockResolvedValue({
       ...BASE,
       approvals: [
-        { id: "a1", action: "write_file", status: "pending", flow_type: "对话", flow_label: "讨论", correlation_id: "c1", proposed_by: "w" },
-        { id: "a2", action: "send_email", status: "pending", flow_type: "任务", flow_label: "邮件", correlation_id: "c2", proposed_by: "w" },
+        {
+          id: "a1",
+          action: "write_file",
+          status: "pending",
+          flow_type: "对话",
+          flow_label: "讨论",
+          correlation_id: "c1",
+          proposed_by: "w",
+        },
+        {
+          id: "a2",
+          action: "send_email",
+          status: "pending",
+          flow_type: "任务",
+          flow_label: "邮件",
+          correlation_id: "c2",
+          proposed_by: "w",
+        },
       ],
     });
     renderPage();

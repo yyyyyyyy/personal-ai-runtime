@@ -59,7 +59,9 @@ export default function ChatHome() {
     }
   };
 
-  const stagnantGoals = goals.filter((g) => g.status === "active" && isStagnant(g.last_activity_at));
+  const stagnantGoals = goals.filter(
+    (g) => g.status === "active" && isStagnant(g.last_activity_at),
+  );
   const activeGoals = goals.filter((g) => g.status === "active");
   const unreadInbox = inbox.length;
 
@@ -67,12 +69,16 @@ export default function ChatHome() {
   const nudges: ProactiveNudge[] = [];
 
   if (stagnantGoals.length > 0) {
-    const names = stagnantGoals.slice(0, 2).map((g) => g.title).join("、");
+    const names = stagnantGoals
+      .slice(0, 2)
+      .map((g) => g.title)
+      .join("、");
     nudges.push({
       icon: "🎯",
-      message: stagnantGoals.length === 1
-        ? `「${names}」已经 ${Math.round((Date.now() - new Date(stagnantGoals[0].last_activity_at!).getTime()) / 86400000)} 天没有进展了`
-        : `你有 ${stagnantGoals.length} 个目标停滞了，包括：${names}`,
+      message:
+        stagnantGoals.length === 1
+          ? `「${names}」已经 ${Math.round((Date.now() - new Date(stagnantGoals[0].last_activity_at!).getTime()) / 86400000)} 天没有进展了`
+          : `你有 ${stagnantGoals.length} 个目标停滞了，包括：${names}`,
       action: "聊聊怎么推进",
       prompt: `我的目标「${names}」停滞了一段时间，帮我分析原因并建议下一步行动`,
       title: "推进停滞目标",
@@ -200,9 +206,7 @@ export default function ChatHome() {
           >
             开始新对话
           </button>
-          <p className="text-xs text-gray-600 mt-3">
-            或者直接在下方输入框告诉我你想做什么
-          </p>
+          <p className="text-xs text-gray-600 mt-3">或者直接在下方输入框告诉我你想做什么</p>
         </div>
       </div>
     </div>

@@ -3,8 +3,11 @@ import { Plug, Check, X, Loader2, RefreshCw, Globe, Calendar, Mail, Cpu } from "
 import { API_BASE, request } from "../api/core";
 
 interface ConnectorInfo {
-  name: string; type: string; icon?: string;
-  status: string; tools: string[];
+  name: string;
+  type: string;
+  icon?: string;
+  status: string;
+  tools: string[];
   description?: string;
 }
 
@@ -14,20 +17,26 @@ export default function IntegrationsHubPage() {
 
   useEffect(() => {
     request<{ connectors: ConnectorInfo[] }>(`${API_BASE}/connectors/`)
-      .then(r => setConnectors(r.connectors))
+      .then((r) => setConnectors(r.connectors))
       .catch(() => {})
       .finally(() => setLoading(false));
   }, []);
 
   const iconMap: Record<string, typeof Plug> = {
-    mail: Mail, calendar: Calendar, brave: Globe, github: Cpu, notion: Cpu, tavily: Globe,
+    mail: Mail,
+    calendar: Calendar,
+    brave: Globe,
+    github: Cpu,
+    notion: Cpu,
+    tavily: Globe,
   };
 
-  if (loading) return (
-    <div className="flex items-center justify-center h-full">
-      <Loader2 size={32} className="animate-spin text-gray-400" />
-    </div>
-  );
+  if (loading)
+    return (
+      <div className="flex items-center justify-center h-full">
+        <Loader2 size={32} className="animate-spin text-gray-400" />
+      </div>
+    );
 
   return (
     <div className="h-full overflow-y-auto">
@@ -42,12 +51,16 @@ export default function IntegrationsHubPage() {
       </div>
       <div className="p-6">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {connectors.map(c => {
+          {connectors.map((c) => {
             const Icon = iconMap[c.name] ?? Plug;
             const online = c.status === "online" || c.status === "connected";
             const nameMap: Record<string, string> = {
-              mail: "邮箱", calendar: "日历", brave: "Brave 搜索",
-              github: "GitHub", notion: "Notion", tavily: "Tavily",
+              mail: "邮箱",
+              calendar: "日历",
+              brave: "Brave 搜索",
+              github: "GitHub",
+              notion: "Notion",
+              tavily: "Tavily",
             };
             return (
               <div key={c.name} className="bg-gray-800/50 border border-gray-700/50 rounded-xl p-5">
@@ -59,16 +72,23 @@ export default function IntegrationsHubPage() {
                       <p className="text-xs text-gray-500">{c.type}</p>
                     </div>
                   </div>
-                  <span className={`flex items-center gap-1 text-xs px-2 py-1 rounded-full ${
-                    online ? "bg-emerald-500/20 text-emerald-400" : "bg-red-500/20 text-red-400"
-                  }`}>
+                  <span
+                    className={`flex items-center gap-1 text-xs px-2 py-1 rounded-full ${
+                      online ? "bg-emerald-500/20 text-emerald-400" : "bg-red-500/20 text-red-400"
+                    }`}
+                  >
                     {online ? <Check size={10} /> : <X size={10} />}
                     {online ? "已连接" : "未连接"}
                   </span>
                 </div>
                 <div className="flex flex-wrap gap-1 mt-2">
-                  {c.tools.slice(0, 5).map(t => (
-                    <span key={t} className="text-[10px] bg-gray-700 px-1.5 py-0.5 rounded text-gray-400">{t}</span>
+                  {c.tools.slice(0, 5).map((t) => (
+                    <span
+                      key={t}
+                      className="text-[10px] bg-gray-700 px-1.5 py-0.5 rounded text-gray-400"
+                    >
+                      {t}
+                    </span>
                   ))}
                   {c.tools.length > 5 && (
                     <span className="text-[10px] text-gray-500">+{c.tools.length - 5}</span>

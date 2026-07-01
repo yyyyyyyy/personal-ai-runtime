@@ -21,13 +21,10 @@ export async function approveApproval(approvalId: string): Promise<Approval> {
 
 /** Simple reject without resuming conversation. */
 export async function rejectApproval(approvalId: string, reason: string = ""): Promise<Approval> {
-  return request<Approval>(
-    `${API_BASE}/approvals/${approvalId}/reject`,
-    {
-      method: "POST",
-      body: JSON.stringify({ reason }),
-    },
-  );
+  return request<Approval>(`${API_BASE}/approvals/${approvalId}/reject`, {
+    method: "POST",
+    body: JSON.stringify({ reason }),
+  });
 }
 
 export async function resolveApproval(
@@ -36,7 +33,7 @@ export async function resolveApproval(
   toolName: string,
   toolArgs: Record<string, unknown>,
   convId: string,
-  toolCallId: string
+  toolCallId: string,
 ): Promise<{ status: string; result?: string; assistant_message?: string }> {
   return request(`${API_BASE}/chat/approvals/${approvalId}/resolve`, {
     method: "POST",

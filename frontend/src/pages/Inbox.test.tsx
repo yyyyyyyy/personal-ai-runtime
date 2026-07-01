@@ -41,7 +41,7 @@ describe("InboxPage", () => {
     render(
       <MemoryRouter>
         <InboxPage />
-      </MemoryRouter>
+      </MemoryRouter>,
     );
     expect(screen.getByText("收件箱")).toBeInTheDocument();
     expect(screen.getByText("立即轮询")).toBeInTheDocument();

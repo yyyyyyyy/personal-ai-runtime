@@ -1,10 +1,6 @@
 import { useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import {
-  type ToolSummaryItem,
-  markNotificationRead,
-  type Notification,
-} from "../api/client";
+import { type ToolSummaryItem, markNotificationRead, type Notification } from "../api/client";
 import { useDashboard } from "../hooks/useDashboard";
 import { useNotifications } from "../hooks/useNotifications";
 import { toolLabel } from "../utils/toolLabels";
@@ -83,16 +79,13 @@ export default function DashboardPage() {
       : "100";
 
   const mergedNotifications = [...liveNotifications, ...notifications]
-    .reduce<typeof notifications>(
-      (acc, item) => {
-        const key = `${item.type}:${item.title}`;
-        if (!acc.some((n) => n.id === item.id || `${n.type}:${n.title}` === key)) {
-          acc.push(item);
-        }
-        return acc;
-      },
-      [],
-    )
+    .reduce<typeof notifications>((acc, item) => {
+      const key = `${item.type}:${item.title}`;
+      if (!acc.some((n) => n.id === item.id || `${n.type}:${n.title}` === key)) {
+        acc.push(item);
+      }
+      return acc;
+    }, [])
     .slice(0, 6);
 
   const handleNotificationClick = async (n: Notification) => {
@@ -163,13 +156,13 @@ export default function DashboardPage() {
             {/* 记忆来源分布 */}
             <div className="flex items-center gap-4 mb-3 text-xs text-gray-500">
               <span>
-                自我陈述: 
+                自我陈述:
                 <span className="text-indigo-400 ml-1 font-medium">
                   {dashboard.data_sovereignty.memories_self_report || 0}
                 </span>
               </span>
               <span>
-                AI 提炼: 
+                AI 提炼:
                 <span className="text-amber-400 ml-1 font-medium">
                   {dashboard.data_sovereignty.memories_claim || 0}
                 </span>
@@ -188,7 +181,10 @@ export default function DashboardPage() {
             {/* 最近反思时间 */}
             {dashboard.data_sovereignty.last_belief_reflection && (
               <div className="text-xs text-gray-600 mb-3">
-                最近一次 AI 反思：{new Date(dashboard.data_sovereignty.last_belief_reflection).toLocaleString("zh-CN")}
+                最近一次 AI 反思：
+                {new Date(dashboard.data_sovereignty.last_belief_reflection).toLocaleString(
+                  "zh-CN",
+                )}
               </div>
             )}
             {/* 导出按钮 */}
@@ -251,9 +247,7 @@ export default function DashboardPage() {
               <div className="text-xs text-gray-500 mt-1">条记忆</div>
             </div>
             <div className="text-center py-2">
-              <div className="text-2xl font-bold text-emerald-400">
-                {memory?.recent_7d || 0}
-              </div>
+              <div className="text-2xl font-bold text-emerald-400">{memory?.recent_7d || 0}</div>
               <div className="text-xs text-gray-500 mt-1">近 7 天新增</div>
             </div>
             <div className="text-center py-2">
@@ -307,9 +301,7 @@ export default function DashboardPage() {
               ))}
             </div>
           ) : (
-            <p className="text-gray-600 text-sm text-center py-4">
-              暂无提醒
-            </p>
+            <p className="text-gray-600 text-sm text-center py-4">暂无提醒</p>
           )}
         </div>
 
@@ -329,7 +321,10 @@ export default function DashboardPage() {
               <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
                 <div className="bg-gray-900 border border-gray-800 rounded-lg p-3">
                   <div className="text-xs text-gray-500 mb-1">LLM 成功率</div>
-                  <div className="text-lg font-bold" style={{ color: Number(successRate) >= 95 ? "#10b981" : "#f59e0b" }}>
+                  <div
+                    className="text-lg font-bold"
+                    style={{ color: Number(successRate) >= 95 ? "#10b981" : "#f59e0b" }}
+                  >
                     {successRate}%
                   </div>
                 </div>
@@ -341,7 +336,12 @@ export default function DashboardPage() {
                 </div>
                 <div className="bg-gray-900 border border-gray-800 rounded-lg p-3">
                   <div className="text-xs text-gray-500 mb-1">工具失败率</div>
-                  <div className="text-lg font-bold" style={{ color: (health?.tool_failure_rate_24h || 0) < 0.05 ? "#10b981" : "#ef4444" }}>
+                  <div
+                    className="text-lg font-bold"
+                    style={{
+                      color: (health?.tool_failure_rate_24h || 0) < 0.05 ? "#10b981" : "#ef4444",
+                    }}
+                  >
                     {((health?.tool_failure_rate_24h || 0) * 100).toFixed(1)}%
                   </div>
                 </div>
@@ -357,7 +357,9 @@ export default function DashboardPage() {
                   </div>
                   <div className="flex justify-between">
                     <span className="text-gray-500">预估费用</span>
-                    <span className="text-gray-300 font-mono">${(cost?.total_cost || 0).toFixed(4)}</span>
+                    <span className="text-gray-300 font-mono">
+                      ${(cost?.total_cost || 0).toFixed(4)}
+                    </span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-gray-500">调用次数</span>
@@ -365,7 +367,9 @@ export default function DashboardPage() {
                   </div>
                   <div className="flex justify-between">
                     <span className="text-gray-500">平均延迟</span>
-                    <span className="text-gray-300 font-mono">{(cost?.avg_latency_ms || 0).toFixed(0)}ms</span>
+                    <span className="text-gray-300 font-mono">
+                      {(cost?.avg_latency_ms || 0).toFixed(0)}ms
+                    </span>
                   </div>
                 </div>
               </div>
@@ -380,9 +384,13 @@ export default function DashboardPage() {
                         t.total_calls > 0
                           ? (((t.total_calls - t.failed_calls) / t.total_calls) * 100).toFixed(0)
                           : "0";
-                      const color = Number(rate) >= 95 ? "#10b981" : Number(rate) >= 80 ? "#f59e0b" : "#ef4444";
+                      const color =
+                        Number(rate) >= 95 ? "#10b981" : Number(rate) >= 80 ? "#f59e0b" : "#ef4444";
                       return (
-                        <div key={t.tool_name} className="flex items-center justify-between py-1.5 text-xs">
+                        <div
+                          key={t.tool_name}
+                          className="flex items-center justify-between py-1.5 text-xs"
+                        >
                           <span className="text-gray-400">{toolLabel(t.tool_name)}</span>
                           <div className="flex items-center gap-3">
                             <span className="text-gray-600">{t.total_calls} 次</span>

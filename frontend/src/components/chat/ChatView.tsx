@@ -1,11 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import {
-  Zap,
-  MailSearch,
-  Target as TargetIcon,
-  BrainCircuit,
-  Lightbulb,
-} from "lucide-react";
+import { Zap, MailSearch, Target as TargetIcon, BrainCircuit, Lightbulb } from "lucide-react";
 import { listGoals, type MemoryRow } from "../../api/client";
 import { type StreamEvent } from "../../api/client";
 import { useErrorStore } from "../../stores/errorStore";
@@ -22,11 +16,14 @@ interface Props {
   conversationId: string;
 }
 
-const SUGGESTION_META: Record<string, { icon: React.ComponentType<{ size?: number; className?: string }> }> = {
-  "目标": { icon: TargetIcon },
-  "收件箱": { icon: MailSearch },
-  "对话": { icon: BrainCircuit },
-  "规划": { icon: Lightbulb },
+const SUGGESTION_META: Record<
+  string,
+  { icon: React.ComponentType<{ size?: number; className?: string }> }
+> = {
+  目标: { icon: TargetIcon },
+  收件箱: { icon: MailSearch },
+  对话: { icon: BrainCircuit },
+  规划: { icon: Lightbulb },
 };
 
 const CAPABILITY_CHIPS: Array<{ icon: string; label: string; prompt: string }> = [
@@ -153,7 +150,7 @@ export default function ChatView({ conversationId }: Props) {
       const newest = recentMemories[0];
       if (newest) {
         setMemoryNotice(
-          `我刚记住了：${newest.content.slice(0, 40)}${newest.content.length > 40 ? "…" : ""}`
+          `我刚记住了：${newest.content.slice(0, 40)}${newest.content.length > 40 ? "…" : ""}`,
         );
         const t = setTimeout(() => setMemoryNotice(null), 6000);
         prevMemoryTotalRef.current = memoryTotal;
@@ -192,19 +189,14 @@ export default function ChatView({ conversationId }: Props) {
     );
     // No setTimeout here — memory refresh arrives via WS `memory_changed`,
     // which invalidates the TanStack Query cache automatically.
-  }, [
-    input,
-    isLoading,
-    pendingConfirmation,
-    sendMessageBase,
-    setFromEvent,
-    addError,
-    memData,
-  ]);
+  }, [input, isLoading, pendingConfirmation, sendMessageBase, setFromEvent, addError, memData]);
 
-  const handleConfirm = useCallback(async (trustSession?: boolean) => {
-    await confirm(setMessages, addError, trustSession);
-  }, [confirm, setMessages, addError]);
+  const handleConfirm = useCallback(
+    async (trustSession?: boolean) => {
+      await confirm(setMessages, addError, trustSession);
+    },
+    [confirm, setMessages, addError],
+  );
 
   const handleDeny = useCallback(async () => {
     await deny(setMessages, addError);
@@ -248,14 +240,17 @@ export default function ChatView({ conversationId }: Props) {
                     <button
                       key={m.id}
                       onClick={() => {
-                        setInput(`你记得我${m.category === "preference" ? "喜欢" : m.category === "fact" ? "" : "的"}「${m.content.slice(0, 60)}」，基于这个继续聊聊`);
+                        setInput(
+                          `你记得我${m.category === "preference" ? "喜欢" : m.category === "fact" ? "" : "的"}「${m.content.slice(0, 60)}」，基于这个继续聊聊`,
+                        );
                         adjustTextareaHeight();
                         setTimeout(() => inputRef.current?.focus(), 0);
                       }}
                       className="block w-full text-left text-xs text-gray-400 hover:text-indigo-300 transition-colors truncate"
                       title={m.content}
                     >
-                      · {m.content.slice(0, 60)}{m.content.length > 60 ? "…" : ""}
+                      · {m.content.slice(0, 60)}
+                      {m.content.length > 60 ? "…" : ""}
                     </button>
                   ))}
                 </div>
@@ -280,9 +275,7 @@ export default function ChatView({ conversationId }: Props) {
                 </button>
               ))}
             </div>
-            <p className="text-xs text-gray-600 mb-6">
-              点击能力胶囊快速开始，或在下方直接输入
-            </p>
+            <p className="text-xs text-gray-600 mb-6">点击能力胶囊快速开始，或在下方直接输入</p>
             <div className="flex flex-wrap justify-center gap-2 mb-8">
               {suggestions.map((s) => {
                 const SIcon = getSuggestionIcon(s);
@@ -309,7 +302,10 @@ export default function ChatView({ conversationId }: Props) {
         <div className="border-t border-gray-800 p-4">
           <div className="max-w-3xl mx-auto">
             <div className="flex gap-3 items-end bg-gray-900 rounded-xl border border-gray-700 focus-within:border-emerald-600 transition-colors p-3">
-              <VoiceInput onTranscript={handleVoiceTranscript} disabled={isLoading || !!pendingConfirmation} />
+              <VoiceInput
+                onTranscript={handleVoiceTranscript}
+                disabled={isLoading || !!pendingConfirmation}
+              />
               <textarea
                 ref={inputRef}
                 value={input}
@@ -344,7 +340,12 @@ export default function ChatView({ conversationId }: Props) {
           <div className="px-4 py-2 bg-indigo-900/20 border-b border-indigo-700/30 flex items-center gap-2 text-xs text-indigo-300 animate-pulse">
             <span>🧠</span>
             <span className="flex-1 truncate">{memoryNotice}</span>
-            <button onClick={() => setMemoryNotice(null)} className="text-indigo-500 hover:text-indigo-300 shrink-0">×</button>
+            <button
+              onClick={() => setMemoryNotice(null)}
+              className="text-indigo-500 hover:text-indigo-300 shrink-0"
+            >
+              ×
+            </button>
           </div>
         )}
         <div className="flex-1 overflow-y-auto px-4 py-4">
@@ -391,7 +392,10 @@ export default function ChatView({ conversationId }: Props) {
               </div>
             )}
             <div className="flex gap-3 items-end bg-gray-900 rounded-xl border border-gray-700 focus-within:border-emerald-600 transition-colors p-3">
-              <VoiceInput onTranscript={handleVoiceTranscript} disabled={isLoading || !!pendingConfirmation} />
+              <VoiceInput
+                onTranscript={handleVoiceTranscript}
+                disabled={isLoading || !!pendingConfirmation}
+              />
               <textarea
                 ref={inputRef}
                 value={input}
@@ -413,8 +417,12 @@ export default function ChatView({ conversationId }: Props) {
                     <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
                       <circle
                         className="opacity-25"
-                        cx="12" cy="12" r="10"
-                        stroke="currentColor" strokeWidth="4" fill="none"
+                        cx="12"
+                        cy="12"
+                        r="10"
+                        stroke="currentColor"
+                        strokeWidth="4"
+                        fill="none"
                       />
                       <path
                         className="opacity-75"

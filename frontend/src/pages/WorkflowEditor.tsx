@@ -2,8 +2,19 @@ import { useState, useCallback, useRef, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { API_BASE, request } from "../api/core";
 import {
-  Clock, Zap, MessageSquare, Wrench, Bell, Play, Save,
-  Trash2, ArrowLeft, Plus, Download, Upload, Workflow,
+  Clock,
+  Zap,
+  MessageSquare,
+  Wrench,
+  Bell,
+  Play,
+  Save,
+  Trash2,
+  ArrowLeft,
+  Plus,
+  Download,
+  Upload,
+  Workflow,
 } from "lucide-react";
 
 interface FlowNode {
@@ -92,18 +103,22 @@ export default function WorkflowEditorPage() {
     }
   }, [workflowId]);
 
-  const addNode = useCallback((type: string, x: number, y: number) => {
-    const paletteItem = palette.find((p) => p.type === type);
-    const newNode: FlowNode = {
-      id: generateId(),
-      type,
-      label: paletteItem?.label || type,
-      x, y,
-      data: { ...(paletteItem?.defaults || {}) },
-    };
-    setNodes((prev) => [...prev, newNode]);
-    setSelectedNode(newNode.id);
-  }, [palette]);
+  const addNode = useCallback(
+    (type: string, x: number, y: number) => {
+      const paletteItem = palette.find((p) => p.type === type);
+      const newNode: FlowNode = {
+        id: generateId(),
+        type,
+        label: paletteItem?.label || type,
+        x,
+        y,
+        data: { ...(paletteItem?.defaults || {}) },
+      };
+      setNodes((prev) => [...prev, newNode]);
+      setSelectedNode(newNode.id);
+    },
+    [palette],
+  );
 
   const handleCanvasClick = useCallback((e: React.MouseEvent) => {
     if (!canvasRef.current) return;
@@ -116,20 +131,21 @@ export default function WorkflowEditorPage() {
     setConnecting(null);
   }, []);
 
-  const handleDrop = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    const type = e.dataTransfer.getData("nodeType");
-    if (!type || !canvasRef.current) return;
-    const rect = canvasRef.current.getBoundingClientRect();
-    const x = e.clientX - rect.left - 60;
-    const y = e.clientY - rect.top - 20;
-    addNode(type, x, y);
-  }, [addNode]);
+  const handleDrop = useCallback(
+    (e: React.DragEvent) => {
+      e.preventDefault();
+      const type = e.dataTransfer.getData("nodeType");
+      if (!type || !canvasRef.current) return;
+      const rect = canvasRef.current.getBoundingClientRect();
+      const x = e.clientX - rect.left - 60;
+      const y = e.clientY - rect.top - 20;
+      addNode(type, x, y);
+    },
+    [addNode],
+  );
 
   const moveNode = useCallback((id: string, dx: number, dy: number) => {
-    setNodes((prev) => prev.map((n) =>
-      n.id === id ? { ...n, x: n.x + dx, y: n.y + dy } : n
-    ));
+    setNodes((prev) => prev.map((n) => (n.id === id ? { ...n, x: n.x + dx, y: n.y + dy } : n)));
   }, []);
 
   const deleteNode = useCallback((id: string) => {
@@ -143,26 +159,30 @@ export default function WorkflowEditorPage() {
     setSelectedNode(nodeId);
   }, []);
 
-  const finishConnect = useCallback((targetId: string) => {
-    if (connecting && connecting !== targetId) {
-      const exists = edges.some(
-        (e) => e.source === connecting && e.target === targetId
-      );
-      if (!exists) {
-        setEdges((prev) => [...prev, {
-          id: `edge_${connecting}_${targetId}`,
-          source: connecting,
-          target: targetId,
-        }]);
+  const finishConnect = useCallback(
+    (targetId: string) => {
+      if (connecting && connecting !== targetId) {
+        const exists = edges.some((e) => e.source === connecting && e.target === targetId);
+        if (!exists) {
+          setEdges((prev) => [
+            ...prev,
+            {
+              id: `edge_${connecting}_${targetId}`,
+              source: connecting,
+              target: targetId,
+            },
+          ]);
+        }
       }
-    }
-    setConnecting(null);
-  }, [connecting, edges]);
+      setConnecting(null);
+    },
+    [connecting, edges],
+  );
 
   const updateNodeData = useCallback((id: string, key: string, value: string) => {
-    setNodes((prev) => prev.map((n) =>
-      n.id === id ? { ...n, data: { ...n.data, [key]: value } } : n
-    ));
+    setNodes((prev) =>
+      prev.map((n) => (n.id === id ? { ...n, data: { ...n.data, [key]: value } } : n)),
+    );
   }, []);
 
   const save = useCallback(async () => {
@@ -172,11 +192,13 @@ export default function WorkflowEditorPage() {
       const body = { name, description, nodes, edges, enabled: false };
       if (workflowId) {
         await request(`${API_BASE}/workflows/${workflowId}`, {
-          method: "PUT", body: JSON.stringify(body),
+          method: "PUT",
+          body: JSON.stringify(body),
         });
       } else {
         const result = await request<WorkflowData>(`${API_BASE}/workflows`, {
-          method: "POST", body: JSON.stringify(body),
+          method: "POST",
+          body: JSON.stringify(body),
         });
         navigate(`/workflows/${result.id}`, { replace: true });
       }
@@ -199,18 +221,23 @@ export default function WorkflowEditorPage() {
   const exportPlan = useCallback(async () => {
     if (!workflowId) return;
     const data = await request<{ plan: Record<string, unknown> }>(
-      `${API_BASE}/workflows/${workflowId}/export`
+      `${API_BASE}/workflows/${workflowId}/export`,
     );
     const blob = new Blob([JSON.stringify(data.plan, null, 2)], { type: "application/json" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
-    a.href = url; a.download = `workflow_${name}.json`;
+    a.href = url;
+    a.download = `workflow_${name}.json`;
     a.click();
     URL.revokeObjectURL(url);
   }, [workflowId, name]);
 
   if (loading) {
-    return <div className="flex-1 flex items-center justify-center text-gray-400 animate-pulse">加载中…</div>;
+    return (
+      <div className="flex-1 flex items-center justify-center text-gray-400 animate-pulse">
+        加载中…
+      </div>
+    );
   }
 
   const selectedNodeObj = nodes.find((n) => n.id === selectedNode);
@@ -220,7 +247,10 @@ export default function WorkflowEditorPage() {
       {/* Toolbar */}
       <div className="flex items-center justify-between px-4 py-2 border-b border-gray-800 bg-gray-950 shrink-0">
         <div className="flex items-center gap-3">
-          <button onClick={() => navigate("/workflows")} className="text-gray-500 hover:text-gray-300">
+          <button
+            onClick={() => navigate("/workflows")}
+            className="text-gray-500 hover:text-gray-300"
+          >
             <ArrowLeft size={18} />
           </button>
           <div className="flex items-center gap-2">
@@ -235,21 +265,33 @@ export default function WorkflowEditorPage() {
         </div>
         <div className="flex items-center gap-2">
           {message && (
-            <span className={`text-xs ${message.includes("失败") ? "text-red-400" : "text-emerald-400"}`}>
+            <span
+              className={`text-xs ${message.includes("失败") ? "text-red-400" : "text-emerald-400"}`}
+            >
               {message}
             </span>
           )}
           {workflowId && (
             <>
-              <button onClick={exportPlan} className="flex items-center gap-1 px-3 py-1.5 text-xs bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-lg">
+              <button
+                onClick={exportPlan}
+                className="flex items-center gap-1 px-3 py-1.5 text-xs bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-lg"
+              >
                 <Download size={12} /> 导出
               </button>
-              <button onClick={handleDelete} className="flex items-center gap-1 px-3 py-1.5 text-xs bg-red-900/20 hover:bg-red-900/40 text-red-400 rounded-lg">
+              <button
+                onClick={handleDelete}
+                className="flex items-center gap-1 px-3 py-1.5 text-xs bg-red-900/20 hover:bg-red-900/40 text-red-400 rounded-lg"
+              >
                 <Trash2 size={12} /> 删除
               </button>
             </>
           )}
-          <button onClick={save} disabled={saving} className="flex items-center gap-1 px-4 py-1.5 text-xs bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg disabled:opacity-50">
+          <button
+            onClick={save}
+            disabled={saving}
+            className="flex items-center gap-1 px-4 py-1.5 text-xs bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg disabled:opacity-50"
+          >
             <Save size={12} /> {saving ? "保存中…" : "保存"}
           </button>
         </div>
@@ -284,7 +326,10 @@ export default function WorkflowEditorPage() {
         <div
           ref={canvasRef}
           className="flex-1 relative overflow-auto bg-gray-950"
-          style={{ backgroundImage: "radial-gradient(circle, #1f2937 1px, transparent 1px)", backgroundSize: "20px 20px" }}
+          style={{
+            backgroundImage: "radial-gradient(circle, #1f2937 1px, transparent 1px)",
+            backgroundSize: "20px 20px",
+          }}
           onClick={handleCanvasClick}
           onDrop={handleDrop}
           onDragOver={(e) => e.preventDefault()}
@@ -295,7 +340,10 @@ export default function WorkflowEditorPage() {
           }}
         >
           {/* Edges */}
-          <svg className="absolute inset-0 pointer-events-none" style={{ width: "100%", height: "100%" }}>
+          <svg
+            className="absolute inset-0 pointer-events-none"
+            style={{ width: "100%", height: "100%" }}
+          >
             {edges.map((edge) => {
               const src = nodes.find((n) => n.id === edge.source);
               const tgt = nodes.find((n) => n.id === edge.target);
@@ -307,14 +355,25 @@ export default function WorkflowEditorPage() {
               return (
                 <line
                   key={edge.id}
-                  x1={sx} y1={sy} x2={tx} y2={ty}
-                  stroke="#6366f1" strokeWidth="1.5"
+                  x1={sx}
+                  y1={sy}
+                  x2={tx}
+                  y2={ty}
+                  stroke="#6366f1"
+                  strokeWidth="1.5"
                   markerEnd="url(#arrowhead)"
                 />
               );
             })}
             <defs>
-              <marker id="arrowhead" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+              <marker
+                id="arrowhead"
+                markerWidth="8"
+                markerHeight="6"
+                refX="8"
+                refY="3"
+                orient="auto"
+              >
                 <polygon points="0 0, 8 3, 0 6" fill="#6366f1" />
               </marker>
             </defs>
@@ -333,13 +392,18 @@ export default function WorkflowEditorPage() {
                 data-node={node.id}
                 className="absolute cursor-pointer group"
                 style={{ left: node.x, top: node.y, minWidth: 140 }}
-                onClick={(e) => { e.stopPropagation(); setSelectedNode(node.id); }}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setSelectedNode(node.id);
+                }}
               >
                 {/* Input port */}
                 {node.type !== "schedule" && node.type !== "trigger" && (
                   <div
                     className={`absolute -left-2 top-5 w-3 h-3 rounded-full border-2 transition-colors cursor-crosshair ${
-                      connecting ? "bg-emerald-500 border-emerald-500" : "bg-gray-800 border-gray-600 hover:border-emerald-400"
+                      connecting
+                        ? "bg-emerald-500 border-emerald-500"
+                        : "bg-gray-800 border-gray-600 hover:border-emerald-400"
                     }`}
                     onClick={(e) => {
                       e.stopPropagation();
@@ -352,7 +416,9 @@ export default function WorkflowEditorPage() {
                 {/* Node body */}
                 <div
                   className={`rounded-lg border px-3 py-2 bg-gray-900 transition-all ${
-                    isSelected ? "border-emerald-500 shadow-lg shadow-emerald-500/10" : "border-gray-700 hover:border-gray-600"
+                    isSelected
+                      ? "border-emerald-500 shadow-lg shadow-emerald-500/10"
+                      : "border-gray-700 hover:border-gray-600"
                   }`}
                   draggable
                   onDragStart={(e) => {
@@ -373,7 +439,9 @@ export default function WorkflowEditorPage() {
                   }}
                 >
                   <div className="flex items-center gap-1.5">
-                    <span className="text-xs" style={{ color }}>{ICON_MAP[node.type] || <Play size={12} />}</span>
+                    <span className="text-xs" style={{ color }}>
+                      {ICON_MAP[node.type] || <Play size={12} />}
+                    </span>
                     <span className="text-xs font-medium text-gray-300 truncate">{node.label}</span>
                   </div>
                 </div>
@@ -381,7 +449,9 @@ export default function WorkflowEditorPage() {
                 {/* Output port */}
                 <div
                   className={`absolute -right-2 top-5 w-3 h-3 rounded-full border-2 transition-colors cursor-crosshair z-10 ${
-                    isConnectingFrom ? "bg-amber-500 border-amber-500" : "bg-gray-800 border-gray-600 hover:border-amber-400"
+                    isConnectingFrom
+                      ? "bg-amber-500 border-amber-500"
+                      : "bg-gray-800 border-gray-600 hover:border-amber-400"
                   }`}
                   onClick={(e) => {
                     e.stopPropagation();
@@ -393,7 +463,10 @@ export default function WorkflowEditorPage() {
                 {/* Delete button */}
                 {isSelected && (
                   <button
-                    onClick={(e) => { e.stopPropagation(); deleteNode(node.id); }}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      deleteNode(node.id);
+                    }}
                     className="absolute -top-2 -right-2 w-5 h-5 rounded-full bg-red-600 text-white flex items-center justify-center text-xs opacity-0 group-hover:opacity-100 transition-opacity"
                     title="删除节点"
                   >
@@ -431,9 +504,13 @@ export default function WorkflowEditorPage() {
                 <label className="text-xs text-gray-600 block mb-1">名称</label>
                 <input
                   value={selectedNodeObj.label}
-                  onChange={(e) => setNodes((prev) => prev.map((n) =>
-                    n.id === selectedNodeObj.id ? { ...n, label: e.target.value } : n
-                  ))}
+                  onChange={(e) =>
+                    setNodes((prev) =>
+                      prev.map((n) =>
+                        n.id === selectedNodeObj.id ? { ...n, label: e.target.value } : n,
+                      ),
+                    )
+                  }
                   className="w-full bg-gray-800 border border-gray-700 rounded px-2 py-1 text-xs text-gray-300 focus:border-emerald-500 outline-none"
                 />
               </div>
@@ -484,7 +561,13 @@ export default function WorkflowEditorPage() {
                     <input
                       type="checkbox"
                       checked={!!selectedNodeObj.data.requires_approval}
-                      onChange={(e) => updateNodeData(selectedNodeObj.id, "requires_approval", e.target.checked ? "true" : "")}
+                      onChange={(e) =>
+                        updateNodeData(
+                          selectedNodeObj.id,
+                          "requires_approval",
+                          e.target.checked ? "true" : "",
+                        )
+                      }
                       className="rounded"
                     />
                     <label className="text-xs text-gray-500">需要审批</label>
@@ -505,7 +588,9 @@ export default function WorkflowEditorPage() {
                     <label className="text-xs text-gray-600 block mb-1">内容</label>
                     <textarea
                       value={String(selectedNodeObj.data.content || "")}
-                      onChange={(e) => updateNodeData(selectedNodeObj.id, "content", e.target.value)}
+                      onChange={(e) =>
+                        updateNodeData(selectedNodeObj.id, "content", e.target.value)
+                      }
                       rows={2}
                       className="w-full bg-gray-800 border border-gray-700 rounded px-2 py-1 text-xs text-gray-300 focus:border-emerald-500 outline-none resize-none"
                     />

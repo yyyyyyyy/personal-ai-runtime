@@ -18,10 +18,7 @@ export async function deleteConversation(id: string): Promise<void> {
   return request<void>(`${API_BASE}/chat/conversations/${id}`, { method: "DELETE" });
 }
 
-export async function updateConversation(
-  id: string,
-  title: string
-): Promise<{ status: string }> {
+export async function updateConversation(id: string, title: string): Promise<{ status: string }> {
   const url = `${API_BASE}/chat/conversations/${id}?title=${encodeURIComponent(title)}`;
   return request<{ status: string }>(url, { method: "PATCH" });
 }
@@ -35,7 +32,7 @@ export async function sendMessage(
   content: string,
   onEvent: (event: StreamEvent) => void,
   onError: (error: string) => void,
-  onDone: () => void
+  onDone: () => void,
 ): Promise<void> {
   const url = `${API_BASE}/chat/conversations/${convId}/messages`;
   const headers: Record<string, string> = { "Content-Type": "application/json" };

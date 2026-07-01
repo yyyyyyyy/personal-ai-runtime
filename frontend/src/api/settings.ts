@@ -71,9 +71,7 @@ export async function getLlmSettings(): Promise<LlmSettingsResponse> {
   return request<LlmSettingsResponse>(`${API_BASE}/settings/llm`);
 }
 
-export async function updateLlmSettings(
-  payload: Partial<LlmConfig>
-): Promise<LlmSettingsResponse> {
+export async function updateLlmSettings(payload: Partial<LlmConfig>): Promise<LlmSettingsResponse> {
   return request<LlmSettingsResponse>(`${API_BASE}/settings/llm`, {
     method: "PUT",
     body: JSON.stringify(payload),
@@ -92,7 +90,7 @@ export async function getEmailSettings(): Promise<EmailSettingsResponse> {
 }
 
 export async function updateEmailSettings(
-  payload: Partial<EmailConfig>
+  payload: Partial<EmailConfig>,
 ): Promise<{ config: EmailConfig }> {
   return request(`${API_BASE}/settings/email`, {
     method: "PUT",
@@ -101,7 +99,9 @@ export async function updateEmailSettings(
 }
 
 export async function testEmailConnection(
-  payload?: Partial<Pick<EmailConfig, "user" | "password" | "imap_host" | "smtp_host" | "smtp_port">>
+  payload?: Partial<
+    Pick<EmailConfig, "user" | "password" | "imap_host" | "smtp_host" | "smtp_port">
+  >,
 ): Promise<EmailTestResult> {
   return request<EmailTestResult>(`${API_BASE}/settings/email/test`, {
     method: "POST",
@@ -122,9 +122,10 @@ export async function getPromptConfig(): Promise<PromptConfig> {
   return request<PromptConfig>(`${API_BASE}/settings/prompt`);
 }
 
-export async function updatePromptConfig(
-  payload: { identity?: string; coding_rules?: string }
-): Promise<{ ok: boolean }> {
+export async function updatePromptConfig(payload: {
+  identity?: string;
+  coding_rules?: string;
+}): Promise<{ ok: boolean }> {
   return request(`${API_BASE}/settings/prompt`, {
     method: "PUT",
     body: JSON.stringify(payload),

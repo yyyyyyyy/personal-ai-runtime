@@ -5,7 +5,7 @@ import type { InboxEmail } from "./types";
 
 export async function listInboxEmails(
   category?: string,
-  status = "pending"
+  status = "pending",
 ): Promise<InboxEmail[]> {
   const params = new URLSearchParams();
   if (category) params.set("category", category);
@@ -17,7 +17,7 @@ export async function listInboxEmails(
 
 export async function updateInboxEmailStatus(
   emailId: string,
-  status: "pending" | "read" | "handled"
+  status: "pending" | "read" | "handled",
 ): Promise<{ id: string; status: string }> {
   return request(`${API_BASE}/inbox/${encodeURIComponent(emailId)}/status`, {
     method: "PATCH",
@@ -25,7 +25,11 @@ export async function updateInboxEmailStatus(
   });
 }
 
-export async function getInboxDigest(): Promise<{ title?: string; content?: string; message?: string }> {
+export async function getInboxDigest(): Promise<{
+  title?: string;
+  content?: string;
+  message?: string;
+}> {
   return request(`${API_BASE}/inbox/digest`);
 }
 

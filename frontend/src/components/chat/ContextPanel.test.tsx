@@ -2,11 +2,7 @@ import { describe, expect, it, vi, beforeEach } from "vitest";
 import { render, screen, waitFor, fireEvent } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import ContextPanel from "./ContextPanel";
-import {
-  listGoals,
-  searchMemories,
-  listPendingApprovals,
-} from "../../api/client";
+import { listGoals, searchMemories, listPendingApprovals } from "../../api/client";
 
 vi.mock("../../api/client", () => ({
   listGoals: vi.fn(),
@@ -98,7 +94,7 @@ describe("ContextPanel", () => {
     render(
       <MemoryRouter>
         <ContextPanel open={false} onToggle={vi.fn()} />
-      </MemoryRouter>
+      </MemoryRouter>,
     );
     expect(screen.getByText("上下文")).toBeInTheDocument();
   });
@@ -107,7 +103,7 @@ describe("ContextPanel", () => {
     render(
       <MemoryRouter>
         <ContextPanel open={true} onToggle={vi.fn()} />
-      </MemoryRouter>
+      </MemoryRouter>,
     );
 
     await waitFor(() => {
@@ -121,12 +117,8 @@ describe("ContextPanel", () => {
   it("shows pending approvals and related memories", async () => {
     render(
       <MemoryRouter>
-        <ContextPanel
-          open={true}
-          onToggle={vi.fn()}
-          lastUserMessage="帮我解释 Rust 所有权"
-        />
-      </MemoryRouter>
+        <ContextPanel open={true} onToggle={vi.fn()} lastUserMessage="帮我解释 Rust 所有权" />
+      </MemoryRouter>,
     );
 
     await waitFor(() => {
@@ -141,7 +133,7 @@ describe("ContextPanel", () => {
     render(
       <MemoryRouter>
         <ContextPanel open={true} onToggle={onToggle} />
-      </MemoryRouter>
+      </MemoryRouter>,
     );
 
     fireEvent.click(screen.getByText("收起"));

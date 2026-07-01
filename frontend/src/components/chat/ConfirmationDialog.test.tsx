@@ -15,13 +15,7 @@ const toolCall = {
 
 describe("ConfirmationDialog", () => {
   it("renders human-readable label and expandable arguments", () => {
-    render(
-      <ConfirmationDialog
-        toolCall={toolCall}
-        onConfirm={vi.fn()}
-        onDeny={vi.fn()}
-      />
-    );
+    render(<ConfirmationDialog toolCall={toolCall} onConfirm={vi.fn()} onDeny={vi.fn()} />);
 
     // Human-readable label
     expect(screen.getByText(/确认写入文件/)).toBeInTheDocument();
@@ -36,11 +30,7 @@ describe("ConfirmationDialog", () => {
     const onDeny = vi.fn();
 
     const { container } = render(
-      <ConfirmationDialog
-        toolCall={toolCall}
-        onConfirm={onConfirm}
-        onDeny={onDeny}
-      />
+      <ConfirmationDialog toolCall={toolCall} onConfirm={onConfirm} onDeny={onDeny} />,
     );
 
     const confirmBtn = within(container).getByRole("button", { name: "确认执行" });
@@ -55,11 +45,7 @@ describe("ConfirmationDialog", () => {
     const onDeny = vi.fn();
 
     const { container } = render(
-      <ConfirmationDialog
-        toolCall={toolCall}
-        onConfirm={onConfirm}
-        onDeny={onDeny}
-      />
+      <ConfirmationDialog toolCall={toolCall} onConfirm={onConfirm} onDeny={onDeny} />,
     );
 
     const denyBtn = within(container).getByRole("button", { name: "取消" });
@@ -84,7 +70,7 @@ describe("ConfirmationDialog", () => {
         }}
         onConfirm={vi.fn()}
         onDeny={vi.fn()}
-      />
+      />,
     );
 
     expect(screen.getByText("变更预览")).toBeInTheDocument();
@@ -106,7 +92,7 @@ describe("ConfirmationDialog", () => {
         }}
         onConfirm={vi.fn()}
         onDeny={vi.fn()}
-      />
+      />,
     );
 
     expect(screen.getByText("写入内容预览")).toBeInTheDocument();
@@ -129,7 +115,7 @@ describe("ConfirmationDialog", () => {
         }}
         onConfirm={vi.fn()}
         onDeny={vi.fn()}
-      />
+      />,
     );
 
     expect(screen.getByText("查看完整内容")).toBeInTheDocument();

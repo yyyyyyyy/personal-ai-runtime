@@ -1,10 +1,7 @@
 import { useNavigate } from "react-router-dom";
 import type { Notification } from "../../api/client";
 import Button from "../ui/Button";
-import {
-  notificationTargetPath,
-  notificationTypeLabel,
-} from "../../utils/notificationRoutes";
+import { notificationTargetPath, notificationTypeLabel } from "../../utils/notificationRoutes";
 import { notificationPreview } from "../../utils/notificationUtils";
 
 interface Props {
@@ -51,9 +48,7 @@ export default function NotificationDetailModal({ notification, onClose }: Props
               <h3 className="text-lg font-semibold text-gray-100 break-words">
                 {notification.title}
               </h3>
-              <p className="text-xs text-gray-500 mt-1">
-                {formatTime(notification.created_at)}
-              </p>
+              <p className="text-xs text-gray-500 mt-1">{formatTime(notification.created_at)}</p>
             </div>
             <button
               type="button"

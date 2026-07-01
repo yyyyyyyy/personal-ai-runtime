@@ -9,7 +9,7 @@ export async function listMemoriesGrouped(): Promise<MemoriesGrouped> {
 
 export async function searchMemories(q: string, n = 5): Promise<MemoryRow[]> {
   return request<MemoryRow[]>(
-    `${API_BASE}/memory/memories/search?q=${encodeURIComponent(q)}&n=${n}`
+    `${API_BASE}/memory/memories/search?q=${encodeURIComponent(q)}&n=${n}`,
   );
 }
 
@@ -29,7 +29,7 @@ export async function deleteMemory(memoryId: string): Promise<{ status: string }
 
 export async function updateMemory(
   memoryId: string,
-  body: { content: string; category?: string }
+  body: { content: string; category?: string },
 ): Promise<{ status: string }> {
   return request(`${API_BASE}/memory/memories/${memoryId}`, {
     method: "PUT",
@@ -37,15 +37,21 @@ export async function updateMemory(
   });
 }
 
-export async function ratifyMemory(memoryId: string): Promise<{ status: string; claim_status: string }> {
+export async function ratifyMemory(
+  memoryId: string,
+): Promise<{ status: string; claim_status: string }> {
   return request(`${API_BASE}/memory/memories/${memoryId}/ratify`, { method: "POST" });
 }
 
-export async function rejectMemory(memoryId: string): Promise<{ status: string; claim_status: string }> {
+export async function rejectMemory(
+  memoryId: string,
+): Promise<{ status: string; claim_status: string }> {
   return request(`${API_BASE}/memory/memories/${memoryId}/reject`, { method: "POST" });
 }
 
-export async function contestMemory(memoryId: string): Promise<{ status: string; claim_status: string }> {
+export async function contestMemory(
+  memoryId: string,
+): Promise<{ status: string; claim_status: string }> {
   return request(`${API_BASE}/memory/memories/${memoryId}/contest`, { method: "POST" });
 }
 

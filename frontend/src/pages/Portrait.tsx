@@ -1,9 +1,25 @@
 import { useState, useEffect } from "react";
 import {
-  User, Heart, Target, Users, Dumbbell, Wallet, Briefcase, Sparkles,
-  AlertCircle, Loader2, RefreshCw, ChevronRight,
+  User,
+  Heart,
+  Target,
+  Users,
+  Dumbbell,
+  Wallet,
+  Briefcase,
+  Sparkles,
+  AlertCircle,
+  Loader2,
+  RefreshCw,
+  ChevronRight,
 } from "lucide-react";
-import { getPortrait, type PortraitData, type HabitItem, type ProfileItem, type GoalSummary } from "../api/portrait";
+import {
+  getPortrait,
+  type PortraitData,
+  type HabitItem,
+  type ProfileItem,
+  type GoalSummary,
+} from "../api/portrait";
 
 const CATEGORY_META: Record<string, { label: string; icon: typeof User; description: string }> = {
   preferences: { label: "偏好", icon: Heart, description: "你的喜好与倾向" },
@@ -74,9 +90,7 @@ export default function PortraitPage() {
 
   const profileEntries = Object.entries(data?.profile ?? {});
   const totalItems =
-    profileEntries.length +
-    (data?.habits?.length ?? 0) +
-    (data?.goals?.length ?? 0);
+    profileEntries.length + (data?.habits?.length ?? 0) + (data?.goals?.length ?? 0);
 
   return (
     <div className="h-full overflow-y-auto">
@@ -88,9 +102,7 @@ export default function PortraitPage() {
           </div>
           <div>
             <h1 className="text-xl font-bold text-white">AI 画像</h1>
-            <p className="text-sm text-gray-400 mt-1">
-              AI 对你的理解——包含 {totalItems} 项洞察
-            </p>
+            <p className="text-sm text-gray-400 mt-1">AI 对你的理解——包含 {totalItems} 项洞察</p>
           </div>
         </div>
       </div>
@@ -104,7 +116,8 @@ export default function PortraitPage() {
             <div>
               <p className="text-amber-300 text-sm font-medium">画像尚未建立</p>
               <p className="text-amber-400/70 text-xs mt-1">
-                与 AI 多聊几次后，它会逐渐了解你的偏好、习惯和目标。<br />
+                与 AI 多聊几次后，它会逐渐了解你的偏好、习惯和目标。
+                <br />
                 新用户通常在 5 分钟内看到自己的初始画像。
               </p>
             </div>
@@ -121,7 +134,11 @@ export default function PortraitPage() {
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {profileEntries.map(([category, item]) => {
                 if (!item) return null;
-                const meta = CATEGORY_META[category] ?? { label: category, icon: User, description: "" };
+                const meta = CATEGORY_META[category] ?? {
+                  label: category,
+                  icon: User,
+                  description: "",
+                };
                 const Icon = meta.icon;
                 const conf = confidenceLevel(item.confidence);
                 return (

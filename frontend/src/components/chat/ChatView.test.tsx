@@ -41,7 +41,9 @@ vi.mock("../../stores/chatStore", () => ({
 // TanStack Query-backed hook — provide a controllable stub so component
 // tests can drive the memory cache (total + recent slice) and verify the
 // "I just remembered" toast logic without a QueryClientProvider.
-const memoriesState = { data: { memories: [] as Array<{ content: string }>, recent: [] as Array<{ content: string }> } };
+const memoriesState = {
+  data: { memories: [] as Array<{ content: string }>, recent: [] as Array<{ content: string }> },
+};
 vi.mock("../../hooks/useMemoriesGroupedQuery", () => ({
   useMemoriesGroupedQuery: () => memoriesState,
 }));
@@ -55,7 +57,7 @@ function renderChatView() {
       <MemoryRouter>
         <ChatView conversationId="test-conv-1" />
       </MemoryRouter>
-    </QueryClientProvider>
+    </QueryClientProvider>,
   );
 }
 describe("ChatView", () => {
@@ -101,7 +103,7 @@ describe("ChatView", () => {
         });
         onEvent({ type: "done" });
         onDone();
-      }
+      },
     );
 
     renderChatView();
@@ -131,7 +133,7 @@ describe("ChatView", () => {
         });
         onEvent({ type: "done" });
         onDone();
-      }
+      },
     );
     vi.mocked(resolveApproval).mockResolvedValue({
       status: "approved",
@@ -162,7 +164,7 @@ describe("ChatView", () => {
         "write_file",
         { path: "/tmp/x", content: "data" },
         "test-conv-1",
-        "tc-test-1"
+        "tc-test-1",
       );
     });
 

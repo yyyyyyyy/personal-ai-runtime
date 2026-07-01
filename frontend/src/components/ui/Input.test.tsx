@@ -18,16 +18,11 @@ describe("PasswordInput", () => {
 
   it("shows hint placeholder when revealing saved masked secret", () => {
     render(
-      <PasswordInput
-        value="••••••••"
-        isSavedSecret
-        onChange={vi.fn()}
-        placeholder="原始占位"
-      />
+      <PasswordInput value="••••••••" isSavedSecret onChange={vi.fn()} placeholder="原始占位" />,
     );
     fireEvent.click(screen.getByRole("button", { name: "显示密码" }));
     expect(
-      screen.getByPlaceholderText("密钥已保存，不可查看原文；输入新值以替换")
+      screen.getByPlaceholderText("密钥已保存，不可查看原文；输入新值以替换"),
     ).toBeInTheDocument();
   });
 });

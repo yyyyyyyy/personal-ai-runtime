@@ -25,10 +25,7 @@ export const useErrorStore = create<ErrorState>((set) => ({
   addError: (message, source) => {
     const id = `err-${Date.now()}-${++errorSeq}`;
     set((state) => ({
-      errors: [{ id, message, source, timestamp: Date.now() }, ...state.errors].slice(
-        0,
-        5
-      ),
+      errors: [{ id, message, source, timestamp: Date.now() }, ...state.errors].slice(0, 5),
     }));
   },
 

@@ -114,10 +114,7 @@ export default function NotificationBell() {
         )}
       </div>
 
-      <NotificationDetailModal
-        notification={selected}
-        onClose={() => setSelected(null)}
-      />
+      <NotificationDetailModal notification={selected} onClose={() => setSelected(null)} />
     </>
   );
 }

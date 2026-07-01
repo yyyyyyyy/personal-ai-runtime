@@ -11,7 +11,7 @@ describe("MessageItem", () => {
           role: "user",
           content: "你好",
         }}
-      />
+      />,
     );
     expect(screen.getByText("你好")).toBeInTheDocument();
     expect(screen.getByText("你")).toBeInTheDocument();
@@ -25,7 +25,7 @@ describe("MessageItem", () => {
           role: "assistant",
           content: "**加粗**文本",
         }}
-      />
+      />,
     );
     expect(screen.getByText("加粗")).toBeInTheDocument();
   });
@@ -38,7 +38,7 @@ describe("MessageItem", () => {
           role: "system",
           content: "hidden",
         }}
-      />
+      />,
     );
     expect(container.textContent).toBe("");
   });

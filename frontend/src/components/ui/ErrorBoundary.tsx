@@ -37,15 +37,11 @@ export default class ErrorBoundary extends Component<Props, State> {
         <div className="flex-1 flex items-center justify-center p-8">
           <div className="max-w-sm text-center">
             <div className="text-3xl mb-3">⚠️</div>
-            <h2 className="text-lg font-semibold text-gray-200 mb-2">
-              页面出错了
-            </h2>
+            <h2 className="text-lg font-semibold text-gray-200 mb-2">页面出错了</h2>
             <p className="text-sm text-gray-400 mb-2">
               {this.state.error?.message || "发生了未知错误"}
             </p>
-            <p className="text-xs text-gray-600 mb-4">
-              请尝试刷新页面或返回首页
-            </p>
+            <p className="text-xs text-gray-600 mb-4">请尝试刷新页面或返回首页</p>
             <div className="flex gap-2 justify-center">
               <button
                 onClick={this.handleRetry}

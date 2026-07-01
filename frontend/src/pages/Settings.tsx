@@ -169,10 +169,7 @@ export default function SettingsPage() {
     }
   };
 
-  const handleImportFile = async (
-    e: React.ChangeEvent<HTMLInputElement>,
-    write: boolean
-  ) => {
+  const handleImportFile = async (e: React.ChangeEvent<HTMLInputElement>, write: boolean) => {
     const file = e.target.files?.[0];
     if (!file) return;
     try {
@@ -186,7 +183,10 @@ export default function SettingsPage() {
   };
 
   const handleEncryptedExport = async () => {
-    if (!encryptPassword) { addError("请输入加密密码", "设置"); return; }
+    if (!encryptPassword) {
+      addError("请输入加密密码", "设置");
+      return;
+    }
     setEncryptExporting(true);
     try {
       const result = await exportEncryptedData(encryptPassword);
@@ -207,7 +207,10 @@ export default function SettingsPage() {
 
   const handleEncryptedImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file || !encryptPassword) { addError("请选择文件并输入密码", "设置"); return; }
+    if (!file || !encryptPassword) {
+      addError("请选择文件并输入密码", "设置");
+      return;
+    }
     setEncryptImporting(true);
     try {
       const raw = await file.text();
@@ -239,9 +242,7 @@ export default function SettingsPage() {
   };
 
   const updateProvider = (index: number, patch: Partial<LlmProviderConfig>) => {
-    setLlmForm((prev) =>
-      prev.map((p, i) => (i === index ? { ...p, ...patch } : p))
-    );
+    setLlmForm((prev) => prev.map((p, i) => (i === index ? { ...p, ...patch } : p)));
   };
 
   const applyPreset = (index: number, presetId: string) => {
@@ -371,9 +372,7 @@ export default function SettingsPage() {
         <div className="flex items-center justify-between">
           <div>
             <h2 className="text-2xl font-bold text-gray-100">设置</h2>
-            <p className="text-sm text-gray-500 mt-1">
-              LLM、邮箱与数据管理
-            </p>
+            <p className="text-sm text-gray-500 mt-1">LLM、邮箱与数据管理</p>
           </div>
           <Badge
             tone={
@@ -434,9 +433,7 @@ export default function SettingsPage() {
 
           <div className="space-y-4">
             {llmForm.map((provider, index) => {
-              const status = llmSettings?.providers_status.find(
-                (s) => s.name === provider.id
-              );
+              const status = llmSettings?.providers_status.find((s) => s.name === provider.id);
               return (
                 <div
                   key={`${provider.id}-${index}`}
@@ -444,17 +441,13 @@ export default function SettingsPage() {
                 >
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                      <span className="text-sm text-gray-200">
-                        {provider.name || provider.id}
-                      </span>
+                      <span className="text-sm text-gray-200">{provider.name || provider.id}</span>
                       {status && (
                         <Badge tone={status.available ? "success" : "danger"}>
                           {status.available ? "可用" : "不可用"}
                         </Badge>
                       )}
-                      {provider.id === llmDefault && (
-                        <Badge tone="default">默认</Badge>
-                      )}
+                      {provider.id === llmDefault && <Badge tone="default">默认</Badge>}
                     </div>
                     <div className="flex gap-2">
                       <Button
@@ -466,11 +459,7 @@ export default function SettingsPage() {
                         {testingLlm === provider.id ? "测试中…" : "测试"}
                       </Button>
                       {llmForm.length > 1 && (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => removeProvider(index)}
-                        >
+                        <Button variant="ghost" size="sm" onClick={() => removeProvider(index)}>
                           删除
                         </Button>
                       )}
@@ -479,15 +468,15 @@ export default function SettingsPage() {
 
                   <div className="flex gap-2 flex-wrap">
                     {Object.keys(llmSettings?.presets ?? {}).map((presetId) => (
-                        <button
-                          key={presetId}
-                          type="button"
-                          onClick={() => applyPreset(index, presetId)}
-                          className="px-2 py-1 text-xs rounded bg-gray-800 hover:bg-gray-700 text-gray-400"
-                        >
-                          {llmSettings?.presets?.[presetId]?.name ?? presetId}
-                        </button>
-                      ))}
+                      <button
+                        key={presetId}
+                        type="button"
+                        onClick={() => applyPreset(index, presetId)}
+                        className="px-2 py-1 text-xs rounded bg-gray-800 hover:bg-gray-700 text-gray-400"
+                      >
+                        {llmSettings?.presets?.[presetId]?.name ?? presetId}
+                      </button>
+                    ))}
                   </div>
 
                   <div className="grid grid-cols-2 gap-3">
@@ -512,8 +501,7 @@ export default function SettingsPage() {
                         onChange={(e) =>
                           updateProvider(index, {
                             type: e.target.value as LlmProviderConfig["type"],
-                            api_key:
-                              e.target.value === "ollama" ? "ollama" : provider.api_key,
+                            api_key: e.target.value === "ollama" ? "ollama" : provider.api_key,
                           })
                         }
                         className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-100"
@@ -542,12 +530,14 @@ export default function SettingsPage() {
                       <label className="text-xs text-gray-500 block mb-1">API Key</label>
                       <PasswordInput
                         value={provider.api_key}
-                        isSavedSecret={
-                          Boolean(provider.has_api_key && provider.api_key === MASKED_SECRET)
-                        }
+                        isSavedSecret={Boolean(
+                          provider.has_api_key && provider.api_key === MASKED_SECRET,
+                        )}
                         onChange={(e) => updateProvider(index, { api_key: e.target.value })}
                         placeholder={
-                          provider.type === "ollama" ? "ollama（可留空）" : "留空则使用 .env 中的密钥"
+                          provider.type === "ollama"
+                            ? "ollama（可留空）"
+                            : "留空则使用 .env 中的密钥"
                         }
                       />
                       {provider.has_api_key && provider.api_key === MASKED_SECRET && (
@@ -560,9 +550,7 @@ export default function SettingsPage() {
                     <input
                       type="checkbox"
                       checked={provider.enabled}
-                      onChange={(e) =>
-                        updateProvider(index, { enabled: e.target.checked })
-                      }
+                      onChange={(e) => updateProvider(index, { enabled: e.target.checked })}
                       className="rounded"
                     />
                     启用此 Provider
@@ -627,11 +615,7 @@ export default function SettingsPage() {
             <Button onClick={handleSaveEmail} disabled={savingEmail}>
               {savingEmail ? "保存中…" : "保存邮箱配置"}
             </Button>
-            <Button
-              variant="ghost"
-              onClick={handleTestEmail}
-              disabled={testingEmail}
-            >
+            <Button variant="ghost" onClick={handleTestEmail} disabled={testingEmail}>
               {testingEmail ? "测试中…" : "测试连接"}
             </Button>
           </div>
@@ -643,8 +627,8 @@ export default function SettingsPage() {
             <p className="text-sm text-gray-500">MCP 未启用或连接信息不可用</p>
           ) : health.startup.checks.mcp.failed > 0 ? (
             <div className="p-3 bg-amber-900/20 border border-amber-700/30 rounded-lg text-xs text-amber-300">
-              MCP 服务 {health.startup.checks.mcp.connected}/
-              {health.startup.checks.mcp.total} 已连接，
+              MCP 服务 {health.startup.checks.mcp.connected}/{health.startup.checks.mcp.total}{" "}
+              已连接，
               {health.startup.checks.mcp.failed} 个连接失败。
             </div>
           ) : (
@@ -654,16 +638,17 @@ export default function SettingsPage() {
           )}
           {health?.startup?.checks?.mcp && (
             <p className="text-xs text-gray-600 mt-2">
-              状态码：{Object.entries(STATUS_LABELS).map(([k, v]) => `${k}=${v}`).join(" / ")}
+              状态码：
+              {Object.entries(STATUS_LABELS)
+                .map(([k, v]) => `${k}=${v}`)
+                .join(" / ")}
             </p>
           )}
         </Card>
 
         <Card>
           <h3 className="text-sm font-medium text-gray-300 mb-3">MCP 市场</h3>
-          <p className="text-sm text-gray-500 mb-3">
-            浏览并安装社区 MCP 服务器，扩展 AI 的能力。
-          </p>
+          <p className="text-sm text-gray-500 mb-3">浏览并安装社区 MCP 服务器，扩展 AI 的能力。</p>
           <McpMarketplace />
         </Card>
 
@@ -681,8 +666,22 @@ export default function SettingsPage() {
                 <span className="text-xs text-gray-500">— 安全操作，无需确认</span>
               </div>
               <div className="flex flex-wrap gap-1.5">
-                {["获取时间", "读取文件", "列出目录", "搜索文件", "搜索网页", "抓取网页", "查看日历", "查看收件箱", "Git 状态", "Git 日志"].map((t) => (
-                  <span key={t} className="text-xs px-2 py-1 bg-emerald-900/20 text-emerald-400/70 rounded border border-emerald-700/20">
+                {[
+                  "获取时间",
+                  "读取文件",
+                  "列出目录",
+                  "搜索文件",
+                  "搜索网页",
+                  "抓取网页",
+                  "查看日历",
+                  "查看收件箱",
+                  "Git 状态",
+                  "Git 日志",
+                ].map((t) => (
+                  <span
+                    key={t}
+                    className="text-xs px-2 py-1 bg-emerald-900/20 text-emerald-400/70 rounded border border-emerald-700/20"
+                  >
                     {t}
                   </span>
                 ))}
@@ -697,7 +696,10 @@ export default function SettingsPage() {
               </div>
               <div className="flex flex-wrap gap-1.5">
                 {["写入文件", "修改文件", "添加日程"].map((t) => (
-                  <span key={t} className="text-xs px-2 py-1 bg-amber-900/20 text-amber-400/70 rounded border border-amber-700/20">
+                  <span
+                    key={t}
+                    className="text-xs px-2 py-1 bg-amber-900/20 text-amber-400/70 rounded border border-amber-700/20"
+                  >
                     {t}
                   </span>
                 ))}
@@ -712,7 +714,10 @@ export default function SettingsPage() {
               </div>
               <div className="flex flex-wrap gap-1.5">
                 {["执行命令", "发送邮件", "发送消息"].map((t) => (
-                  <span key={t} className="text-xs px-2 py-1 bg-red-900/20 text-red-400/70 rounded border border-red-700/20">
+                  <span
+                    key={t}
+                    className="text-xs px-2 py-1 bg-red-900/20 text-red-400/70 rounded border border-red-700/20"
+                  >
                     {t}
                   </span>
                 ))}
@@ -721,7 +726,7 @@ export default function SettingsPage() {
           </div>
 
           <p className="text-xs text-gray-600 mt-4">
-            信任级别随对话建立——你在对话中确认过的中风险操作，          同一对话内会自动放行。
+            信任级别随对话建立——你在对话中确认过的中风险操作， 同一对话内会自动放行。
           </p>
         </Card>
 
@@ -735,9 +740,7 @@ export default function SettingsPage() {
 
         <Card>
           <h3 className="text-sm font-medium text-gray-300 mb-3">数据主权</h3>
-          <p className="text-sm text-gray-500 mb-4">
-            导出完整个人数据快照，或从备份文件导入。
-          </p>
+          <p className="text-sm text-gray-500 mb-4">导出完整个人数据快照，或从备份文件导入。</p>
           <div className="flex flex-wrap gap-3 items-center">
             <Button onClick={handleExport} disabled={exporting}>
               {exporting ? "导出中…" : "导出全部数据"}
@@ -791,11 +794,16 @@ export default function SettingsPage() {
                 placeholder="输入加密密码"
                 className="flex-1 text-xs"
               />
-              <Button onClick={handleEncryptedExport} disabled={encryptExporting || !encryptPassword}>
+              <Button
+                onClick={handleEncryptedExport}
+                disabled={encryptExporting || !encryptPassword}
+              >
                 {encryptExporting ? "加密导出中…" : "加密导出"}
               </Button>
               <label className="inline-block">
-                <span className={`inline-flex px-4 py-2 text-sm rounded-lg font-medium cursor-pointer ${encryptImporting || !encryptPassword ? "bg-gray-800 text-gray-600" : "bg-gray-700 hover:bg-gray-600 text-gray-100"}`}>
+                <span
+                  className={`inline-flex px-4 py-2 text-sm rounded-lg font-medium cursor-pointer ${encryptImporting || !encryptPassword ? "bg-gray-800 text-gray-600" : "bg-gray-700 hover:bg-gray-600 text-gray-100"}`}
+                >
                   {encryptImporting ? "导入中…" : "加密导入"}
                 </span>
                 <input
@@ -818,7 +826,9 @@ export default function SettingsPage() {
             >
               {destroying ? "销毁中…" : "销毁全部数据"}
             </Button>
-            <p className="text-xs text-gray-600 mt-1">永久删除所有对话、记忆、目标和事件。不可恢复。</p>
+            <p className="text-xs text-gray-600 mt-1">
+              永久删除所有对话、记忆、目标和事件。不可恢复。
+            </p>
           </div>
         </Card>
       </div>
@@ -851,9 +861,7 @@ function PromptEditor() {
     setSaving(true);
     setMessage("");
     try {
-      const payload = field === "identity"
-        ? { identity }
-        : { coding_rules: codingRules };
+      const payload = field === "identity" ? { identity } : { coding_rules: codingRules };
       await updatePromptConfig(payload);
       if (field === "identity") setIsCustomIdentity(!!identity.trim());
       if (field === "coding_rules") setIsCustomCodingRules(!!codingRules.trim());
@@ -963,9 +971,14 @@ function PromptEditor() {
 // ── MCP Marketplace Component ─────────────────────────────────────────────
 
 function McpMarketplace() {
-  const [servers, setServers] = useState<Array<{
-    name: string; description: string; category: string; env_vars: Record<string, string>;
-  }>>([]);
+  const [servers, setServers] = useState<
+    Array<{
+      name: string;
+      description: string;
+      category: string;
+      env_vars: Record<string, string>;
+    }>
+  >([]);
   const [installing, setInstalling] = useState<string | null>(null);
   const [loaded, setLoaded] = useState(false);
 
@@ -984,7 +997,9 @@ function McpMarketplace() {
       const headers: Record<string, string> = { "Content-Type": "application/json" };
       if (token) headers["Authorization"] = `Bearer ${token}`;
       const res = await fetch(`${API_BASE}/connectors/install`, {
-        method: "POST", headers, body: JSON.stringify({ name }),
+        method: "POST",
+        headers,
+        body: JSON.stringify({ name }),
       });
       const data = await res.json();
       if (data.ok) {
@@ -1002,8 +1017,13 @@ function McpMarketplace() {
   if (!loaded) return null;
 
   const categories: Record<string, string> = {
-    browser: "浏览器", search: "搜索", developer: "开发者",
-    productivity: "效率", system: "系统", ai: "AI", communication: "通讯",
+    browser: "浏览器",
+    search: "搜索",
+    developer: "开发者",
+    productivity: "效率",
+    system: "系统",
+    ai: "AI",
+    communication: "通讯",
   };
 
   return (
@@ -1012,7 +1032,10 @@ function McpMarketplace() {
         <p className="text-xs text-gray-600">暂无可用 MCP 服务器</p>
       ) : (
         servers.map((s) => (
-          <div key={s.name} className="flex items-center justify-between bg-gray-800/50 rounded-lg p-2.5">
+          <div
+            key={s.name}
+            className="flex items-center justify-between bg-gray-800/50 rounded-lg p-2.5"
+          >
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-2">
                 <span className="text-xs font-medium text-gray-300">{s.name}</span>

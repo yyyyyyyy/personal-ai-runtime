@@ -24,19 +24,15 @@ export const useChatStore = create<ChatState>((set) => ({
 
   setConversations: (convs) => set({ conversations: convs }),
   setActiveConversation: (id) => set({ activeConversationId: id }),
-  addConversation: (conv) =>
-    set((state) => ({ conversations: [conv, ...state.conversations] })),
+  addConversation: (conv) => set((state) => ({ conversations: [conv, ...state.conversations] })),
   removeConversation: (id) =>
     set((state) => ({
       conversations: state.conversations.filter((c) => c.id !== id),
-      activeConversationId:
-        state.activeConversationId === id ? null : state.activeConversationId,
+      activeConversationId: state.activeConversationId === id ? null : state.activeConversationId,
     })),
   updateConversationTitle: (id, title) =>
     set((state) => ({
-      conversations: state.conversations.map((c) =>
-        c.id === id ? { ...c, title } : c
-      ),
+      conversations: state.conversations.map((c) => (c.id === id ? { ...c, title } : c)),
     })),
   setPendingPrompt: (prompt) => set({ pendingPrompt: prompt }),
   setLoading: (loading) => set({ loading }),

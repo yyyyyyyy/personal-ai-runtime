@@ -103,7 +103,10 @@ export default function VoiceInput({ onTranscript, disabled }: VoiceInputProps) 
       setIsListening(false);
       if (e.error === "not-allowed") setIsSupported(false);
     };
-    rec.onend = () => { setIsListening(false); setInterimText(""); };
+    rec.onend = () => {
+      setIsListening(false);
+      setInterimText("");
+    };
     try {
       rec.start();
       setIsListening(true);

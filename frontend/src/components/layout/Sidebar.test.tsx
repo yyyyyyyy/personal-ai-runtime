@@ -18,7 +18,7 @@ function renderSidebar(initialEntry = "/", overrides = {}) {
   return render(
     <MemoryRouter initialEntries={[initialEntry]}>
       <Sidebar {...defaultProps} />
-    </MemoryRouter>
+    </MemoryRouter>,
   );
 }
 

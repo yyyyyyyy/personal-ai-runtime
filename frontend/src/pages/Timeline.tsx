@@ -89,7 +89,7 @@ export default function TimelinePage() {
 
     try {
       const data = await request<TimelineResponse>(
-        `${API_BASE}/timeline/events?page=${pageNum}&page_size=30`
+        `${API_BASE}/timeline/events?page=${pageNum}&page_size=30`,
       );
       if (append) {
         setEvents((prev) => [...prev, ...data.items]);
@@ -162,7 +162,9 @@ export default function TimelinePage() {
           <div className="text-center py-16">
             <Clock size={48} className="mx-auto mb-4 text-gray-700" />
             <p className="text-gray-500">还没有任何事件</p>
-            <p className="text-gray-600 text-sm mt-1">开始使用 AI 对话或创建目标后，这里就会出现你的数据足迹</p>
+            <p className="text-gray-600 text-sm mt-1">
+              开始使用 AI 对话或创建目标后，这里就会出现你的数据足迹
+            </p>
           </div>
         ) : (
           <div className="space-y-6">
@@ -171,9 +173,7 @@ export default function TimelinePage() {
                 <div className="flex items-center gap-2 mb-3">
                   <div className="w-2 h-2 rounded-full bg-emerald-500" />
                   <h3 className="text-sm font-medium text-gray-400">{day}</h3>
-                  <span className="text-xs text-gray-600">
-                    {groupedEvents[day].length} 个事件
-                  </span>
+                  <span className="text-xs text-gray-600">{groupedEvents[day].length} 个事件</span>
                 </div>
                 <div className="space-y-2">
                   {groupedEvents[day].map((event) => {
@@ -196,8 +196,8 @@ export default function TimelinePage() {
                                 {event.actor.startsWith("agent:")
                                   ? "AI"
                                   : event.actor === "scheduler"
-                                  ? "定时"
-                                  : event.actor}
+                                    ? "定时"
+                                    : event.actor}
                               </span>
                             )}
                           </div>
@@ -218,9 +218,7 @@ export default function TimelinePage() {
               disabled={loadingMore}
               className="px-6 py-2 bg-gray-800 hover:bg-gray-700 text-gray-400 rounded-lg text-sm transition-colors disabled:opacity-50"
             >
-              {loadingMore ? (
-                <Loader2 size={14} className="animate-spin inline mr-1" />
-              ) : null}
+              {loadingMore ? <Loader2 size={14} className="animate-spin inline mr-1" /> : null}
               加载更多
             </button>
           </div>

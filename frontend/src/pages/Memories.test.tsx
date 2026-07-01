@@ -42,7 +42,7 @@ describe("MemoriesPage", () => {
     render(
       <MemoryRouter>
         <MemoriesPage />
-      </MemoryRouter>
+      </MemoryRouter>,
     );
     expect(await screen.findByText("AI 对你的理解")).toBeInTheDocument();
     expect(screen.getByText("喜欢早起跑步")).toBeInTheDocument();

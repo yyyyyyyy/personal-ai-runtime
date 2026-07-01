@@ -16,7 +16,7 @@ function renderPortrait() {
   return render(
     <MemoryRouter>
       <PortraitPage />
-    </MemoryRouter>
+    </MemoryRouter>,
   );
 }
 
@@ -77,8 +77,22 @@ describe("PortraitPage", () => {
     mockPortraitData({
       profile: {},
       habits: [
-        { id: "h1", content: "每天早晨检查邮件", confidence: 0.85, source: "", origin: "claim", created_at: "2026-06-01T00:00:00Z" },
-        { id: "h2", content: "午休后散步", confidence: 0.6, source: "", origin: "self_report", created_at: "2026-06-02T00:00:00Z" },
+        {
+          id: "h1",
+          content: "每天早晨检查邮件",
+          confidence: 0.85,
+          source: "",
+          origin: "claim",
+          created_at: "2026-06-01T00:00:00Z",
+        },
+        {
+          id: "h2",
+          content: "午休后散步",
+          confidence: 0.6,
+          source: "",
+          origin: "self_report",
+          created_at: "2026-06-02T00:00:00Z",
+        },
       ],
       goals: [],
     });
@@ -96,8 +110,22 @@ describe("PortraitPage", () => {
       profile: {},
       habits: [],
       goals: [
-        { id: "g1", title: "完成项目文档", progress: 60, importance: 8, deadline: "2026-07-01", last_activity_at: null },
-        { id: "g2", title: "开始运动", progress: 0, importance: 5, deadline: null, last_activity_at: null },
+        {
+          id: "g1",
+          title: "完成项目文档",
+          progress: 60,
+          importance: 8,
+          deadline: "2026-07-01",
+          last_activity_at: null,
+        },
+        {
+          id: "g2",
+          title: "开始运动",
+          progress: 0,
+          importance: 5,
+          deadline: null,
+          last_activity_at: null,
+        },
       ],
     });
     renderPortrait();
@@ -114,7 +142,16 @@ describe("PortraitPage", () => {
     mockPortraitData({
       profile: { preferences: { data: {}, confidence: 0.5 } },
       habits: [{ id: "h1", content: "test", confidence: 0.5, source: "", origin: "claim" }],
-      goals: [{ id: "g1", title: "test", progress: 0, importance: 1, deadline: null, last_activity_at: null }],
+      goals: [
+        {
+          id: "g1",
+          title: "test",
+          progress: 0,
+          importance: 1,
+          deadline: null,
+          last_activity_at: null,
+        },
+      ],
     });
     renderPortrait();
     await waitFor(() => {

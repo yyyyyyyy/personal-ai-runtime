@@ -44,9 +44,7 @@ function emailSortKey(dateStr: string): number {
 }
 
 function sortEmailsNewestFirst(emails: EmailItem[]): EmailItem[] {
-  return [...emails].sort(
-    (a, b) => emailSortKey(b.date) - emailSortKey(a.date)
-  );
+  return [...emails].sort((a, b) => emailSortKey(b.date) - emailSortKey(a.date));
 }
 
 function parseInboxResult(content: string): { count: number; emails: EmailItem[] } | null {
@@ -126,7 +124,10 @@ function InboxResultView({ data }: { data: { count: number; emails: EmailItem[] 
                 <td className="px-2 py-1.5 text-gray-500 whitespace-nowrap align-top">
                   {formatEmailDate(em.date)}
                 </td>
-                <td className="px-2 py-1.5 text-gray-300 align-top max-w-[120px] truncate" title={em.from}>
+                <td
+                  className="px-2 py-1.5 text-gray-300 align-top max-w-[120px] truncate"
+                  title={em.from}
+                >
                   {shortenFrom(em.from)}
                 </td>
                 <td className="px-2 py-1.5 align-top">
@@ -160,9 +161,7 @@ function formatResult(content: string, toolName: string): ReactNode {
     );
   } catch {
     const text = content.length > 500 ? content.slice(0, 500) + "\n... [truncated]" : content;
-    return (
-      <pre className="bg-gray-950 p-2 rounded text-gray-300 overflow-x-auto">{text}</pre>
-    );
+    return <pre className="bg-gray-950 p-2 rounded text-gray-300 overflow-x-auto">{text}</pre>;
   }
 }
 
@@ -170,18 +169,20 @@ function getToolIcon(name: string): string {
   return toolIcon(name);
 }
 
-export default function ToolCallDisplay({ toolCalls, toolResults, defaultExpanded = false }: Props) {
+export default function ToolCallDisplay({
+  toolCalls,
+  toolResults,
+  defaultExpanded = false,
+}: Props) {
   const hasAllResults = toolCalls.every((tc) =>
-    toolResults.some((r) => r.tool_call_id === tc.id || r.tool_name === tc.function_name)
+    toolResults.some((r) => r.tool_call_id === tc.id || r.tool_name === tc.function_name),
   );
   const [expandedCall, setExpandedCall] = useState<number | null>(
-    defaultExpanded && hasAllResults ? 0 : null
+    defaultExpanded && hasAllResults ? 0 : null,
   );
 
   const getResult = (toolName: string, callId: string) => {
-    return toolResults.find(
-      (r) => r.tool_call_id === callId || r.tool_name === toolName
-    );
+    return toolResults.find((r) => r.tool_call_id === callId || r.tool_name === toolName);
   };
 
   if (toolCalls.length === 0) return null;
@@ -192,18 +193,15 @@ export default function ToolCallDisplay({ toolCalls, toolResults, defaultExpande
         const result = getResult(tc.function_name, tc.id);
         const isExpanded = expandedCall === idx;
         const inboxData =
-          tc.function_name === "check_inbox" && result
-            ? parseInboxResult(result.content)
-            : null;
+          tc.function_name === "check_inbox" && result ? parseInboxResult(result.content) : null;
         const showInboxInline = Boolean(inboxData);
 
         let argsSummary = "";
         try {
-          argsSummary = describeToolAction(
-            tc.function_name,
-            JSON.parse(tc.arguments || "{}")
-          );
-        } catch { /* keep empty */ }
+          argsSummary = describeToolAction(tc.function_name, JSON.parse(tc.arguments || "{}"));
+        } catch {
+          /* keep empty */
+        }
 
         return (
           <div
@@ -216,12 +214,8 @@ export default function ToolCallDisplay({ toolCalls, toolResults, defaultExpande
               className="w-full text-left px-3 py-2 text-xs text-gray-400 hover:text-gray-200 transition-colors"
             >
               <span>{getToolIcon(tc.function_name)}</span>
-              <span className="text-emerald-400 font-medium">
-                {toolLabel(tc.function_name)}
-              </span>
-              {argsSummary && (
-                <span className="text-gray-500 ml-1.5">{argsSummary}</span>
-              )}
+              <span className="text-emerald-400 font-medium">{toolLabel(tc.function_name)}</span>
+              {argsSummary && <span className="text-gray-500 ml-1.5">{argsSummary}</span>}
               {result ? (
                 <span className="float-right text-emerald-500 mt-0.5">✓ 完成</span>
               ) : (
@@ -229,8 +223,12 @@ export default function ToolCallDisplay({ toolCalls, toolResults, defaultExpande
                   <svg className="animate-spin h-3 w-3" viewBox="0 0 24 24">
                     <circle
                       className="opacity-25"
-                      cx="12" cy="12" r="10"
-                      stroke="currentColor" strokeWidth="4" fill="none"
+                      cx="12"
+                      cy="12"
+                      r="10"
+                      stroke="currentColor"
+                      strokeWidth="4"
+                      fill="none"
                     />
                     <path
                       className="opacity-75"
@@ -243,9 +241,16 @@ export default function ToolCallDisplay({ toolCalls, toolResults, defaultExpande
               )}
               <svg
                 className={`float-right w-3 h-3 transition-transform mt-0.5 ml-1.5 ${isExpanded ? "rotate-180" : ""}`}
-                fill="none" stroke="currentColor" viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
               >
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M19 9l-7 7-7-7"
+                />
               </svg>
             </button>
 
@@ -273,7 +278,6 @@ export default function ToolCallDisplay({ toolCalls, toolResults, defaultExpande
                 )}
               </div>
             )}
-
           </div>
         );
       })}

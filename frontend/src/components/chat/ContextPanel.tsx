@@ -23,12 +23,7 @@ interface Props {
   onToggle: () => void;
 }
 
-export default function ContextPanel({
-  lastUserMessage,
-  toolResults = [],
-  open,
-  onToggle,
-}: Props) {
+export default function ContextPanel({ lastUserMessage, toolResults = [], open, onToggle }: Props) {
   const navigate = useNavigate();
   const addError = useErrorStore((s) => s.addError);
   const [goals, setGoals] = useState<Goal[]>([]);
@@ -46,12 +41,8 @@ export default function ContextPanel({
       const active = allGoals
         .filter((g) => g.status === "active")
         .sort((a, b) => {
-          const ta = a.last_activity_at
-            ? new Date(a.last_activity_at).getTime()
-            : 0;
-          const tb = b.last_activity_at
-            ? new Date(b.last_activity_at).getTime()
-            : 0;
+          const ta = a.last_activity_at ? new Date(a.last_activity_at).getTime() : 0;
+          const tb = b.last_activity_at ? new Date(b.last_activity_at).getTime() : 0;
           return tb - ta;
         })
         .slice(0, 3);
@@ -96,10 +87,7 @@ export default function ContextPanel({
     <aside className="w-72 border-l border-gray-800 bg-gray-900/50 overflow-y-auto shrink-0 flex flex-col">
       <div className="p-3 border-b border-gray-800 flex items-center justify-between">
         <h3 className="text-sm font-medium text-gray-300">上下文</h3>
-        <button
-          onClick={onToggle}
-          className="text-xs text-gray-500 hover:text-gray-300"
-        >
+        <button onClick={onToggle} className="text-xs text-gray-500 hover:text-gray-300">
           收起
         </button>
       </div>
@@ -109,10 +97,7 @@ export default function ContextPanel({
           <section>
             <h4 className="text-xs text-amber-400 mb-2">待审批 ({approvals.length})</h4>
             {approvals.map((a) => (
-              <div
-                key={a.id}
-                className="text-xs text-gray-400 p-2 bg-amber-900/20 rounded-lg mb-1"
-              >
+              <div key={a.id} className="text-xs text-gray-400 p-2 bg-amber-900/20 rounded-lg mb-1">
                 {a.action || "未知操作"}
               </div>
             ))}

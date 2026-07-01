@@ -36,10 +36,21 @@ vi.mock("../api/client", () => ({
     },
     default_model: "deepseek-chat",
     providers_status: [
-      { name: "deepseek", model: "deepseek-chat", type: "openai_compatible", is_default: true, available: true },
+      {
+        name: "deepseek",
+        model: "deepseek-chat",
+        type: "openai_compatible",
+        is_default: true,
+        available: true,
+      },
     ],
     presets: {
-      deepseek: { name: "DeepSeek", type: "openai_compatible", base_url: "https://api.deepseek.com/v1", model: "deepseek-chat" },
+      deepseek: {
+        name: "DeepSeek",
+        type: "openai_compatible",
+        base_url: "https://api.deepseek.com/v1",
+        model: "deepseek-chat",
+      },
     },
     provider_types: { openai_compatible: "OpenAI 兼容" },
   }),
@@ -92,7 +103,7 @@ describe("SettingsPage", () => {
     render(
       <MemoryRouter>
         <SettingsPage />
-      </MemoryRouter>
+      </MemoryRouter>,
     );
     await waitFor(() => {
       expect(screen.getByText("设置")).toBeInTheDocument();
@@ -105,7 +116,7 @@ describe("SettingsPage", () => {
     render(
       <MemoryRouter>
         <SettingsPage />
-      </MemoryRouter>
+      </MemoryRouter>,
     );
     await waitFor(() => {
       expect(screen.getByText("Gmail 邮箱配置")).toBeInTheDocument();

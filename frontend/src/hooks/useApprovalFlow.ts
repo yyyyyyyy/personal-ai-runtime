@@ -45,7 +45,7 @@ export function useApprovalFlow(conversationId: string) {
     async (
       setMessages: React.Dispatch<React.SetStateAction<DisplayMessage[]>>,
       onError?: (msg: string, source: string) => void,
-      trustSession?: boolean
+      trustSession?: boolean,
     ) => {
       if (!pendingConfirmation) return;
       const pc = pendingConfirmation;
@@ -107,13 +107,13 @@ export function useApprovalFlow(conversationId: string) {
         onError?.(msg, "审批");
       }
     },
-    [pendingConfirmation, conversationId]
+    [pendingConfirmation, conversationId],
   );
 
   const deny = useCallback(
     async (
       setMessages: React.Dispatch<React.SetStateAction<DisplayMessage[]>>,
-      onError?: (msg: string, source: string) => void
+      onError?: (msg: string, source: string) => void,
     ) => {
       if (!pendingConfirmation) return;
       const pc = pendingConfirmation;
@@ -140,7 +140,10 @@ export function useApprovalFlow(conversationId: string) {
                   {
                     tool_name: pc.toolCall.function_name,
                     tool_call_id: pc.toolCall.id,
-                    content: JSON.stringify({ status: "denied", reason: "User denied the operation" }),
+                    content: JSON.stringify({
+                      status: "denied",
+                      reason: "User denied the operation",
+                    }),
                   },
                 ],
               };
@@ -168,11 +171,19 @@ export function useApprovalFlow(conversationId: string) {
         onError?.(msg, "审批");
       }
     },
-    [pendingConfirmation, conversationId]
+    [pendingConfirmation, conversationId],
   );
 
   const setFromEvent = useCallback(
-    (assistantMsgId: string, event: { tool_name?: string; approval_id?: string; tool_args?: Record<string, unknown>; tool_call_id?: string }) => {
+    (
+      assistantMsgId: string,
+      event: {
+        tool_name?: string;
+        approval_id?: string;
+        tool_args?: Record<string, unknown>;
+        tool_call_id?: string;
+      },
+    ) => {
       const toolName = event.tool_name || "";
       const approvalId = event.approval_id || "";
 
@@ -213,7 +224,7 @@ export function useApprovalFlow(conversationId: string) {
         assistantMsgId,
       });
     },
-    [conversationId]
+    [conversationId],
   );
 
   return { pendingConfirmation, setPendingConfirmation, setFromEvent, confirm, deny };

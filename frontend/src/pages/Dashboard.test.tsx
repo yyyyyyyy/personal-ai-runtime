@@ -7,7 +7,7 @@ function renderDashboard() {
   return render(
     <MemoryRouter>
       <DashboardPage />
-    </MemoryRouter>
+    </MemoryRouter>,
   );
 }
 

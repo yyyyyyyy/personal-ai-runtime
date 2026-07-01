@@ -14,10 +14,7 @@ export async function getGoal(goalId: string): Promise<Goal> {
   return request<Goal>(`${API_BASE}/goals/${goalId}`);
 }
 
-export async function createGoal(body: {
-  title: string;
-  description?: string;
-}): Promise<Goal> {
+export async function createGoal(body: { title: string; description?: string }): Promise<Goal> {
   return request<Goal>(`${API_BASE}/goals/`, {
     method: "POST",
     body: JSON.stringify(body),
@@ -26,7 +23,7 @@ export async function createGoal(body: {
 
 export async function updateGoal(
   goalId: string,
-  body: Partial<Pick<Goal, "title" | "description" | "status" | "progress">>
+  body: Partial<Pick<Goal, "title" | "description" | "status" | "progress">>,
 ): Promise<Goal> {
   return request<Goal>(`${API_BASE}/goals/${goalId}`, {
     method: "PUT",
@@ -38,10 +35,7 @@ export async function deleteGoal(goalId: string): Promise<void> {
   await request(`${API_BASE}/goals/${goalId}`, { method: "DELETE" });
 }
 
-export async function createGoalAction(
-  goalId: string,
-  title: string
-): Promise<GoalAction> {
+export async function createGoalAction(goalId: string, title: string): Promise<GoalAction> {
   return request<GoalAction>(`${API_BASE}/goals/${goalId}/actions`, {
     method: "POST",
     body: JSON.stringify({ title }),
@@ -51,7 +45,7 @@ export async function createGoalAction(
 export async function updateGoalAction(
   goalId: string,
   actionId: string,
-  body: { status: string }
+  body: { status: string },
 ): Promise<GoalAction> {
   return request<GoalAction>(`${API_BASE}/goals/${goalId}/actions/${actionId}`, {
     method: "PUT",

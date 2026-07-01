@@ -118,7 +118,7 @@ function parseLoadedMessages(msgs: Message[]): DisplayMessage[] {
           display.content =
             count > 0
               ? `已加载最近 ${count} 封邮件，详见上方列表。需要我帮您查看某封详情或处理待办吗？`
-              : inboxSummaryFromResults(matched) ?? "";
+              : (inboxSummaryFromResults(matched) ?? "");
         } else if (!hasText && matched.length > 0) {
           const summary = inboxSummaryFromResults(matched);
           display.content = summary ?? "";
@@ -138,7 +138,7 @@ function parseLoadedMessages(msgs: Message[]): DisplayMessage[] {
 
 export function useChatMessages(
   conversationId: string,
-  onLoadError?: (msg: string, source: string) => void
+  onLoadError?: (msg: string, source: string) => void,
 ) {
   const [messages, setMessages] = useState<DisplayMessage[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -155,10 +155,7 @@ export function useChatMessages(
     return userMsgs.length > 0 ? userMsgs[userMsgs.length - 1].content : undefined;
   }, [messages]);
 
-  const allToolResults = useMemo(
-    () => messages.flatMap((m) => m.toolResults || []),
-    [messages]
-  );
+  const allToolResults = useMemo(() => messages.flatMap((m) => m.toolResults || []), [messages]);
 
   const loadMessages = useCallback(async () => {
     try {
@@ -166,11 +163,7 @@ export function useChatMessages(
       setMessages(parseLoadedMessages(msgs));
     } catch (err) {
       const msg =
-        err instanceof ApiError
-          ? err.message
-          : err instanceof Error
-            ? err.message
-            : "加载消息失败";
+        err instanceof ApiError ? err.message : err instanceof Error ? err.message : "加载消息失败";
       onLoadErrorRef.current?.(msg, "对话");
     }
     setStreamingContent("");
@@ -184,7 +177,7 @@ export function useChatMessages(
     async (
       text: string,
       onConfirmationRequired?: (assistantMsgId: string, event: StreamEvent) => void,
-      onError?: (msg: string) => void
+      onError?: (msg: string) => void,
     ) => {
       const trimmed = text.trim();
       if (!trimmed || isLoading) return;
@@ -196,8 +189,7 @@ export function useChatMessages(
       };
 
       const conv = conversations.find((c) => c.id === conversationId);
-      const isFirstUserMessage =
-        messages.filter((m) => m.role === "user").length === 0;
+      const isFirstUserMessage = messages.filter((m) => m.role === "user").length === 0;
       const isDefaultTitle =
         !conv?.title ||
         conv.title === "New Conversation" ||
@@ -211,9 +203,7 @@ export function useChatMessages(
 
       if (needsTitle) {
         const title =
-          trimmed.length > 25
-            ? `讨论「${trimmed.slice(0, 25)}…」`
-            : `讨论「${trimmed}」`;
+          trimmed.length > 25 ? `讨论「${trimmed.slice(0, 25)}…」` : `讨论「${trimmed}」`;
         updateConversation(conversationId, title)
           .then(() => updateConversationTitle(conversationId, title))
           .catch(() => {
@@ -242,16 +232,12 @@ export function useChatMessages(
           const displayContent = stripToolMarkup(tempContent, { trim: false });
           setStreamingContent(displayContent);
           setMessages((prev) =>
-            prev.map((m) =>
-              m.id === assistantMsg.id ? { ...m, content: displayContent } : m
-            )
+            prev.map((m) => (m.id === assistantMsg.id ? { ...m, content: displayContent } : m)),
           );
         } else if (event.type === "tool_call_start" && event.tool_calls) {
           tempToolCalls = event.tool_calls;
           setMessages((prev) =>
-            prev.map((m) =>
-              m.id === assistantMsg.id ? { ...m, toolCalls: tempToolCalls } : m
-            )
+            prev.map((m) => (m.id === assistantMsg.id ? { ...m, toolCalls: tempToolCalls } : m)),
           );
         } else if (event.type === "tool_result") {
           tempToolResults = [
@@ -266,16 +252,16 @@ export function useChatMessages(
             prev.map((m) =>
               m.id === assistantMsg.id
                 ? { ...m, toolResults: tempToolResults, expandTools: true }
-                : m
-            )
+                : m,
+            ),
           );
         } else if (event.type === "error") {
           setMessages((prev) =>
             prev.map((m) =>
               m.id === assistantMsg.id
                 ? { ...m, content: tempContent + `\n\n⚠️ ${event.content}`, isStreaming: false }
-                : m
-            )
+                : m,
+            ),
           );
         } else if (event.type === "done") {
           const finalContent = awaitingApproval
@@ -283,20 +269,14 @@ export function useChatMessages(
             : stripToolMarkup(tempContent) || "抱歉，未能生成回复，请再试一次。";
           setMessages((prev) =>
             prev.map((m) =>
-              m.id === assistantMsg.id
-                ? { ...m, isStreaming: false, content: finalContent }
-                : m
-            )
+              m.id === assistantMsg.id ? { ...m, isStreaming: false, content: finalContent } : m,
+            ),
           );
           setStreamingContent("");
         } else if (event.type === "sources" && event.sources) {
           tempSources = event.sources;
           setMessages((prev) =>
-            prev.map((m) =>
-              m.id === assistantMsg.id
-                ? { ...m, sources: tempSources }
-                : m
-            )
+            prev.map((m) => (m.id === assistantMsg.id ? { ...m, sources: tempSources } : m)),
           );
         } else if (event.type === "confirmation_required" && event.tool_name && event.approval_id) {
           awaitingApproval = true;
@@ -316,32 +296,28 @@ export function useChatMessages(
               prev.map((m) =>
                 m.id === assistantMsg.id
                   ? { ...m, content: `错误：${error}`, isStreaming: false }
-                  : m
-              )
+                  : m,
+              ),
             );
           },
           () => {
             setIsLoading(false);
-          }
+          },
         );
       } catch (err: unknown) {
         setIsLoading(false);
         const errorMsg =
-          err instanceof ApiError
-            ? err.message
-            : err instanceof Error
-              ? err.message
-              : "未知错误";
+          err instanceof ApiError ? err.message : err instanceof Error ? err.message : "未知错误";
         setMessages((prev) =>
           prev.map((m) =>
             m.id === assistantMsg.id
               ? { ...m, content: `错误：${errorMsg}`, isStreaming: false }
-              : m
-          )
+              : m,
+          ),
         );
       }
     },
-    [isLoading, conversationId, conversations, messages, updateConversationTitle]
+    [isLoading, conversationId, conversations, messages, updateConversationTitle],
   );
 
   return {

@@ -1,7 +1,13 @@
 /** Telemetry API — cost, tool usage, memory stats, health snapshot. */
 
 import { API_BASE, request } from "./core";
-import type { CostSummary, ModelCostItem, ToolSummaryItem, MemoryStats, HealthSnapshot } from "./types";
+import type {
+  CostSummary,
+  ModelCostItem,
+  ToolSummaryItem,
+  MemoryStats,
+  HealthSnapshot,
+} from "./types";
 
 export async function getCostSummary(days = 7): Promise<CostSummary> {
   return request<CostSummary>(`${API_BASE}/telemetry/cost/summary?days=${days}`);

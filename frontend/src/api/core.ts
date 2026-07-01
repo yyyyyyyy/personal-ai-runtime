@@ -33,10 +33,7 @@ export class ApiError extends Error {
   }
 }
 
-export async function request<T>(
-  url: string,
-  options: RequestInit = {}
-): Promise<T> {
+export async function request<T>(url: string, options: RequestInit = {}): Promise<T> {
   const res = await fetch(url, {
     ...options,
     headers: {
@@ -46,10 +43,7 @@ export async function request<T>(
   });
 
   if (res.status === 401) {
-    throw new ApiError(
-      "认证失败，请检查 AUTH_TOKEN 与 VITE_AUTH_TOKEN 是否一致",
-      401
-    );
+    throw new ApiError("认证失败，请检查 AUTH_TOKEN 与 VITE_AUTH_TOKEN 是否一致", 401);
   }
 
   if (!res.ok) {

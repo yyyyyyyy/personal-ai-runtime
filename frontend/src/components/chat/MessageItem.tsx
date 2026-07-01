@@ -72,7 +72,11 @@ function InlineCode({ children }: { children: React.ReactNode }) {
         className="absolute -top-1 -right-1 opacity-0 group-hover:opacity-100 bg-gray-700 hover:bg-gray-600 rounded p-0.5 transition-opacity"
         title="复制"
       >
-        {copied ? <Check size={10} className="text-emerald-400" /> : <Copy size={10} className="text-gray-400" />}
+        {copied ? (
+          <Check size={10} className="text-emerald-400" />
+        ) : (
+          <Copy size={10} className="text-gray-400" />
+        )}
       </button>
     </code>
   );
@@ -101,9 +105,7 @@ function SourceBadge({ source }: { source: SourceCitation }) {
       title={source.title}
     >
       {iconMap[source.type] || null}
-      <span className="truncate max-w-[120px]">
-        {source.title || labelMap[source.type]}
-      </span>
+      <span className="truncate max-w-[120px]">{source.title || labelMap[source.type]}</span>
     </span>
   );
 }
@@ -162,13 +164,9 @@ export default function MessageItem({ message }: Props) {
                         const nodeProps = props as Record<string, unknown>;
                         const inline = nodeProps.inline as boolean | undefined;
                         if (inline) {
-                          return (
-                            <InlineCode>{children}</InlineCode>
-                          );
+                          return <InlineCode>{children}</InlineCode>;
                         }
-                        return (
-                          <CodeBlock language={match[1]} code={codeStr} />
-                        );
+                        return <CodeBlock language={match[1]} code={codeStr} />;
                       }
 
                       if (!className && String(children).length < 50) {
@@ -187,9 +185,18 @@ export default function MessageItem({ message }: Props) {
                 </ReactMarkdown>
                 {message.isStreaming && (
                   <span className="inline-flex gap-0.5 ml-1 align-middle">
-                    <span className="w-1.5 h-1.5 bg-emerald-400 rounded-full animate-bounce" style={{ animationDelay: "0ms" }} />
-                    <span className="w-1.5 h-1.5 bg-emerald-400 rounded-full animate-bounce" style={{ animationDelay: "150ms" }} />
-                    <span className="w-1.5 h-1.5 bg-emerald-400 rounded-full animate-bounce" style={{ animationDelay: "300ms" }} />
+                    <span
+                      className="w-1.5 h-1.5 bg-emerald-400 rounded-full animate-bounce"
+                      style={{ animationDelay: "0ms" }}
+                    />
+                    <span
+                      className="w-1.5 h-1.5 bg-emerald-400 rounded-full animate-bounce"
+                      style={{ animationDelay: "150ms" }}
+                    />
+                    <span
+                      className="w-1.5 h-1.5 bg-emerald-400 rounded-full animate-bounce"
+                      style={{ animationDelay: "300ms" }}
+                    />
                   </span>
                 )}
               </div>

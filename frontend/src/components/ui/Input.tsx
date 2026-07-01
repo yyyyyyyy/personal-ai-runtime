@@ -1,4 +1,9 @@
-import { useCallback, useState, type InputHTMLAttributes, type TextareaHTMLAttributes } from "react";
+import {
+  useCallback,
+  useState,
+  type InputHTMLAttributes,
+  type TextareaHTMLAttributes,
+} from "react";
 import { Eye, EyeOff } from "lucide-react";
 
 const DEFAULT_MASKED = "••••••••";
@@ -24,7 +29,7 @@ export function Textarea({ autoGrow = false, className = "", onInput, ...props }
         onInput(e as unknown as React.InputEvent<HTMLTextAreaElement>);
       }
     },
-    [autoGrow, onInput]
+    [autoGrow, onInput],
   );
 
   return (
@@ -36,10 +41,7 @@ export function Textarea({ autoGrow = false, className = "", onInput, ...props }
   );
 }
 
-export function Input({
-  className = "",
-  ...props
-}: React.InputHTMLAttributes<HTMLInputElement>) {
+export function Input({ className = "", ...props }: React.InputHTMLAttributes<HTMLInputElement>) {
   return (
     <input
       className={`bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm outline-none focus:border-emerald-600 text-gray-100 placeholder-gray-500 ${className}`}
@@ -57,7 +59,8 @@ export function PasswordInput({
   ...props
 }: PasswordInputProps) {
   const [visible, setVisible] = useState(false);
-  const masked = isSavedSecret || value === DEFAULT_MASKED || String(value ?? "").startsWith("••••");
+  const masked =
+    isSavedSecret || value === DEFAULT_MASKED || String(value ?? "").startsWith("••••");
   const showPlainSavedHint = masked && visible;
   const inputType = visible ? "text" : "password";
   const inputValue = showPlainSavedHint ? "" : value;

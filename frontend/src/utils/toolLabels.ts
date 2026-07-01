@@ -100,9 +100,10 @@ const TOOL_LABELS: Record<string, ToolLabel> = {
   playwright_browser_click: {
     label: "点击页面元素",
     icon: "👆",
-    describeArgs: (a) => (a.element || a.target || a.selector || a.ref
-      ? `点击 «${a.element || a.target || a.selector || a.ref}»`
-      : "点击指定元素"),
+    describeArgs: (a) =>
+      a.element || a.target || a.selector || a.ref
+        ? `点击 «${a.element || a.target || a.selector || a.ref}»`
+        : "点击指定元素",
   },
   playwright_browser_type: {
     label: "输入文字",
@@ -159,9 +160,21 @@ const TOOL_LABELS: Record<string, ToolLabel> = {
   },
 
   // ── MCP: github ──
-  github_search_repositories: { label: "搜索仓库", icon: "📦", describeArgs: (a) => `🔎 ${a.query || "?"}` },
-  github_search_code: { label: "搜索代码", icon: "🔍", describeArgs: (a) => `🔎 ${a.query || "?"}` },
-  github_search_issues: { label: "搜索 Issue", icon: "🐛", describeArgs: (a) => `🔎 ${a.query || "?"}` },
+  github_search_repositories: {
+    label: "搜索仓库",
+    icon: "📦",
+    describeArgs: (a) => `🔎 ${a.query || "?"}`,
+  },
+  github_search_code: {
+    label: "搜索代码",
+    icon: "🔍",
+    describeArgs: (a) => `🔎 ${a.query || "?"}`,
+  },
+  github_search_issues: {
+    label: "搜索 Issue",
+    icon: "🐛",
+    describeArgs: (a) => `🔎 ${a.query || "?"}`,
+  },
   github_get_file_contents: { label: "查看文件内容", icon: "📄" },
   github_get_pull_request: { label: "查看 PR", icon: "🔀" },
   github_list_pull_requests: { label: "列出 PR", icon: "📋" },
@@ -169,7 +182,11 @@ const TOOL_LABELS: Record<string, ToolLabel> = {
   github_get_pull_request_status: { label: "查看 PR 状态", icon: "✅" },
 
   // ── MCP: notion ──
-  notion_API_post_search: { label: "搜索文档", icon: "📄", describeArgs: (a) => `🔎 ${a.query || "?"}` },
+  notion_API_post_search: {
+    label: "搜索文档",
+    icon: "📄",
+    describeArgs: (a) => `🔎 ${a.query || "?"}`,
+  },
   notion_API_retrieve_a_page: { label: "查看文档", icon: "📄" },
   notion_API_get_block_children: { label: "查看文章内容", icon: "📑" },
   notion_API_query_data_source: { label: "查询数据库", icon: "🗄️" },
@@ -233,7 +250,13 @@ function fallbackIcon(name: string): string {
   if (name.includes("click") || name.includes("hover")) return "👆";
   if (name.includes("type") || name.includes("input")) return "⌨️";
   if (name.includes("snapshot") || name.includes("screenshot")) return "📸";
-  if (name.includes("read") || name.includes("get") || name.includes("list") || name.includes("retrieve")) return "📄";
+  if (
+    name.includes("read") ||
+    name.includes("get") ||
+    name.includes("list") ||
+    name.includes("retrieve")
+  )
+    return "📄";
   if (name.includes("write") || name.includes("create") || name.includes("send")) return "✍️";
   return "🔧";
 }

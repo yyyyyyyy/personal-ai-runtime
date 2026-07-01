@@ -23,9 +23,7 @@ export default function WorkflowListPage() {
   const fetchWorkflows = useCallback(async () => {
     setLoading(true);
     try {
-      const data = await request<{ workflows: WorkflowData[] }>(
-        `${API_BASE}/workflows`
-      );
+      const data = await request<{ workflows: WorkflowData[] }>(`${API_BASE}/workflows`);
       setWorkflows(data.workflows);
     } catch (e) {
       setError(e instanceof Error ? e.message : "加载失败");
@@ -34,7 +32,9 @@ export default function WorkflowListPage() {
     }
   }, []);
 
-  useEffect(() => { fetchWorkflows(); }, [fetchWorkflows]);
+  useEffect(() => {
+    fetchWorkflows();
+  }, [fetchWorkflows]);
 
   const handleDelete = async (id: string) => {
     if (!confirm("确定删除此工作流？")) return;
@@ -102,12 +102,21 @@ export default function WorkflowListPage() {
                   </div>
                 </div>
                 <div className="flex items-center gap-3">
-                  <span className={`text-xs px-2 py-0.5 rounded ${wf.enabled ? "bg-emerald-900/30 text-emerald-400" : "bg-gray-800 text-gray-600"}`}>
-                    {wf.enabled ? <Zap size={10} className="inline mr-1" /> : <Clock size={10} className="inline mr-1" />}
+                  <span
+                    className={`text-xs px-2 py-0.5 rounded ${wf.enabled ? "bg-emerald-900/30 text-emerald-400" : "bg-gray-800 text-gray-600"}`}
+                  >
+                    {wf.enabled ? (
+                      <Zap size={10} className="inline mr-1" />
+                    ) : (
+                      <Clock size={10} className="inline mr-1" />
+                    )}
                     {wf.enabled ? "启用" : "草稿"}
                   </span>
                   <button
-                    onClick={(e) => { e.stopPropagation(); handleDelete(wf.id); }}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleDelete(wf.id);
+                    }}
                     className="opacity-0 group-hover:opacity-100 text-gray-500 hover:text-red-400 transition-all shrink-0"
                   >
                     <Trash2 size={14} />

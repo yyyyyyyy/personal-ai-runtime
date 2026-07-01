@@ -13,12 +13,7 @@ describe("ToolCallDisplay", () => {
   ];
 
   it("renders tool label in Chinese", () => {
-    render(
-      <ToolCallDisplay
-        toolCalls={toolCalls}
-        toolResults={[]}
-      />
-    );
+    render(<ToolCallDisplay toolCalls={toolCalls} toolResults={[]} />);
     expect(screen.getByText(/读取文件/)).toBeInTheDocument();
   });
 
@@ -34,7 +29,7 @@ describe("ToolCallDisplay", () => {
           },
         ]}
         defaultExpanded
-      />
+      />,
     );
     expect(screen.getByText(/完成|✓/)).toBeInTheDocument();
   });
@@ -69,7 +64,7 @@ describe("ToolCallDisplay", () => {
           },
         ]}
         defaultExpanded
-      />
+      />,
     );
     expect(screen.getByText("Hello")).toBeInTheDocument();
     expect(screen.getByText(/alice/)).toBeInTheDocument();
@@ -86,7 +81,7 @@ describe("ToolCallDisplay", () => {
             content: "result data",
           },
         ]}
-      />
+      />,
     );
     const header = screen.getByText(/读取文件/).closest("button");
     if (header) {

@@ -3,10 +3,7 @@
 import { API_BASE, request } from "./core";
 import type { Notification } from "./types";
 
-export async function listNotifications(
-  limit = 20,
-  unreadOnly = false,
-): Promise<Notification[]> {
+export async function listNotifications(limit = 20, unreadOnly = false): Promise<Notification[]> {
   const params = new URLSearchParams({ limit: String(limit) });
   if (unreadOnly) params.set("unread_only", "true");
   return request<Notification[]>(`${API_BASE}/notifications/?${params}`);

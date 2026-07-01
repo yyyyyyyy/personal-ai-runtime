@@ -97,14 +97,20 @@ export function useDashboard() {
     dashboard.isLoading;
 
   const errors = [
-    cost.error, costByModel.error, tools.error,
-    memory.error, health.error, notifications.error, dashboard.error,
+    cost.error,
+    costByModel.error,
+    tools.error,
+    memory.error,
+    health.error,
+    notifications.error,
+    dashboard.error,
   ].filter(Boolean);
 
   if (errors.length > 0 && !loading) {
-    const msg = errors[0] instanceof Error
-      ? (errors[0] as Error).message
-      : "无法连接到后端服务，请确认后端已启动";
+    const msg =
+      errors[0] instanceof Error
+        ? (errors[0] as Error).message
+        : "无法连接到后端服务，请确认后端已启动";
     addError(msg, "仪表盘");
   }
 

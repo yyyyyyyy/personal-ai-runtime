@@ -15,7 +15,7 @@ describe("UI component snapshots", () => {
     const { container } = render(
       <Button variant="danger" size="sm">
         删除
-      </Button>
+      </Button>,
     );
     expect(container.firstChild).toMatchSnapshot();
   });
@@ -24,7 +24,7 @@ describe("UI component snapshots", () => {
     const { container } = render(
       <Card>
         <p>内容</p>
-      </Card>
+      </Card>,
     );
     expect(container.firstChild).toMatchSnapshot();
   });
@@ -35,7 +35,7 @@ describe("UI component snapshots", () => {
         <Badge>默认</Badge>
         <Badge tone="success">成功</Badge>
         <Badge tone="warning">警告</Badge>
-      </div>
+      </div>,
     );
     expect(container.firstChild).toMatchSnapshot();
   });
@@ -46,7 +46,7 @@ describe("UI component snapshots", () => {
         title="暂无数据"
         description="创建第一个目标开始使用"
         action={<Button>新建</Button>}
-      />
+      />,
     );
     expect(container.firstChild).toMatchSnapshot();
   });

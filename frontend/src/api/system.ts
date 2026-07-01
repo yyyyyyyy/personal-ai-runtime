@@ -1,12 +1,7 @@
 /** System API — health, LLM providers, MCP status, export/import, dashboard. */
 
 import { API_BASE, request } from "./core";
-import type {
-  HealthResponse,
-  SystemInfo,
-  LlmProvidersResponse,
-  DashboardData,
-} from "./types";
+import type { HealthResponse, SystemInfo, LlmProvidersResponse, DashboardData } from "./types";
 
 export async function getSystemHealth(): Promise<HealthResponse> {
   return request<HealthResponse>(`${API_BASE}/system/health`);
@@ -33,7 +28,7 @@ export async function exportData(): Promise<Record<string, unknown>> {
 
 export async function importData(
   data: Record<string, unknown>,
-  readOnly = false
+  readOnly = false,
 ): Promise<Record<string, unknown>> {
   const body: Record<string, unknown> = { data, read_only: readOnly };
   if (!readOnly) {
@@ -45,14 +40,19 @@ export async function importData(
   });
 }
 
-export async function exportEncryptedData(password: string): Promise<{ format: string; data: string }> {
+export async function exportEncryptedData(
+  password: string,
+): Promise<{ format: string; data: string }> {
   return request(`${API_BASE}/system/export/encrypted`, {
     method: "POST",
     body: JSON.stringify({ confirm: "EXPORT_ALL_DATA", password }),
   });
 }
 
-export async function importEncryptedData(data: string, password: string): Promise<Record<string, unknown>> {
+export async function importEncryptedData(
+  data: string,
+  password: string,
+): Promise<Record<string, unknown>> {
   return request(`${API_BASE}/system/import/encrypted`, {
     method: "POST",
     body: JSON.stringify({ confirm: "DESTROY_AND_IMPORT", data, password }),

@@ -20,7 +20,11 @@ const COLUMNS: { key: string; label: string; color: string }[] = [
 
 export default function InboxPage() {
   const [emails, setEmails] = useState<InboxEmail[]>([]);
-  const [digest, setDigest] = useState<{ title?: string; content?: string; message?: string } | null>(null);
+  const [digest, setDigest] = useState<{
+    title?: string;
+    content?: string;
+    message?: string;
+  } | null>(null);
   const [loading, setLoading] = useState(false);
   const [polling, setPolling] = useState(false);
   const addError = useErrorStore((s) => s.addError);
@@ -61,8 +65,7 @@ export default function InboxPage() {
       setEmails(items);
       setDigest(dig);
     } catch (err) {
-      const msg =
-        err instanceof ApiError ? err.message : "加载收件箱失败";
+      const msg = err instanceof ApiError ? err.message : "加载收件箱失败";
       addError(msg, "收件箱");
     } finally {
       setLoading(false);
@@ -79,8 +82,7 @@ export default function InboxPage() {
       await triggerInboxPoll();
       await load(false);
     } catch (err) {
-      const msg =
-        err instanceof ApiError ? err.message : "轮询邮件失败";
+      const msg = err instanceof ApiError ? err.message : "轮询邮件失败";
       addError(msg, "收件箱");
     } finally {
       setPolling(false);

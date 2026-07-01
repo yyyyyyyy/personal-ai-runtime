@@ -4,26 +4,17 @@
 
 /** Matches complete <｜tool_calls>…</｜tool_calls> blocks (including all nested content). */
 function block(): RegExp {
-  return new RegExp(
-    `<\\s*[｜|]+tool_calls\\s*>[\\s\\S]*?<\\s*/\\s*[｜|]+tool_calls\\s*>`,
-    "gi"
-  );
+  return new RegExp(`<\\s*[｜|]+tool_calls\\s*>[\\s\\S]*?<\\s*/\\s*[｜|]+tool_calls\\s*>`, "gi");
 }
 
 /** Matches standalone <｜invoke>…</｜invoke> blocks (without outer tool_calls wrapper). */
 function invoke(): RegExp {
-  return new RegExp(
-    `<\\s*[｜|]+invoke[^>]*>[\\s\\S]*?<\\s*/\\s*[｜|]+invoke\\s*>`,
-    "gi"
-  );
+  return new RegExp(`<\\s*[｜|]+invoke[^>]*>[\\s\\S]*?<\\s*/\\s*[｜|]+invoke\\s*>`, "gi");
 }
 
 /** Matches any individual open/close/self-closing tool-call markup tag. */
 function anyTag(): RegExp {
-  return new RegExp(
-    `<\\s*\\/?\\s*[｜|]+\\s*(?:tool_calls|invoke|parameter)\\b[^>]*>`,
-    "gi"
-  );
+  return new RegExp(`<\\s*\\/?\\s*[｜|]+\\s*(?:tool_calls|invoke|parameter)\\b[^>]*>`, "gi");
 }
 
 /**
@@ -34,10 +25,7 @@ function ultimateTail(): RegExp {
   return new RegExp(`<\\s*[｜|][\\s\\S]*$`, "i");
 }
 
-export function stripToolMarkup(
-  text: string,
-  options?: { trim?: boolean },
-): string {
+export function stripToolMarkup(text: string, options?: { trim?: boolean }): string {
   if (!text) return "";
 
   // Step 1: complete <｜tool_calls>…</｜tool_calls> blocks

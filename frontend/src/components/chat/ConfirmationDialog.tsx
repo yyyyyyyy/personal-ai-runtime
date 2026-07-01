@@ -43,13 +43,7 @@ function truncate(text: string, max = PREVIEW_LIMIT): string {
   return `${text.slice(0, max)}…`;
 }
 
-function ExpandableText({
-  text,
-  className,
-}: {
-  text: string;
-  className: string;
-}) {
+function ExpandableText({ text, className }: { text: string; className: string }) {
   const preview = truncate(text);
   const isTruncated = text.length > PREVIEW_LIMIT;
 
@@ -78,21 +72,9 @@ function PatchPreview({ args }: { args: Record<string, unknown> }) {
   return (
     <div className="mb-3 rounded border border-amber-700/40 bg-gray-950/80 p-2 text-xs font-mono">
       <div className="mb-1 text-amber-400/70">变更预览</div>
-      {oldString && (
-        <ExpandableText
-          text={`− ${oldString}`}
-          className="text-red-300/90"
-        />
-      )}
-      {newString && (
-        <ExpandableText
-          text={`+ ${newString}`}
-          className="text-green-300/90"
-        />
-      )}
-      {args.replace_all === true && (
-        <div className="mt-1 text-gray-500">replace_all = true</div>
-      )}
+      {oldString && <ExpandableText text={`− ${oldString}`} className="text-red-300/90" />}
+      {newString && <ExpandableText text={`+ ${newString}`} className="text-green-300/90" />}
+      {args.replace_all === true && <div className="mt-1 text-gray-500">replace_all = true</div>}
     </div>
   );
 }
@@ -130,25 +112,17 @@ export default function ConfirmationDialog({ toolCall, onConfirm, onDeny }: Prop
   return (
     <div className={`${containerClass} rounded-lg p-4`}>
       <div className="flex items-start gap-3">
-        <div className={`${iconClass} text-xl mt-0.5 shrink-0`}>
-          {isHighRisk ? "🔒" : "⚠️"}
-        </div>
+        <div className={`${iconClass} text-xl mt-0.5 shrink-0`}>{isHighRisk ? "🔒" : "⚠️"}</div>
         <div className="flex-1 min-w-0">
-          <h4 className={`${titleClass} font-medium mb-1`}>
-            确认{label}
-          </h4>
+          <h4 className={`${titleClass} font-medium mb-1`}>确认{label}</h4>
 
           {/* 风险解释 —— 告诉用户为什么需要确认 */}
           {riskExplanation && (
-            <p className={`text-xs ${descClass} mb-2 italic`}>
-              {riskExplanation}
-            </p>
+            <p className={`text-xs ${descClass} mb-2 italic`}>{riskExplanation}</p>
           )}
 
           {description && (
-            <p className={`${descClass} text-sm mb-3 whitespace-pre-wrap`}>
-              {description}
-            </p>
+            <p className={`${descClass} text-sm mb-3 whitespace-pre-wrap`}>{description}</p>
           )}
           {isPatch && <PatchPreview args={args} />}
           {isWrite && <WriteFilePreview args={args} />}

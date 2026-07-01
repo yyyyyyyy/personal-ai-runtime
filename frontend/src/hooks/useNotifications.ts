@@ -69,9 +69,7 @@ export function useNotifications() {
 
       try {
         const protocols = buildWsProtocols();
-        ws = protocols
-          ? new WebSocket(buildWsUrl(), protocols)
-          : new WebSocket(buildWsUrl());
+        ws = protocols ? new WebSocket(buildWsUrl(), protocols) : new WebSocket(buildWsUrl());
 
         ws.onmessage = (event) => {
           try {

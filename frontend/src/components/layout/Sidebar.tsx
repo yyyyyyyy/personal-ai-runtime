@@ -19,9 +19,7 @@ import {
   Zap,
 } from "lucide-react";
 
-const PRIMARY_NAV = [
-  { path: "/", label: "对话", icon: MessageSquare, matchChat: true },
-];
+const PRIMARY_NAV = [{ path: "/", label: "对话", icon: MessageSquare, matchChat: true }];
 
 const DATA_NAV = [
   { path: "/portrait", label: "画像", icon: User },
@@ -36,9 +34,7 @@ const DATA_NAV = [
   { path: "/dashboard", label: "仪表盘", icon: BarChart3 },
 ];
 
-const SYSTEM_NAV = [
-  { path: "/settings", label: "设置", icon: Settings },
-];
+const SYSTEM_NAV = [{ path: "/settings", label: "设置", icon: Settings }];
 
 interface SidebarProps {
   conversations: Array<{ id: string; title: string; summary?: string | null }>;
@@ -87,9 +83,7 @@ export default function Sidebar({
               to={item.path}
               end={item.path === "/"}
               className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm mb-1 transition-colors ${
-                active
-                  ? "bg-emerald-600/20 text-emerald-400"
-                  : "text-gray-400 hover:bg-gray-800/50"
+                active ? "bg-emerald-600/20 text-emerald-400" : "text-gray-400 hover:bg-gray-800/50"
               }`}
             >
               <Icon size={18} className="shrink-0" />
@@ -120,13 +114,9 @@ export default function Sidebar({
                 }`}
               >
                 <div className="min-w-0 flex-1">
-                  <span className="truncate text-sm block">
-                    {conv.title || "新对话"}
-                  </span>
+                  <span className="truncate text-sm block">{conv.title || "新对话"}</span>
                   {conv.summary && (
-                    <span className="truncate text-xs text-gray-600 block">
-                      {conv.summary}
-                    </span>
+                    <span className="truncate text-xs text-gray-600 block">{conv.summary}</span>
                   )}
                 </div>
                 <button
@@ -210,7 +200,6 @@ export default function Sidebar({
       </div>
 
       {footer}
-
     </aside>
   );
 }

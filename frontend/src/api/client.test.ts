@@ -19,7 +19,7 @@ describe("api client auth", () => {
       new Response(JSON.stringify({ status: "ok", auth_required: true }), {
         status: 200,
         headers: { "Content-Type": "application/json" },
-      })
+      }),
     );
 
     await getSystemHealth();
@@ -30,13 +30,13 @@ describe("api client auth", () => {
         headers: expect.objectContaining({
           Authorization: "Bearer secret-token",
         }),
-      })
+      }),
     );
   });
 
   it("throws ApiError on 401", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(
-      new Response(JSON.stringify({ detail: "Unauthorized" }), { status: 401 })
+      new Response(JSON.stringify({ detail: "Unauthorized" }), { status: 401 }),
     );
 
     const err = await getSystemHealth().catch((e) => e);
