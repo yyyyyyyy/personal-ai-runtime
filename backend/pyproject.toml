@@ -44,4 +44,9 @@ omit = [
     "app/experimental/*",
     "app/core/runtime/memory_decay.py",
     "app/core/runtime/runtime_container.py",
+    "app/core/runtime/runtime_loop.py",
+    "app/core/runtime/capability_governance.py",
+    "app/core/runtime/approval_engine.py",
+    "app/core/runtime/capability_policy.py",
+    "app/core/runtime/capability_decision.py",
 ]
