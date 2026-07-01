@@ -83,7 +83,34 @@ def test_global_runtime_singleton_is_available():
     assert k is not None
 
 
-def test_runtime_container_inventory():
+def test_runtime_container_new_properties():
+    """v0.5.0: All module-level singletons now accessible via RuntimeContainer."""
+    from app.core.runtime.runtime_container import RuntimeContainer
+
+    c = RuntimeContainer()
+
+    # All properties should resolve without error
+    assert c.kernel is not None
+    assert c.agent_bus is not None
+    assert c.capability_governance is not None
+    assert c.taint_registry is not None
+    assert c.context_pipeline is not None
+    assert c.fragment_registry is not None
+    assert c.mcp_hub is not None
+    assert c.llm_router is not None
+    assert c.memory_engine is not None
+    assert c.memory_extractor is not None
+    assert c.state_manager is not None
+    assert c.runtime_config is not None
+
+    inv = c.inventory()
+    names = {e["name"] for e in inv}
+    expected = {
+        "kernel", "agent_bus", "capability_governance", "taint_registry",
+        "context_pipeline", "fragment_registry", "mcp_hub", "llm_router",
+        "memory_engine", "memory_extractor", "state_manager", "runtime_config",
+    }
+    assert expected <= names, f"Missing: {expected - names}"
     """inventory() returns registered subsystems after lazy resolution."""
     from app.core.runtime.runtime_container import RuntimeContainer
 
@@ -97,6 +124,9 @@ def test_runtime_container_inventory():
     c.capability_governance
     c.taint_registry
     c.kernel
+    c.llm_router
+    c.mcp_hub
+    c.memory_engine
 
     inv = c.inventory()
     names = {e["name"] for e in inv}
@@ -104,6 +134,9 @@ def test_runtime_container_inventory():
     assert "agent_bus" in names
     assert "capability_governance" in names
     assert "taint_registry" in names
+    assert "llm_router" in names
+    assert "mcp_hub" in names
+    assert "memory_engine" in names
     # Each entry has the expected keys
     for entry in inv:
         assert "name" in entry
