@@ -107,7 +107,7 @@ def main():
     db = Database(db_path=str(db_path))
     k = Kernel(db=db)
 
-    tables = ["goals", "actions", "approvals", "memories", "tasks", "conversations", "messages", "notifications", "schedules", "timer_events", "policy_events", "grant_events"]
+    tables = ["goals", "actions", "approvals", "memories", "tasks", "conversations", "messages", "notifications", "timer_events", "policy_events", "grant_events"]
 
     # 1. Emit sample scenario
     for evt in SAMPLE_SCENARIO:
