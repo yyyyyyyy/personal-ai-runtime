@@ -50,9 +50,9 @@ class TestContextPipeline:
 
         assert "core.memory" in ids
 
-        assert "core.actions" in ids
+        assert "core.timeline" in ids
 
-        assert "core.events" in ids
+        assert "core.timeline" in ids
 
         assert "core.goals" in ids
 

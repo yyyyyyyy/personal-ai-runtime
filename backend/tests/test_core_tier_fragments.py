@@ -22,8 +22,8 @@ class TestCoreTierSelector:
         ids = {f.id for f in selected}
 
         assert "core.memory" in ids
-        assert "core.actions" in ids
-        assert "core.events" in ids
+        assert "core.timeline" in ids
+        assert "core.timeline" in ids
         assert "core.goals" in ids
         assert "core.conversation_state" in ids
         assert "runtime.identity" not in ids
@@ -50,8 +50,8 @@ class TestCoreTierRegistration:
 
         registry = FragmentRegistry()
         ids = register_all_fragments(registry)
-        assert "core.actions" in ids
-        assert "core.events" in ids
+        assert "core.timeline" in ids
+        assert "core.timeline" in ids
         assert "core.memory" in ids
 
 
@@ -220,7 +220,7 @@ class TestActionsEventsFragments:
     @pytest.mark.asyncio
     async def test_actions_fragment_format(self, monkeypatch):
         from app.context_runtime import RuntimeContext
-        from app.fragments.universal.actions import ActionsContextFragment
+        from app.fragments.universal.timeline import TimelineContextFragment
 
         monkeypatch.setattr(
             "app.core.runtime.read_ports.query_pending_actions",
@@ -229,8 +229,12 @@ class TestActionsEventsFragments:
                 {"status": "pending", "title": "Task B"},
             ],
         )
+        monkeypatch.setattr(
+            "app.core.runtime.read_ports.query_recent_legacy_events",
+            lambda **kwargs: [],
+        )
 
-        result = await ActionsContextFragment().collect(RuntimeContext())
+        result = await TimelineContextFragment().collect(RuntimeContext())
         assert "## Pending Actions" in result.content
         assert "[pending] Task A" in result.content
         assert result.content.count("- [") == 2
@@ -238,8 +242,12 @@ class TestActionsEventsFragments:
     @pytest.mark.asyncio
     async def test_events_fragment_format(self, monkeypatch):
         from app.context_runtime import RuntimeContext
-        from app.fragments.universal.events import EventsContextFragment
+        from app.fragments.universal.timeline import TimelineContextFragment
 
+        monkeypatch.setattr(
+            "app.core.runtime.read_ports.query_pending_actions",
+            lambda **kwargs: [],
+        )
         monkeypatch.setattr(
             "app.core.runtime.read_ports.query_recent_legacy_events",
             lambda **kwargs: [
@@ -247,7 +255,7 @@ class TestActionsEventsFragments:
             ],
         )
 
-        result = await EventsContextFragment().collect(RuntimeContext())
+        result = await TimelineContextFragment().collect(RuntimeContext())
         assert "## Recent Events" in result.content
         assert "Goal created: Learn Rust" in result.content
         assert "(2026-06-18)" in result.content
@@ -255,23 +263,31 @@ class TestActionsEventsFragments:
     @pytest.mark.asyncio
     async def test_actions_empty_returns_empty(self, monkeypatch):
         from app.context_runtime import RuntimeContext
-        from app.fragments.universal.actions import ActionsContextFragment
+        from app.fragments.universal.timeline import TimelineContextFragment
 
         monkeypatch.setattr(
             "app.core.runtime.read_ports.query_pending_actions",
             lambda **kwargs: [],
         )
-        result = await ActionsContextFragment().collect(RuntimeContext())
+        monkeypatch.setattr(
+            "app.core.runtime.read_ports.query_recent_legacy_events",
+            lambda **kwargs: [],
+        )
+        result = await TimelineContextFragment().collect(RuntimeContext())
         assert result.content == ""
 
     @pytest.mark.asyncio
     async def test_events_empty_returns_empty(self, monkeypatch):
         from app.context_runtime import RuntimeContext
-        from app.fragments.universal.events import EventsContextFragment
+        from app.fragments.universal.timeline import TimelineContextFragment
 
+        monkeypatch.setattr(
+            "app.core.runtime.read_ports.query_pending_actions",
+            lambda **kwargs: [],
+        )
         monkeypatch.setattr(
             "app.core.runtime.read_ports.query_recent_legacy_events",
             lambda **kwargs: [],
         )
-        result = await EventsContextFragment().collect(RuntimeContext())
+        result = await TimelineContextFragment().collect(RuntimeContext())
         assert result.content == ""

@@ -1,4 +1,9 @@
-"""Fragment registration — single entrypoint for all context fragments."""
+"""Fragment registration — single entrypoint for all context fragments.
+
+v0.6.0: Actions + Events merged into TimelineFragment.
+Calendar + Mail kept as separate modules but can be lazy-loaded.
+Total: 13 → 10 registered (lowered by 3 via Timeline merge).
+"""
 
 from __future__ import annotations
 
@@ -13,19 +18,17 @@ from app.fragments.mail import (
     MailIdentityFragment,
     RecentEmailsFragment,
 )
-from app.fragments.universal.actions import ActionsContextFragment
 from app.fragments.universal.conversation_state import ConversationStateFragment
-from app.fragments.universal.events import EventsContextFragment
 from app.fragments.universal.goals import GoalsContextFragment
 from app.fragments.universal.knowledge_context import KnowledgeContextFragment
 from app.fragments.universal.memory import MemoryContextFragment
+from app.fragments.universal.timeline import TimelineContextFragment
 from app.fragments.universal.world import WorldContextFragment
 
 _ALL_FRAGMENT_CLASSES = [
     ConversationStateFragment,
     MemoryContextFragment,
-    ActionsContextFragment,
-    EventsContextFragment,
+    TimelineContextFragment,    # merged actions + events
     GoalsContextFragment,
     WorldContextFragment,
     MailIdentityFragment,

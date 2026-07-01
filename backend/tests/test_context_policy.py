@@ -191,8 +191,8 @@ class TestStageInfluence:
         chat_ids = set(_policy_fragment_ids(registry, "hello", stage="chat"))
         post_tool_ids = set(_policy_fragment_ids(registry, "hello", stage="post_tool"))
         assert chat_ids != post_tool_ids
-        assert "core.actions" in chat_ids
-        assert "core.actions" not in post_tool_ids
+        assert "core.timeline" in chat_ids
+        assert "core.timeline" not in post_tool_ids
         assert "core.memory" in post_tool_ids
 
     def test_chat_differs_from_brief(self):
@@ -211,7 +211,7 @@ class TestStageInfluence:
         register_all_fragments(registry)
         ids = set(_policy_fragment_ids(registry, "查邮件", stage="post_tool"))
         assert "mail.recent_emails" in ids
-        assert "core.actions" not in ids
+        assert "core.timeline" not in ids
 
     def test_post_tool_budget_capped(self):
         registry = FragmentRegistry()

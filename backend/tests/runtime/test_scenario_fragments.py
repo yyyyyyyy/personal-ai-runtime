@@ -20,7 +20,7 @@ class TestFragmentRegistration:
         from app.fragments.register import register_all_fragments
 
         ids = register_all_fragments()
-        assert len(ids) == 13, f"Expected 13 fragments, got {len(ids)}"
+        assert len(ids) == 12, f"Expected 12 fragments, got {len(ids)}"
 
     def test_core_goals_registered(self):
         from app.fragments.register import register_all_fragments

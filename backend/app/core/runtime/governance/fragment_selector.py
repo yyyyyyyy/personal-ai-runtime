@@ -15,8 +15,7 @@ from app.core.runtime.governance.query_analyzer import AnalysisResult
 
 CORE_TIER_FRAGMENT_IDS: tuple[str, ...] = (
     "core.memory",
-    "core.actions",
-    "core.events",
+    "core.timeline",   # merged actions + events (v0.6.0)
     "core.goals",
 )
 

@@ -12,12 +12,11 @@ from app.core.runtime.governance.fragment_selector import (
 )
 from app.fragments.register import register_all_fragments
 
-_EXPECTED_FRAGMENT_COUNT = 13
+_EXPECTED_FRAGMENT_COUNT = 12  # v0.6.0: actions + events merged into timeline (13→12)
 
 FRAGMENT_TRIGGER_MATRIX: dict[str, str] = {
     "core.memory": "Core Tier",
-    "core.actions": "Core Tier",
-    "core.events": "Core Tier",
+    "core.timeline": "Core Tier",  # merged actions + events
     "core.goals": "Core Tier",
     "core.conversation_state": "Priority Tier (>=80)",
     "core.world": "Scenario: planning / review tag",
