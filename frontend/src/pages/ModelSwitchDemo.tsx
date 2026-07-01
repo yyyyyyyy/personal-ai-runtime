@@ -33,7 +33,9 @@ export default function ModelSwitchDemoPage() {
     try {
       const g = await listMemoriesGrouped();
       setMemories(g.memories);
-    } catch {}
+    } catch {
+      // intentionally ignore — demo page, fetch failure is non-critical
+    }
   };
 
   useEffect(() => { loadDemo(); }, []);

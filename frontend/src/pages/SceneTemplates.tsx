@@ -21,7 +21,9 @@ export default function SceneTemplatesPage() {
     try {
       const r = await request<{ id: string }>(`${API_BASE}/workflows/from-template/${t.id}`, { method: "POST" });
       navigate(`/workflows/${r.id}`);
-    } catch {}
+    } catch {
+      // intentionally ignore — scene template, create failure is non-critical
+    }
     setCreating(null);
   };
 
