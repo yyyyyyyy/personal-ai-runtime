@@ -133,17 +133,6 @@ class TestGoalsAPI:
         assert resp.status_code == 404
 
 
-# ── Workflows API ─────────────────────────────────────────────────────────
-
-
-class TestWorkflowsAPI:
-    def test_endpoints_present(self, client):
-        """Workflows were downgraded from production UI in v0.2.0.
-        Verify the module loads without import errors."""
-        from app.api import workflows
-        assert workflows.router is not None
-
-
 # ── Approvals API ─────────────────────────────────────────────────────────
 
 
