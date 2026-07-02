@@ -10,7 +10,7 @@
     "postinstall": "python3 generate_icon.py"
   },
   "dependencies": {
-    "electron": "^33.0.0",
+    "electron": "^43.0.0",
     "ws": "^8.18.0"
   },
   "devDependencies": {
