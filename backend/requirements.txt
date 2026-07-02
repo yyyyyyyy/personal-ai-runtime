@@ -3,7 +3,7 @@ uvicorn[standard]==0.34.0
 openai==1.58.1
 pydantic==2.10.4
 pydantic-settings==2.14.2
-python-dotenv==1.0.1
+python-dotenv==1.2.2
 chromadb==0.5.23
 apscheduler==3.11.0
 httpx==0.28.1
