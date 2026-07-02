@@ -13,6 +13,7 @@ def configure_logging(level: int = logging.INFO) -> None:
     structlog.configure(
         processors=[
             structlog.contextvars.merge_contextvars,
+            _request_id_processor,
             structlog.processors.add_log_level,
             structlog.processors.TimeStamper(fmt="iso"),
             structlog.processors.StackInfoRenderer(),
@@ -30,3 +31,15 @@ def configure_logging(level: int = logging.INFO) -> None:
         stream=sys.stderr,
         level=level,
     )
+
+
+def _request_id_processor(_logger, _method_name, event_dict: dict) -> dict:
+    """Attach the current request id (if any) to every structured log line."""
+    try:
+        from app.main import request_id_var
+        rid = request_id_var.get()
+        if rid:
+            event_dict["request_id"] = rid
+    except Exception:
+        pass
+    return event_dict

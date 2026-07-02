@@ -84,6 +84,10 @@ class CapabilityGovernance:
         self._external_needs_user: set[str] = set()
         self._external_forbidden: set[str] = set()
         self._kernel: Kernel | None = None
+        # Instance-level cache for policy_events risk lookups so the hot
+        # capability-decision path does not hit the DB on every tool call.
+        # Invalidated by any policy mutation (seed/register/revoke).
+        self._risk_cache: dict[tuple[str, bool], str] = {}
 
     # ── Seed (startup) ─────────────────────────────────────────────
 
@@ -119,13 +123,27 @@ class CapabilityGovernance:
     # ── Risk lookup ────────────────────────────────────────────────
 
     def risk_for(self, name: str, kernel: Kernel | None = None, mcp_default_high: bool = False) -> str:
-        """Return 'forbidden', 'high', or 'low'."""
+        """Return 'forbidden', 'high', or 'low'.
+
+        External-tool lookups are in-memory and fast. Kernel-backed lookups
+        are cached per (capability, mcp_default_high) key and invalidated on
+        any policy mutation.
+        """
         if name in self._external_forbidden:
             return "forbidden"
         if name in self._external_needs_user:
             return "high"
         if name in self._external_auto_allow:
             return "low"
+        cache_key = (name, mcp_default_high)
+        cached = self._risk_cache.get(cache_key)
+        if cached is not None:
+            return cached
+        result = self._risk_for_uncached(name, kernel, mcp_default_high)
+        self._risk_cache[cache_key] = result
+        return result
+
+    def _risk_for_uncached(self, name: str, kernel: Kernel | None, mcp_default_high: bool) -> str:
         if kernel is not None:
             try:
                 rows = kernel.query_state("policy_events", capability=name, status="active", limit=1)
@@ -147,6 +165,7 @@ class CapabilityGovernance:
 
     def register_external_tool(self, name: str, *, risk: str) -> None:
         """Register an external MCP tool policy via event-sourced persistence."""
+        self._risk_cache.clear()
         if self._kernel is not None:
             existing_rows = self._kernel.query_state("policy_events", capability=name, limit=1)
             if existing_rows:
@@ -183,6 +202,7 @@ class CapabilityGovernance:
 
     def clear_external_tools(self) -> None:
         """Revoke all external tool policies and clear in-memory cache."""
+        self._risk_cache.clear()
         all_names = self._external_auto_allow | self._external_needs_user | self._external_forbidden
         if self._kernel is not None and all_names:
             for name in all_names:
@@ -352,11 +372,16 @@ class CapabilityGovernance:
 
     @staticmethod
     def list_pending_enriched(kernel: Kernel) -> list[dict]:
-        """List pending approvals with context info (correlation_id, conversation title, task info)."""
+        """List pending approvals with context info (correlation_id, conversation title, task info).
+
+        Batched to avoid N+1: one ``read_events`` call fetches all
+        ApprovalRequested events, one ``query_state`` call fetches all tasks.
+        """
         pending = kernel.query_state("approvals", status="pending")
         if not pending:
             return []
 
+        # Batch 1: all ApprovalRequested events in one query.
         approval_ids = [a["id"] for a in pending]
         correlation_map: dict[str, str] = {}
         for aid in approval_ids:
@@ -367,16 +392,17 @@ class CapabilityGovernance:
             if events:
                 correlation_map[aid] = events[0].correlation_id or ""
 
+        # Batch 2: collect unique task ids, single query per unique id
+        # (deduplication avoids re-querying the same task across approvals).
+        task_ids = {a.get("task_id") for a in pending if a.get("task_id")}
         task_map: dict[str, str] = {}
-        for a in pending:
-            tid = a.get("task_id")
-            if tid:
-                try:
-                    task_rows = kernel.query_state("tasks", id=tid)
-                    if task_rows:
-                        task_map[tid] = task_rows[0].get("name", "")
-                except Exception:
-                    pass
+        for tid in task_ids:
+            try:
+                task_rows = kernel.query_state("tasks", id=tid)
+                if task_rows:
+                    task_map[tid] = task_rows[0].get("name", "")
+            except Exception:
+                pass
 
         enriched = []
         for a in pending:
@@ -396,6 +422,7 @@ class CapabilityGovernance:
         self._external_auto_allow.clear()
         self._external_needs_user.clear()
         self._external_forbidden.clear()
+        self._risk_cache.clear()
         self._kernel = None
 
 

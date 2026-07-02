@@ -4,8 +4,10 @@ import asyncio
 import json
 import logging
 import secrets
+import uuid
 from asyncio import Lock
 from contextlib import asynccontextmanager
+from contextvars import ContextVar
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
@@ -42,6 +44,17 @@ logger = logging.getLogger(__name__)
 # WebSocket connection manager for real-time notifications
 _ws_connections: list[WebSocket] = []
 _ws_lock = Lock()
+
+# ── Request ID context ─────────────────────────────────────────────────────
+# Populated by RequestIDMiddleware on every HTTP request so structured logs
+# can correlate all log lines within a single request.
+request_id_var: ContextVar[str] = ContextVar("request_id", default="")
+
+
+def get_request_id() -> str:
+    """Return the current request id (empty string outside a request)."""
+    return request_id_var.get()
+
 
 # ── Auth middleware ──────────────────────────────────────────────────────────
 
@@ -175,6 +188,47 @@ class AuthMiddleware:
         await send({"type": "http.response.body", "body": body})
 
 
+class RequestIDMiddleware:
+    """Assigns/generates an X-Request-ID and stores it in a ContextVar.
+
+    Reads the inbound ``X-Request-ID`` header if present (so upstream
+    proxies can propagate their own id), otherwise generates a uuid4.
+    The value is exposed via ``request_id_var`` so any logger processor
+    can attach it to structured log lines.
+    """
+
+    def __init__(self, app: ASGIApp) -> None:
+        self.app = app
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+
+        rid = ""
+        for name, value in scope.get("headers", []):
+            if name == b"x-request-id":
+                rid = value.decode("latin-1")
+                break
+        if not rid:
+            rid = uuid.uuid4().hex[:16]
+
+        token = request_id_var.set(rid)
+        scope.setdefault("request_id", rid)
+
+        async def _send(message: dict) -> None:
+            if message.get("type") == "http.response.start":
+                headers = list(message.get("headers") or [])
+                headers.append((b"x-request-id", rid.encode("latin-1")))
+                message["headers"] = headers
+            await send(message)
+
+        try:
+            await self.app(scope, receive, _send)
+        finally:
+            request_id_var.reset(token)
+
+
 # ── Lifespan ─────────────────────────────────────────────────────────────────
 
 
@@ -304,9 +358,13 @@ app.add_middleware(
     allow_origins=settings.cors_origins.split(","),
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-    allow_headers=["Authorization", "Content-Type"],
+    allow_headers=["Authorization", "Content-Type", "X-Request-ID"],
     expose_headers=["X-Request-ID"],
 )
+
+# RequestIDMiddleware is added last so it wraps everything else (outermost):
+# the request id must be available before AuthMiddleware logs anything.
+app.add_middleware(RequestIDMiddleware)
 
 # Register routers
 app.include_router(chat.router)

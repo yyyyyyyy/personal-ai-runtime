@@ -29,8 +29,23 @@ class BrainCompletionMixin:
         provider: LLMProvider
         client: Any
 
-    async def continue_after_tool_result(self, conversation: ConversationManager) -> str:
-        """One-shot LLM completion after approval resolution closes the tool loop."""
+    _MAX_CONTINUE_DEPTH = 3
+
+    async def continue_after_tool_result(
+        self, conversation: ConversationManager, *, depth: int = 0,
+    ) -> str:
+        """One-shot LLM completion after approval resolution closes the tool loop.
+
+        ``depth`` bounds recursive re-entry: each approval resolution may
+        trigger another tool call that again needs approval, and without a
+        cap the loop could recurse indefinitely.
+        """
+        if depth >= self._MAX_CONTINUE_DEPTH:
+            logger.warning(
+                "continue_after_tool_result hit depth cap (%d); stopping",
+                self._MAX_CONTINUE_DEPTH,
+            )
+            return "操作已完成，但后续推理深度已达上限。"
         from app.chat.prompt_compiler import (
             CompileContext,
             latest_user_message_from_history,

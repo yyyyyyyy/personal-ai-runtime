@@ -164,9 +164,8 @@ curl -X POST http://localhost:8000/api/system/export \
 
 | 你想知道 | 读这篇 |
 |---------|--------|
-| 为什么是现在做这个？ | [WHY_NOW](docs/product/WHY_NOW.md) |
 | 我们相信什么？ | [MANIFESTO](docs/product/MANIFESTO.md) |
-| 产品定位与理念 | [POSITIONING](docs/product/POSITIONING.md) |
+| 新人第一周怎么做？ | [FIRST_WEEK](docs/onboarding/FIRST_WEEK.md) |
 | 如何使用？ | [USER_GUIDE](docs/guides/USER_GUIDE.md) |
 | 技术架构 | [ARCHITECTURE](docs/architecture/ARCHITECTURE.md) |
 | 如何贡献？ | [CONTRIBUTING](CONTRIBUTING.md) |
