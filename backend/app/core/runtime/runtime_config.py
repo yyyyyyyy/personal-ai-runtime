@@ -13,7 +13,7 @@ import threading
 from copy import deepcopy
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from app.config import settings
 from app.core.runtime import kernel_instance as _kernel_module
@@ -450,4 +450,7 @@ class RuntimeConfig:
             raise
 
 
-runtime_config = _LazyProxy(lambda: runtime.runtime_config)
+if TYPE_CHECKING:
+    runtime_config: RuntimeConfig
+else:
+    runtime_config = _LazyProxy(lambda: runtime.runtime_config)

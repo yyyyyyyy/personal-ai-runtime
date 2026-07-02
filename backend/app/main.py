@@ -6,8 +6,10 @@ import logging
 import secrets
 import uuid
 from asyncio import Lock
+from collections.abc import MutableMapping
 from contextlib import asynccontextmanager
 from contextvars import ContextVar
+from typing import Any
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
@@ -216,7 +218,7 @@ class RequestIDMiddleware:
         token = request_id_var.set(rid)
         scope.setdefault("request_id", rid)
 
-        async def _send(message: dict) -> None:
+        async def _send(message: "MutableMapping[str, Any]") -> None:
             if message.get("type") == "http.response.start":
                 headers = list(message.get("headers") or [])
                 headers.append((b"x-request-id", rid.encode("latin-1")))

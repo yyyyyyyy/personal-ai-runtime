@@ -188,4 +188,7 @@ class AgentBus:
 
 
 # Singleton — lazy proxy to RuntimeContainer so runtime.reset() rebuilds it.
-agent_bus = _LazyProxy(lambda: runtime.agent_bus)
+if TYPE_CHECKING:
+    agent_bus: AgentBus
+else:
+    agent_bus = _LazyProxy(lambda: runtime.agent_bus)

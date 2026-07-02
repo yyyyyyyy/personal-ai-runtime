@@ -10,6 +10,16 @@ keeps ``from app.core.runtime.kernel_instance import kernel`` working while
 making ``runtime.reset()`` the single point of test isolation.
 """
 
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
 from app.core.runtime.runtime_container import _LazyProxy, runtime
 
-kernel = _LazyProxy(lambda: runtime.kernel)
+if TYPE_CHECKING:
+    from app.core.runtime.kernel.kernel import Kernel
+
+if TYPE_CHECKING:
+    kernel: "Kernel"
+else:
+    kernel = _LazyProxy(lambda: runtime.kernel)

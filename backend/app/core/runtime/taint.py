@@ -15,7 +15,7 @@ that share the same correlation_id.
 from __future__ import annotations
 
 import time
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from app.core.runtime.runtime_container import _LazyProxy, runtime
 
@@ -105,7 +105,10 @@ class TaintRegistry:
         self._store.clear()
 
 
-taint_registry = _LazyProxy(lambda: runtime.taint_registry)
+if TYPE_CHECKING:
+    taint_registry: TaintRegistry
+else:
+    taint_registry = _LazyProxy(lambda: runtime.taint_registry)
 
 
 def is_external_ingestion_tool(name: str) -> bool:

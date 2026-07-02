@@ -395,7 +395,7 @@ class CapabilityGovernance:
 
         # Batch 2: collect unique task ids, single query per unique id
         # (deduplication avoids re-querying the same task across approvals).
-        task_ids = {a.get("task_id") for a in pending if a.get("task_id")}
+        task_ids = {str(a["task_id"]) for a in pending if a.get("task_id")}
         task_map: dict[str, str] = {}
         for tid in task_ids:
             try:
@@ -427,4 +427,7 @@ class CapabilityGovernance:
         self._kernel = None
 
 
-capability_governance = _LazyProxy(lambda: runtime.capability_governance)
+if TYPE_CHECKING:
+    capability_governance: CapabilityGovernance
+else:
+    capability_governance = _LazyProxy(lambda: runtime.capability_governance)

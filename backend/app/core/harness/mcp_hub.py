@@ -8,7 +8,7 @@ import json
 import time
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
-from typing import cast
+from typing import TYPE_CHECKING, cast
 
 from app.core.harness.builtin_tools.browser import browser_server
 from app.core.harness.builtin_tools.calendar import calendar_server
@@ -776,4 +776,7 @@ class MCPHub:
 
 
 # Singleton — lazy proxy to RuntimeContainer so runtime.reset() rebuilds it.
-mcp_hub = _LazyProxy(lambda: runtime.mcp_hub)
+if TYPE_CHECKING:
+    mcp_hub: MCPHub
+else:
+    mcp_hub = _LazyProxy(lambda: runtime.mcp_hub)

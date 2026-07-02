@@ -45,6 +45,10 @@ class _LazyProxy:
     *read* is delegated to the underlying instance; writes/deletes stay on
     the proxy itself so ``unittest.mock.patch`` can swap a method without
     touching the shared underlying instance.
+
+    The ``__new__`` overload below tells mypy that constructing a proxy
+    yields ``Any``, so call sites like ``kernel = _LazyProxy(...)`` type-
+    check     against the real Kernel API rather than against _LazyProxy itself.
     """
 
     def __init__(self, factory: "Any"):

@@ -30,7 +30,7 @@ def main() -> int:
     import app.core.harness.builtin_tools.calendar as cal_mod
     import app.core.runtime.kernel_instance as ki
 
-    ki.kernel = k
+    ki.kernel = k  # type: ignore[assignment]  # proxy accepts real instance
 
     ics_dir = _BACKEND_ROOT / "data" / "verify_calendar"
     ics_dir.mkdir(parents=True, exist_ok=True)

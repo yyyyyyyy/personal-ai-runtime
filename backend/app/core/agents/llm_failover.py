@@ -6,6 +6,7 @@ with .env as initial seed.
 """
 
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
 from openai import AsyncOpenAI
 
@@ -122,4 +123,7 @@ class LLMRouter:
 
 
 # Singleton — lazy proxy to RuntimeContainer so runtime.reset() rebuilds it.
-llm_router = _LazyProxy(lambda: runtime.llm_router)
+if TYPE_CHECKING:
+    llm_router: LLMRouter
+else:
+    llm_router = _LazyProxy(lambda: runtime.llm_router)

@@ -9,6 +9,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from collections.abc import Awaitable, Callable
+from typing import TYPE_CHECKING
 
 from app.core.agents.memory_engine import memory_engine
 from app.core.runtime.runtime_container import _LazyProxy, runtime
@@ -152,4 +153,7 @@ class MemoryExtractor:
             pass
 
 
-memory_extractor = _LazyProxy(lambda: runtime.memory_extractor)
+if TYPE_CHECKING:
+    memory_extractor: MemoryExtractor
+else:
+    memory_extractor = _LazyProxy(lambda: runtime.memory_extractor)

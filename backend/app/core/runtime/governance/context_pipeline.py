@@ -27,6 +27,7 @@ from __future__ import annotations
 import threading
 import time as _time
 from collections import deque
+from typing import TYPE_CHECKING
 
 from app.assembler.context_assembler import ContextAssembler
 from app.context_runtime import (
@@ -169,7 +170,10 @@ class ContextPipeline:
 
 
 # Singleton — lazy proxy to RuntimeContainer so runtime.reset() rebuilds it.
-context_pipeline = _LazyProxy(lambda: runtime.context_pipeline)
+if TYPE_CHECKING:
+    context_pipeline: ContextPipeline
+else:
+    context_pipeline = _LazyProxy(lambda: runtime.context_pipeline)
 
 
 def reset_source_registry() -> None:

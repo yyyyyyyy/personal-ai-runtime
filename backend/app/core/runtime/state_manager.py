@@ -4,6 +4,7 @@ All modules share a single state machine. Illegal transitions raise exceptions.
 """
 
 from enum import Enum
+from typing import TYPE_CHECKING
 
 from app.core.runtime.runtime_container import _LazyProxy, runtime
 
@@ -56,4 +57,7 @@ class StateManager:
         return status in (TaskStatus.PENDING, TaskStatus.RUNNING, TaskStatus.BLOCKED, TaskStatus.WAITING_APPROVAL)
 
 
-state_manager = _LazyProxy(lambda: runtime.state_manager)
+if TYPE_CHECKING:
+    state_manager: StateManager
+else:
+    state_manager = _LazyProxy(lambda: runtime.state_manager)

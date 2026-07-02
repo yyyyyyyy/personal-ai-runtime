@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import logging
 import sys
+from collections.abc import Mapping, MutableMapping
+from typing import Any
 
 import structlog
 
@@ -33,7 +35,9 @@ def configure_logging(level: int = logging.INFO) -> None:
     )
 
 
-def _request_id_processor(_logger, _method_name, event_dict: dict) -> dict:
+def _request_id_processor(
+    _logger: object, _method_name: str, event_dict: "MutableMapping[str, Any]",
+) -> "Mapping[str, Any]":
     """Attach the current request id (if any) to every structured log line."""
     try:
         from app.main import request_id_var

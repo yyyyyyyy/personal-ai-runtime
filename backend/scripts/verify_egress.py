@@ -27,7 +27,7 @@ def main() -> int:
 
     import app.core.runtime.kernel_instance as ki
 
-    ki.kernel = k
+    ki.kernel = k  # type: ignore[assignment]  # proxy accepts real instance
 
     messages = [
         {
