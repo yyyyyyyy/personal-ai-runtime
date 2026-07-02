@@ -150,3 +150,41 @@ def test_mcp_connection(server_name: str) -> dict[str, Any]:
     if status.get("connected"):
         return {"status": "ok", "message": f"连接器 {server_name} 运行正常", "tool_count": status.get("tool_count", 0)}
     return {"status": "error", "message": f"连接器 {server_name} 未连接"}
+
+
+# ── Governance read ports (FACT-36 activation) ────────────────────────────
+
+
+def query_pending_approval_count() -> int:
+    """Count approvals currently waiting for user decision."""
+    try:
+        rows = kernel.query_state("approvals", status="pending", limit=50)
+        return len(rows)
+    except Exception:
+        return 0
+
+
+def query_recent_tool_names(*, limit: int = 3) -> list[str]:
+    """Return the names of the most recently invoked capabilities."""
+    try:
+        events = kernel.read_events(type="CapabilityInvoked", limit=limit, order="desc")
+        names: list[str] = []
+        for evt in events:
+            name = evt.payload.get("name", "")
+            if name and name not in names:
+                names.append(name)
+        return names[:limit]
+    except Exception:
+        return []
+
+
+def query_stagnant_goal_count(*, days: int = 3) -> int:
+    """Count active goals with no recent activity."""
+    try:
+        rows = kernel.query_state(
+            "goals", status="active",
+            last_activity_older_than_days=days, limit=10,
+        )
+        return len(rows)
+    except Exception:
+        return 0

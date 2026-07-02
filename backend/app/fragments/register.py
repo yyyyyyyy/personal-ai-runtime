@@ -20,6 +20,7 @@ from app.fragments.mail import (
 )
 from app.fragments.universal.conversation_state import ConversationStateFragment
 from app.fragments.universal.goals import GoalsContextFragment
+from app.fragments.universal.governance import GovernanceContextFragment
 from app.fragments.universal.knowledge_context import KnowledgeContextFragment
 from app.fragments.universal.memory import MemoryContextFragment
 from app.fragments.universal.timeline import TimelineContextFragment
@@ -31,6 +32,7 @@ _ALL_FRAGMENT_CLASSES = [
     TimelineContextFragment,    # merged actions + events
     GoalsContextFragment,
     WorldContextFragment,
+    GovernanceContextFragment,  # runtime governance snapshot (FACT-36 activation)
     MailIdentityFragment,
     RecentEmailsFragment,
     EmailSearchFragment,

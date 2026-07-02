@@ -72,7 +72,7 @@ class TestFragmentRegistry:
         assert "mail.recent_emails" in ids
         assert "mail.email_search" in ids
         assert "mail.email_thread" not in ids
-        assert len(ids) == 12
+        assert len(ids) == 13
 
 
 class TestRuntimeGovernanceGuarantees:
