@@ -561,7 +561,7 @@ TimelineFragment 收集用户的最近操作和事件，按时间线排列。Int
 ## PR-12: 测试补全与 CI 验证增强 (VERIFY)
 
 **Type**: VERIFY
-**Budget Impact**: 测试覆盖率 (目标 ≥84% runtime, ≥70% API)
+**Budget Impact**: 测试覆盖率 (目标 ≥84% runtime, ≥50% API，远期 70%)
 **Depends On**: PR-06, PR-07, PR-10, PR-11
 **Estimated Lines Changed**: +400 / -0 (新增测试)
 **Constitution Trace**: All Invariants (I-001 ~ I-007)

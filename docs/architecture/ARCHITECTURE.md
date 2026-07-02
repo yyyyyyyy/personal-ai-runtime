@@ -13,58 +13,43 @@
 
 Personal AI Runtime 是一个**事件溯源（Event Sourced）的本地 AI 运行时**。其架构分为两个空间：
 
-```
-┌──────────────────────────────────────────────────────────────────┐
-│  USER SPACE                                                      │
-│                                                                  │
-│  API Layer (FastAPI routers, 17 route groups)                    │
-│  ┌──────────┐ ┌────────────┐ ┌──────────┐ ┌────────────────┐    │
-│  │  Brain   │ │ TaskEngine │ │ MCPHub   │ │ ContextPipeline│    │
-│  │(LLM loop)│ │(Goal/Task) │ │(Tools)   │ │(Fragment→Prompt│    │
-│  └────┬─────┘ └─────┬──────┘ └────┬─────┘ └───────┬────────┘    │
-│       │              │             │                │             │
-│       └──────────────┼─────────────┼────────────────┘             │
-│                      │             │                              │
-│         ┌────────────┴─────────────┴──────────┐                   │
-│         │  Runtime Subsystems                  │                   │
-│         │  Scheduler, AgentBus, TimerEngine,   │                   │
-│         │  CapabilityGateway, ApprovalEngine,  │                   │
-│         │  BackgroundWorker, TriggerEngine      │                   │
-│         └────────────┬────────────────────────┘                   │
-├──────────────────────┼───────────────────────────────────────────┤
-│  KERNEL SPACE        │  唯一访存储的代码                          │
-│                      ▼                                           │
-│  ┌──────────────────────────────────────────────────────────┐   │
-│  │                    Kernel ABI                             │   │
-│  │  emit_event()  query_state()  read_events()             │   │
-│  │  invoke_capability()  request_approval()                │   │
-│  │  submit_command()                                       │   │
-│  └───────────┬──────────────────────────────────────────────┘   │
-│              │                                                    │
-│    ┌─────────┼──────────┐                                        │
-│    │         ▼           │                                        │
-│    │   event_log table   │  不可变、只追加                      │
-│    │         │           │                                        │
-│    │    ┌────▼─────┐     │                                        │
-│    │    │Projectors│     │  同步、同事务运行（7 模块）          │
-│    │    └────┬─────┘     │                                        │
-│    │         ▼           │                                        │
-│    │  projection tables  │  goals, actions, tasks,              │
-│    │                     │  memories, approvals, conversations, │
-│    │                     │  handler_executions, timer_events,   │
-│    │                     │  policy_events, grant_events,        │
-│    │                     │  notifications (14 GOVERNED)          │
-│    └─────────────────────┘                                        │
-│    ┌─────────────────────┐                                        │
-│    │  ChromaDB (memory)  │  语义索引，两阶段同步                 │
-│    │  + knowledge index  │  (emit_event 预计算 + _sync 修复)     │
-│    └─────────────────────┘                                        │
-│    ┌─────────────────────┐                                        │
-│    │  SQLite APP_STORAGE │  user_profile, app_settings,          │
-│    │  (direct read/write)│  background_tasks, llm_calls,         │
-│    │                     │  tool_calls, triggers, inbox_emails   │
-│    └─────────────────────┘                                        │
-└──────────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart TD
+    subgraph user["USER SPACE"]
+        api["API Layer (FastAPI routers, 16 route groups)"]
+        subgraph engines["Reasoning & Tools"]
+            brain["Brain (LLM loop)"]
+            task["TaskEngine (Goal/Task)"]
+            mcp["MCPHub (Tools)"]
+            ctx["ContextPipeline (Fragment→Prompt)"]
+        end
+        subgraph subs["Runtime Subsystems"]
+            sched["Scheduler"]
+            bus["AgentBus"]
+            timer["TimerEngine"]
+            cap["CapabilityGovernance"]
+            bg["BackgroundWorker"]
+            trig["TriggerEngine"]
+        end
+        api --> engines
+        engines --> subs
+    end
+
+    subgraph kernel["KERNEL SPACE — 唯一访存储的代码"]
+        abi["Kernel ABI<br/>emit_event · query_state · read_events<br/>invoke_capability · request_approval · submit_command"]
+        eventlog[("event_log<br/>不可变、只追加")]
+        projs["Projectors (7 modules, 同步同事务)"]
+        projections[("projection tables (14 GOVERNED)<br/>goals · actions · tasks · memories<br/>approvals · conversations · handler_executions<br/>timer_events · policy_events · grant_events · notifications")]
+        chroma[("ChromaDB (memory)<br/>语义索引，两阶段同步")]
+        appstorage[("SQLite APP_STORAGE (11)<br/>user_profile · app_settings<br/>background_tasks · llm_calls · tool_calls")]
+        abi --> eventlog
+        eventlog --> projs
+        projs --> projections
+        eventlog -.预计算.-> chroma
+        appstorage
+    end
+
+    subs --> abi
 ```
 
 ### 核心规则
@@ -464,7 +449,7 @@ CI（`.github/workflows/ci.yml`）强制执行以下架构约束：
 4. **事件日志重建**: `verify_rebuild.py` 验证从 event_log 确定性重建所有投影表
 5. **导出往返**: `verify_export_roundtrip.py` 验证数据导出/导入完整性
 6. **向量一致性**: `verify_vector_consistency.py` 验证 SQLite 和 ChromaDB embedding_id 一致
-7. **覆盖率门槛**: 运行时覆盖率 ≥ 84%，API 覆盖率 ≥ 70%
+7. **覆盖率门槛**: 运行时覆盖率 ≥ 84%，API 覆盖率 ≥ 50%（目标 70%）
 
 ---
 

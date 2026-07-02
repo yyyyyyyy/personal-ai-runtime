@@ -1,0 +1,26 @@
+title = "Personal AI Runtime secrets allowlist"
+
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Allow example/template values that look like secrets"
+paths = [
+  '''\.env\.example$''',
+  '''docs/.*\.md$''',
+  '''README.*\.md$''',
+  '''CONTRIBUTING\.md$''',
+]
+regexes = [
+  '''your-deepseek-api-key''',
+  '''your-gmail-app-password''',
+  '''your-email@gmail\.com''',
+  '''sk-test-key''',
+  '''demo-seed''',
+]
+
+[[allowlists]]
+description = "Allow placeholder hashes in test fixtures"
+paths = [
+  '''backend/tests/.*''',
+]

@@ -92,7 +92,7 @@
 **动作**：
 1. CI 全量运行（`make ci-local`）
 2. 不变量守卫脚本全绿（`make boundary execution-ownership projection-provenance rebuild-verify export-roundtrip-verify vector-consistency-verify`）
-3. 覆盖率达标（Runtime ≥ 84%, API ≥ 70%）
+3. 覆盖率达标（Runtime ≥ 84%, API ≥ 50%，目标 70%）
 4. 预算合规检查（扫描概念计数、工具数、表数）
 
 **输出**：Verification Report，包含：
@@ -238,7 +238,7 @@ TRUTH AUDIT (定期，至少每里程碑一次)
 
 **合并条件**：
 - CI 全部通过（所有不变量守卫脚本）
-- Runtime 覆盖率 ≥ 84%，API 覆盖率 ≥ 70%
+- Runtime 覆盖率 ≥ 84%，API 覆盖率 ≥ 50%（目标 70%）
 - Mypy 类型检查通过
 - 不违反 INVARIANTS Tier 1 任何规则
 
@@ -528,8 +528,8 @@ TRUTH AUDIT (定期，至少每里程碑一次)
 |---|---|
 | **定义** | Runtime 代码和 API 代码的测试覆盖率 |
 | **测量** | CI 中的 pytest-cov |
-| **目标** | Runtime ≥ 84%, API ≥ 70% |
-| **临界阈值** | Runtime < 84% (CI 硬失败), API < 70% (CI 告警) |
+| **目标** | Runtime ≥ 84%, API ≥ 50%（目标 70%） |
+| **临界阈值** | Runtime < 84% (CI 硬失败), API < 50% (CI 告警) |
 | **更新频率** | 每个实现 PR（CI 自动检查） |
 
 ### 4.15 CI 健康
@@ -664,7 +664,7 @@ TRUTH AUDIT (定期，至少每里程碑一次)
 
 **自动检查**：
 - Runtime 覆盖率 ≥ 84%
-- API 覆盖率 ≥ 70%
+- API 覆盖率 ≥ 50%（目标 70%）
 - 后端 pytest 全量通过（排除 live_llm）
 - 前端 vitest 全量通过
 - 前端 Playwright E2E 通过
@@ -753,7 +753,7 @@ TRUTH AUDIT (定期，至少每里程碑一次)
 | 指标 | 定义 | 目标 |
 |---|---|---|
 | 不变量强制 | Tier 1 不变量 100% 有 CI 自动验证 | 100% |
-| 覆盖率 | Runtime ≥ 84%, API ≥ 70% | 持续上升 |
+| 覆盖率 | Runtime ≥ 84%, API ≥ 50%（目标 70%） | 持续上升 |
 | CI 完整性 | CI 步骤覆盖所有关键路径 | 不下降 |
 | 文档完整性 | 每个文档有明确的单一职责 | 100% |
 

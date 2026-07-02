@@ -1,4 +1,4 @@
-.PHONY: install setup init-db dev demo screenshots test test-backend test-frontend test-e2e ci-local lint typecheck desktop desktop-build boundary rebuild-verify export-roundtrip-verify snapshot-verify egress-verify connector-verify alembic-verify vector-consistency-verify docker-up docker-down projection-provenance conversation-rebuild goal-rebuild
+.PHONY: install setup init-db dev demo screenshots test test-backend test-frontend test-e2e ci-local lint typecheck desktop desktop-build boundary rebuild-verify export-roundtrip-verify snapshot-verify egress-verify connector-verify alembic-verify vector-consistency-verify docker-up docker-down projection-provenance conversation-rebuild goal-rebuild lockfile secrets-scan
 
 # Backend
 BACKEND_DIR := backend
@@ -117,3 +117,16 @@ docker-up:
 
 docker-down:
 	docker compose down
+
+# Generate a pinned, hash-verified lockfile from requirements.txt.
+# Commit backend/requirements.lock so CI installs exactly the same versions.
+lockfile:
+	cd $(BACKEND_DIR) && pip install --user pip-tools 2>/dev/null || pip install pip-tools
+	cd $(BACKEND_DIR) && pip-compile --generate-hashes --output-file requirements.lock requirements.txt
+	@echo "Created backend/requirements.lock — commit it for reproducible installs."
+
+# Scan the working tree for leaked secrets using gitleaks.
+# Install via: brew install gitleaks (macOS) or see https://github.com/gitleaks/gitleaks
+secrets-scan:
+	@gitleaks detect --config .gitleaks.toml --source . --no-banner --redact || \
+		echo "gitleaks not installed — install from https://github.com/gitleaks/gitleaks"

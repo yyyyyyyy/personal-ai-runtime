@@ -1,0 +1,56 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Extract version from tag
+        id: version
+        run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> "$GITHUB_OUTPUT"
+
+      - name: Extract changelog section
+        id: changelog
+        run: |
+          # Extract the section between the version tag and the next version
+          # header from CHANGELOG.md. Falls back to the full changelog body.
+          VERSION="${GITHUB_REF#refs/tags/}"
+          python3 - <<'PY' > release_notes.md
+          import re, sys
+          version = "${VERSION}".lstrip("v")
+          with open("CHANGELOG.md", encoding="utf-8") as f:
+              text = f.read()
+          # Match "## [<version>]" or "## <version>" headings.
+          pattern = re.compile(
+              r"^##\s*\[?" + re.escape(version) + r"\]?(.*)$",
+              re.MULTILINE,
+          )
+          matches = list(pattern.finditer(text))
+          if not matches:
+              print(f"(No CHANGELOG.md section found for {version}.)")
+              sys.exit(0)
+          start = matches[0].end()
+          next_heading = re.search(r"^##\s", text[start:], re.MULTILINE)
+          end = start + next_heading.start() if next_heading else len(text)
+          print(text[start:end].strip())
+          PY
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.VERSION }}
+          name: ${{ steps.version.outputs.VERSION }}
+          body_path: release_notes.md
+          draft: false
+          prerelease: ${{ contains(steps.version.outputs.VERSION, '-') }}

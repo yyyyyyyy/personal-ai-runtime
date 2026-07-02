@@ -7,6 +7,18 @@ on:
     branches: [main]
 
 jobs:
+  secrets-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITLEAKS_CONFIG: .gitleaks.toml
+
   backend:
     runs-on: ubuntu-latest
 
@@ -43,7 +55,7 @@ jobs:
           cd backend
           python -m pytest tests/ -v --cov=app/core/runtime --cov=app/core/harness --cov=app/api --cov-report=term -m "not live_llm"
           python -m coverage report --include='app/core/runtime/*' --fail-under=84
-          python -m coverage report --include='app/api/*' --fail-under=40
+          python -m coverage report --include='app/api/*' --fail-under=50
 
       - name: Verify database schema (Alembic)
         run: |
