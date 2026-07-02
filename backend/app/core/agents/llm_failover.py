@@ -120,5 +120,6 @@ class LLMRouter:
         return "deepseek-chat"
 
 
-# Global singleton
-llm_router = LLMRouter()
+# Singleton — lazy proxy to RuntimeContainer so runtime.reset() rebuilds it.
+from app.core.runtime.runtime_container import _LazyProxy, runtime
+llm_router = _LazyProxy(lambda: runtime.llm_router)

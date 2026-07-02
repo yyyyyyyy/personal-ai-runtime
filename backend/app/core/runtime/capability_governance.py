@@ -399,4 +399,5 @@ class CapabilityGovernance:
         self._kernel = None
 
 
-capability_governance = CapabilityGovernance()
+from app.core.runtime.runtime_container import _LazyProxy, runtime
+capability_governance = _LazyProxy(lambda: runtime.capability_governance)

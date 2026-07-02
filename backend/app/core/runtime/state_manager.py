@@ -54,5 +54,5 @@ class StateManager:
         return status in (TaskStatus.PENDING, TaskStatus.RUNNING, TaskStatus.BLOCKED, TaskStatus.WAITING_APPROVAL)
 
 
-# Global singleton
-state_manager = StateManager()
+from app.core.runtime.runtime_container import _LazyProxy, runtime
+state_manager = _LazyProxy(lambda: runtime.state_manager)

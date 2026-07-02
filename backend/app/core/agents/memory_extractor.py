@@ -46,14 +46,16 @@ class MemoryExtractor:
         from app.core.agents.llm_failover import llm_router
         from app.core.runtime.egress.egress_gate import prepare_llm_egress
 
-        client, provider = llm_router.get_client()
-        prompt = (
-            "Extract key facts about the user from this conversation. "
-            "One fact per line, no bullets.\n\n" + conversation_text[:3000]
-        )
-        msg = {"role": "user", "content": prompt}
-        egress_messages, _egress_audit = prepare_llm_egress([msg], purpose="memory_extract")
         try:
+            client, provider = llm_router.get_client()
+            prompt = (
+                "Extract key facts about the user from this conversation. "
+                "One fact per line, no bullets.\n\n" + conversation_text[:3000]
+            )
+            msg = {"role": "user", "content": prompt}
+            egress_messages, _egress_audit = prepare_llm_egress(
+                [msg], purpose="memory_extract",
+            )
             response = await client.chat.completions.create(
                 model=provider.model,
                 messages=egress_messages,  # type: ignore[arg-type]
@@ -63,8 +65,8 @@ class MemoryExtractor:
             text = response.choices[0].message.content or ""
             return [line.strip("- ").strip() for line in text.split("\n") if line.strip()]
         except Exception:
-            # Surface network/auth/quota failures so users can diagnose a
-            # silently-stopping memory pipeline instead of returning [] blindly.
+            # Surface network/auth/quota/egress failures so users can diagnose
+            # a silently-stopping memory pipeline instead of getting [] blindly.
             logger.warning("Cloud memory extraction failed", exc_info=True)
             return []
 
@@ -149,4 +151,5 @@ class MemoryExtractor:
             pass
 
 
-memory_extractor = MemoryExtractor()
+from app.core.runtime.runtime_container import _LazyProxy, runtime
+memory_extractor = _LazyProxy(lambda: runtime.memory_extractor)

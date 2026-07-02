@@ -113,4 +113,5 @@ class MemoryEngine:
         )
 
 
-memory_engine = MemoryEngine()
+from app.core.runtime.runtime_container import _LazyProxy, runtime
+memory_engine = _LazyProxy(lambda: runtime.memory_engine)

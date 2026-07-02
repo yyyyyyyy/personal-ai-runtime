@@ -449,4 +449,5 @@ class RuntimeConfig:
             raise
 
 
-runtime_config = RuntimeConfig()
+from app.core.runtime.runtime_container import _LazyProxy, runtime
+runtime_config = _LazyProxy(lambda: runtime.runtime_config)

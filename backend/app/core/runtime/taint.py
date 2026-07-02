@@ -103,8 +103,8 @@ class TaintRegistry:
         self._store.clear()
 
 
-taint_registry = TaintRegistry()
-# registered in RuntimeContainer.inventory()
+from app.core.runtime.runtime_container import _LazyProxy, runtime
+taint_registry = _LazyProxy(lambda: runtime.taint_registry)
 
 
 def is_external_ingestion_tool(name: str) -> bool:

@@ -774,5 +774,6 @@ class MCPHub:
             return json.dumps({"error": str(e)})
 
 
-# Global singleton
-mcp_hub = MCPHub()
+# Singleton — lazy proxy to RuntimeContainer so runtime.reset() rebuilds it.
+from app.core.runtime.runtime_container import _LazyProxy, runtime
+mcp_hub = _LazyProxy(lambda: runtime.mcp_hub)

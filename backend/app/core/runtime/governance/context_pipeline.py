@@ -167,9 +167,9 @@ class ContextPipeline:
         return await self.build_from_request(request)
 
 
-# Global singleton
-context_pipeline = ContextPipeline()
-# registered in RuntimeContainer.inventory()
+# Singleton — lazy proxy to RuntimeContainer so runtime.reset() rebuilds it.
+from app.core.runtime.runtime_container import _LazyProxy, runtime
+context_pipeline = _LazyProxy(lambda: runtime.context_pipeline)
 
 
 def reset_source_registry() -> None:

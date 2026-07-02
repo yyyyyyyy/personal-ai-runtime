@@ -186,6 +186,6 @@ class AgentBus:
             return None
 
 
-# Global singleton for inter-agent communication.
-agent_bus = AgentBus()
-# registered in RuntimeContainer.inventory()
+# Singleton — lazy proxy to RuntimeContainer so runtime.reset() rebuilds it.
+from app.core.runtime.runtime_container import _LazyProxy, runtime
+agent_bus = _LazyProxy(lambda: runtime.agent_bus)

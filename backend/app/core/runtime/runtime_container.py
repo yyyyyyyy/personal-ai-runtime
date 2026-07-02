@@ -4,9 +4,11 @@ Every subsystem singleton is accessible from a single container.
 This enables single-point reset() for test isolation and future
 multi-Kernel instances.
 
-v0.5.0: All module-level singletons registered as lazy properties with
-inventory tracking.  reset() clears all known subsystems.  Old module-level
-imports still work (backward compatible) but new code should use runtime.x.
+v0.5.0: All module-level singletons are now lazy proxies that forward to
+the matching RuntimeContainer property. The container is the sole owner of
+each instance; ``reset()`` rebuilds them from scratch. Old ``from x import
+singleton`` import paths keep working because the proxy transparently
+delegates attribute access.
 
 Architecture target: global singletons 15+ → 0 (all registered).
 """
@@ -14,7 +16,7 @@ Architecture target: global singletons 15+ → 0 (all registered).
 from __future__ import annotations
 
 import threading
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from app.context_runtime import FragmentRegistry
@@ -32,6 +34,49 @@ if TYPE_CHECKING:
     from app.core.runtime.taint import TaintRegistry
     from app.core.runtime.task_engine import TaskEngine
     from app.core.runtime.trigger_engine import TriggerEngine
+
+
+class _LazyProxy:
+    """Transparent forwarder to a RuntimeContainer property.
+
+    Module-level singletons are replaced by ``_LazyProxy(lambda: runtime.x)``
+    so that legacy ``from module import singleton`` imports keep working
+    while the container remains the single source of truth. Every attribute
+    *read* is delegated to the underlying instance; writes/deletes stay on
+    the proxy itself so ``unittest.mock.patch`` can swap a method without
+    touching the shared underlying instance.
+    """
+
+    def __init__(self, factory: "Any"):
+        self.__dict__["_factory"] = factory
+
+    # NOTE: no __slots__ — the proxy keeps its own __dict__ for attributes
+    # installed by callers (notably unittest.mock.patch) so they do not leak
+    # into the shared underlying instance.
+
+    def __getattr__(self, name: str) -> Any:
+        # Only called when normal attribute lookup fails (i.e. the name is
+        # not in self.__dict__), so we forward to the underlying instance.
+        return getattr(self._factory(), name)
+
+    def __setattr__(self, name: str, value: Any) -> None:
+        # Persist on the proxy itself; do not mutate the shared instance.
+        self.__dict__[name] = value
+
+    def __delattr__(self, name: str) -> None:
+        if name in self.__dict__:
+            del self.__dict__[name]
+        else:
+            delattr(self._factory(), name)
+
+    def __bool__(self) -> bool:
+        return bool(self._factory())
+
+    def __repr__(self) -> str:
+        try:
+            return repr(self._factory())
+        except Exception as exc:
+            return f"<_LazyProxy factory-error: {exc}>"
 
 
 class RuntimeContainer:
@@ -74,9 +119,9 @@ class RuntimeContainer:
     @property
     def kernel(self) -> "Kernel":
         if self._kernel is None:
-            from app.core.runtime.kernel_instance import kernel as k
-            self._kernel = k
-            self._register("kernel", "app.core.runtime.kernel_instance", type(k).__name__)
+            from app.core.runtime.kernel.kernel import Kernel
+            self._kernel = Kernel()
+            self._register("kernel", "app.core.runtime.kernel.kernel", "Kernel")
         return self._kernel
 
     @kernel.setter
@@ -88,17 +133,21 @@ class RuntimeContainer:
     @property
     def capability_governance(self) -> "CapabilityGovernance":
         if self._capability_governance is None:
-            from app.core.runtime.capability_governance import capability_governance
-            self._capability_governance = capability_governance
-            self._register("capability_governance", "app.core.runtime.capability_governance", type(capability_governance).__name__)
+            from app.core.runtime.capability_governance import CapabilityGovernance
+            self._capability_governance = CapabilityGovernance()
+            self._register(
+                "capability_governance",
+                "app.core.runtime.capability_governance",
+                "CapabilityGovernance",
+            )
         return self._capability_governance
 
     @property
     def taint_registry(self) -> "TaintRegistry":
         if self._taint_registry is None:
-            from app.core.runtime.taint import taint_registry
-            self._taint_registry = taint_registry
-            self._register("taint_registry", "app.core.runtime.taint", type(taint_registry).__name__)
+            from app.core.runtime.taint import TaintRegistry
+            self._taint_registry = TaintRegistry()
+            self._register("taint_registry", "app.core.runtime.taint", "TaintRegistry")
         return self._taint_registry
 
     # ── Messaging ──────────────────────────────────────────────────────
@@ -106,9 +155,9 @@ class RuntimeContainer:
     @property
     def agent_bus(self) -> "AgentBus":
         if self._agent_bus is None:
-            from app.core.runtime.agent_bus import agent_bus
-            self._agent_bus = agent_bus
-            self._register("agent_bus", "app.core.runtime.agent_bus", type(agent_bus).__name__)
+            from app.core.runtime.agent_bus import AgentBus
+            self._agent_bus = AgentBus()
+            self._register("agent_bus", "app.core.runtime.agent_bus", "AgentBus")
         return self._agent_bus
 
     # ── Context ────────────────────────────────────────────────────────
@@ -116,9 +165,13 @@ class RuntimeContainer:
     @property
     def context_pipeline(self) -> "ContextPipeline":
         if self._context_pipeline is None:
-            from app.core.runtime.governance.context_pipeline import context_pipeline
-            self._context_pipeline = context_pipeline
-            self._register("context_pipeline", "app.core.runtime.governance.context_pipeline", type(context_pipeline).__name__)
+            from app.core.runtime.governance.context_pipeline import ContextPipeline
+            self._context_pipeline = ContextPipeline()
+            self._register(
+                "context_pipeline",
+                "app.core.runtime.governance.context_pipeline",
+                "ContextPipeline",
+            )
         return self._context_pipeline
 
     @property
@@ -134,9 +187,9 @@ class RuntimeContainer:
     @property
     def mcp_hub(self) -> "MCPHub":
         if self._mcp_hub is None:
-            from app.core.harness.mcp_hub import mcp_hub as mh
-            self._mcp_hub = mh
-            self._register("mcp_hub", "app.core.harness.mcp_hub", type(mh).__name__)
+            from app.core.harness.mcp_hub import MCPHub
+            self._mcp_hub = MCPHub()
+            self._register("mcp_hub", "app.core.harness.mcp_hub", "MCPHub")
         return self._mcp_hub
 
     # ── Agents / Memory ────────────────────────────────────────────────
@@ -144,25 +197,31 @@ class RuntimeContainer:
     @property
     def llm_router(self) -> "LLMRouter":
         if self._llm_router is None:
-            from app.core.agents.llm_failover import llm_router as lr
-            self._llm_router = lr
-            self._register("llm_router", "app.core.agents.llm_failover", type(lr).__name__)
+            from app.core.agents.llm_failover import LLMRouter
+            self._llm_router = LLMRouter()
+            self._register("llm_router", "app.core.agents.llm_failover", "LLMRouter")
         return self._llm_router
 
     @property
     def memory_engine(self) -> "MemoryEngine":
         if self._memory_engine is None:
-            from app.core.agents.memory_engine import memory_engine as me
-            self._memory_engine = me
-            self._register("memory_engine", "app.core.agents.memory_engine", type(me).__name__)
+            from app.core.agents.memory_engine import MemoryEngine
+            self._memory_engine = MemoryEngine()
+            self._register(
+                "memory_engine", "app.core.agents.memory_engine", "MemoryEngine",
+            )
         return self._memory_engine
 
     @property
     def memory_extractor(self) -> "MemoryExtractor":
         if self._memory_extractor is None:
-            from app.core.agents.memory_extractor import memory_extractor as mx
-            self._memory_extractor = mx
-            self._register("memory_extractor", "app.core.agents.memory_extractor", type(mx).__name__)
+            from app.core.agents.memory_extractor import MemoryExtractor
+            self._memory_extractor = MemoryExtractor()
+            self._register(
+                "memory_extractor",
+                "app.core.agents.memory_extractor",
+                "MemoryExtractor",
+            )
         return self._memory_extractor
 
     # ── Runtime State ──────────────────────────────────────────────────
@@ -170,17 +229,21 @@ class RuntimeContainer:
     @property
     def state_manager(self) -> "StateManager":
         if self._state_manager is None:
-            from app.core.runtime.state_manager import state_manager as sm
-            self._state_manager = sm
-            self._register("state_manager", "app.core.runtime.state_manager", type(sm).__name__)
+            from app.core.runtime.state_manager import StateManager
+            self._state_manager = StateManager()
+            self._register(
+                "state_manager", "app.core.runtime.state_manager", "StateManager",
+            )
         return self._state_manager
 
     @property
     def runtime_config(self) -> "RuntimeConfig":
         if self._runtime_config is None:
-            from app.core.runtime.runtime_config import runtime_config as rc
-            self._runtime_config = rc
-            self._register("runtime_config", "app.core.runtime.runtime_config", type(rc).__name__)
+            from app.core.runtime.runtime_config import RuntimeConfig
+            self._runtime_config = RuntimeConfig()
+            self._register(
+                "runtime_config", "app.core.runtime.runtime_config", "RuntimeConfig",
+            )
         return self._runtime_config
 
     # ── Legacy (not in inventory, backward compat only) ───────────────
@@ -202,16 +265,36 @@ class RuntimeContainer:
 
     # ── Lifecycle ──────────────────────────────────────────────────────
 
+    # Property attribute names that hold cached singleton instances. Adding
+    # a new subsystem property only requires appending its private attr here.
+    _SINGLETON_ATTRS: tuple[str, ...] = (
+        "_kernel",
+        "_capability_governance",
+        "_taint_registry",
+        "_agent_bus",
+        "_context_pipeline",
+        "_fragment_registry",
+        "_mcp_hub",
+        "_llm_router",
+        "_memory_engine",
+        "_memory_extractor",
+        "_state_manager",
+        "_runtime_config",
+    )
+
     def reset(self) -> None:
         """Reset all subsystem state — for test isolation.
 
-        Always accesses properties to ensure the singleton is loaded,
-        then calls reset() on it. This handles the case where tests
-        use module-level imports but reset through the container.
+        Drops every cached singleton so the next access rebuilds it from
+        scratch, then clears module-level registries that live outside the
+        container (taint tool sets, citation source registry, etc.).
         """
         with self._lock:
-            self.agent_bus.reset()
-            self.capability_governance.reset()
+            # Drop cached instances — properties will lazily rebuild on access.
+            for attr in self._SINGLETON_ATTRS:
+                setattr(self, attr, None)
+            self._inventory.clear()
+            # Flush module-level registries that are not owned by the container.
             from app.core.runtime.governance.context_pipeline import reset_source_registry
             reset_source_registry()
             from app.core.runtime.taint import reset_external_tools

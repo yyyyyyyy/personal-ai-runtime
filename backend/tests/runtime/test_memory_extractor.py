@@ -125,9 +125,9 @@ class TestMemoryExtractor:
         # when there are still pending tasks OR that the set is a valid set.
         assert isinstance(extractor._pending_tasks, set)
 
-    async def test_cloud_extract_failure_is_logged(self, monkeypatch, caplog):
+    async def test_cloud_extract_failure_is_logged(self, monkeypatch):
         """Cloud extraction failures must surface as a warning, not silent []."""
-        import logging
+        from unittest.mock import patch
         from app.core.agents import memory_extractor as me_mod
 
         class _BoomClient:
@@ -141,16 +141,19 @@ class TestMemoryExtractor:
             name = "boom"
             model = "boom-model"
 
+        from app.core.agents import llm_failover
         monkeypatch.setattr(
-            "app.core.agents.llm_failover.llm_router.get_client",
+            llm_failover.llm_router,
+            "get_client",
             lambda: (_BoomClient(), _BoomProvider()),
         )
 
-        extractor = MemoryExtractor()
-        with caplog.at_level(logging.WARNING, logger="app.core.agents.memory_extractor"):
+        extractor = me_mod.MemoryExtractor()
+        with patch.object(me_mod.logger, "warning") as mock_warn:
             result = await extractor._cloud_extract("some text")
         assert result == []
+        assert mock_warn.called, "failure must be logged at WARNING level"
         assert any(
-            "Cloud memory extraction failed" in r.message
-            for r in caplog.records
-        ), "failure must be logged at WARNING level"
+            "Cloud memory extraction failed" in str(call)
+            for call in mock_warn.call_args_list
+        )
