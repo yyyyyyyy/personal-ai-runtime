@@ -78,6 +78,12 @@ class Settings(BaseSettings):
     """Enable external MCP mesh. Set false to use builtin tools only."""
     builtin_tools_enabled: str = "*"
     """Comma-separated MCP server names to load, or * for all in mcp_config.json."""
+    builtin_tool_categories: str = ""
+    """Comma-separated builtin tool CATEGORIES to register, or empty for the
+    default core set. Advanced categories (computer_use, voice, clipboard_ocr)
+    are off by default to keep the LLM tool list lean; add them here to enable.
+    Core categories always registered: time, filesystem, web, calendar, email,
+    browser, shell, git, telegram, goals."""
 
     # External MCP credentials (optional — servers skip connect when required keys missing)
     brave_api_key: str = ""

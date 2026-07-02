@@ -14,6 +14,8 @@ from app.store.database import Database
 
 POLICY_PATH = Path(__file__).resolve().parents[2] / "capability_policy.json"
 
+# Core builtin tools — always registered by MCPHub and therefore always
+# required to appear in capability_policy.json.
 BUILTIN_TOOLS = {
     "get_current_time",
     "read_file",
@@ -31,8 +33,6 @@ BUILTIN_TOOLS = {
     "send_email",
     "open_web_page",
     "search_and_extract",
-    "get_clipboard",
-    "ocr_image",
     "shell_exec",
     "git_status",
     "git_log",
@@ -43,6 +43,13 @@ BUILTIN_TOOLS = {
     "update_goal_progress",
     "complete_goal",
     "list_active_goals",
+}
+# Advanced (opt-in) tools — registered only when BUILTIN_TOOL_CATEGORIES
+# explicitly enables them. They remain in capability_policy.json so the
+# governance decision is defined before the tool is ever loaded.
+ADVANCED_TOOLS = {
+    "get_clipboard",
+    "ocr_image",
     "computer_screenshot",
     "computer_click",
     "computer_type",
@@ -50,27 +57,36 @@ BUILTIN_TOOLS = {
     "computer_scroll",
     "computer_key",
     "computer_screen_size",
-    "voice_tts", "voice_stt",
+    "voice_tts",
+    "voice_stt",
 }
 
 
 def test_capability_policy_covers_all_registered_tools():
-    """Contract: every builtin mcp_hub tool must appear in capability_policy.json."""
+    """Contract: every builtin mcp_hub tool must appear in capability_policy.json.
+
+    Core tools must be registered by default. Advanced tools (computer_use,
+    voice, clipboard_ocr) are opt-in but still must have a policy entry so the
+    governance decision is defined before the tool is loaded.
+    """
     policy = json.loads(POLICY_PATH.read_text(encoding="utf-8"))
     registered = {t["function"]["name"] for t in mcp_hub.get_tool_defs_for_llm()}
+    all_known = BUILTIN_TOOLS | ADVANCED_TOOLS
     covered = (
         set(policy["auto_allow"])
         | set(policy["needs_user"])
         | set(policy.get("forbidden", []))
     )
-    missing = BUILTIN_TOOLS - covered
-    extra = covered - BUILTIN_TOOLS
+    missing = all_known - covered
+    extra = covered - all_known
     overlap = set(policy["auto_allow"]) & set(policy["needs_user"])
-    assert BUILTIN_TOOLS <= registered, f"Missing builtin tools: {BUILTIN_TOOLS - registered}"
+    # Core tools must all be registered with the default (lean) configuration.
+    assert BUILTIN_TOOLS <= registered, f"Missing core builtin tools: {BUILTIN_TOOLS - registered}"
+    # Every known tool (core + advanced) must have a policy decision.
     assert not missing, f"Builtin tools missing from capability_policy: {missing}"
     assert not extra, f"Unknown tools in capability_policy: {extra}"
     assert not overlap, f"Tools in both auto_allow and needs_user: {overlap}"
-    assert len(BUILTIN_TOOLS) == 37
+    assert len(BUILTIN_TOOLS) == 26
 
 
 def make_kernel(tmp_path):

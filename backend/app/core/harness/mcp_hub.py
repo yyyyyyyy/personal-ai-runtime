@@ -12,7 +12,6 @@ from typing import cast
 
 from app.core.harness.builtin_tools.browser import browser_server
 from app.core.harness.builtin_tools.calendar import calendar_server
-from app.core.harness.builtin_tools.clipboard_ocr import clipboard_ocr_server
 from app.core.harness.builtin_tools.email import email_server
 from app.core.harness.builtin_tools.fetch import fetch_server
 from app.core.harness.builtin_tools.filesystem import filesystem_server
@@ -39,24 +38,63 @@ class ToolDef:
 class MCPHub:
     """Central hub for managing tools and routing LLM tool calls."""
 
-    def __init__(self):
+    # Categories registered by default — the lean core that every chat turn
+    # sees. Keeping this small saves prompt tokens and shrinks the attack
+    # surface (write-class tools visible to the model).
+    CORE_CATEGORIES: frozenset[str] = frozenset({
+        "time", "filesystem", "web", "calendar", "email", "browser",
+        "shell", "git", "telegram", "goals",
+    })
+    # Advanced categories that depend on host GUI/hardware and are therefore
+    # opt-in via settings.builtin_tool_categories.
+    ADVANCED_CATEGORIES: frozenset[str] = frozenset({
+        "computer_use", "voice", "clipboard_ocr",
+    })
+
+    def __init__(self, enabled_categories: set[str] | None = None):
         self._tools: dict[str, ToolDef] = {}
+        if enabled_categories is None:
+            try:
+                from app.config import settings
+                raw = settings.builtin_tool_categories.strip()
+            except Exception:
+                raw = ""
+            if raw:
+                enabled_categories = {c.strip() for c in raw.split(",") if c.strip()}
+            else:
+                enabled_categories = set(self.CORE_CATEGORIES)
+        self._enabled_categories = enabled_categories
         self._register_all_tools()
 
     def _register_all_tools(self):
-        self._register_time_tools()
-        self._register_filesystem_tools()
-        self._register_web_tools()
-        self._register_calendar_tools()
-        self._register_email_tools()
-        self._register_browser_tools()
-        self._register_clipboard_ocr_tools()
-        self._register_shell_tools()
-        self._register_git_tools()
-        self._register_telegram_tools()
-        self._register_goals_tools()
-        self._register_computer_use_tools()
-        self._register_voice_tools()
+        # Core categories — always registered when present in the enabled set.
+        if "time" in self._enabled_categories:
+            self._register_time_tools()
+        if "filesystem" in self._enabled_categories:
+            self._register_filesystem_tools()
+        if "web" in self._enabled_categories:
+            self._register_web_tools()
+        if "calendar" in self._enabled_categories:
+            self._register_calendar_tools()
+        if "email" in self._enabled_categories:
+            self._register_email_tools()
+        if "browser" in self._enabled_categories:
+            self._register_browser_tools()
+        if "shell" in self._enabled_categories:
+            self._register_shell_tools()
+        if "git" in self._enabled_categories:
+            self._register_git_tools()
+        if "telegram" in self._enabled_categories:
+            self._register_telegram_tools()
+        if "goals" in self._enabled_categories:
+            self._register_goals_tools()
+        # Advanced categories — opt-in only.
+        if "clipboard_ocr" in self._enabled_categories:
+            self._register_clipboard_ocr_tools()
+        if "computer_use" in self._enabled_categories:
+            self._register_computer_use_tools()
+        if "voice" in self._enabled_categories:
+            self._register_voice_tools()
 
     def _register_time_tools(self):
         from datetime import datetime
@@ -347,6 +385,8 @@ class MCPHub:
         ))
 
     def _register_clipboard_ocr_tools(self):
+        from app.core.harness.builtin_tools.clipboard_ocr import clipboard_ocr_server
+
         self.register_tool(ToolDef(
             name="get_clipboard",
             description="Get the current text content from your clipboard.",

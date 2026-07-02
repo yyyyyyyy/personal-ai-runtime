@@ -27,6 +27,11 @@ class TestMemoryExtractor:
             lambda content, metadata, memory_id: f"emb_{memory_id}",
         )
         monkeypatch.setattr("app.store.vector.vector_store.delete_memory", lambda _id: None)
+        # Dedup check calls search_relevant_memories -> recall_memory, which
+        # hits a shared persistent ChromaDB in the full suite. Force empty
+        # recalls here so the first storage pass is not falsely deduped by
+        # unrelated leftovers from earlier tests.
+        monkeypatch.setattr(memory_engine, "search_relevant_memories", lambda *_a, **_k: [])
 
         extractor = MemoryExtractor(extract_fn=stub_extract)
         stored = await extractor.extract_and_store("User said they like Python")

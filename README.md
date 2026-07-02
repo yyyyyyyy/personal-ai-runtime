@@ -104,6 +104,7 @@ docker compose up --build
 | `CORS_ORIGINS` | 允许的前端源 | `http://localhost:5173,http://localhost:5174` |
 | `AUTH_TOKEN` | API Bearer 认证（可选） | — |
 | `MCP_EXTERNAL_ENABLED` | 是否加载外部 MCP 工具 | `true` |
+| `BUILTIN_TOOL_CATEGORIES` | 启用的内置工具类别（留空=核心 10 类；加 `computer_use,voice,clipboard_ocr` 启用高级工具） | 空（仅核心） |
 
 其余变量见 [.env.example](.env.example)。
 

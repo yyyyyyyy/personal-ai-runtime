@@ -70,10 +70,13 @@ jobs:
           os.environ['LLM_API_KEY'] = 'test-key'
           from app.core.harness.mcp_hub import mcp_hub
           tools = mcp_hub.get_tool_defs_for_llm()
-          expected = {'get_current_time','read_file','write_file','apply_patch','list_directory','search_files','web_search','fetch_url','list_calendar_events','add_calendar_event','get_upcoming_events','check_inbox','read_inbox_email','send_email','open_web_page','search_and_extract','get_clipboard','ocr_image','shell_exec','git_status','git_log','git_diff','telegram_send','telegram_updates','create_goal','update_goal_progress','complete_goal','list_active_goals'}
+          # Core tools that must always be present. Advanced categories
+          # (computer_use, voice, clipboard_ocr) are opt-in via
+          # BUILTIN_TOOL_CATEGORIES and therefore NOT asserted here.
+          expected = {'get_current_time','read_file','write_file','apply_patch','list_directory','search_files','web_search','fetch_url','list_calendar_events','add_calendar_event','get_upcoming_events','check_inbox','read_inbox_email','send_email','open_web_page','search_and_extract','shell_exec','git_status','git_log','git_diff','telegram_send','telegram_updates','create_goal','update_goal_progress','complete_goal','list_active_goals'}
           actual = {t['function']['name'] for t in tools}
           assert expected <= actual, f'Missing builtin tools: {expected - actual}'
-          assert len(actual) >= 28, f'Expected at least 28 builtin tools, got {len(actual)}'
+          assert len(actual) >= 26, f'Expected at least 26 builtin tools, got {len(actual)}'
           assert mcp_hub.needs_confirmation('write_file') == True
           assert mcp_hub.needs_confirmation('apply_patch') == True
           assert mcp_hub.needs_confirmation('send_email') == True
