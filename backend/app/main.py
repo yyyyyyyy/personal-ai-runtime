@@ -66,7 +66,15 @@ def _path_requires_auth(path: str) -> bool:
 WS_AUTH_PREFIX = "auth."
 WS_AUTH_OK = "auth.ok"
 _LOCALHOST_HOSTS = frozenset({"127.0.0.1", "localhost", "::1"})
-_EXPOSED_HOSTS = frozenset({"0.0.0.0", "::"})
+
+
+def _is_localhost_bind(host: str) -> bool:
+    """Return True only for loopback binds (127.0.0.1, ::1, localhost).
+
+    Everything else — wildcard binds, LAN IPs, public IPs — counts as exposed
+    and requires AUTH_TOKEN unless explicitly overridden.
+    """
+    return host in _LOCALHOST_HOSTS or host.startswith("127.")
 
 
 def _tokens_match(provided: str, expected: str) -> bool:
@@ -178,7 +186,7 @@ async def lifespan(app: FastAPI):
     app.state._auth_warning_interval = 600  # seconds between repeated warnings
 
     if not settings.auth_token:
-        if settings.host in _EXPOSED_HOSTS:
+        if not _is_localhost_bind(settings.host):
             if not settings.allow_no_auth_on_exposed:
                 import sys
                 logger.critical(
@@ -195,11 +203,6 @@ async def lifespan(app: FastAPI):
             # Periodic warning to prevent one-time messages from being buried
             app.state._auth_exposed_no_token = True
             app.state._last_auth_warning_at = 0.0
-        elif settings.host not in _LOCALHOST_HOSTS:
-            logger.warning(
-                "AUTH_TOKEN is not set while listening on %s — set AUTH_TOKEN for non-localhost binds.",
-                settings.host,
-            )
         else:
             logger.warning(
                 "AUTH_TOKEN is not set — API authentication disabled (localhost bind)."

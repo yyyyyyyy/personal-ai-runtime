@@ -11,13 +11,17 @@ def _on_notification_created(event: Event, conn) -> None:
     p = event.payload
     conn.execute(
         """INSERT OR REPLACE INTO notifications
-           (id, type, title, content, read, created_at)
-           VALUES (?, ?, ?, ?, 0, ?)""",
+           (id, type, title, content, read,
+            related_id, related_type, notification_type, created_at)
+           VALUES (?, ?, ?, ?, 0, ?, ?, ?, ?)""",
         (
             event.aggregate_id,
             p.get("type", ""),
             p.get("title", ""),
             p.get("content", ""),
+            p.get("related_id"),
+            p.get("related_type"),
+            p.get("notification_type"),
             p.get("created_at", event.ts),
         ),
     )

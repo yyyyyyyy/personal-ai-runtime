@@ -81,6 +81,9 @@ CREATE TABLE IF NOT EXISTS notifications (
     title TEXT NOT NULL,
     content TEXT NOT NULL,
     read INTEGER DEFAULT 0,
+    related_id TEXT,
+    related_type TEXT,
+    notification_type TEXT,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 

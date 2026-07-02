@@ -547,32 +547,6 @@ class Kernel(QueryStateMixin, GovernanceMixin, SovereigntyMixin):
     # See kernel_governance.py for:
     #   request_approval() / grant_approval() / deny_approval()
 
-    @staticmethod
-    def _parse_approval_params(approval: dict[str, Any]) -> dict[str, Any]:
-        raw = approval.get("params") or "{}"
-        if isinstance(raw, str):
-            return json.loads(raw)
-        return dict(raw)
-
-    def _consume_pre_approved(
-        self,
-        approval_id: str,
-        name: str,
-        args: dict[str, Any],
-        *,
-        actor: str,
-        correlation_id: str | None,
-    ) -> dict | None:
-        """Delegate to CapabilityGovernance (v0.4.0 consolidated).
-
-        Backward-compatible shim — all approval validation now lives in one place.
-        """
-        from app.core.runtime.capability_governance import CapabilityGovernance
-        return CapabilityGovernance._consume_pre_approved(
-            self, approval_id, name, args,
-            actor=actor, correlation_id=correlation_id,
-        )
-
     def _handler_execution_exists(self, execution_id: str) -> bool:
         with self._db.get_db() as conn:
             row = conn.execute(

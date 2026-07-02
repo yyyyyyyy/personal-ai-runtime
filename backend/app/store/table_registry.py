@@ -91,7 +91,8 @@ GOVERNED_SCHEMA: dict[str, frozenset[str]] = {
         "created_at", "source_event_id", "sources",
     }),
     "notifications": frozenset({
-        "id", "type", "title", "content", "read", "created_at",
+        "id", "type", "title", "content", "read",
+        "related_id", "related_type", "notification_type", "created_at",
     }),
     "event_log": frozenset({
         "seq", "id", "type", "aggregate_type", "aggregate_id", "actor", "payload",

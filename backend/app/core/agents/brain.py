@@ -8,7 +8,7 @@ and returns a response. It does NOT own state — that belongs to Runtime.
 import logging
 import time
 import uuid
-from typing import AsyncIterator
+from typing import Any, AsyncIterator
 
 from app.config import settings
 from app.core.agents.brain_completion import BrainCompletionMixin
@@ -69,12 +69,18 @@ class Brain(BrainCompletionMixin):
         full_content = ""
         canned_response_done = False
         tool_iterations = 0
+        cumulative_prompt_tokens = 0
         loop_start = time.time()
 
         while tool_iterations < settings.max_tool_iterations:
             if time.time() - loop_start > settings.total_tool_loop_timeout:
                 yield {"type": "error", "content": "Tool call loop timed out."}
                 return
+            if cumulative_prompt_tokens >= settings.max_tool_loop_prompt_tokens:
+                note = "\n\n（已达本轮工具调用的 token 上限，以上为根据已收集信息生成的回复。）"
+                yield {"type": "text_delta", "content": note}
+                full_content += note
+                break
 
             # Call LLM (with multi-provider fallback)
             llm_start = time.time()
@@ -86,7 +92,9 @@ class Brain(BrainCompletionMixin):
             if used_provider.name != self.provider.name:
                 self.client, self.provider = client, used_provider
 
-            # Collect streaming response
+            # Collect streaming response — token-level text deltas are yielded
+            # directly here so SSE streaming stays live. Tool-call assembly and
+            # markup-recovery logic lives inline because it interleaves with yields.
             assistant_content = ""
             assistant_content_raw = ""
             assistant_visible = ""  # cleaned text exposed to user
@@ -147,22 +155,11 @@ class Brain(BrainCompletionMixin):
                     )
             assistant_content = assistant_visible
 
-            # Record LLM call
-            llm_latency = (time.time() - llm_start) * 1000
-            prompt_tokens = count_message_tokens(messages, model=used_provider.model)
-            completion_tokens = count_text_tokens(assistant_content, model=used_provider.model)
-            estimated_cost = (
-                prompt_tokens * used_provider.price_per_prompt_token
-                + completion_tokens * used_provider.price_per_completion_token
+            # Record LLM call telemetry (latency, tokens, cost).
+            turn_tokens = self._record_llm_telemetry(
+                messages, assistant_content, used_provider, llm_start,
             )
-            telemetry.record_llm_call(LLMCallRecord(
-                provider=used_provider.name,
-                model=used_provider.model,
-                prompt_tokens=prompt_tokens,
-                completion_tokens=completion_tokens,
-                latency_ms=llm_latency,
-                cost=estimated_cost,
-            ))
+            cumulative_prompt_tokens += turn_tokens
 
             # If LLM returned a text response without tool calls
             if not tool_calls_data:
@@ -265,6 +262,36 @@ class Brain(BrainCompletionMixin):
 
         yield {"type": "done"}
 
+    @staticmethod
+    def _record_llm_telemetry(
+        messages: list[dict],
+        assistant_content: str,
+        used_provider: Any,
+        llm_start: float,
+    ) -> int:
+        """Record an LLM call (latency, tokens, cost) to telemetry.
+
+        Extracted from chat_stream so the hot path reads top-to-bottom as
+        reasoning steps, while telemetry bookkeeping is isolated and testable.
+        Returns the prompt token count so callers can enforce a cumulative cap.
+        """
+        llm_latency = (time.time() - llm_start) * 1000
+        prompt_tokens = count_message_tokens(messages, model=used_provider.model)
+        completion_tokens = count_text_tokens(assistant_content, model=used_provider.model)
+        estimated_cost = (
+            prompt_tokens * used_provider.price_per_prompt_token
+            + completion_tokens * used_provider.price_per_completion_token
+        )
+        telemetry.record_llm_call(LLMCallRecord(
+            provider=used_provider.name,
+            model=used_provider.model,
+            prompt_tokens=prompt_tokens,
+            completion_tokens=completion_tokens,
+            latency_ms=llm_latency,
+            cost=estimated_cost,
+        ))
+        return prompt_tokens
+
     async def chat(
         self,
         conversation: ConversationManager,
@@ -327,6 +354,18 @@ class Brain(BrainCompletionMixin):
         # strip to avoid DeepSeek API 400 errors.
         history = conversation.get_history()
 
+        # Long-context mitigation: cap the number of history turns we send.
+        # Older turns are dropped (the system prompt + memory fragments already
+        # carry the durable facts). We keep the most recent window so tool-call
+        # sequences stay intact.
+        max_history = getattr(settings, "max_recent_messages", 50)
+        if len(history) > max_history:
+            dropped = len(history) - max_history
+            history = history[-max_history:]
+            logger.debug(
+                "Truncated %d older history message(s) before LLM call", dropped,
+            )
+
         # First, tag each message with its parsed tool data
         tagged = []
         for msg in history:
@@ -381,7 +420,6 @@ class Brain(BrainCompletionMixin):
                     tool_content = msg["content"] or ""
                     tool_name_guess = tool_name_by_id.get(msg.get("tool_call_id") or "", "")
                     if tool_name_guess:
-                        tool_content = compact_for_llm(tool_name_guess, tool_content)
                         tool_content = compact_for_llm(tool_name_guess, tool_content)
                     messages.append({
                         "role": "tool",

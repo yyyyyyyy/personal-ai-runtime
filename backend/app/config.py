@@ -101,6 +101,10 @@ class Settings(BaseSettings):
     max_tool_iterations: int = 10
     tool_timeout_seconds: int = 30
     total_tool_loop_timeout: int = 120
+    # Hard ceiling on cumulative prompt tokens within one chat turn. When the
+    # running total crosses this threshold the loop stops even if iterations
+    # remain, preventing runaway cost from long tool chains.
+    max_tool_loop_prompt_tokens: int = 100_000
 
     # --- Multi-Agent Runtime ---
     # The legacy AgentOrchestrator has been removed (M3 single-track).

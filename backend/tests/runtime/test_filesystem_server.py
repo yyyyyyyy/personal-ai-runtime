@@ -212,3 +212,36 @@ def test_default_protected_paths_appends_extra(monkeypatch, tmp_path):
     paths = default_protected_paths()
     assert any("kernel" in p for p in paths)
     assert str(extra.resolve()) in [str(Path(p).resolve()) for p in paths]
+
+
+def test_write_through_symlink_rejected(fs_server: FilesystemServer, tmp_path: Path):
+    """A symlink planted inside an allowed dir must not let writes escape.
+
+    Without the symlink defense, resolve() would follow the link into a
+    protected location (e.g. /etc), defeating _is_protected.
+    """
+    allowed = tmp_path / "allowed"
+    outside = tmp_path / "outside_target"
+    outside.write_text("real", encoding="utf-8")
+
+    link = allowed / "escape"
+    try:
+        link.symlink_to(outside)
+    except (OSError, NotImplementedError):
+        pytest.skip("symlinks not supported on this platform")
+
+    result = json.loads(fs_server.write_file(str(link), "hacked"))
+    assert "error" in result
+    assert "symlink" in result["error"].lower()
+    # Underlying target must be untouched.
+    assert outside.read_text(encoding="utf-8") == "real"
+
+
+def test_write_to_normal_file_under_allowed_still_works(
+    fs_server: FilesystemServer, tmp_path: Path,
+):
+    """Regression guard: regular writes inside the allowed dir are unaffected."""
+    allowed = tmp_path / "allowed"
+    target = allowed / "normal.txt"
+    result = json.loads(fs_server.write_file(str(target), "ok"))
+    assert result["success"] is True

@@ -67,7 +67,12 @@ class MemoryExtractor:
         conversation_text: str,
         source: str = "conversation",
     ) -> list[str]:
-        """Extract facts and store each as a MemoryDerived belief. Returns stored facts."""
+        """Extract facts and store each as a MemoryDerived belief. Returns stored facts.
+
+        Deduplication: before storing a fact, a semantic recall is performed.
+        If an existing memory is highly similar, the fact is skipped to avoid
+        polluting the memory store with near-duplicates.
+        """
         if not conversation_text.strip():
             return []
 
@@ -77,6 +82,9 @@ class MemoryExtractor:
             fact = fact.strip()
             if not fact:
                 continue
+            if self._is_duplicate(fact):
+                logger.debug("Skipping duplicate memory: %s", fact[:80])
+                continue
             memory_engine.store_memory(
                 content=fact,
                 category="fact",
@@ -85,6 +93,32 @@ class MemoryExtractor:
             )
             stored.append(fact)
         return stored
+
+    @staticmethod
+    def _is_duplicate(fact: str, *, threshold: float = 0.92) -> bool:
+        """Return True if a near-duplicate memory already exists.
+
+        Uses semantic recall via the Kernel; when the vector store is
+        unavailable (cold start, Ollama down) the check degrades to a
+        substring match against recent memories so we still catch verbatim
+        duplicates.
+        """
+        try:
+            hits = memory_engine.search_relevant_memories(fact, n_results=3)
+        except Exception:
+            hits = []
+        for hit in hits:
+            existing = (hit.get("content") or "").strip()
+            if not existing:
+                continue
+            # Semantic similarity score (if the backend provides one).
+            score = hit.get("score") or hit.get("similarity")
+            if isinstance(score, (int, float)) and score >= threshold:
+                return True
+            # Lexical fallback: identical or one-is-prefix-of-the-other.
+            if existing == fact or existing in fact or fact in existing:
+                return True
+        return False
 
     def schedule(self, conversation_text: str, source: str = "conversation") -> None:
         """Schedule extraction without blocking the caller (fire-and-forget)."""

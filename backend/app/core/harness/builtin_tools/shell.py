@@ -40,8 +40,6 @@ class ShellServer:
         # Text processing
         "grep", "egrep", "rg", "awk", "sed", "sort", "uniq", "cut",
         "tr", "diff", "find", "xargs", "tee",
-        # Docker (read-only operations)
-        "docker",
         # Formatting
         "jq", "yq",
         # System state
@@ -50,15 +48,14 @@ class ShellServer:
         "gpg", "ssh", "ssh-keygen", "ssh-add",
     ]
 
-    BLOCKED_PATTERNS = [
-        "rm -rf", "sudo", "su ", "chmod 777", "fork bomb",
-        "> /dev/", "dd if=", ":(){ :|:& };:",
-    ]
-
     # Shell metacharacters — never pass to a shell.
     # && is handled separately by _split_and_execute; all other metacharacters
     # (|, ||, ;, `, $, <, >, (, )) are still rejected.
     _METACHAR_RE = re.compile(r"[|;`$<>()]|\|\|")
+
+    # Commands that escalate privileges — rejected at argv level (not substring
+    # matching, which would false-positive on "pseudo", "subl", "summarize").
+    _PRIVILEGE_ESCALATION_COMMANDS = frozenset({"sudo", "su", "doas"})
 
     def _split_chained_commands(self, command: str) -> list[str]:
         """Split a chained command (cmd1 && cmd2) into individual commands."""
@@ -78,7 +75,6 @@ class ShellServer:
         "pip": frozenset({"-c"}),
         "pip3": frozenset({"-c"}),
         "brew": frozenset({"-c"}),
-        "docker": frozenset({"--config"}),
         "ssh": frozenset({"-o", "ProxyCommand"}),
         "awk": frozenset({"-e", "--exec"}),
         "sed": frozenset({"-e", "--expression"}),
@@ -96,10 +92,6 @@ class ShellServer:
                 "Use '&&' to chain commands instead, or run ONE command."
             )
 
-        for pattern in self.BLOCKED_PATTERNS:
-            if pattern in stripped:
-                return f"Blocked pattern detected: '{pattern}'"
-
         try:
             argv = shlex.split(stripped, posix=not sys.platform.startswith("win"))
         except ValueError as exc:
@@ -111,8 +103,24 @@ class ShellServer:
         return argv
 
     def _validate_argv(self, argv: list[str]) -> str | None:
-        """Return error message if argv is not allowed."""
+        """Return error message if argv is not allowed.
+
+        Dangerous-pattern checks run on the tokenized argv rather than the raw
+        command string so that they cannot be evaded with extra whitespace,
+        tabs, or argument reordering (e.g. ``rm  -rf`` / ``rm\t-rf``).
+        """
         cmd_name = argv[0]
+
+        # Privilege escalation — reject sudo/su/doas as the command itself.
+        if cmd_name in self._PRIVILEGE_ESCALATION_COMMANDS:
+            return f"Blocked pattern detected: '{cmd_name}'"
+
+        # Destructive flag combinations — checked before the whitelist so they
+        # are rejected even if the base command is whitelisted.
+        destructive = self._destructive_pattern(cmd_name, argv[1:])
+        if destructive:
+            return f"Blocked pattern detected: '{destructive}'"
+
         if cmd_name not in self.ALLOWED_COMMANDS:
             return (
                 f"Command '{cmd_name}' not in whitelist. "
@@ -130,6 +138,23 @@ class ShellServer:
             if url_err:
                 return url_err
 
+        return None
+
+    @staticmethod
+    def _destructive_pattern(cmd_name: str, rest: list[str]) -> str | None:
+        """Return a human-readable pattern name if argv is destructively unsafe.
+
+        Token-level checks are robust against whitespace/Tab evasion and
+        argument reordering (e.g. ``rm -rf /`` vs ``rm / -rf``).
+        """
+        if cmd_name == "rm" and any(tok in {"-rf", "-fr"} for tok in rest):
+            return "rm -rf"
+        if cmd_name == "chmod" and "777" in rest:
+            return "chmod 777"
+        # ``dd if=`` only matters when dd itself is invoked; it is not in the
+        # whitelist, but we reject the pattern defensively in case it is added.
+        if cmd_name == "dd" and any(tok.startswith("if=") for tok in rest):
+            return "dd if="
         return None
 
     def _validate_http_urls_in_argv(self, argv: list[str]) -> str | None:

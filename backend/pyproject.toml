@@ -40,13 +40,15 @@ follow_imports = "silent"
 
 [tool.coverage.run]
 source = ["app/api", "app/product"]
+# NOTE: Several runtime modules are omitted from coverage enforcement.
+# These are either (a) lifecycle/initialization code that is exercised by
+# integration tests rather than unit tests, or (b) under active refactoring.
+# Track removal of these omits as a follow-up — see ROADMAP Phase 3.7.
 omit = [
     "app/experimental/*",
     "app/core/runtime/memory_decay.py",
     "app/core/runtime/runtime_container.py",
     "app/core/runtime/runtime_loop.py",
     "app/core/runtime/capability_governance.py",
-    "app/core/runtime/approval_engine.py",
     "app/core/runtime/capability_policy.py",
-    "app/core/runtime/capability_decision.py",
 ]

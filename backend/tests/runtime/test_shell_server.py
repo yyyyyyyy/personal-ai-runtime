@@ -55,6 +55,58 @@ def test_blocked_patterns_still_rejected():
     assert "Blocked pattern" in _error(shell_server.execute("sudo ls"))
 
 
+def test_privilege_escalation_commands_blocked():
+    """sudo/su/doas must be rejected as the command itself, not as a substring.
+
+    Substring matching would false-positive on harmless commands like
+    'pseudo', 'subl', 'summarize'. Argv-level matching avoids that.
+    """
+    assert "Blocked pattern" in _error(shell_server.execute("sudo ls"))
+    assert "Blocked pattern" in _error(shell_server.execute("su root"))
+
+
+def test_privilege_escalation_substring_not_false_positive():
+    """Commands that merely contain 'su'/'sudo' as a substring must still run."""
+    # 'summarize', 'subl', 'pseudo' are not whitelisted, so they fail with the
+    # whitelist message — NOT with the privilege-escalation block.
+    err = _error(shell_server.execute("summarize foo"))
+    assert "Blocked pattern" not in err
+    err = _error(shell_server.execute("pseudo bar"))
+    assert "Blocked pattern" not in err
+
+
+def test_rm_rf_blocked_with_extra_whitespace():
+    """rm -rf must be rejected even when extra spaces would defeat substring matching."""
+    assert "Blocked pattern" in _error(shell_server.execute("rm  -rf /tmp/x"))
+    assert "Blocked pattern" in _error(shell_server.execute("rm\t-rf /tmp/x"))
+
+
+def test_rm_rf_blocked_with_reordered_flags():
+    """rm -rf reordered (rm /tmp/x -rf) must still be detected at argv level."""
+    assert "Blocked pattern" in _error(shell_server.execute("rm /tmp/x -rf"))
+
+
+def test_rm_fr_variant_blocked():
+    assert "Blocked pattern" in _error(shell_server.execute("rm -fr /tmp/x"))
+
+
+def test_chmod_777_blocked():
+    assert "Blocked pattern" in _error(shell_server.execute("chmod 777 /tmp/x"))
+
+
+def test_docker_blocked():
+    """docker is no longer whitelisted — it enables container escape via
+    'docker run -v /:/host alpine cat /etc/shadow'."""
+    err = _error(shell_server.execute("docker ps"))
+    assert "not in whitelist" in err, err
+
+
+def test_docker_run_escape_blocked():
+    """Even a read-only-looking docker invocation must be rejected."""
+    err = _error(shell_server.execute("docker run --rm alpine echo hi"))
+    assert "not in whitelist" in err, err
+
+
 def test_curl_internal_url_blocked():
     # curl/wget have been removed from ALLOWED_COMMANDS (v0.2.1) to prevent
     # SSRF bypass. All network requests must go through the DNS-pinned fetch_url tool.

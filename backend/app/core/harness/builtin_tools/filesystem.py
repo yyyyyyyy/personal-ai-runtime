@@ -99,9 +99,73 @@ class FilesystemServer:
         except Exception:
             return True
 
+    def _is_lexically_within(self, target: Path, root: Path) -> bool:
+        """Return True if ``target`` is lexically inside ``root`` (no symlink resolution).
+
+        Unlike ``resolve().is_relative_to()``, this does NOT follow symlinks,
+        so a symlink planted inside ``root`` still counts as "within root" and
+        can then be rejected by the dedicated symlink check in ``_write_denied``.
+        """
+        try:
+            root_parts = root.resolve().parts
+            # Normalize target without resolving symlinks (strict=False allows
+            # non-existent paths, which is the common case for new writes).
+            target_parts = target.expanduser().absolute().parts
+        except Exception:
+            return False
+        if len(target_parts) < len(root_parts):
+            return False
+        return target_parts[: len(root_parts)] == root_parts
+
+    def _contains_symlink_in_chain(self, path: Path, root: Path) -> bool:
+        """Return True if any segment between ``root`` and ``path`` is a symlink.
+
+        Walks up from ``path`` towards ``root`` using ``lstat()`` so symlinks
+        are detected even when ``resolve()`` would follow them into a protected
+        location. This closes the TOCTOU window where an attacker plants a
+        symlink inside an allowed directory pointing at /etc, /.ssh, etc.
+        """
+        try:
+            root_resolved = root.resolve()
+            current = path
+            # Guard against infinite loops on pathological paths.
+            for _ in range(64):
+                # Stop once we have climbed above the allowed root.
+                try:
+                    current.relative_to(root_resolved)
+                except ValueError:
+                    # current is no longer under root — we have climbed past it.
+                    break
+                try:
+                    if current.is_symlink():
+                        return True
+                except OSError:
+                    # lstat failed (broken symlink, permission) — treat as unsafe.
+                    return True
+                if current == current.parent:
+                    break
+                current = current.parent
+            return False
+        except Exception:
+            return True
+
     def _write_denied(self, path: str) -> str | None:
-        if not self._is_safe(path):
+        # Step 1: lexical containment — does the path *name* fall inside an
+        # allowed dir, WITHOUT following symlinks? This lets us reach step 3
+        # for paths that resolve outside via a planted symlink.
+        try:
+            target = Path(path).expanduser()
+        except Exception:
+            return json.dumps({"error": "Access denied: invalid path"})
+
+        lexically_safe = any(
+            self._is_lexically_within(target, Path(allowed))
+            for allowed in self.allowed_dirs
+        )
+        if not lexically_safe:
             return json.dumps({"error": "Access denied: path outside allowed directories"})
+
+        # Step 2: governance-protected check (kernel/policy/.env/.ssh/...).
         if self._is_protected(path):
             return json.dumps({
                 "error": (
@@ -110,6 +174,18 @@ class FilesystemServer:
                 ),
                 "path": path,
             })
+
+        # Step 3: symlink defense — reject writes that traverse a symlink
+        # planted inside an allowed directory, which resolve() would have
+        # silently followed into a protected or out-of-bounds location.
+        for allowed in self.allowed_dirs:
+            base = Path(allowed).resolve()
+            # Check the target itself AND every ancestor up to the allowed root.
+            if self._contains_symlink_in_chain(target, base):
+                return json.dumps({
+                    "error": "Access denied: write path traverses a symlink",
+                    "path": path,
+                })
         return None
 
     def read_file(self, path: str, max_lines: int = 500) -> str:

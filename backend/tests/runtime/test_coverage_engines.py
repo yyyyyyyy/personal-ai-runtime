@@ -67,9 +67,11 @@ class TestApprovalEngine:
         assert approval[0]["status"] in ("rejected", "denied")
 
     def test_get_approval_missing(self):
-        from app.core.runtime.approval_engine import ApprovalEngine
-        engine = ApprovalEngine()
-        assert engine.get_approval("nonexistent") is None
+        # ApprovalEngine has been consolidated into CapabilityGovernance (v0.4.0).
+        # The read-only approval lookup is now a static method there.
+        from app.core.runtime.capability_governance import CapabilityGovernance
+        from app.core.runtime.kernel_instance import kernel as k
+        assert CapabilityGovernance.get_approval(k, "nonexistent") is None
 
     def test_request_approval_with_task_id_via_kernel(self, isolated_kernel):
         k, _db = isolated_kernel
