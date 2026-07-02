@@ -124,10 +124,16 @@ class EmailServer:
         """Stable message_id for every UNSEEN message (header-only fetch)."""
         _status, message_ids = mail.search(None, "UNSEEN")
         ids = message_ids[0].split() if message_ids[0] else []
+        if not ids:
+            return set()
+
         result: set[str] = set()
-        for msg_id in ids:
+        # Batch fetch in chunks to avoid extremely long command lines
+        for i in range(0, len(ids), 100):
+            chunk = ids[i : i + 100]
+            id_range = ",".join(tid.decode() for tid in chunk)
             _status, msg_data = mail.fetch(
-                msg_id,
+                id_range,
                 "(BODY.PEEK[HEADER.FIELDS (MESSAGE-ID FROM SUBJECT DATE)])",
             )
             for response_part in msg_data:
@@ -145,38 +151,99 @@ class EmailServer:
         search_criteria = "UNSEEN" if unread_only else "ALL"
         _status, message_ids = mail.search(None, search_criteria)
 
-        entries: list[tuple[float, dict]] = []
         ids = message_ids[0].split() if message_ids[0] else []
+        if not ids:
+            return []
+
+        # 1. Fetch headers and internaldate for a pool of candidates in one batch.
+        # This is much faster than fetching full RFC822 for each candidate.
         pool_size = min(len(ids), max(limit * 5, 50))
-        for msg_id in ids[-pool_size:]:
-            _status, msg_data = mail.fetch(msg_id, "(RFC822)")
-            for response_part in msg_data:
-                if isinstance(response_part, tuple):
-                    msg = email.message_from_bytes(response_part[1])
-                    from_raw = _decode_mime_header(msg.get("From"))
-                    subject = _decode_mime_header(msg.get("Subject")) or "(无主题)"
-                    body = _extract_body(msg, max_len=body_max)
-                    date_raw = msg.get("Date")
-                    try:
-                        ts = (
-                            parsedate_to_datetime(date_raw).timestamp()
-                            if date_raw
-                            else 0.0
-                        )
-                    except Exception:
-                        ts = 0.0
+        target_ids = ids[-pool_size:]
+        id_range = ",".join(tid.decode() for tid in target_ids)
 
-                    entries.append((ts, {
-                        "message_id": _stable_message_id(msg, from_raw, subject, date_raw),
-                        "from": from_raw,
-                        "subject": subject,
-                        "date": _format_date(date_raw),
-                        "preview": body[:200] if body else "",
-                        "body": body,
-                    }))
+        # Use BODY.PEEK to avoid marking as read during list/preview.
+        _status, msg_data = mail.fetch(
+            id_range,
+            "(INTERNALDATE BODY.PEEK[HEADER.FIELDS (FROM SUBJECT DATE MESSAGE-ID)])"
+        )
 
-        entries.sort(key=lambda item: item[0], reverse=True)
-        return [item[1] for item in entries[:limit]]
+        candidates: list[dict] = []
+        # msg_data can contain tuples and bytes (closing parens).
+        for part in msg_data:
+            if not isinstance(part, tuple):
+                continue
+
+            header_content = part[1]
+            msg = email.message_from_bytes(header_content)
+
+            info = part[0].decode(errors="ignore")
+            seq_match = re.search(r"^(\d+)", info)
+            if not seq_match:
+                continue
+            seq_num = seq_match.group(1)
+
+            # Internal date for sorting
+            ts = 0.0
+            idate_match = re.search(r'INTERNALDATE "([^"]+)"', info)
+            if idate_match:
+                try:
+                    ts = parsedate_to_datetime(idate_match.group(1)).timestamp()
+                except Exception:
+                    pass
+
+            from_raw = _decode_mime_header(msg.get("From"))
+            subject = _decode_mime_header(msg.get("Subject")) or "(无主题)"
+            date_raw = msg.get("Date")
+
+            if ts == 0.0 and date_raw:
+                try:
+                    ts = parsedate_to_datetime(date_raw).timestamp()
+                except Exception:
+                    pass
+
+            candidates.append({
+                "seq_num": seq_num,
+                "ts": ts,
+                "message_id": _stable_message_id(msg, from_raw, subject, date_raw),
+                "from": from_raw,
+                "subject": subject,
+                "date_raw": date_raw,
+            })
+
+        # 2. Sort candidates by date descending
+        candidates.sort(key=lambda x: x["ts"], reverse=True)
+        top_candidates = candidates[:limit]
+        if not top_candidates:
+            return []
+
+        # 3. Fetch bodies only for the top candidates in another batch.
+        top_ids = ",".join(c["seq_num"] for c in top_candidates)
+        # Fetching full message content without marking as SEEN.
+        _status, body_data = mail.fetch(top_ids, "(BODY.PEEK[])")
+
+        body_map: dict[str, str] = {}
+        for part in body_data:
+            if isinstance(part, tuple):
+                info = part[0].decode(errors="ignore")
+                seq_match = re.search(r"^(\d+)", info)
+                if seq_match:
+                    s_num = seq_match.group(1)
+                    m = email.message_from_bytes(part[1])
+                    body_map[s_num] = _extract_body(m, max_len=body_max)
+
+        results = []
+        for c in top_candidates:
+            body = body_map.get(c["seq_num"], "")
+            results.append({
+                "message_id": c["message_id"],
+                "from": c["from"],
+                "subject": c["subject"],
+                "date": _format_date(c["date_raw"]),
+                "preview": body[:200] if body else "",
+                "body": body,
+            })
+
+        return results
 
     def _fetch_sorted_emails(
         self,

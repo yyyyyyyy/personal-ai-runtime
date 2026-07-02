@@ -71,6 +71,8 @@ async def on_chat_requested(ctx: "ExecutionContext", event: "Event") -> None:
                 "type": "text_delta",
                 "content": evt["content"],
             })
+        elif evt.get("type") in ("tool_call_start", "tool_result"):
+            await push(ctx.correlation_id, evt)
         elif evt.get("type") == "confirmation_required":
             pending = True
             pending_data = {

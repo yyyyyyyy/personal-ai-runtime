@@ -75,13 +75,25 @@ class LLMRouter:
             for p in self.providers:
                 if p.name == provider_name:
                     if p.name not in self._clients:
-                        self._clients[p.name] = AsyncOpenAI(api_key=p.api_key, base_url=p.base_url)
+                        from app.config import settings
+                        self._clients[p.name] = AsyncOpenAI(
+                            api_key=p.api_key,
+                            base_url=p.base_url,
+                            timeout=float(settings.llm_timeout_seconds),
+                            max_retries=3,
+                        )
                     return self._clients[p.name], p
 
         for p in self.providers:
             if p.is_default:
                 if p.name not in self._clients:
-                    self._clients[p.name] = AsyncOpenAI(api_key=p.api_key, base_url=p.base_url)
+                    from app.config import settings
+                    self._clients[p.name] = AsyncOpenAI(
+                        api_key=p.api_key,
+                        base_url=p.base_url,
+                        timeout=float(settings.llm_timeout_seconds),
+                        max_retries=3,
+                    )
                 return self._clients[p.name], p
 
         raise RuntimeError("No LLM provider configured")
@@ -92,7 +104,13 @@ class LLMRouter:
         for p in self.providers:
             if not p.is_default:
                 if p.name not in self._clients:
-                    self._clients[p.name] = AsyncOpenAI(api_key=p.api_key, base_url=p.base_url)
+                    from app.config import settings
+                    self._clients[p.name] = AsyncOpenAI(
+                        api_key=p.api_key,
+                        base_url=p.base_url,
+                        timeout=float(settings.llm_timeout_seconds),
+                        max_retries=3,
+                    )
                 result.append((self._clients[p.name], p))
         return result
 

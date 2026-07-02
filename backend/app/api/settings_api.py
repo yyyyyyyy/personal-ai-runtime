@@ -159,7 +159,12 @@ async def test_llm_connection(body: TestLlmRequest | None = None):
     if not api_key and p.get("type") != "ollama":
         return {"ok": False, "provider": provider_id, "error": "API Key 未配置"}
 
-    client = AsyncOpenAI(api_key=api_key, base_url=p.get("base_url", ""))
+    client = AsyncOpenAI(
+        api_key=api_key,
+        base_url=p.get("base_url", ""),
+        timeout=15.0,  # Connection test should be faster
+        max_retries=3,
+    )
     start = time.perf_counter()
     try:
         await client.chat.completions.create(

@@ -26,6 +26,8 @@ class VoiceServer:
                 self._client = AsyncOpenAI(
                     api_key=settings.llm_api_key,
                     base_url=getattr(settings, 'llm_base_url', 'https://api.deepseek.com/v1'),
+                    timeout=float(settings.llm_timeout_seconds),
+                    max_retries=3,
                 )
             except Exception:
                 return None

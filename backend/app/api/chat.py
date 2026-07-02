@@ -137,6 +137,8 @@ async def send_message(conv_id: str, body: SendMessageRequest):
                 else:
                     if item.get("type") == "text_delta" and item.get("content"):
                         yield f"data: {_json.dumps(item)}\n\n"
+                    elif item.get("type") in ("tool_call_start", "tool_result"):
+                        yield f"data: {_json.dumps(item)}\n\n"
                     elif item.get("type") == "done":
                         if item.get("result"):
                             result = item["result"]

@@ -15,7 +15,13 @@ class LocalLLM:
     def __init__(self):
         base_url = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434/v1")
         self.model = os.getenv("OLLAMA_MODEL", "qwen2.5:7b")
-        self.client = AsyncOpenAI(api_key="ollama", base_url=base_url)
+        from app.config import settings
+        self.client = AsyncOpenAI(
+            api_key="ollama",
+            base_url=base_url,
+            timeout=float(settings.llm_timeout_seconds),
+            max_retries=3,
+        )
 
     async def extract_memories(self, conversation_text: str) -> list[str]:
         """Extract user preferences and facts from conversation."""

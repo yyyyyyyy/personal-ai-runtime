@@ -53,6 +53,7 @@ class Settings(BaseSettings):
     llm_model: str = "deepseek-chat"
     llm_temperature: float = 0.7
     llm_max_tokens: int = 4096
+    llm_timeout_seconds: int = 60
 
     # --- Data Storage ---
     data_dir: str = str(BASE_DIR / "backend" / "data")
@@ -106,7 +107,7 @@ class Settings(BaseSettings):
     max_recent_messages: int = 50
     max_tool_iterations: int = 10
     tool_timeout_seconds: int = 30
-    total_tool_loop_timeout: int = 120
+    total_tool_loop_timeout: int = 300
     # Hard ceiling on cumulative prompt tokens within one chat turn. When the
     # running total crosses this threshold the loop stops even if iterations
     # remain, preventing runaway cost from long tool chains.

@@ -130,7 +130,7 @@ class BrainCompletionMixin:
             (self.client, self.provider),
             *llm_router.get_fallback_clients(),
         ]
-        last_error: Exception | None = None
+        errors: list[str] = []
         llm_start = time.time()
         egress_messages, _egress_audit = prepare_llm_egress(messages, purpose="chat_stream")
         for client, provider in candidates:
@@ -150,6 +150,7 @@ class BrainCompletionMixin:
                 )
                 return response, client, provider
             except Exception as e:
+                errors.append(f"{provider.name}({type(e).__name__}: {e})")
                 last_error = e
                 telemetry.record_llm_call(LLMCallRecord(
                     provider=provider.name,
@@ -158,6 +159,8 @@ class BrainCompletionMixin:
                     success=False,
                     error_message=str(e),
                 ))
+        if len(candidates) > 1:
+            raise RuntimeError(f"All LLM providers failed: {'; '.join(errors)}")
         raise last_error or RuntimeError("No LLM provider available")
 
     async def _synthesize_from_tool_results(self, messages: list[dict]) -> str:
