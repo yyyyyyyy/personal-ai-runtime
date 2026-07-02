@@ -21,6 +21,9 @@ class MemoryExtractor:
     """Fire-and-forget memory extraction from conversation text."""
 
     def __init__(self, extract_fn: ExtractFn | None = None):
+        # Hold strong references to fire-and-forget tasks so CPython's
+        # garbage collector does not reap them before completion.
+        self._pending_tasks: set[asyncio.Task] = set()
         if extract_fn is not None:
             self._extract = extract_fn
         else:
@@ -60,6 +63,9 @@ class MemoryExtractor:
             text = response.choices[0].message.content or ""
             return [line.strip("- ").strip() for line in text.split("\n") if line.strip()]
         except Exception:
+            # Surface network/auth/quota failures so users can diagnose a
+            # silently-stopping memory pipeline instead of returning [] blindly.
+            logger.warning("Cloud memory extraction failed", exc_info=True)
             return []
 
     async def extract_and_store(
@@ -121,7 +127,12 @@ class MemoryExtractor:
         return False
 
     def schedule(self, conversation_text: str, source: str = "conversation") -> None:
-        """Schedule extraction without blocking the caller (fire-and-forget)."""
+        """Schedule extraction without blocking the caller (fire-and-forget).
+
+        The created task is registered in ``self._pending_tasks`` and removed
+        via a done-callback. Without this strong reference CPython may collect
+        the task before it runs, causing intermittent silent memory loss.
+        """
 
         async def _run() -> None:
             try:
@@ -131,7 +142,9 @@ class MemoryExtractor:
 
         try:
             loop = asyncio.get_running_loop()
-            loop.create_task(_run())
+            task = loop.create_task(_run())
+            self._pending_tasks.add(task)
+            task.add_done_callback(self._pending_tasks.discard)
         except RuntimeError:
             pass
 

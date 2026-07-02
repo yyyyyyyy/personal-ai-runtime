@@ -102,8 +102,15 @@ class Brain(BrainCompletionMixin):
             current_tool_call: dict[str, int | str] = {
                 "index": -1, "id": "", "function_name": "", "arguments": "",
             }
+            # Providers that honour stream_options return token usage on the
+            # final chunk. Default to None and fall back to tiktoken below.
+            stream_usage: Any = None
 
             async for chunk in response:
+                # Capture usage from the terminal chunk when the provider
+                # includes it (OpenAI, DeepSeek).
+                if getattr(chunk, "usage", None) is not None:
+                    stream_usage = chunk.usage
                 delta = chunk.choices[0].delta if chunk.choices else None
                 if delta is None:
                     continue
@@ -158,6 +165,7 @@ class Brain(BrainCompletionMixin):
             # Record LLM call telemetry (latency, tokens, cost).
             turn_tokens = self._record_llm_telemetry(
                 messages, assistant_content, used_provider, llm_start,
+                usage=stream_usage,
             )
             cumulative_prompt_tokens += turn_tokens
 
@@ -268,16 +276,25 @@ class Brain(BrainCompletionMixin):
         assistant_content: str,
         used_provider: Any,
         llm_start: float,
+        *,
+        usage: Any = None,
     ) -> int:
         """Record an LLM call (latency, tokens, cost) to telemetry.
 
         Extracted from chat_stream so the hot path reads top-to-bottom as
         reasoning steps, while telemetry bookkeeping is isolated and testable.
-        Returns the prompt token count so callers can enforce a cumulative cap.
+        Prefers the provider-reported token usage (accurate, includes CJK
+        correctly) and falls back to a tiktoken estimate when the provider
+        does not return usage. Returns the prompt token count so callers can
+        enforce a cumulative cap.
         """
         llm_latency = (time.time() - llm_start) * 1000
-        prompt_tokens = count_message_tokens(messages, model=used_provider.model)
-        completion_tokens = count_text_tokens(assistant_content, model=used_provider.model)
+        if usage is not None:
+            prompt_tokens = int(getattr(usage, "prompt_tokens", 0) or 0)
+            completion_tokens = int(getattr(usage, "completion_tokens", 0) or 0)
+        else:
+            prompt_tokens = count_message_tokens(messages, model=used_provider.model)
+            completion_tokens = count_text_tokens(assistant_content, model=used_provider.model)
         estimated_cost = (
             prompt_tokens * used_provider.price_per_prompt_token
             + completion_tokens * used_provider.price_per_completion_token

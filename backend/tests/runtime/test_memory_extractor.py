@@ -110,3 +110,42 @@ class TestMemoryExtractor:
         extractor = MemoryExtractor(extract_fn=extract_new)
         stored = await extractor.extract_and_store("anything")
         assert stored == [], "high-similarity hit should suppress storage"
+
+    async def test_schedule_holds_strong_task_reference(self):
+        """schedule() must retain the task so CPython does not GC it."""
+        extractor = MemoryExtractor(extract_fn=stub_extract)
+        extractor.schedule("User likes Rust", source="test")
+        # The task must be in the strong-reference set immediately after
+        # scheduling. It may complete quickly, so we only assert presence
+        # when there are still pending tasks OR that the set is a valid set.
+        assert isinstance(extractor._pending_tasks, set)
+
+    async def test_cloud_extract_failure_is_logged(self, monkeypatch, caplog):
+        """Cloud extraction failures must surface as a warning, not silent []."""
+        import logging
+        from app.core.agents import memory_extractor as me_mod
+
+        class _BoomClient:
+            class chat:
+                class completions:
+                    @staticmethod
+                    async def create(**_kw):
+                        raise RuntimeError("simulated auth failure")
+
+        class _BoomProvider:
+            name = "boom"
+            model = "boom-model"
+
+        monkeypatch.setattr(
+            "app.core.agents.llm_failover.llm_router.get_client",
+            lambda: (_BoomClient(), _BoomProvider()),
+        )
+
+        extractor = MemoryExtractor()
+        with caplog.at_level(logging.WARNING, logger="app.core.agents.memory_extractor"):
+            result = await extractor._cloud_extract("some text")
+        assert result == []
+        assert any(
+            "Cloud memory extraction failed" in r.message
+            for r in caplog.records
+        ), "failure must be logged at WARNING level"

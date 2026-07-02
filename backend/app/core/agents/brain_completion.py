@@ -128,6 +128,10 @@ class BrainCompletionMixin:
                     temperature=runtime_config.get_generation_params()[0],
                     max_tokens=runtime_config.get_generation_params()[1],
                     stream=True,
+                    # Ask the provider to report actual token usage in the
+                    # final chunk so telemetry reflects real cost instead of
+                    # a tiktoken estimate (which over-counts CJK by 20-40%).
+                    stream_options={"include_usage": True},
                 )
                 return response, client, provider
             except Exception as e:

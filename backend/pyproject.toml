@@ -36,7 +36,7 @@ ignore = ["E501"]
 python_version = "3.12"
 ignore_missing_imports = true
 check_untyped_defs = true
-follow_imports = "silent"
+follow_imports = "normal"
 
 [tool.coverage.run]
 source = ["app/api", "app/product"]
