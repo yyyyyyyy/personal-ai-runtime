@@ -19,6 +19,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
 from app.core.runtime.principal import Principal
+from app.core.runtime.runtime_container import _LazyProxy, runtime
 
 if TYPE_CHECKING:
 
@@ -426,5 +427,4 @@ class CapabilityGovernance:
         self._kernel = None
 
 
-from app.core.runtime.runtime_container import _LazyProxy, runtime
 capability_governance = _LazyProxy(lambda: runtime.capability_governance)

@@ -10,6 +10,7 @@ from dataclasses import dataclass
 from openai import AsyncOpenAI
 
 from app.core.runtime.runtime_config import effective_api_key, runtime_config
+from app.core.runtime.runtime_container import _LazyProxy, runtime
 
 
 @dataclass
@@ -121,5 +122,4 @@ class LLMRouter:
 
 
 # Singleton — lazy proxy to RuntimeContainer so runtime.reset() rebuilds it.
-from app.core.runtime.runtime_container import _LazyProxy, runtime
 llm_router = _LazyProxy(lambda: runtime.llm_router)

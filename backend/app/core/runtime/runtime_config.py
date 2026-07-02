@@ -17,6 +17,7 @@ from typing import Any
 
 from app.config import settings
 from app.core.runtime import kernel_instance as _kernel_module
+from app.core.runtime.runtime_container import _LazyProxy, runtime
 from app.store.database import db
 
 logger = logging.getLogger(__name__)
@@ -449,5 +450,4 @@ class RuntimeConfig:
             raise
 
 
-from app.core.runtime.runtime_container import _LazyProxy, runtime
 runtime_config = _LazyProxy(lambda: runtime.runtime_config)

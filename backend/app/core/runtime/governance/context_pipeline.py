@@ -42,6 +42,7 @@ from app.core.runtime.governance.context_policy import (
     DefaultContextPolicy,
 )
 from app.core.runtime.principal import Principal
+from app.core.runtime.runtime_container import _LazyProxy, runtime
 
 _MAX_RECENT_FRAGMENT_HISTORY = 5
 
@@ -168,7 +169,6 @@ class ContextPipeline:
 
 
 # Singleton — lazy proxy to RuntimeContainer so runtime.reset() rebuilds it.
-from app.core.runtime.runtime_container import _LazyProxy, runtime
 context_pipeline = _LazyProxy(lambda: runtime.context_pipeline)
 
 

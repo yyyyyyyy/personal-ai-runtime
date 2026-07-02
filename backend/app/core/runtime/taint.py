@@ -17,6 +17,8 @@ from __future__ import annotations
 import time
 from typing import Any
 
+from app.core.runtime.runtime_container import _LazyProxy, runtime
+
 # TTL for taint marks in seconds (5 minutes).
 # After this duration, the mark is considered expired and cleaned up on next access.
 _TAINT_TTL_SECONDS = 300
@@ -103,7 +105,6 @@ class TaintRegistry:
         self._store.clear()
 
 
-from app.core.runtime.runtime_container import _LazyProxy, runtime
 taint_registry = _LazyProxy(lambda: runtime.taint_registry)
 
 

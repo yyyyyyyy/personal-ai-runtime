@@ -11,6 +11,7 @@ import logging
 from collections.abc import Awaitable, Callable
 
 from app.core.agents.memory_engine import memory_engine
+from app.core.runtime.runtime_container import _LazyProxy, runtime
 
 logger = logging.getLogger(__name__)
 
@@ -151,5 +152,4 @@ class MemoryExtractor:
             pass
 
 
-from app.core.runtime.runtime_container import _LazyProxy, runtime
 memory_extractor = _LazyProxy(lambda: runtime.memory_extractor)

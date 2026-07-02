@@ -20,6 +20,7 @@ from app.core.harness.builtin_tools.goals import goals_server
 from app.core.harness.builtin_tools.shell import shell_server
 from app.core.harness.builtin_tools.telegram_bot import telegram_bot_server
 from app.core.harness.builtin_tools.web_search import web_search_server
+from app.core.runtime.runtime_container import _LazyProxy, runtime
 from app.core.telemetry.telemetry import ToolCallRecord, telemetry
 
 
@@ -775,5 +776,4 @@ class MCPHub:
 
 
 # Singleton — lazy proxy to RuntimeContainer so runtime.reset() rebuilds it.
-from app.core.runtime.runtime_container import _LazyProxy, runtime
 mcp_hub = _LazyProxy(lambda: runtime.mcp_hub)

@@ -31,6 +31,7 @@ import logging
 from typing import TYPE_CHECKING, Awaitable, Callable
 
 from .agent_definition import SubscriptionRule
+from .runtime_container import _LazyProxy, runtime
 
 if TYPE_CHECKING:
     from .kernel.event import Event
@@ -187,5 +188,4 @@ class AgentBus:
 
 
 # Singleton — lazy proxy to RuntimeContainer so runtime.reset() rebuilds it.
-from app.core.runtime.runtime_container import _LazyProxy, runtime
 agent_bus = _LazyProxy(lambda: runtime.agent_bus)

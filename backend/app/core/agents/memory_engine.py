@@ -8,6 +8,7 @@ ChromaDB is a derived search index maintained by the Kernel after projection.
 import uuid
 
 from app.core.runtime.kernel_instance import kernel
+from app.core.runtime.runtime_container import _LazyProxy, runtime
 
 
 class MemoryEngine:
@@ -113,5 +114,4 @@ class MemoryEngine:
         )
 
 
-from app.core.runtime.runtime_container import _LazyProxy, runtime
 memory_engine = _LazyProxy(lambda: runtime.memory_engine)
