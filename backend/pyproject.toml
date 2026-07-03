@@ -44,7 +44,6 @@ source = ["app/api", "app/product"]
 # These are lifecycle/initialization code exercised via integration tests
 # or modules whose uncovered paths require heavy mocking (subprocess, network).
 omit = [
-    "app/core/runtime/runtime_container.py",
     "app/core/runtime/runtime_loop.py",
     "app/core/runtime/capability_governance.py",
 ]
