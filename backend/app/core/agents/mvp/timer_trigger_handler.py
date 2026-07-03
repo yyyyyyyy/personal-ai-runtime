@@ -38,10 +38,6 @@ async def _call_product(handler_name: str) -> None:
                     from app.product.notifications import create_notification
 
                     create_notification("alert", "Deadline 预警", f"目标「{goal['title']}」还有 {days_left} 天截止")
-        elif handler_name == "trigger_evaluation":
-            from app.core.runtime.trigger_engine import trigger_engine
-
-            trigger_engine.evaluate_and_notify()
         elif handler_name == "memory_decay":
             from app.core.runtime.memory_decay import run_memory_decay
 

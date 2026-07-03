@@ -8,7 +8,6 @@ os.environ.setdefault("LLM_API_KEY", "test-key")
 
 EXPECTED_SCHEDULE_NAMES = {
     "deadline_alert",
-    "trigger_evaluation",
     "memory_decay",
     "world_model_snapshot",
     "projection_snapshots",

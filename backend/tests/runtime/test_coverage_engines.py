@@ -1,6 +1,6 @@
-"""Coverage tests for timer_engine, approval_engine, scheduler."""
+"""Coverage tests for timer_engine and approval lifecycle."""
 from app.core.runtime.runtime_loop import RuntimeLoop
-from app.core.runtime.timer_engine import TimerEngine
+from app.core.runtime.timer_engine import ensure_schedules
 
 _next_cron_fire = RuntimeLoop._next_cron_fire
 
@@ -23,9 +23,22 @@ class TestTimerEngineCron:
         result = _next_cron_fire("day=15,hour=8,minute=0")
         assert result is not None
 
-    def test_timer_engine_init(self):
-        engine = TimerEngine.__new__(TimerEngine)
-        assert engine is not None
+    def test_ensure_schedules_creates_timer_events(self, isolated_kernel):
+        k, db = isolated_kernel
+        import app.core.runtime.timer_engine as te
+        te.kernel = k
+        try:
+            te.ensure_schedules([{
+                "name": "test_timer",
+                "cron_expr": "hour=12,minute=0",
+                "schedule_type": "cron",
+                "handler_name": "test_handler",
+            }])
+        finally:
+            te.kernel = k
+        with db.get_db() as conn:
+            row = conn.execute("SELECT 1 FROM timer_events WHERE id='test_timer'").fetchone()
+            assert row is not None
 
 
 class TestApprovalEngine:
@@ -88,7 +101,7 @@ class TestScheduler:
     def test_schedules_all_present(self):
         from app.core.runtime.cron_registry import SCHEDULES
 
-        assert len(SCHEDULES) == 8
+        assert len(SCHEDULES) == 7  # trigger_evaluation moved to RuntimeLoop maintenance
         names = {s["name"] for s in SCHEDULES}
         assert "inbox_poll" in names
         assert "morning_brief" in names

@@ -194,6 +194,11 @@ class RuntimeLoop:
             logger.exception("Smart notification check failed")
 
         try:
+            await self._check_triggers()
+        except Exception:
+            logger.exception("Trigger evaluation failed")
+
+        try:
             await self._process_background_tasks()
         except Exception:
             logger.exception("Background task processing failed")
@@ -237,6 +242,17 @@ class RuntimeLoop:
                 actor="system",
             )
             logger.info("Created stagnant goal notification for: %s", title)
+
+    async def _check_triggers(self) -> None:
+        """Evaluate condition-based triggers (ex-trigger_engine TimerFired handler).
+
+        This runs every maintenance tick (~10s) instead of on a separate
+        cron schedule, unifying time-based and condition-based triggers into
+        a single reactive-producer pattern within RuntimeLoop.
+        """
+        from app.core.runtime.trigger_engine import trigger_engine
+
+        trigger_engine.evaluate_and_notify()
 
     async def _process_background_tasks(self) -> None:
         """Process pending background tasks."""

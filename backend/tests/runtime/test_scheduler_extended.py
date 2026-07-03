@@ -36,15 +36,6 @@ async def test_run_inbox_digest(mock_digest):
 
 
 @pytest.mark.asyncio
-@patch("app.core.runtime.trigger_engine.trigger_engine.evaluate_and_notify")
-async def test_run_trigger_evaluation(mock_eval):
-    from app.core.agents.mvp.timer_trigger_handler import _call_product
-
-    await _call_product("trigger_evaluation")
-    mock_eval.assert_called_once()
-
-
-@pytest.mark.asyncio
 @patch("app.core.runtime.kernel_instance.kernel.save_projection_snapshots")
 async def test_run_projection_snapshots(mock_save):
     mock_save.return_value = [{"aggregate_type": "goal"}]

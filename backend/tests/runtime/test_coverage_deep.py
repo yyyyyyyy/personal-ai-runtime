@@ -71,10 +71,9 @@ class TestTimerEngineScan:
             assert fired is None, "Future timer should not fire"
 
     @pytest.mark.asyncio
-    async def test_timer_engine_start_stop(self, isolated_kernel):
-        """TimerEngine start/stop are no-ops in v0.3.0; scanning is in RuntimeLoop."""
-        from app.core.runtime.timer_engine import TimerEngine
-        k, db = isolated_kernel
-        engine = TimerEngine(k)
-        # start/stop should not raise
-        assert engine is not None
+    async def test_next_cron_fire_edge_cases(self, isolated_kernel):
+        """_next_cron_fire handles various cron expressions correctly (was TimerEngine test)."""
+        from app.core.runtime.runtime_loop import RuntimeLoop
+        result = RuntimeLoop._next_cron_fire("minute=*/15")
+        assert result is not None
+        assert "T" in result

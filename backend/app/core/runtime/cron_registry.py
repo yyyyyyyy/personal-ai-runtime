@@ -16,7 +16,6 @@ logger = logging.getLogger(__name__)
 SCHEDULES: list[dict] = [
     {"name": "morning_brief", "cron_expr": "hour=8,minute=0", "schedule_type": "cron", "handler_name": "morning_brief"},
     {"name": "deadline_alert", "cron_expr": "hour=9,minute=0", "schedule_type": "cron", "handler_name": "deadline_alert"},
-    {"name": "trigger_evaluation", "cron_expr": "minute=*/30", "schedule_type": "cron", "handler_name": "trigger_evaluation"},
     {"name": "memory_decay", "cron_expr": "hour=3,minute=0", "schedule_type": "cron", "handler_name": "memory_decay"},
     {"name": "world_model_snapshot", "cron_expr": "day_of_week=sun,hour=6,minute=0", "schedule_type": "cron", "handler_name": "world_model_snapshot"},
     {"name": "projection_snapshots", "cron_expr": "hour=4,minute=0", "schedule_type": "cron", "handler_name": "projection_snapshots"},
@@ -34,9 +33,9 @@ def init_scheduler():
 
 def _init_timers():
     """Register TimerCreated events for all scheduled cron jobs."""
-    from app.core.runtime.timer_engine import timer_engine
+    from app.core.runtime.timer_engine import ensure_schedules
 
-    timer_engine.ensure_schedules(SCHEDULES)
+    ensure_schedules(SCHEDULES)
 
 
 def _on_task_completed(event):

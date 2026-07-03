@@ -1,4 +1,4 @@
-"""Extra coverage tests for timer_engine edge cases."""
+"""Extra coverage tests for timer_engine utility functions."""
 import pytest
 
 
@@ -18,11 +18,7 @@ class TestTimerEngineMore:
         _next_cron_fire("hour=0,minute=0")
         _next_cron_fire("day_of_week=wed,hour=12,minute=30")
 
-    def test_get_timer_engine(self, isolated_kernel):
-        # get_timer_engine removed in v0.3.0; TimerEngine now uses timer_engine singleton
-        from app.core.runtime.timer_engine import timer_engine
-        assert timer_engine is not None
-
-    def test_reset_timer_engine(self):
-        # reset_timer_engine removed in v0.3.0; timer scanning is now in RuntimeLoop
-        pass
+    def test_ensure_schedules_functional(self):
+        # ensure_schedules is now a module-level function, not a class method
+        from app.core.runtime.timer_engine import ensure_schedules
+        assert callable(ensure_schedules)
