@@ -14,7 +14,6 @@ if str(_BACKEND_ROOT) not in sys.path:
 os.environ.setdefault("LLM_API_KEY", "test-key")
 
 from app.core.runtime.kernel import Kernel
-from app.product.digital_legacy import DigitalLegacy
 from app.store.database import Database
 
 
@@ -63,7 +62,7 @@ def main() -> int:
         return 1
 
     k.emit_event("GoalUpdated", "goal", "g2", payload={"progress": 0.25}, actor="verify")
-    DigitalLegacy(kernel=k, db=db).export_all()
+    k.snapshot()
 
     seq_after_export = read_checkpoint_seq(db, "goal")
     if seq_after_export is None:

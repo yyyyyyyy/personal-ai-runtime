@@ -8,7 +8,7 @@ asyncio event loop is not blocked during large exports/imports.
 Blob layout (all binary, base64-encoded at the API boundary):
     [16 bytes salt][12 bytes nonce][N bytes AES-GCM ciphertext + 16-byte tag]
 
-Import decrypts in-memory, then delegates to DigitalLegacy.import_all which
+Import decrypts in-memory, then delegates to Kernel.restore() which
 replays events into event_log. That path drops the append-only triggers,
 clears, and reinserts — it is a destructive sovereignty operation and the
 caller is responsible for requiring the confirm code.

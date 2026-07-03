@@ -57,7 +57,7 @@ def test_import_write_with_confirm(client: TestClient, monkeypatch):
         seen["snapshot"] = snapshot
         return {"status": "imported", "read_only": read_only}
 
-    monkeypatch.setattr("app.api.system.digital_legacy.import_all", fake_import)
+    monkeypatch.setattr("app.api.system.kernel.restore", fake_import)
     r = client.post(
         "/api/system/import",
         json={
@@ -79,7 +79,7 @@ def test_destroy_requires_confirm(client: TestClient):
 
 def test_destroy_success_with_confirm(client: TestClient, monkeypatch):
     monkeypatch.setattr(
-        "app.api.system.digital_legacy.destroy_all",
+        "app.api.system.kernel.erase",
         lambda: {"status": "destroyed", "message": "test"},
     )
     r = client.request("DELETE", "/api/system/data?confirm=DESTROY_ALL_DATA")

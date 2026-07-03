@@ -12,8 +12,8 @@ from app.api.models import (
 )
 from app.config import settings
 from app.core.agents.llm_failover import llm_router
+from app.core.runtime.kernel_instance import kernel
 from app.core.startup_health import sanitize_startup_for_public
-from app.product.digital_legacy import digital_legacy
 from app.version import VERSION
 
 router = APIRouter(prefix="/api/system", tags=["system"])
@@ -123,7 +123,7 @@ async def export_all_data(body: ExportRequest | None = None):
             status_code=400,
             detail=f"Set confirm='{EXPORT_CONFIRM}' to export",
         )
-    return digital_legacy.export_all()
+    return kernel.snapshot()
 
 
 @router.post("/import")
@@ -135,7 +135,7 @@ async def import_all_data(body: ImportRequest):
             status_code=400,
             detail=f"Set confirm='{IMPORT_CONFIRM}' for write import",
         )
-    return digital_legacy.import_all(body.data, read_only=read_only)
+    return kernel.restore(body.data, read_only=read_only)
 
 
 @router.delete("/data")
@@ -148,7 +148,7 @@ async def destroy_all_data(confirm: str = ""):
             status_code=400,
             detail=f"Query parameter confirm must be '{DESTROY_CONFIRM}'",
         )
-    return digital_legacy.destroy_all()
+    return kernel.erase()
 
 
 # --- Encrypted Sync (Phase 2) ---
@@ -174,7 +174,7 @@ async def export_encrypted(body: EncryptedExportRequest):
         encrypt_snapshot,
     )
 
-    snapshot = digital_legacy.export_all()
+    snapshot = kernel.snapshot()
 
     try:
         blob = await encrypt_snapshot(snapshot, body.password)
@@ -205,8 +205,8 @@ async def import_encrypted(body: EncryptedImportRequest):
     except EncryptedSyncError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
-    result = digital_legacy.import_all(snapshot, read_only=False)
-    return {"status": "ok", "events_imported": result.get("counts", {}).get("event_log", 0)}
+    result = kernel.restore(snapshot, read_only=False)
+    return {"status": "ok", "events_imported": result.get("events_imported", 0)}
 
 
 # --- Demo endpoint (Phase 1: Model Continuity Demo) ---

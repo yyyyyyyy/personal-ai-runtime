@@ -13,6 +13,10 @@ the Kernel Boundary.
 from __future__ import annotations
 
 import json
+import shutil
+import uuid
+from datetime import UTC, datetime
+from pathlib import Path
 from typing import Any
 
 from . import projectors
@@ -22,6 +26,8 @@ from .constants import (
     MEMORY_INDEX_EVENT_TYPES,
     PROJECTION_SNAPSHOT_AGGREGATES,
 )
+
+EXPORT_FORMAT = "snapshot"
 
 
 # All projection tables (derived from _OWNED_TABLES so rebuild / import stay in sync).
@@ -340,3 +346,166 @@ class SovereigntyMixin(_KernelMixinInterface):
         for at in list(projectors._OWNED_TABLES):
             result[at] = self.rebuild(at)
         return result
+
+    # ── Sovereignty operations (ex-DigitalLegacy, now kernel first-class) ─
+
+    def snapshot(self) -> dict[str, Any]:
+        """Export complete personal snapshot: event_log + conversations + messages.
+
+        This is the kernel-space equivalent of DigitalLegacy.export_all().
+        It assembles the snapshot dict from existing sovereignty primitives
+        (export_event_log_rows, export_chat_rows, table_counts) plus a
+        projection checkpoint save.
+        """
+        now = datetime.now(UTC).isoformat()
+        snapshot_id = str(uuid.uuid4())
+
+        event_log = self.export_event_log_rows()
+        conversations, messages = self.export_chat_rows()
+
+        snapshot: dict[str, Any] = {
+            "snapshot_id": snapshot_id,
+            "exported_at": now,
+            "format": EXPORT_FORMAT,
+            "event_log": event_log,
+            "conversations": conversations,
+            "messages": messages,
+            "counts": {
+                "event_log": len(event_log),
+                "conversations": len(conversations),
+                "messages": len(messages),
+                "goals": self.table_counts(("goals",)).get("goals", 0),
+                "memories": self.table_counts(("memories",)).get("memories", 0),
+                "notifications": self.table_counts(("notifications",)).get(
+                    "notifications", 0
+                ),
+            },
+        }
+
+        self.save_projection_snapshots()
+        return snapshot
+
+    def restore(self, snapshot: dict, read_only: bool = True) -> dict[str, Any]:
+        """Import snapshot. Write import requires read_only=False.
+
+        This is the kernel-space equivalent of DigitalLegacy.import_all().
+        Handles snapshot format, event-log-based import, and legacy goal/memory
+        import for older lossy snapshots.
+        """
+        if read_only:
+            return {
+                "valid": True,
+                "format": snapshot.get("format"),
+                "counts": {
+                    "event_log": len(snapshot.get("event_log", [])),
+                    "conversations": len(snapshot.get("conversations", [])),
+                    "messages": len(snapshot.get("messages", [])),
+                },
+            }
+
+        export_format = snapshot.get("format")
+        if export_format == EXPORT_FORMAT or snapshot.get("event_log") is not None:
+            return self._restore_from_snapshot(snapshot)
+        return self._import_legacy_goals_memories(snapshot)
+
+    def _restore_from_snapshot(self, snapshot: dict) -> dict:
+        """Restore from event_log-based snapshot."""
+        event_rows = snapshot.get("event_log", [])
+        conversations = snapshot.get("conversations", [])
+        messages = snapshot.get("messages", [])
+
+        imported_events = self.import_event_log_rows(
+            event_rows, rebuild_projections=True
+        )
+
+        chat_bootstrapped = self.bootstrap_chat_from_snapshot(
+            conversations, messages, event_rows
+        )
+
+        return {
+            "format": EXPORT_FORMAT,
+            "events_imported": imported_events,
+            "conversations_imported": chat_bootstrapped.get("conversations", 0),
+            "messages_imported": chat_bootstrapped.get("messages", 0),
+        }
+
+    def _import_legacy_goals_memories(self, snapshot: dict) -> dict[str, int]:
+        """Best-effort import for older lossy snapshots (goals/memories only)."""
+        from app.core.agents.memory_engine import memory_engine
+        from app.core.agents.user_profile import user_profile
+
+        result: dict[str, int] = {
+            "format": "legacy",
+            "profile_categories": 0,
+            "goals_imported": 0,
+            "memories_imported": 0,
+        }
+
+        profile_data = snapshot.get("profile", {})
+        for category, cat_data in profile_data.items():
+            if isinstance(cat_data, dict) and "data" in cat_data:
+                user_profile.update_profile(
+                    category,
+                    cat_data["data"],
+                    confidence=cat_data.get("confidence", 0.3),
+                )
+                result["profile_categories"] += 1
+
+        for goal in snapshot.get("goals", []):
+            gid = goal.get("id") or str(uuid.uuid4())
+            self.emit_event(
+                "GoalCreated",
+                "goal",
+                gid,
+                payload={
+                    "title": goal.get("title", ""),
+                    "description": goal.get("description", ""),
+                    "status": goal.get("status", "active"),
+                    "importance": goal.get("importance", 0.5),
+                    "urgency": goal.get("urgency", 0.5),
+                },
+                actor="import",
+            )
+            result["goals_imported"] += 1
+
+        for mem in snapshot.get("memories", []):
+            memory_engine.store_memory(
+                mem.get("content", ""),
+                category=mem.get("category", "fact"),
+                source="legacy_import",
+                confidence=float(mem.get("confidence", 0.5)),
+                actor="import",
+            )
+            result["memories_imported"] += 1
+
+        return result
+
+    def erase(self) -> dict:
+        """Remove database and vector store files (irreversible).
+
+        This is the kernel-space equivalent of DigitalLegacy.destroy_all().
+        After erasing, the Database singleton is reinitialized.
+        """
+        from app.config import settings
+
+        db_path = Path(settings.sqlite_path)
+        vector_path = Path(settings.vector_dir)
+
+        if db_path.exists():
+            db_path.unlink()
+        if vector_path.exists():
+            shutil.rmtree(vector_path, ignore_errors=True)
+
+        Path(settings.data_dir).mkdir(parents=True, exist_ok=True)
+        Path(settings.vector_dir).mkdir(parents=True, exist_ok=True)
+
+        from app.store.database import Database
+        import app.store.database as database_module
+
+        Database._instance = None  # type: ignore[attr-defined]
+        database_module.db = Database()
+
+        return {
+            "status": "destroyed",
+            "message": "All local data removed. Restart the server to reinitialize.",
+        }

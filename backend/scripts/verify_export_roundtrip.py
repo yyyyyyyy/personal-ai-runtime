@@ -16,7 +16,7 @@ os.environ.setdefault("LLM_API_KEY", "test-key")
 
 from app.core.agents.conversation import ConversationAPI, ConversationManager
 from app.core.runtime.kernel import Kernel
-from app.product.digital_legacy import EXPORT_FORMAT, DigitalLegacy
+from app.core.runtime.kernel.kernel_sovereignty import EXPORT_FORMAT
 from app.store.database import Database
 
 
@@ -30,7 +30,6 @@ def main() -> int:
 
     source_db = Database(db_path=str(source_path))
     source_kernel = Kernel(db=source_db)
-    legacy = DigitalLegacy(kernel=source_kernel, db=source_db)
 
     source_kernel.emit_event(
         "GoalCreated",
@@ -65,7 +64,7 @@ def main() -> int:
         actor="verify",
     )
 
-    snapshot = legacy.export_all()
+    snapshot = source_kernel.snapshot()
     if snapshot["format"] != EXPORT_FORMAT:
         print(f"FAIL: expected format {EXPORT_FORMAT}", file=sys.stderr)
         return 1
@@ -73,14 +72,13 @@ def main() -> int:
         print("FAIL: event_log too short", file=sys.stderr)
         return 1
 
-    before = legacy.snapshot_counts()
+    before = source_kernel.table_counts(("event_log","conversations","messages","goals","memories","notifications"))
 
     import_db = Database(db_path=str(import_path))
     import_kernel = Kernel(db=import_db)
-    import_legacy = DigitalLegacy(kernel=import_kernel, db=import_db)
 
-    result = import_legacy.import_all(snapshot, read_only=False)
-    after = import_legacy.snapshot_counts()
+    result = import_kernel.restore(snapshot, read_only=False)
+    after = import_kernel.table_counts(("event_log","conversations","messages","goals","memories","notifications"))
 
     failed = False
     for key in ("event_log", "conversations", "messages", "goals", "memories", "notifications"):
