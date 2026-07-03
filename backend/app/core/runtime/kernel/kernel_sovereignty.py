@@ -499,8 +499,8 @@ class SovereigntyMixin(_KernelMixinInterface):
         Path(settings.data_dir).mkdir(parents=True, exist_ok=True)
         Path(settings.vector_dir).mkdir(parents=True, exist_ok=True)
 
-        from app.store.database import Database
         import app.store.database as database_module
+        from app.store.database import Database
 
         Database._instance = None  # type: ignore[attr-defined]
         database_module.db = Database()
