@@ -1,8 +1,9 @@
-"""Tasks API — manage tasks via the Task Engine."""
+"""Tasks API — manage work items via the unified WorkItem model.
 
+v0.5.0: uses WorkItemCreated/StatusChanged/Deleted events and work_items projection.
+"""
 from fastapi import APIRouter, HTTPException
 
-from app.api.models import CreateTaskRequest, UpdateTaskStatusRequest
 from app.core.runtime.kernel_instance import kernel
 from app.core.runtime.task_engine import task_engine
 
@@ -10,92 +11,82 @@ router = APIRouter(prefix="/api/tasks", tags=["tasks"])
 
 
 @router.post("/")
-async def create_task(body: CreateTaskRequest):
-    name = (body.name or body.title).strip()
+async def create_task(body: dict):
+    """Create a task (WorkItem with work_type=task)."""
+    name = (body.get("name") or body.get("title") or "").strip()
     if not name:
-        raise HTTPException(status_code=400, detail="Name is required (field name: 'name' or 'title')")
+        raise HTTPException(status_code=400, detail="Task name is required")
 
-    task = task_engine.create_task(
-        name=name,
-        description=body.description,
-        parent_goal_id=body.parent_goal_id,
-        parent_task_id=body.parent_task_id,
-        priority=body.priority,
-        dependencies=body.dependencies,
+    return task_engine.create_work_item(
+        title=name,
+        description=body.get("description", ""),
+        work_type="task",
+        parent_goal_id=body.get("parent_goal_id"),
+        parent_work_id=body.get("parent_task_id"),
+        priority=body.get("priority", 0),
+        dependencies=body.get("dependencies"),
     )
-    return task
 
 
 @router.get("/")
 async def list_tasks(status: str | None = None, limit: int = 50):
-    return task_engine.list_tasks(status=status, limit=limit)
+    return task_engine.list_work_items(status=status, work_type="task", limit=limit)
 
 
 @router.get("/{task_id}")
 async def get_task(task_id: str):
-    task = task_engine.get_task(task_id)
-    if not task:
+    item = task_engine.get_work_item(task_id)
+    if not item:
         raise HTTPException(status_code=404, detail="Task not found")
-    return task
+    return item
 
 
 @router.get("/{task_id}/subtasks")
 async def get_subtasks(task_id: str):
-    if not task_engine.get_task(task_id):
+    item = task_engine.get_work_item(task_id)
+    if not item:
         raise HTTPException(status_code=404, detail="Task not found")
-    return task_engine.get_subtasks(task_id)
+    return task_engine.get_sub_work_items(task_id)
 
 
 @router.delete("/{task_id}")
 async def delete_task(task_id: str):
-    """Delete a task."""
-    task = task_engine.get_task(task_id)
-    if not task:
+    if not task_engine.get_work_item(task_id):
         raise HTTPException(status_code=404, detail="Task not found")
-    kernel.emit_event(
-        type="TaskDeleted",
-        aggregate_type="task",
-        aggregate_id=task_id,
-        actor="user",
-    )
+    task_engine.delete_work_item(task_id)
     return {"status": "ok"}
 
 
-@router.get("/goals/{goal_id}/tree")
-async def get_task_tree(goal_id: str):
-    if not kernel.query_state("goals", id=goal_id):
-        raise HTTPException(status_code=404, detail="Goal not found")
-    return task_engine.get_task_tree(goal_id)
-
-
-_STATUS_ALIASES = {
-    "in_progress": "running",
-    "in-progress": "running",
-    "done": "completed",
-    "cancel": "cancelled",
-    "failure": "failed",
-}
-
-
 @router.patch("/{task_id}/status")
-async def update_task_status(task_id: str, body: UpdateTaskStatusRequest):
-    status = body.status
-    if not status:
-        raise HTTPException(status_code=400, detail="Status is required")
-
-    normalized = _STATUS_ALIASES.get(status, status)
-    try:
-        task = task_engine.update_task_status(task_id, normalized)
-    except Exception as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
-    if not task:
+async def update_task_status(task_id: str, body: dict):
+    new_status = body.get("status")
+    if not new_status:
+        raise HTTPException(status_code=400, detail="status is required")
+    item = task_engine.update_work_item_status(task_id, new_status)
+    if not item:
         raise HTTPException(status_code=404, detail="Task not found")
-    return task
+    return item
 
 
-@router.get("/{task_id}/dependencies-met")
-async def check_dependencies(task_id: str):
-    task = task_engine.get_task(task_id)
-    if not task:
-        raise HTTPException(status_code=404, detail="Task not found")
-    return {"met": task_engine.are_dependencies_met(task_id)}
+# ── Goal-scoped sub-items ────────────────────────────────────────────────
+
+@router.post("/goal/{goal_id}")
+async def create_goal_task(goal_id: str, body: dict):
+    """Create a sub-item under a goal."""
+    title = (body.get("name") or body.get("title") or "").strip()
+    if not title:
+        raise HTTPException(status_code=400, detail="Task name is required")
+    return task_engine.create_work_item(
+        title=title,
+        description=body.get("description", ""),
+        work_type=body.get("work_type", "task"),
+        parent_goal_id=goal_id,
+        parent_work_id=body.get("parent_task_id"),
+        priority=body.get("priority", 0),
+        executable_plan=body.get("executable_plan"),
+    )
+
+
+@router.get("/goal/{goal_id}")
+async def list_goal_tasks(goal_id: str):
+    return task_engine.get_work_item_tree(goal_id)

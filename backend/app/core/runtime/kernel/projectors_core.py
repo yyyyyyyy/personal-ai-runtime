@@ -297,6 +297,81 @@ def _on_task_deleted(event: Event, conn) -> None:
     conn.execute("DELETE FROM tasks WHERE id = ?", (event.aggregate_id,))
 
 
+# --- Unified WorkItem projection (v0.5.0: merges task + action) ------------
+# The `work_items` table supersedes both `tasks` and `actions`.
+# Old Task* and Action* projectors are kept for backward compatibility
+# with existing event_log data. New code should emit WorkItem* events.
+
+_OWNED_TABLES["work_item"] = ["work_items"]
+
+
+@projector("WorkItemCreated")
+def _on_work_item_created(event: Event, conn) -> None:
+    p = event.payload
+    conn.execute(
+        """INSERT OR REPLACE INTO work_items
+           (id, title, description, work_type, parent_work_id, parent_goal_id,
+            status, priority, dependencies_json, executable_plan, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+        (
+            event.aggregate_id,
+            p.get("title", ""),
+            p.get("description", ""),
+            p.get("work_type", "task"),
+            p.get("parent_work_id"),
+            p.get("parent_goal_id"),
+            p.get("status", "pending"),
+            p.get("priority", 0),
+            p.get("dependencies_json"),
+            p.get("executable_plan"),
+            p.get("created_at", event.ts),
+            event.ts,
+        ),
+    )
+
+
+@projector("WorkItemUpdated")
+def _on_work_item_updated(event: Event, conn) -> None:
+    p = event.payload
+    updatable = ("title", "description", "status", "priority",
+                 "dependencies_json", "executable_plan", "completed_at",
+                 "parent_work_id", "parent_goal_id")
+    fields = [k for k in updatable if k in p]
+    if not fields:
+        return
+    set_clause = ", ".join(f"{k} = ?" for k in fields)
+    params = [p[k] for k in fields]
+    params.append(event.ts)
+    params.append(event.aggregate_id)
+    conn.execute(
+        f"UPDATE work_items SET {set_clause}, updated_at = ? WHERE id = ?",
+        params,
+    )
+
+
+@projector("WorkItemStatusChanged")
+def _on_work_item_status_changed(event: Event, conn) -> None:
+    status = event.payload.get("status")
+    if not status:
+        return
+    extra = []
+    vals = [status, event.ts]
+    if status == "completed":
+        extra.append("completed_at = ?")
+        vals.append(event.ts)
+    completed_clause = ", " + ", ".join(extra) if extra else ""
+    vals.append(event.aggregate_id)
+    conn.execute(
+        f"UPDATE work_items SET status = ?, updated_at = ?{completed_clause} WHERE id = ?",
+        vals,
+    )
+
+
+@projector("WorkItemDeleted")
+def _on_work_item_deleted(event: Event, conn) -> None:
+    conn.execute("DELETE FROM work_items WHERE id = ?", (event.aggregate_id,))
+
+
 # --- Action projection -------------------------------------------------------
 # The `actions` table is the read model for goal sub-actions.
 

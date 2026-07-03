@@ -12,6 +12,7 @@ GOVERNED_TABLES: frozenset[str] = frozenset({
     "goals",
     "actions",
     "tasks",
+    "work_items",  # v0.5.0: unified task + action projection
     "memories",
     "approvals",
     "conversations",
@@ -71,6 +72,11 @@ GOVERNED_SCHEMA: dict[str, frozenset[str]] = {
     "tasks": frozenset({
         "id", "name", "description", "parent_goal_id", "parent_task_id", "status",
         "priority", "dependencies_json", "created_at", "updated_at",
+    }),
+    "work_items": frozenset({  # v0.5.0: unified task + action
+        "id", "title", "description", "work_type", "parent_work_id",
+        "parent_goal_id", "status", "priority", "dependencies_json",
+        "executable_plan", "created_at", "updated_at", "completed_at",
     }),
     "memories": frozenset({
         "id", "category", "content", "source", "embedding_id", "created_at",

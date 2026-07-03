@@ -10,11 +10,20 @@ EVENT_GOAL_CREATED = "GoalCreated"
 EVENT_GOAL_UPDATED = "GoalUpdated"
 EVENT_GOAL_DELETED = "GoalDeleted"
 
+# ── Task / Action (v0.5.0: unified as WorkItem) ──────────────────────
+# DEPRECATED — use WorkItemCreated/Updated/Deleted/StatusChanged instead.
 EVENT_TASK_CREATED = "TaskCreated"
 EVENT_TASK_STARTED = "TaskStarted"
 EVENT_TASK_COMPLETED = "TaskCompleted"
 EVENT_TASK_FAILED = "TaskFailed"
 EVENT_TASK_STATUS_CHANGED = "TaskStatusChanged"
+EVENT_ACTION_CREATED = "ActionCreated"
+
+# ── WorkItem (unified task + action aggregate) ────────────────────────
+EVENT_WORK_ITEM_CREATED = "WorkItemCreated"
+EVENT_WORK_ITEM_UPDATED = "WorkItemUpdated"
+EVENT_WORK_ITEM_DELETED = "WorkItemDeleted"
+EVENT_WORK_ITEM_STATUS_CHANGED = "WorkItemStatusChanged"
 
 EVENT_APPROVAL_REQUESTED = "ApprovalRequested"
 EVENT_APPROVAL_GRANTED = "ApprovalGranted"
@@ -108,6 +117,7 @@ AGGREGATE_CAPABILITY = "capability"
 AGGREGATE_MEMORY = "memory"
 AGGREGATE_CONVERSATION = "conversation"
 AGGREGATE_ACTION = "action"
+AGGREGATE_WORK_ITEM = "work_item"  # v0.5.0: unified task + action aggregate
 AGGREGATE_NOTIFICATION = "notification"
 AGGREGATE_EXECUTION = "execution"
 AGGREGATE_TIMER = "timer"
@@ -136,7 +146,7 @@ EVENT_GRANT_REVOKED = "GrantRevoked"
 
 # ── Snapshot-eligible aggregates ─────────────────────────────────────────────
 
-PROJECTION_SNAPSHOT_AGGREGATES = ("goal", "task", "memory", "conversation")
+PROJECTION_SNAPSHOT_AGGREGATES = ("goal", "task", "work_item", "memory", "conversation")
 
 # ── Memory index event types ────────────────────────────────────────────────
 

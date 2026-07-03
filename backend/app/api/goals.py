@@ -143,11 +143,12 @@ async def delete_goal(goal_id: str):
     if not _get_goal(goal_id):
         raise HTTPException(status_code=404, detail="Goal not found")
 
-    for action in kernel.query_state("actions", goal_id=goal_id):
+    # Delete all sub-items via WorkItemDeleted
+    for item in kernel.query_state("work_items", parent_goal_id=goal_id):
         kernel.emit_event(
-            type="ActionDeleted",
-            aggregate_type="action",
-            aggregate_id=action["id"],
+            type="WorkItemDeleted",
+            aggregate_type="work_item",
+            aggregate_id=item["id"],
             actor="user",
         )
     kernel.emit_event(
@@ -176,12 +177,13 @@ async def create_action(goal_id: str, body: CreateActionRequest):
     now = datetime.now(UTC).isoformat()
 
     kernel.emit_event(
-        type="ActionCreated",
-        aggregate_type="action",
+        type="WorkItemCreated",
+        aggregate_type="work_item",
         aggregate_id=action_id,
         payload={
-            "goal_id": goal_id,
             "title": title,
+            "work_type": "action",
+            "parent_goal_id": goal_id,
             "status": "pending",
             "created_at": now,
         },
@@ -189,16 +191,15 @@ async def create_action(goal_id: str, body: CreateActionRequest):
     )
     kernel.emit_event("GoalTouched", "goal", goal_id, actor="user")
 
-    actions = kernel.query_state("actions", id=action_id)
-    return actions[0] if actions else {"id": action_id, "goal_id": goal_id, "title": title, "status": "pending"}
+    rows = kernel.query_state("work_items", id=action_id)
+    return rows[0] if rows else {"id": action_id, "parent_goal_id": goal_id, "title": title, "status": "pending"}
 
 
 @router.put("/{goal_id}/actions/{action_id}")
 async def update_action(goal_id: str, action_id: str, body: dict):
     """Update an action's status or title."""
-    # Verify action exists
-    actions = kernel.query_state("actions", id=action_id)
-    if not actions:
+    rows = kernel.query_state("work_items", id=action_id)
+    if not rows:
         raise HTTPException(status_code=404, detail="Action not found")
 
     status = body.get("status")
@@ -215,17 +216,16 @@ async def update_action(goal_id: str, action_id: str, body: dict):
 
     if payload:
         kernel.emit_event(
-            type="ActionUpdated",
-            aggregate_type="action",
+            type="WorkItemUpdated",
+            aggregate_type="work_item",
             aggregate_id=action_id,
             payload=payload,
             actor="user",
         )
         kernel.emit_event("GoalTouched", "goal", goal_id, actor="user")
 
-        # 行动完成联动：自动更新目标进度 + 发通知 + 提炼记忆
         if status == "completed":
-            _on_action_completed(goal_id, action_id, actions[0].get("title", ""))
+            _on_action_completed(goal_id, action_id, rows[0].get("title", ""))
 
     return {"status": "ok"}
 
@@ -233,14 +233,13 @@ async def update_action(goal_id: str, action_id: str, body: dict):
 @router.delete("/{goal_id}/actions/{action_id}")
 async def delete_action(goal_id: str, action_id: str):
     """Delete an action."""
-    # Verify action exists
-    actions = kernel.query_state("actions", id=action_id)
-    if not actions:
+    rows = kernel.query_state("work_items", id=action_id)
+    if not rows:
         raise HTTPException(status_code=404, detail="Action not found")
 
     kernel.emit_event(
-        type="ActionDeleted",
-        aggregate_type="action",
+        type="WorkItemDeleted",
+        aggregate_type="work_item",
         aggregate_id=action_id,
         actor="user",
     )
@@ -342,10 +341,10 @@ def _on_action_completed(goal_id: str, action_id: str, action_title: str):
     """联动逻辑：行动完成时自动更新目标进度、发通知、提炼记忆。"""
     try:
         # 1. 计算目标进度（已完成 action 数 / 总 action 数）
-        all_actions = kernel.query_state("actions", goal_id=goal_id, limit=500)
-        if all_actions:
-            completed = sum(1 for a in all_actions if a.get("status") == "completed")
-            progress = completed / len(all_actions)
+        all_items = kernel.query_state("work_items", parent_goal_id=goal_id, limit=500)
+        if all_items:
+            completed = sum(1 for a in all_items if a.get("status") == "completed")
+            progress = completed / len(all_items)
             kernel.emit_event(
                 "GoalUpdated",
                 "goal",
@@ -358,8 +357,8 @@ def _on_action_completed(goal_id: str, action_id: str, action_title: str):
         from app.product.notifications import create_notification
         goal_rows = kernel.query_state("goals", id=goal_id)
         goal_title = goal_rows[0]["title"] if goal_rows else "目标"
-        all_done = all(a.get("status") == "completed" for a in all_actions) if all_actions else False
-        if all_done and all_actions:
+        all_done = all(a.get("status") == "completed" for a in all_items) if all_items else False
+        if all_done and all_items:
             create_notification(
                 "goal_complete",
                 f"目标「{goal_title}」的所有步骤已完成",

@@ -97,6 +97,23 @@ CREATE TABLE IF NOT EXISTS tasks (
     FOREIGN KEY (parent_task_id) REFERENCES tasks(id)
 );
 
+-- v0.5.0: unified work_items table supersedes tasks + actions.
+CREATE TABLE IF NOT EXISTS work_items (
+    id TEXT PRIMARY KEY,
+    title TEXT NOT NULL,
+    description TEXT,
+    work_type TEXT DEFAULT 'task',
+    parent_work_id TEXT,
+    parent_goal_id TEXT,
+    status TEXT DEFAULT 'pending',
+    priority INTEGER DEFAULT 0,
+    dependencies_json TEXT,
+    executable_plan TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    completed_at DATETIME
+);
+
 CREATE TABLE IF NOT EXISTS llm_calls (
     id TEXT PRIMARY KEY,
     provider TEXT NOT NULL,

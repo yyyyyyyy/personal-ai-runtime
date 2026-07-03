@@ -59,9 +59,9 @@ def _on_task_completed(event):
         if status not in ("completed", "failed"):
             return
     rows = kernel.query_state(
-        "tasks",
+        "work_items",
         status="pending",
-        depends_on_task=task_id,
+        parent_work_id=task_id,
     )
 
     from app.core.runtime.task_engine import task_engine

@@ -18,6 +18,8 @@ class QueryStateMixin:
             return self._query_goals(filters)
         if selector == "tasks":
             return self._query_tasks(filters)
+        if selector == "work_items":  # v0.5.0: unified task + action
+            return self._query_work_items(filters)
         if selector == "approvals":
             return self._query_approvals(filters)
         if selector == "actions":
@@ -178,6 +180,51 @@ class QueryStateMixin:
             limit_sql = f" LIMIT {int(limit)}" if limit is not None else ""
             rows = conn.execute(
                 f"SELECT * FROM tasks{where} ORDER BY {order_sql}{limit_sql}",
+                params,
+            ).fetchall()
+        return [dict(r) for r in rows]
+
+    def _query_work_items(self, filters: dict[str, Any]) -> list[dict]:
+        """Unified query for work_items table (v0.5.0: supersedes tasks+actions)."""
+        item_id = filters.get("id")
+        status = filters.get("status")
+        work_type = filters.get("work_type")
+        parent_goal_id = filters.get("parent_goal_id")
+        parent_work_id = filters.get("parent_work_id")
+        limit = filters.get("limit", 50)
+        order = filters.get("order", "created_at_asc")
+
+        order_clauses = {
+            "created_at_asc": "created_at ASC",
+            "created_at_desc": "created_at DESC",
+            "priority_desc": "priority DESC, created_at ASC",
+        }
+        order_sql = order_clauses.get(order, order_clauses["created_at_asc"])
+
+        with self._db.get_db() as conn:
+            if item_id:
+                row = conn.execute("SELECT * FROM work_items WHERE id = ?", (item_id,)).fetchone()
+                return [dict(row)] if row else []
+
+            clauses: list[str] = []
+            params: list[Any] = []
+            if status is not None:
+                clauses.append("status = ?")
+                params.append(status)
+            if work_type is not None:
+                clauses.append("work_type = ?")
+                params.append(work_type)
+            if parent_goal_id is not None:
+                clauses.append("parent_goal_id = ?")
+                params.append(parent_goal_id)
+            if parent_work_id is not None:
+                clauses.append("parent_work_id = ?")
+                params.append(parent_work_id)
+
+            where = f" WHERE {' AND '.join(clauses)}" if clauses else ""
+            params.append(int(limit))
+            rows = conn.execute(
+                f"SELECT * FROM work_items{where} ORDER BY {order_sql} LIMIT ?",
                 params,
             ).fetchall()
         return [dict(r) for r in rows]

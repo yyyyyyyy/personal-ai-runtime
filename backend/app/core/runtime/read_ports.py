@@ -17,8 +17,9 @@ from app.core.runtime.event_formatting import recent_events
 
 
 def query_pending_actions(*, limit: int = 5) -> list[dict[str, Any]]:
+    """Query pending work items (v0.5.0: replaces actions table)."""
     return kernel.query_state(
-        "actions",
+        "work_items",
         status="pending",
         limit=limit,
         order="created_at_asc",
