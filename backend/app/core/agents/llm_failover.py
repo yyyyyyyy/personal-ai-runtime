@@ -116,7 +116,20 @@ class LLMRouter:
 
     def _provider_available(self, provider: LLMProvider) -> bool:
         if provider.provider_type == "ollama":
-            return bool(provider.base_url)
+            if not provider.base_url:
+                return False
+            try:
+                import socket
+                import urllib.parse
+
+                parsed = urllib.parse.urlparse(provider.base_url)
+                host = parsed.hostname or "localhost"
+                port = parsed.port or 11434
+                sock = socket.create_connection((host, port), timeout=0.5)
+                sock.close()
+                return True
+            except OSError:
+                return False
         return bool(provider.api_key)
 
     def list_providers(self) -> list[dict]:

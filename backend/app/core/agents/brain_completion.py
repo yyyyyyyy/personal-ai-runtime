@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import time
 from typing import TYPE_CHECKING, Any
@@ -121,10 +122,20 @@ class BrainCompletionMixin:
         return cleaned
 
     async def _create_llm_stream(self, messages: list[dict]):
-        """Try primary LLM provider, then fallbacks."""
+        """Try primary LLM provider (with retries for transient errors), then fallbacks.
+
+        Transient errors (connection refused, DNS, timeout) on the primary
+        provider are retried with exponential backoff up to 3 attempts before
+        falling back.  Permanent errors (auth, invalid model) skip retry.
+        Fallback providers get a single attempt each.
+        """
+        from openai import APIConnectionError as _OpenAIConnectionError
         from openai import AsyncOpenAI
 
         from app.core.agents.llm_failover import LLMProvider
+
+        TRANSIENT_ERRORS = (_OpenAIConnectionError, TimeoutError, asyncio.TimeoutError)
+        MAX_PRIMARY_ATTEMPTS = 3
 
         candidates: list[tuple[AsyncOpenAI, LLMProvider]] = [
             (self.client, self.provider),
@@ -133,35 +144,58 @@ class BrainCompletionMixin:
         errors: list[str] = []
         llm_start = time.time()
         egress_messages, _egress_audit = prepare_llm_egress(messages, purpose="chat_stream")
-        for client, provider in candidates:
-            try:
-                response = await client.chat.completions.create(  # type: ignore
-                    model=provider.model,
-                    messages=egress_messages,
-                    tools=kernel.list_capability_definitions(),
-                    tool_choice="auto",
-                    temperature=runtime_config.get_generation_params()[0],
-                    max_tokens=runtime_config.get_generation_params()[1],
-                    stream=True,
-                    # Ask the provider to report actual token usage in the
-                    # final chunk so telemetry reflects real cost instead of
-                    # a tiktoken estimate (which over-counts CJK by 20-40%).
-                    stream_options={"include_usage": True},
-                )
-                return response, client, provider
-            except Exception as e:
-                errors.append(f"{provider.name}({type(e).__name__}: {e})")
-                last_error = e
-                telemetry.record_llm_call(LLMCallRecord(
-                    provider=provider.name,
-                    model=provider.model,
-                    latency_ms=(time.time() - llm_start) * 1000,
-                    success=False,
-                    error_message=str(e),
-                ))
+        for idx, (client, provider) in enumerate(candidates):
+            is_primary = idx == 0
+            max_attempts = MAX_PRIMARY_ATTEMPTS if is_primary else 1
+
+            for attempt in range(max_attempts):
+                try:
+                    response = await client.chat.completions.create(  # type: ignore
+                        model=provider.model,
+                        messages=egress_messages,
+                        tools=kernel.list_capability_definitions(),
+                        tool_choice="auto",
+                        temperature=runtime_config.get_generation_params()[0],
+                        max_tokens=runtime_config.get_generation_params()[1],
+                        stream=True,
+                        # Ask the provider to report actual token usage in the
+                        # final chunk so telemetry reflects real cost instead of
+                        # a tiktoken estimate (which over-counts CJK by 20-40%).
+                        stream_options={"include_usage": True},
+                    )
+                    return response, client, provider
+                except TRANSIENT_ERRORS as e:
+                    if attempt < max_attempts - 1:
+                        wait = 1.0 * (2 ** attempt)  # 1s, 2s, 4s
+                        logger.warning(
+                            "Transient error on %s (attempt %d/%d), retrying in %.1fs: %s",
+                            provider.name, attempt + 1, max_attempts, wait, e,
+                        )
+                        await asyncio.sleep(wait)
+                        continue
+                    errors.append(f"{provider.name}({type(e).__name__}: {e})")
+                    telemetry.record_llm_call(LLMCallRecord(
+                        provider=provider.name,
+                        model=provider.model,
+                        latency_ms=(time.time() - llm_start) * 1000,
+                        success=False,
+                        error_message=str(e),
+                    ))
+                    break  # exhausted retries for this provider
+                except Exception as e:
+                    # Permanent error — no retry
+                    errors.append(f"{provider.name}({type(e).__name__}: {e})")
+                    telemetry.record_llm_call(LLMCallRecord(
+                        provider=provider.name,
+                        model=provider.model,
+                        latency_ms=(time.time() - llm_start) * 1000,
+                        success=False,
+                        error_message=str(e),
+                    ))
+                    break
         if len(candidates) > 1:
             raise RuntimeError(f"All LLM providers failed: {'; '.join(errors)}")
-        raise last_error or RuntimeError("No LLM provider available")
+        raise RuntimeError(errors[0]) if errors else RuntimeError("No LLM provider available")
 
     async def _synthesize_from_tool_results(self, messages: list[dict]) -> str:
         """Final text-only pass when the tool loop hits its iteration cap."""

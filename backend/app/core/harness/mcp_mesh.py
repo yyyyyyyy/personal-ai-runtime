@@ -215,15 +215,23 @@ class MCPMesh:
         )
         for config, result in zip(configs, results):
             if isinstance(result, Exception):
-                logger.exception("Failed to connect MCP server '%s'", config.name)
+                logger.warning(
+                    "MCP server '%s' unavailable: %s",
+                    config.name,
+                    type(result).__name__,
+                )
 
     async def _connect_lazy_servers(self, configs: list[ExternalMCPServerConfig]) -> None:
         for config in configs:
             try:
                 await self._connect_server_safe(config)
                 self._pending_configs.pop(config.name, None)
-            except Exception:
-                logger.exception("Failed lazy connect MCP server '%s'", config.name)
+            except Exception as e:
+                logger.warning(
+                    "MCP server '%s' (lazy connect) unavailable: %s",
+                    config.name,
+                    type(e).__name__,
+                )
 
     async def _connect_server_safe(self, config: ExternalMCPServerConfig) -> list[DiscoveredMCPTool]:
         discovered = await self._connect_server(config)
