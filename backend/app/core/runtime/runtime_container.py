@@ -24,7 +24,6 @@ if TYPE_CHECKING:
     from app.core.agents.memory_engine import MemoryEngine
     from app.core.agents.memory_extractor import MemoryExtractor
     from app.core.harness.mcp_hub import MCPHub
-    from app.core.runtime.agent_bus import AgentBus
     from app.core.runtime.background_worker import BackgroundWorker
     from app.core.runtime.capability_governance import CapabilityGovernance
     from app.core.runtime.governance.context_pipeline import ContextPipeline
@@ -94,8 +93,6 @@ class RuntimeContainer:
         # governance
         self._capability_governance: "CapabilityGovernance | None" = None
         self._taint_registry: "TaintRegistry | None" = None
-        # messaging
-        self._agent_bus: "AgentBus | None" = None
         # context
         self._context_pipeline: "ContextPipeline | None" = None
         self._fragment_registry: "FragmentRegistry | None" = None
@@ -153,16 +150,6 @@ class RuntimeContainer:
             self._taint_registry = TaintRegistry()
             self._register("taint_registry", "app.core.runtime.taint", "TaintRegistry")
         return self._taint_registry
-
-    # ── Messaging ──────────────────────────────────────────────────────
-
-    @property
-    def agent_bus(self) -> "AgentBus":
-        if self._agent_bus is None:
-            from app.core.runtime.agent_bus import AgentBus
-            self._agent_bus = AgentBus()
-            self._register("agent_bus", "app.core.runtime.agent_bus", "AgentBus")
-        return self._agent_bus
 
     # ── Context ────────────────────────────────────────────────────────
 
@@ -275,7 +262,6 @@ class RuntimeContainer:
         "_kernel",
         "_capability_governance",
         "_taint_registry",
-        "_agent_bus",
         "_context_pipeline",
         "_fragment_registry",
         "_mcp_hub",

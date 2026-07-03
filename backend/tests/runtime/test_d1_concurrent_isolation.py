@@ -5,7 +5,6 @@ Validates:
   2. Parallel WorkItem enqueue — events are isolated by actor
   3. Execution contextvars — execution_id does not leak across concurrent handlers
   4. Scheduler batch — _MAX_CONCURRENT=8 limit is respected
-  5. AgentBus per-agent queue — concurrent publish does not corrupt agent queues
 """
 
 import asyncio
@@ -206,75 +205,3 @@ def test_scheduler_max_concurrent_batch(kernel):
     assert len(remainder) == 4
 
     scheduler._pending.clear()
-
-
-# ── 5. AgentBus concurrent publish ─────────────────────────────────────
-
-@pytest.mark.asyncio
-async def test_agentbus_concurrent_publish(kernel):
-    """Multiple concurrent publishes through kernel → AgentBus delivery
-    must deliver events to subscribed agents without corruption."""
-    from app.core.runtime.agent_bus import agent_bus
-    from app.core.runtime.agent_definition import AgentDefinition, SubscriptionRule
-
-    # Define agents with matching subscription rules
-    agent_a_def = AgentDefinition(
-        agent_id="concurrent_agent_a",
-        subscriptions=[SubscriptionRule(event_type="GoalCreated")],
-    )
-    agent_b_def = AgentDefinition(
-        agent_id="concurrent_agent_b",
-        subscriptions=[SubscriptionRule(event_type="GoalCreated")],
-    )
-
-    registry = kernel.agent_registry
-    agent_a = await registry.spawn(agent_a_def)
-    agent_b = await registry.spawn(agent_b_def)
-
-    events_received_a: list[str] = []
-    events_received_b: list[str] = []
-
-    async def handler_a(event):
-        events_received_a.append(event.type)
-
-    async def handler_b(event):
-        events_received_b.append(event.type)
-
-    agent_bus.subscribe(
-        agent_id=agent_a.instance_id,
-        rule=agent_a_def.subscriptions[0],
-        handler=handler_a,
-    )
-    agent_bus.subscribe(
-        agent_id=agent_b.instance_id,
-        rule=agent_b_def.subscriptions[0],
-        handler=handler_b,
-    )
-
-    # Concurrent kernel event emission
-    async def emit_batch(prefix: str, count: int = 5):
-        for i in range(count):
-            kernel.emit_event(
-                "GoalCreated", "goal", f"{prefix}_goal_{i}",
-                payload={"title": f"{prefix} goal {i}"}, actor="user",
-            )
-
-    await asyncio.gather(
-        emit_batch("batch_a", 5),
-        emit_batch("batch_b", 5),
-    )
-
-    await asyncio.sleep(0.2)
-
-    assert len(events_received_a) > 0, "Agent A received no events"
-    assert len(events_received_b) > 0, "Agent B received no events"
-
-    for e_type in events_received_a:
-        assert e_type == "GoalCreated"
-    for e_type in events_received_b:
-        assert e_type == "GoalCreated"
-
-    agent_bus.unsubscribe_all(agent_a.instance_id)
-    agent_bus.unsubscribe_all(agent_b.instance_id)
-    await registry.kill(agent_a.instance_id)
-    await registry.kill(agent_b.instance_id)

@@ -20,10 +20,10 @@ reset_settings()
 def _reset_runtime():
     """Reset Runtime subsystems between tests for isolation.
 
-    Without this, global singletons (agent_bus, capability_policy,
+    Without this, global singletons (capability_policy,
     taint_registry, source_registry) can leak state between tests.
 
-    Fixtures that need a fresh start (e.g. agent_bus) can rely on this
+    Fixtures that need a fresh start can rely on this
     baseline cleanup.
     """
     from app.core.runtime.runtime_container import runtime

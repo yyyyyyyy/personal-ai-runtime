@@ -14,7 +14,6 @@ from app.config import settings
 from app.core.agents.brain_completion import BrainCompletionMixin
 from app.core.agents.conversation import ConversationManager
 from app.core.agents.llm_failover import llm_router
-from app.core.agents.memory_extractor import memory_extractor
 from app.core.agents.token_counter import count_message_tokens, count_text_tokens
 from app.core.agents.tool_dispatcher import ToolDispatcher
 from app.core.agents.tool_markup import (
@@ -22,7 +21,6 @@ from app.core.agents.tool_markup import (
     strip_tool_markup,
 )
 from app.core.agents.tool_postprocess import canned_summary, compact_for_llm
-from app.core.runtime.conversation_recorder import record_conversation_turn
 from app.core.runtime.governance.context_pipeline import get_sources
 from app.core.runtime.kernel_instance import kernel
 from app.core.runtime.taint import taint_registry
@@ -255,18 +253,6 @@ class Brain(BrainCompletionMixin):
             except Exception:
                 sources = None
             conversation.save_assistant_message(full_content, sources=sources)
-
-        record_conversation_turn(
-            conversation.conversation_id,
-            user_message,
-            full_content or "",
-        )
-
-        # Fire-and-forget memory extraction (no-op when Ollama unavailable).
-        memory_extractor.schedule(
-            f"User: {user_message}\nAssistant: {full_content}",
-            source=f"conv:{conversation.conversation_id}",
-        )
 
         yield {"type": "done"}
 

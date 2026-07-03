@@ -4,7 +4,7 @@ Distinct from scheduler.py (cron registration): this module is the
 state machine that drives each WorkItem (pending → running → completed),
 persisted in handler_executions for crash recovery.
 
-    Event → AgentBus → AgentInstance.dispatch()
+    Event → AgentInstance.dispatch()
                             ↓
                       enqueue(WorkItem)
                             ↓

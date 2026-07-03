@@ -14,6 +14,7 @@ from app.core.runtime.agent_definition import AgentDefinition, SubscriptionRule
 # Import handlers to register @subscribe decorators
 from . import (
     bypass_handlers,  # noqa: E402, F401
+    chat_completed_handlers,  # noqa: E402, F401
     chat_handler,  # noqa: E402, F401
     timer_trigger_handler,  # noqa: E402, F401
 )
@@ -24,6 +25,7 @@ CHAT_DEFINITION = AgentDefinition(
     agent_id="chat_v1",
     tools=["*"],
     subscriptions=[
+        SubscriptionRule(event_type="ChatCompleted"),
         SubscriptionRule(event_type="ChatRequested"),
         SubscriptionRule(event_type="ApproveRequested"),
         SubscriptionRule(event_type="ExecuteRequested"),

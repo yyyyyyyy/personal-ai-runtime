@@ -1,4 +1,4 @@
-"""Extra coverage tests for timer_engine and agent_bus edge cases."""
+"""Extra coverage tests for timer_engine edge cases."""
 import pytest
 
 
@@ -26,22 +26,3 @@ class TestTimerEngineMore:
     def test_reset_timer_engine(self):
         # reset_timer_engine removed in v0.3.0; timer scanning is now in RuntimeLoop
         pass
-
-
-class TestAgentBusMore:
-    @pytest.mark.asyncio
-    async def test_agent_bus_start_stop(self, isolated_kernel):
-        from app.core.runtime.agent_bus import AgentBus
-        k, db = isolated_kernel
-        bus = AgentBus()
-        await bus.start()
-        assert bus._running is True
-        await bus.stop()
-        assert bus._running is False
-
-    def test_agent_bus_init_defaults(self, isolated_kernel):
-        from app.core.runtime.agent_bus import AgentBus
-        k, db = isolated_kernel
-        bus = AgentBus()
-        assert bus._subscriptions == {}
-        assert bus._queues == {}

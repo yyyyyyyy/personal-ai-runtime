@@ -14,11 +14,12 @@ Sovereignty (export/import/rebuild) → kernel_sovereignty.py (SovereigntyMixin)
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import threading
 from collections import deque
-from typing import TYPE_CHECKING, Any, Callable
+from typing import TYPE_CHECKING, Any, Callable, Callable
 
 from . import projectors
 from .constants import (
@@ -40,10 +41,10 @@ logger = logging.getLogger(__name__)
 Subscriber = Callable[[Event], None]
 
 
-def _log_agent_bus_task_exception(task: "asyncio.Task") -> None:
-    """Done callback for fire-and-forget AgentBus publish tasks.
+def _log_dispatch_task_exception(task: "asyncio.Task") -> None:
+    """Done callback for fire-and-forget Event dispatch tasks.
 
-    Without this, exceptions inside agent_bus.publish() live only in the
+    Without this, exceptions inside async dispatchers live only in the
     task's _exception attribute and are never logged — making production
     debugging nearly impossible.
     """
@@ -52,7 +53,7 @@ def _log_agent_bus_task_exception(task: "asyncio.Task") -> None:
     exc = task.exception()
     if exc is not None:
         logger.error(
-            "AgentBus publish task failed for event: %s",
+            "Event dispatch task failed: %s",
             exc,
             exc_info=exc,
         )
@@ -85,6 +86,7 @@ class Kernel(QueryStateMixin, GovernanceMixin, SovereigntyMixin):
             db = global_db
         self._db = db
         self._subscribers: list[tuple[dict, Subscriber]] = []
+        self._async_dispatchers: list[Callable] = []
         self._pending_commands: dict[tuple[str, str], "asyncio.Future"] = {}
         self._commands_lock = threading.Lock()
         self._ensure_schema()
@@ -440,6 +442,17 @@ class Kernel(QueryStateMixin, GovernanceMixin, SovereigntyMixin):
 
         return unsubscribe
 
+    def register_async_dispatcher(self, dispatcher: Callable) -> None:
+        """Register an async dispatcher that will be fire-and-forget called
+        on every event emitted by this kernel.
+
+        This replaces the old AgentBus mechanism: the persistent agent
+        registers its dispatch handler here, and _dispatch() fires it for
+        every event so the Scheduler can route events to registered
+        @subscribe handlers.
+        """
+        self._async_dispatchers.append(dispatcher)
+
     def _dispatch(self, event: Event) -> None:
         for flt, handler in list(self._subscribers):
             if flt["type"] and flt["type"] != event.type:
@@ -458,41 +471,33 @@ class Kernel(QueryStateMixin, GovernanceMixin, SovereigntyMixin):
                     exc_info=True,
                 )
 
-        # Publish to AgentBus so AgentInstances can react (fire-and-forget).
+        # Fire registered async dispatchers (persistent agent → Scheduler).
         # Storage has already committed; this dispatch is best-effort delivery.
         # If no event loop is running (sync context / tests), we log at DEBUG
         # so the gap is observable. P1 (Event Log = truth) is not violated
         # because storage has already committed the event by this point;
         # subscribers that miss the live push will see it on next read_events.
-        try:
-            import asyncio
-
-            from app.core.runtime.agent_bus import agent_bus
-
-            loop = asyncio.get_running_loop()
-            task = loop.create_task(agent_bus.publish(event))
-            # Log exceptions that would otherwise be silently swallowed.
-            task.add_done_callback(_log_agent_bus_task_exception)
-            # Hold a strong reference to prevent "was never awaited" warnings
-            # when the event loop shuts down before the task completes.
-            if not hasattr(self, "_agent_bus_tasks"):
-                self._agent_bus_tasks: set[asyncio.Task] = set()
-            # Use done callback for O(1) cleanup instead of filtering on every dispatch
-            task.add_done_callback(self._agent_bus_tasks.discard)
-            self._agent_bus_tasks.add(task)
-        except RuntimeError:
-            # No running loop — fire-and-forget delivery is unavailable. This
-            # is expected in synchronous test contexts. We log at DEBUG (not
-            # silent) so the gap is observable; P1 (Event Log = truth) is not
-            # violated because storage has already committed the event.
-            logger.debug(
-                "AgentBus dispatch skipped (no running loop) for %s "
-                "aggregate=%s/%s — event is persisted, subscribers "
-                "will see it on next read_events/replay.",
-                event.type,
-                event.aggregate_type,
-                event.aggregate_id,
-            )
+        if self._async_dispatchers:
+            try:
+                loop = asyncio.get_running_loop()
+                for dispatcher in list(self._async_dispatchers):
+                    task = loop.create_task(dispatcher(event))
+                    task.add_done_callback(_log_dispatch_task_exception)
+                    if not hasattr(self, "_dispatch_tasks"):
+                        self._dispatch_tasks: set[asyncio.Task] = set()
+                    task.add_done_callback(self._dispatch_tasks.discard)
+                    self._dispatch_tasks.add(task)
+            except RuntimeError:
+                # No running loop — fire-and-forget delivery is unavailable.
+                # This is expected in synchronous test contexts.
+                logger.debug(
+                    "Event dispatch skipped (no running loop) for %s "
+                    "aggregate=%s/%s — event is persisted, subscribers "
+                    "will see it on next read_events/replay.",
+                    event.type,
+                    event.aggregate_type,
+                    event.aggregate_id,
+                )
 
         # Resolve pending submit_command Futures.
         # When a "Completed" event with matching correlation_id arrives,
