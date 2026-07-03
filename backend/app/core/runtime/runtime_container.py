@@ -24,7 +24,6 @@ if TYPE_CHECKING:
     from app.core.agents.memory_engine import MemoryEngine
     from app.core.agents.memory_extractor import MemoryExtractor
     from app.core.harness.mcp_hub import MCPHub
-    from app.core.runtime.background_worker import BackgroundWorker
     from app.core.runtime.capability_governance import CapabilityGovernance
     from app.core.runtime.governance.context_pipeline import ContextPipeline
     from app.core.runtime.kernel.kernel import Kernel
@@ -248,11 +247,6 @@ class RuntimeContainer:
     def trigger_engine(self) -> "TriggerEngine":
         from app.core.runtime.trigger_engine import trigger_engine
         return trigger_engine
-
-    @property
-    def background_worker(self) -> "BackgroundWorker":
-        from app.core.runtime.background_worker import background_worker
-        return background_worker
 
     # ── Lifecycle ──────────────────────────────────────────────────────
 

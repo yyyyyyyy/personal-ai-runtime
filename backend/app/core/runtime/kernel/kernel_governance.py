@@ -16,12 +16,11 @@ import uuid
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
-from ._mixin_protocol import _KernelMixinInterface
 
 DEFAULT_APPROVAL_TTL_SECONDS = 86_400  # 24 hours
 
 
-class GovernanceMixin(_KernelMixinInterface):
+class GovernanceMixin:
     """Approval governance for capability invocations.
 
     Mixed into Kernel. Uses self._db, self.emit_event, and related

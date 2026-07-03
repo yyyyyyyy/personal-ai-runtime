@@ -19,8 +19,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from . import projectors
-from ._mixin_protocol import _KernelMixinInterface
+from .projectors import projectors
 from .constants import (
     CHAT_EVENT_TYPES,
     MEMORY_INDEX_EVENT_TYPES,
@@ -40,7 +39,7 @@ def _all_projection_tables() -> set[str]:
     return result
 
 
-class SovereigntyMixin(_KernelMixinInterface):
+class SovereigntyMixin:
     """Data sovereignty operations — export, import, rebuild.
 
     Mixed into Kernel. Uses self._db, self.emit_event, self.read_events,

@@ -269,7 +269,7 @@ async def poll_inbox(limit: int = 20, *, execution_id: str | None = None) -> dic
     """Poll unread inbox via Execution chain (InboxPollRequested → handler)."""
     import uuid
 
-    from app.core.runtime.agent_bootstrap import ensure_agent
+    from app.core.runtime.agent_bootstrap import ensure_scheduler
     from app.core.runtime.agent_scheduler import get_scheduler
 
     if execution_id:
@@ -290,7 +290,7 @@ async def poll_inbox(limit: int = 20, *, execution_id: str | None = None) -> dic
             return {"status": "error", "error": "invalid inbox JSON", "new_count": 0}
         return await apply_inbox_poll_payload(payload, execution_id=execution_id)
 
-    await ensure_agent(kernel)
+    await ensure_scheduler(kernel)
     scheduler = get_scheduler(kernel)
     await scheduler.start()
     result = await kernel.submit_command(

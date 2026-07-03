@@ -8,7 +8,7 @@ from fastapi import APIRouter, HTTPException
 
 from app.api.models import CreateActionRequest, CreateGoalRequest
 from app.core.runtime.kernel_instance import kernel
-from app.core.runtime.legacy_event_adapter import goal_legacy_events
+from app.core.runtime.event_formatting import goal_events
 
 router = APIRouter(prefix="/api/goals", tags=["goals"])
 
@@ -94,7 +94,7 @@ async def get_goal(goal_id: str):
         raise HTTPException(status_code=404, detail="Goal not found")
     goal = goals[0]
     goal["actions"] = kernel.query_state("actions", goal_id=goal_id)
-    goal["events"] = goal_legacy_events(goal_id, limit=10)
+    goal["events"] = goal_events(goal_id, limit=10)
     return goal
 
 

@@ -1,15 +1,14 @@
 """Cron scheduler — timer-driven scheduling via Runtime Timer Engine.
 
-v0.3.0: Timer scanning is now driven by RuntimeLoop. This module retains
-cron registration (ensure_schedules) and dependency triggers.
+v0.4.0: ensure_schedules inlined from deleted timer_engine.py.
 """
-
 from __future__ import annotations
 
 import logging
 from datetime import UTC, datetime, timedelta
 
 from app.core.runtime.kernel_instance import kernel
+from app.core.runtime.runtime_loop import RuntimeLoop
 
 logger = logging.getLogger(__name__)
 
@@ -33,9 +32,23 @@ def init_scheduler():
 
 def _init_timers():
     """Register TimerCreated events for all scheduled cron jobs."""
-    from app.core.runtime.timer_engine import ensure_schedules
-
-    ensure_schedules(SCHEDULES)
+    for sched in SCHEDULES:
+        name = sched["name"]
+        existing = kernel.query_state("timer_events", id=name, limit=1)
+        if existing:
+            continue
+        cron_expr = sched.get("cron_expr", "")
+        next_fire = RuntimeLoop._next_cron_fire(cron_expr)
+        kernel.emit_event(
+            "TimerCreated", "timer", name,
+            payload={
+                "handler_name": sched.get("handler_name", ""),
+                "schedule_type": sched.get("schedule_type", "cron"),
+                "cron_expr": cron_expr,
+                "fire_at": next_fire,
+            },
+            actor="system",
+        )
 
 
 def _on_task_completed(event):

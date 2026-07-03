@@ -8,10 +8,8 @@ from __future__ import annotations
 
 from typing import Any
 
-from ._mixin_protocol import _KernelMixinInterface
 
-
-class QueryStateMixin(_KernelMixinInterface):
+class QueryStateMixin:
     """Read layer: query_state and projection table accessors."""
 
     def query_state(self, selector: str, **filters: Any) -> list[dict]:

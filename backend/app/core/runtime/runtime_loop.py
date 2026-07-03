@@ -256,7 +256,7 @@ class RuntimeLoop:
 
     async def _process_background_tasks(self) -> None:
         """Process pending background tasks."""
-        from app.core.runtime.agent_bootstrap import ensure_agent
+        from app.core.runtime.agent_bootstrap import ensure_scheduler
         from app.core.runtime.agent_scheduler import get_scheduler
         from app.core.runtime.kernel.constants import (
             AGGREGATE_BACKGROUND_TASK,
@@ -275,7 +275,7 @@ class RuntimeLoop:
                 payload={"task_id": task_id, "status": "running", "progress": 0.1},
                 actor="background",
             )
-            await ensure_agent(kernel)
+            await ensure_scheduler(kernel)
             sch = get_scheduler(kernel)
             await sch.start()
             await kernel.submit_command(

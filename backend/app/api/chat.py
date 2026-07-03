@@ -11,7 +11,6 @@ from app.core.agents.brain import Brain
 from app.core.agents.conversation import ConversationAPI, ConversationManager
 from app.core.agents.tool_markup import strip_tool_markup
 from app.core.runtime.kernel_instance import kernel
-from app.store.database import db
 
 router = APIRouter(prefix="/api/chat", tags=["chat"])
 
@@ -64,7 +63,7 @@ async def get_messages(conv_id: str, limit: int = 100):
     conv = ConversationAPI.get(conv_id)
     if not conv:
         raise HTTPException(status_code=404, detail="Conversation not found")
-    rows = db.get_recent_messages(conv_id, limit=limit)
+    rows = kernel.query_state("messages", conversation_id=conv_id, limit=limit, order="created_at_asc")
     result = []
     for row in rows:
         item = dict(row)
@@ -97,8 +96,8 @@ async def send_message(conv_id: str, body: SendMessageRequest):
 
     correlation_id = f"chat_{uuid.uuid4().hex[:12]}"
 
-    from app.core.runtime.agent_bootstrap import ensure_agent
-    await ensure_agent(kernel)
+    from app.core.runtime.agent_bootstrap import ensure_scheduler
+    await ensure_scheduler(kernel)
 
     from app.core.runtime.agent_scheduler import get_scheduler
     scheduler = get_scheduler(kernel)
@@ -239,8 +238,8 @@ async def resolve_approval(approval_id: str, body: ResolveApprovalRequest):
     tool_name, tool_args = _load_pending_approval(approval_id)
     _reject_client_approval_mismatch(body, tool_name, tool_args)
 
-    from app.core.runtime.agent_bootstrap import ensure_agent
-    await ensure_agent(kernel)
+    from app.core.runtime.agent_bootstrap import ensure_scheduler
+    await ensure_scheduler(kernel)
     from app.core.runtime.agent_scheduler import get_scheduler
     scheduler = get_scheduler(kernel)
     await scheduler.start()

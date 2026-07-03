@@ -44,7 +44,7 @@ async def approve(approval_id: str):
     context, the conversation is automatically resumed; otherwise the
     capability is still executed but no conversation reply is sent.
     """
-    from app.core.runtime.agent_bootstrap import ensure_agent
+    from app.core.runtime.agent_bootstrap import ensure_scheduler
     from app.core.runtime.agent_scheduler import get_scheduler
 
     approval = capability_governance.get_approval(kernel, approval_id)
@@ -81,7 +81,7 @@ async def approve(approval_id: str):
             if chat_events:
                 conv_id = chat_events[0].aggregate_id
 
-    await ensure_agent(kernel)
+    await ensure_scheduler(kernel)
     scheduler = get_scheduler(kernel)
     await scheduler.start()
 
@@ -110,7 +110,7 @@ async def approve(approval_id: str):
 @router.post("/{approval_id}/reject")
 async def reject(approval_id: str, reason: str = ""):
     """Reject a pending approval through the standard handler pipeline."""
-    from app.core.runtime.agent_bootstrap import ensure_agent
+    from app.core.runtime.agent_bootstrap import ensure_scheduler
     from app.core.runtime.agent_scheduler import get_scheduler
 
     approval = capability_governance.get_approval(kernel, approval_id)
@@ -119,7 +119,7 @@ async def reject(approval_id: str, reason: str = ""):
     if approval.get("status") != "pending":
         raise HTTPException(status_code=400, detail=f"Approval is already {approval.get('status')}")
 
-    await ensure_agent(kernel)
+    await ensure_scheduler(kernel)
     scheduler = get_scheduler(kernel)
     await scheduler.start()
 

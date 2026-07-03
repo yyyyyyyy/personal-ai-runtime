@@ -13,7 +13,7 @@ from datetime import date as date_type
 from typing import Any
 
 from app.core.runtime.kernel_instance import kernel
-from app.core.runtime.legacy_event_adapter import recent_legacy_events
+from app.core.runtime.event_formatting import recent_events
 
 
 def query_pending_actions(*, limit: int = 5) -> list[dict[str, Any]]:
@@ -66,7 +66,7 @@ def search_inbox_emails(query: str, *, limit: int = 30) -> list[dict[str, Any]]:
 
 
 def query_recent_legacy_events(*, days: int = 7, limit: int = 20) -> list[dict[str, Any]]:
-    return recent_legacy_events(
+    return recent_events(
         kernel.read_events,
         days=days,
         limit=limit,

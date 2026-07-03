@@ -1,46 +1,36 @@
-"""Runtime agent bootstrap — ensures a persistent agent for event routing (ADR Unification).
+"""Agent bootstrap — ensures the event-to-WorkItem dispatcher is running.
 
-The Scheduler's execution chain requires an AgentInstance to route events
-(via AgentInstance.dispatch → Scheduler.enqueue → handler). This module
-ensures one exists, reused across all handler endpoints.
-
-v0.3: agent_bus removed — the persistent agent registers its dispatch
-directly with the kernel via register_async_dispatcher.
+v0.4.0: Agent lifecycle (spawn/start/stop/checkpoint) removed.
+Scheduler is the only execution engine — no Agent abstraction needed.
 """
-
 from __future__ import annotations
 
-_spawned = False
-_SINGLETON_INSTANCE_ID: str | None = None
+_started = False
 
 
-async def ensure_agent(kernel) -> None:
-    """Spawn a single persistent agent and register with kernel.
+async def ensure_scheduler(kernel) -> None:
+    """Ensure the Scheduler is running and the event dispatcher is registered.
 
-    Only one agent is spawned (singleton). Chat, Approve, Execute, and
-    BackgroundTask events all route through the same agent instance because
-    handler_registry dispatches by event type, not by agent.
+    Registers a kernel-level dispatcher that routes all emitted events to the
+    Scheduler's WorkItem engine. Handler matching is done by handler_registry.
     """
-    global _spawned, _SINGLETON_INSTANCE_ID
-    if _spawned:
+    global _started
+    if _started:
         return
 
-    from app.core.agents.mvp import CHAT_DEFINITION
+    from app.core.runtime.agent_scheduler import get_scheduler
+    from app.core.runtime.handler_registry import get_handler
 
-    registry = kernel.agent_registry
-    instance = await registry.spawn(CHAT_DEFINITION, correlation_id="unified_agent")
-    _SINGLETON_INSTANCE_ID = instance.instance_id
+    sch = get_scheduler(kernel)
+    await sch.start()
 
-    async def _dispatch(event, aid=instance.instance_id):
-        inst = registry.get(aid)
-        if inst is not None:
-            await inst.dispatch(event)
+    _AGENT_ID = "agent:primary"
 
-    kernel.register_async_dispatcher(_dispatch)
+    async def _dispatch_to_scheduler(event):
+        handler = get_handler(event.type)
+        if handler is None:
+            return
+        sch.enqueue(_AGENT_ID, _AGENT_ID, event)
 
-    _spawned = True
-
-
-def get_singleton_instance_id() -> str | None:
-    """Return the singleton agent's instance_id, or None if not yet spawned."""
-    return _SINGLETON_INSTANCE_ID
+    kernel.register_async_dispatcher(_dispatch_to_scheduler)
+    _started = True

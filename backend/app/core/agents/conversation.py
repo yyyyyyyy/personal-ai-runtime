@@ -14,7 +14,6 @@ from datetime import UTC, datetime
 from app.config import settings
 from app.core.agents.tool_markup import strip_tool_markup
 from app.core.runtime.kernel_instance import kernel as default_kernel
-from app.store.database import db
 
 
 def _now() -> str:
@@ -37,7 +36,12 @@ class ConversationManager:
         If since_created_at is provided, only return messages created after
         that timestamp (enables incremental fetching for long conversations).
         """
-        messages = db.get_recent_messages(self.conversation_id, limit=settings.max_recent_messages)
+        messages = self._k().query_state(
+            "messages",
+            conversation_id=self.conversation_id,
+            limit=settings.max_recent_messages,
+            order="created_at_asc",
+        )
         result = []
         for msg in messages:
             if since_created_at and msg["created_at"] <= since_created_at:

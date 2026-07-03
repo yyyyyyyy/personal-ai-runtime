@@ -8,7 +8,7 @@ import json
 from datetime import UTC, datetime, timedelta
 
 from app.core.runtime.kernel_instance import kernel
-from app.core.runtime.legacy_event_adapter import to_legacy_dict
+from app.core.runtime.event_formatting import to_legacy_dict
 
 
 class WorldModel:

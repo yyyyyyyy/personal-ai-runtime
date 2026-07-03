@@ -93,7 +93,7 @@ class Kernel(QueryStateMixin, GovernanceMixin, SovereigntyMixin):
 
     @property
     def agent_registry(self) -> "AgentRegistry":
-        """Lazy-initialized AgentRegistry for multi-agent runtime support."""
+        """Lazy-initialized AgentRegistry (minimal stub in single-user mode)."""
         if not hasattr(self, "_agent_registry"):
             from app.core.runtime.agent_registry import AgentRegistry
             self._agent_registry = AgentRegistry(self)
