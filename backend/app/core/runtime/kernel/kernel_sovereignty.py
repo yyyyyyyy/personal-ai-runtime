@@ -429,12 +429,12 @@ class SovereigntyMixin(_KernelMixinInterface):
             "messages_imported": chat_bootstrapped.get("messages", 0),
         }
 
-    def _import_legacy_goals_memories(self, snapshot: dict) -> dict[str, int]:
+    def _import_legacy_goals_memories(self, snapshot: dict) -> dict[str, Any]:
         """Best-effort import for older lossy snapshots (goals/memories only)."""
         from app.core.agents.memory_engine import memory_engine
         from app.core.agents.user_profile import user_profile
 
-        result: dict[str, int] = {
+        result: dict[str, Any] = {
             "format": "legacy",
             "profile_categories": 0,
             "goals_imported": 0,
