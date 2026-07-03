@@ -19,7 +19,7 @@ import json
 import logging
 import threading
 from collections import deque
-from typing import TYPE_CHECKING, Any, Callable, Callable
+from typing import TYPE_CHECKING, Any, Callable
 
 from . import projectors
 from .constants import (
