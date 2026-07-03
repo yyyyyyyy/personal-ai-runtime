@@ -43,11 +43,7 @@ source = ["app/api", "app/product"]
 # NOTE: Several runtime modules are omitted from coverage enforcement.
 # These are either (a) lifecycle/initialization code that is exercised by
 # integration tests rather than unit tests, or (b) under active refactoring.
-# Track removal of these omits as a follow-up — see ROADMAP Phase 3.7.
-#
-# app/api/workflows.py is deregistered from main.py since v0.2.0 (route
-# 注销, API 保留) — it is dead code until re-enabled, so excluded from the
-# gate to avoid penalising the real API surface.
+# Track removal of these omits as a follow-up.
 omit = [
     "app/experimental/*",
     "app/core/runtime/memory_decay.py",
@@ -55,5 +51,4 @@ omit = [
     "app/core/runtime/runtime_loop.py",
     "app/core/runtime/capability_governance.py",
     "app/core/runtime/capability_policy.py",
-    "app/api/workflows.py",
 ]

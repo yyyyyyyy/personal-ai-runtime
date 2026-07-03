@@ -1,7 +1,6 @@
-"""Integration tests for B3: Trigger engine reads event_log (not legacy events table)."""
+"""Integration tests for B3: Trigger engine reads event_log."""
 
 import os
-from datetime import UTC, datetime
 
 import pytest
 
@@ -137,32 +136,6 @@ class TestThresholdReadsEventLog:
         results = engine.evaluate_all()
         matching = [r for r in results if r.get("trigger_id") == tid["id"]]
         assert len(matching) == 0  # only 1 event, threshold is 5
-
-    def test_threshold_does_not_read_legacy_events_table(self, b3_setup, monkeypatch):
-        """Verify _eval_threshold ignores the legacy events table."""
-        engine, kernel, db = b3_setup
-
-        # Write directly to the legacy events table
-        with db.get_db() as conn:
-            for i in range(100):
-                conn.execute(
-                    "INSERT INTO events (id, type, summary, timestamp) VALUES (?, ?, ?, ?)",
-                    (f"legacy_evt_{i}", "email_received", f"Email {i}", datetime.now(UTC).isoformat()),
-                )
-
-        tid = engine.create_trigger(
-            "test_legacy_ignored",
-            "threshold",
-            {"event_type": "InboxEmailRecorded", "count": 5, "window_days": 1},
-            "suggestion",
-            {"template": "should not fire"},
-        )
-
-        # The 100 legacy events are "email_received" type, not "InboxEmailRecorded"
-        # The trigger looks for "InboxEmailRecorded" in event_log — none exist
-        results = engine.evaluate_all()
-        matching = [r for r in results if r.get("trigger_id") == tid["id"]]
-        assert len(matching) == 0
 
     def test_threshold_respects_time_window(self, b3_setup):
         engine, kernel, db = b3_setup

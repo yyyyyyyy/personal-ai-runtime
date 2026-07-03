@@ -31,8 +31,6 @@ PROJECTION_TABLES = (
     "timer_events",
     "policy_events",
     "grant_events",
-    # C1: ban INSERT INTO the legacy events table (single source of truth = event_log)
-    "events",
 )
 KERNEL_PREFIX = Path("core/runtime/kernel")
 HARNESS_PREFIX = Path("core/harness")

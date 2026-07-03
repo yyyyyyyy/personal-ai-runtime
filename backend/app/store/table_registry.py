@@ -34,8 +34,6 @@ GOVERNED_TABLES: frozenset[str] = frozenset({
 # (c) hold app-local config with no audit requirement. They must never be
 # presented as a second source of truth.
 APP_STORAGE_TABLES: frozenset[str] = frozenset({
-    # Legacy events table — kept for migration; superseded by event_log.
-    "events",
     # Human-readable activity log; derived from event_log via projection.
     "activity_log",
     # LLM call telemetry (latency, tokens, cost). Observational metric, not a

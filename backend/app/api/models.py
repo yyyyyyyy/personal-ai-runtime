@@ -118,17 +118,6 @@ class CreateBackgroundTaskRequest(BaseModel):
     plan: dict | None = None
 
 
-# ── Workflow model ────────────────────────────────────────────────────────
-
-
-class CreateWorkflowRequest(BaseModel):
-    name: str = "未命名工作流"
-    description: str = ""
-    nodes: list[dict] = Field(default_factory=list)
-    edges: list[dict] = Field(default_factory=list)
-    enabled: bool = False
-
-
 class InstallConnectorRequest(BaseModel):
     name: str
     config: dict = Field(default_factory=dict)

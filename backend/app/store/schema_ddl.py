@@ -63,18 +63,6 @@ CREATE TABLE IF NOT EXISTS messages (
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (conversation_id) REFERENCES conversations(id)
 );
-
--- Legacy events table (superseded by event_log via legacy_event_adapter) --
-CREATE TABLE IF NOT EXISTS events (
-    id TEXT PRIMARY KEY,
-    type TEXT NOT NULL,
-    summary TEXT NOT NULL,
-    goal_id TEXT,
-    payload TEXT,
-    timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (goal_id) REFERENCES goals(id)
-);
-
 CREATE TABLE IF NOT EXISTS notifications (
     id TEXT PRIMARY KEY,
     type TEXT NOT NULL,
