@@ -1,3 +1,4 @@
+# mypy: disable-error-code="attr-defined"
 """Kernel Sovereignty Mixin — export, import, and rebuild.
 
 Extracted from kernel.py. Handles the data sovereignty lifecycle:

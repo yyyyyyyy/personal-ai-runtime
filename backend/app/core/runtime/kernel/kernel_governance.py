@@ -1,3 +1,4 @@
+# mypy: disable-error-code="attr-defined"
 """Kernel Governance Mixin — approval and authorization workflows.
 
 Extracted from kernel.py to keep the main kernel module focused on the

@@ -1,3 +1,4 @@
+# mypy: disable-error-code="attr-defined"
 """Kernel Query State Mixin — read-only projection queries.
 
 Extracted from kernel.py to keep the main module focused on the write ABI
