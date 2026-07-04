@@ -49,6 +49,7 @@ def apply_raw_ddl(db: Database) -> None:
     """Apply inline DDL for test/custom databases (no Alembic)."""
     from app.store.schema_ddl import (
         APP_STORAGE_DDL,
+        APP_STORAGE_DDL_TAIL,
         EVENT_LOG_SCHEMA,
         GRANT_EVENTS_SCHEMA,
         HANDLER_EXECUTIONS_SCHEMA,
@@ -56,10 +57,13 @@ def apply_raw_ddl(db: Database) -> None:
         POLICY_EVENTS_SCHEMA,
         PROJECTION_CHECKPOINTS_SCHEMA,
         TIMER_EVENTS_SCHEMA,
+        WORK_ITEMS_SCHEMA,
     )
 
     with db.get_db() as conn:
         conn.executescript(APP_STORAGE_DDL)
+        conn.executescript(WORK_ITEMS_SCHEMA)
+        conn.executescript(APP_STORAGE_DDL_TAIL)
         conn.executescript(EVENT_LOG_SCHEMA)
         conn.executescript(PROJECTION_CHECKPOINTS_SCHEMA)
         conn.executescript(HANDLER_EXECUTIONS_SCHEMA)
@@ -75,20 +79,21 @@ def apply_raw_ddl(db: Database) -> None:
 
 
 def ensure_schema(db: Database) -> None:
-    """Initialize schema: Alembic on production path, raw DDL elsewhere.
-
-    The v02_projection_tables Alembic migration now creates timer_events,
-    policy_events, grant_events and adds messages.sources — so the
-    Alembic path no longer needs apply_projection_ddl().
-    """
+    """Initialize schema: Alembic on production path, raw DDL elsewhere."""
     if not uses_alembic(db.db_path):
         apply_raw_ddl(db)
         return
 
     try:
         from app.store.alembic_runner import run_migrations
-
         run_migrations()
     except Exception as exc:
         logger.warning("Alembic migrations unavailable, using raw DDL: %s", exc)
         apply_raw_ddl(db)
+        return
+
+    # v0.5.0: work_items table not in Alembic migrations yet.
+    # Ensure it's created even when Alembic path is used.
+    from app.store.schema_ddl import WORK_ITEMS_SCHEMA
+    with db.get_db() as conn:
+        conn.executescript(WORK_ITEMS_SCHEMA)

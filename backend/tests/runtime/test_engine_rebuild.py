@@ -53,9 +53,10 @@ class TestEngineRebuildConsistency:
         engine.update_task_status(child["id"], "blocked")
         engine.update_task_status(parent["id"], "completed")
 
-        before = snapshot_table(db, "tasks")
-        k.rebuild("task")
-        after = snapshot_table(db, "tasks")
+        before = snapshot_table(db, "work_items")
+        assert before, "work_items table should have entries"
+        k.rebuild("work_item")
+        after = snapshot_table(db, "work_items")
         assert before == after
         assert any(t["id"] == child["id"] and t["status"] == "blocked" for t in after)
 

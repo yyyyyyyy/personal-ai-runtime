@@ -22,18 +22,11 @@ def _reset_scheduler():
     """
     from app.core.runtime import agent_bootstrap
     from app.core.runtime.agent_scheduler import reset_scheduler
-    from app.core.runtime.kernel_instance import kernel
 
     reset_scheduler()
-    agent_bootstrap._spawned = False
+    agent_bootstrap._started = False
 
-    # Kill stale CHAT agent so ensure_agent() won't hit max_instances
-    for inst in list(kernel.agent_registry._instances.values()):
-        if inst.definition.agent_id == "chat_v1":
-            kernel.agent_registry._instances.pop(inst.instance_id, None)
-
-    # Clean up stale handler_executions that would be recovered by the
-    # fresh scheduler, since they reference events from other test runs.
+    # Clean up stale handler_executions
     try:
         from app.store.database import db
         with db.get_db() as conn:
@@ -42,10 +35,7 @@ def _reset_scheduler():
         pass
     yield
     reset_scheduler()
-    agent_bootstrap._spawned = False
-    for inst in list(kernel.agent_registry._instances.values()):
-        if inst.definition.agent_id == "chat_v1":
-            kernel.agent_registry._instances.pop(inst.instance_id, None)
+    agent_bootstrap._started = False
     try:
         from app.store.database import db
         with db.get_db() as conn:

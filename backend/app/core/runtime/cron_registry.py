@@ -53,19 +53,19 @@ def _init_timers():
 
 def _on_task_completed(event):
     """When a task completes, start dependents whose dependencies are met."""
-    task_id = event.aggregate_id
     if event.type == "TaskStatusChanged":
         status = (event.payload or {}).get("status")
         if status not in ("completed", "failed"):
             return
-    rows = kernel.query_state(
-        "work_items",
-        status="pending",
-        parent_work_id=task_id,
-    )
 
     from app.core.runtime.task_engine import task_engine
 
+    rows = kernel.query_state(
+        "tasks",
+        status="pending",
+        order="created_at_asc",
+        limit=100,
+    )
     for task in rows:
         if task_engine.are_dependencies_met(task["id"]):
             task_engine.update_task_status(task["id"], "running")

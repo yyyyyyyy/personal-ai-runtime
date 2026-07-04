@@ -1,4 +1,4 @@
-"""Tests for Task Engine."""
+"""Tests for Task Engine (v0.6.0: uses work_items + backward-compat aliases)."""
 import os
 
 os.environ["LLM_API_KEY"] = "test-key"
@@ -9,13 +9,13 @@ from app.core.runtime.task_engine import task_engine
 class TestTaskEngine:
     def test_create_and_get_task(self):
         task = task_engine.create_task(name="Test Task", description="A test task")
-        assert task["name"] == "Test Task"
+        assert task["title"] == "Test Task"
         assert task["status"] == "pending"
         assert task["description"] == "A test task"
 
         retrieved = task_engine.get_task(task["id"])
         assert retrieved is not None
-        assert retrieved["name"] == "Test Task"
+        assert retrieved["title"] == "Test Task"
 
     def test_create_subtask(self):
         parent = task_engine.create_task(name="Parent Task")
@@ -24,12 +24,12 @@ class TestTaskEngine:
             parent_task_id=parent["id"],
             priority=5,
         )
-        assert child["parent_task_id"] == parent["id"]
+        assert child["parent_work_id"] == parent["id"]
         assert child["priority"] == 5
 
         subtasks = task_engine.get_subtasks(parent["id"])
         assert len(subtasks) == 1
-        assert subtasks[0]["name"] == "Child Task"
+        assert subtasks[0]["title"] == "Child Task"
 
     def test_task_for_goal(self):
         task = task_engine.create_task(name="Standalone Task")

@@ -1,35 +1,19 @@
 """Raw SQL DDL for non-Alembic database initialization (tests and fallback)."""
 
 APP_STORAGE_DDL = """
-CREATE TABLE IF NOT EXISTS memories (
-    id TEXT PRIMARY KEY,
-    category TEXT NOT NULL,
-    content TEXT NOT NULL,
-    source TEXT,
-    embedding_id TEXT,
-    confidence REAL DEFAULT 0.5,
-    derived_from_event TEXT,
-    decayed_at DATETIME,
-    status TEXT DEFAULT 'active',
-    origin TEXT DEFAULT 'claim',
-    claim_status TEXT,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-);
-
 CREATE TABLE IF NOT EXISTS goals (
     id TEXT PRIMARY KEY,
     title TEXT NOT NULL,
     description TEXT,
     status TEXT DEFAULT 'active',
-    progress REAL DEFAULT 0.0,
+    progress REAL DEFAULT 0,
     importance REAL DEFAULT 0.5,
     urgency REAL DEFAULT 0.5,
-    deadline DATETIME,
+    deadline TEXT,
     parent_id TEXT,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    last_activity_at DATETIME,
-    FOREIGN KEY (parent_id) REFERENCES goals(id)
+    last_activity_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS actions (
@@ -96,8 +80,12 @@ CREATE TABLE IF NOT EXISTS tasks (
     FOREIGN KEY (parent_goal_id) REFERENCES goals(id),
     FOREIGN KEY (parent_task_id) REFERENCES tasks(id)
 );
+"""
 
--- v0.5.0: unified work_items table supersedes tasks + actions.
+# v0.5.0: unified work_items table supersedes tasks + actions.
+# Must be executed in ALL paths (raw DDL + Alembic) because Alembic
+# migrations don't include this table yet.
+WORK_ITEMS_SCHEMA = """
 CREATE TABLE IF NOT EXISTS work_items (
     id TEXT PRIMARY KEY,
     title TEXT NOT NULL,
@@ -113,7 +101,9 @@ CREATE TABLE IF NOT EXISTS work_items (
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     completed_at DATETIME
 );
+"""
 
+APP_STORAGE_DDL_TAIL = """
 CREATE TABLE IF NOT EXISTS llm_calls (
     id TEXT PRIMARY KEY,
     provider TEXT NOT NULL,
@@ -174,54 +164,66 @@ CREATE TABLE IF NOT EXISTS triggers (
 CREATE TABLE IF NOT EXISTS user_profile (
     id TEXT PRIMARY KEY,
     category TEXT NOT NULL,
-    data_json TEXT NOT NULL,
-    confidence REAL DEFAULT 0.5,
-    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE(category)
-);
-
-CREATE TABLE IF NOT EXISTS inbox_emails (
-    id TEXT PRIMARY KEY,
-    sender TEXT,
-    subject TEXT,
-    preview TEXT,
-    received_at DATETIME,
-    category TEXT,
-    importance REAL DEFAULT 0.5,
-    reason TEXT,
-    notified INTEGER DEFAULT 0,
-    digested INTEGER DEFAULT 0,
-    status TEXT DEFAULT 'pending',
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    data_json TEXT,
+    confidence REAL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS app_settings (
     category TEXT PRIMARY KEY,
-    data_json TEXT NOT NULL,
+    data_json TEXT,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS inbox_emails (
+    id TEXT PRIMARY KEY,
+    server_id TEXT,
+    sender TEXT,
+    subject TEXT,
+    date TEXT,
+    preview TEXT,
+    full_text TEXT,
+    status TEXT DEFAULT 'unread',
+    category TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    received_at DATETIME
+);
+CREATE TABLE IF NOT EXISTS events (
+    id TEXT PRIMARY KEY,
+    type TEXT,
+    payload TEXT,
+    timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+    goal_id TEXT,
+    summary TEXT
+);
+CREATE TABLE IF NOT EXISTS email_settings (
+    provider TEXT DEFAULT 'gmail',
+    user TEXT,
+    password TEXT,
+    imap_host TEXT,
+    smtp_host TEXT
 );
 """
 
-# ── Kernel-space DDL ──────────────────────────────────────────────────────
-# Moved from kernel.py to keep schema concerns in the store layer.
-
 EVENT_LOG_SCHEMA = """
 CREATE TABLE IF NOT EXISTS event_log (
-    seq            INTEGER PRIMARY KEY AUTOINCREMENT,
-    id             TEXT NOT NULL UNIQUE,
-    type           TEXT NOT NULL,
-    aggregate_type TEXT NOT NULL,
-    aggregate_id   TEXT NOT NULL,
-    actor          TEXT NOT NULL DEFAULT 'system',
-    payload        TEXT,
-    caused_by      TEXT,
-    correlation_id TEXT,
-    ts             DATETIME DEFAULT CURRENT_TIMESTAMP
+    seq       INTEGER PRIMARY KEY AUTOINCREMENT,
+    id        TEXT    UNIQUE NOT NULL,
+    type      TEXT    NOT NULL,
+    aggregate_type TEXT NOT NULL DEFAULT '',
+    aggregate_id   TEXT NOT NULL DEFAULT '',
+    actor     TEXT    NOT NULL DEFAULT 'system',
+    payload   TEXT    NOT NULL DEFAULT '{}',
+    caused_by       TEXT    DEFAULT NULL,
+    correlation_id  TEXT    DEFAULT NULL,
+    ts        TEXT    NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_event_log_aggregate
-    ON event_log (aggregate_type, aggregate_id, seq);
+    ON event_log (aggregate_type, aggregate_id);
 CREATE INDEX IF NOT EXISTS idx_event_log_correlation
     ON event_log (correlation_id);
+
 CREATE TRIGGER IF NOT EXISTS event_log_no_update
     BEFORE UPDATE ON event_log
     BEGIN SELECT RAISE(ABORT, 'event_log is append-only: UPDATE forbidden'); END;
@@ -232,31 +234,31 @@ CREATE TRIGGER IF NOT EXISTS event_log_no_delete
 
 PROJECTION_CHECKPOINTS_SCHEMA = """
 CREATE TABLE IF NOT EXISTS projection_checkpoints (
-    agent_id         TEXT NOT NULL DEFAULT 'kernel',
-    aggregate_type   TEXT NOT NULL,
-    last_applied_seq INTEGER NOT NULL,
-    snapshot_json    TEXT NOT NULL,
-    created_at       TEXT NOT NULL,
+    agent_id        TEXT    NOT NULL,
+    aggregate_type  TEXT    NOT NULL,
+    last_applied_seq INTEGER NOT NULL DEFAULT 0,
+    snapshot_json   TEXT    NOT NULL DEFAULT '{}',
+    created_at      TEXT    NOT NULL,
     PRIMARY KEY (agent_id, aggregate_type)
 );
 """
 
 HANDLER_EXECUTIONS_SCHEMA = """
 CREATE TABLE IF NOT EXISTS handler_executions (
-    id               TEXT PRIMARY KEY,
-    event_seq        INTEGER NOT NULL,
-    event_id         TEXT NOT NULL,
-    event_type       TEXT NOT NULL,
-    handler_name     TEXT NOT NULL,
-    instance_id      TEXT NOT NULL,
-    status           TEXT NOT NULL DEFAULT 'pending',
-    retry_count      INTEGER NOT NULL DEFAULT 0,
-    policy_json      TEXT NOT NULL DEFAULT '{}',
-    correlation_id   TEXT NOT NULL DEFAULT '',
-    created_at       TEXT NOT NULL,
-    started_at       TEXT NOT NULL DEFAULT '',
-    completed_at     TEXT NOT NULL DEFAULT '',
-    error            TEXT NOT NULL DEFAULT ''
+    id            TEXT PRIMARY KEY,
+    event_seq     INTEGER NOT NULL,
+    event_id      TEXT    NOT NULL,
+    event_type    TEXT    NOT NULL,
+    handler_name  TEXT    NOT NULL,
+    instance_id   TEXT    NOT NULL,
+    status        TEXT    NOT NULL DEFAULT 'pending',
+    retry_count   INTEGER NOT NULL DEFAULT 0,
+    policy_json   TEXT    DEFAULT NULL,
+    correlation_id TEXT   DEFAULT '',
+    created_at    TEXT    DEFAULT NULL,
+    started_at    TEXT    DEFAULT NULL,
+    completed_at  TEXT    DEFAULT NULL,
+    error         TEXT    DEFAULT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_handler_executions_status
     ON handler_executions (status);
@@ -266,28 +268,28 @@ CREATE INDEX IF NOT EXISTS idx_handler_executions_instance
 
 TIMER_EVENTS_SCHEMA = """
 CREATE TABLE IF NOT EXISTS timer_events (
-    id               TEXT PRIMARY KEY,
-    handler_name     TEXT NOT NULL,
-    schedule_type    TEXT NOT NULL DEFAULT 'cron',
-    cron_expr        TEXT NOT NULL DEFAULT '',
-    delay_seconds    REAL NOT NULL DEFAULT 0,
-    fire_at          TEXT NOT NULL DEFAULT '',
-    status           TEXT NOT NULL DEFAULT 'active',
-    created_at       TEXT NOT NULL,
-    fired_at         TEXT NOT NULL DEFAULT ''
+    id            TEXT PRIMARY KEY,
+    handler_name  TEXT NOT NULL,
+    schedule_type TEXT NOT NULL,
+    cron_expr     TEXT,
+    delay_seconds INTEGER,
+    fire_at       TEXT NOT NULL,
+    status        TEXT NOT NULL DEFAULT 'active',
+    created_at    TEXT DEFAULT NULL,
+    fired_at      TEXT DEFAULT NULL
 );
-CREATE INDEX IF NOT EXISTS idx_timer_events_status
+CREATE INDEX IF NOT EXISTS idx_timer_events_status_fire
     ON timer_events (status, fire_at);
 """
 
 POLICY_EVENTS_SCHEMA = """
 CREATE TABLE IF NOT EXISTS policy_events (
-    id               TEXT PRIMARY KEY,
-    capability       TEXT NOT NULL,
-    risk_level       TEXT NOT NULL DEFAULT 'low',
-    status           TEXT NOT NULL DEFAULT 'active',
-    created_at       TEXT NOT NULL,
-    updated_at       TEXT NOT NULL
+    id          TEXT PRIMARY KEY,
+    capability  TEXT NOT NULL,
+    risk_level  TEXT NOT NULL DEFAULT 'low',
+    status      TEXT NOT NULL DEFAULT 'active',
+    created_at  TEXT NOT NULL,
+    updated_at  TEXT NOT NULL DEFAULT ''
 );
 CREATE INDEX IF NOT EXISTS idx_policy_events_capability
     ON policy_events (capability);
