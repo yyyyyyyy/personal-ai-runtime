@@ -80,6 +80,21 @@ CREATE TABLE IF NOT EXISTS tasks (
     FOREIGN KEY (parent_goal_id) REFERENCES goals(id),
     FOREIGN KEY (parent_task_id) REFERENCES tasks(id)
 );
+
+CREATE TABLE IF NOT EXISTS memories (
+    id TEXT PRIMARY KEY,
+    category TEXT NOT NULL,
+    content TEXT NOT NULL,
+    source TEXT,
+    embedding_id TEXT,
+    confidence REAL DEFAULT 0.5,
+    derived_from_event TEXT,
+    decayed_at DATETIME,
+    status TEXT DEFAULT 'active',
+    origin TEXT DEFAULT 'claim',
+    claim_status TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
 """
 
 # v0.5.0: unified work_items table supersedes tasks + actions.
@@ -186,6 +201,8 @@ CREATE TABLE IF NOT EXISTS inbox_emails (
     full_text TEXT,
     status TEXT DEFAULT 'unread',
     category TEXT,
+    importance REAL DEFAULT 0.5,
+    reason TEXT,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     received_at DATETIME
 );

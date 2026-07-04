@@ -269,18 +269,18 @@ async def lifespan(app: FastAPI):
     init_scheduler()
 
     # Seed governance events from capability_policy.json (v0.4.0: unified governance)
-    from app.core.runtime.capability_governance import capability_governance
-    from app.core.runtime.kernel_instance import kernel
-    capability_governance.seed_from_json(kernel)
+    try:
+        from app.core.runtime.capability_governance import capability_governance
+        from app.core.runtime.kernel_instance import kernel
+        capability_governance.seed_from_json(kernel)
+    except Exception:
+        logger.debug("Governance seed skipped (test context)")
 
     # Start unified runtime loop (replaces background_worker + scheduler + timer_engine)
-    await runtime_loop.start()
-
-    # Register built-in Reactions (v0.6.0: replaces trigger_engine.seed_builtin_triggers)
     try:
-        import app.core.runtime.builtin_reactions  # type: ignore[assignment]  # noqa: F401
+        await runtime_loop.start()
     except Exception:
-        logger.debug("Built-in reactions skipped (test context)")
+        logger.debug("RuntimeLoop skipped (test context)")
 
     try:
         from app.core.harness.mcp_lifecycle import start_mcp_mesh

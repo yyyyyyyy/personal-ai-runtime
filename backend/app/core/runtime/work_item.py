@@ -128,7 +128,8 @@ class WorkItem:
     @classmethod
     def from_row(cls, row: dict) -> "WorkItem":
         import json
-        policy_raw = json.loads(row.get("policy_json", "{}"))
+        raw = row.get("policy_json") or "{}"
+        policy_raw = json.loads(raw)
         policy = ExecutionPolicy(
             timeout_seconds=policy_raw.get("timeout", 30.0),
             max_retries=policy_raw.get("max_retries", 3),
