@@ -330,7 +330,7 @@ def generate_inbox_digest() -> dict | None:
         rows = conn.execute(
             """SELECT category, sender, subject, reason, importance
                FROM inbox_emails
-               WHERE COALESCE(digested, 0) = 0 AND COALESCE(status, 'pending') = 'pending'
+               WHERE COALESCE(digested, 0) = 0
                ORDER BY importance DESC, created_at DESC
                LIMIT 50"""
         ).fetchall()
