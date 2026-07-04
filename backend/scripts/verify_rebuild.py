@@ -37,20 +37,20 @@ SAMPLE_SCENARIO: list[tuple[str, str, str, dict[str, Any]]] = [
     ("MemoryDerived", "memory", "m1", {"category": "fact", "content": "Likes Rust", "confidence": 0.8}),
     ("MemoryUpdated", "memory", "m1", {"content": "Prefers Rust", "confidence": 0.9}),
     ("MemoryDeleted", "memory", "m1", {}),
-    # Tasks
-    ("TaskCreated", "task", "t1", {
-        "name": "Ship feature",
+    # WorkItem (v0.5.0: unified task + action)
+    ("WorkItemCreated", "work_item", "wi1", {
+        "title": "Ship feature",
         "description": "Build runtime",
-        "parent_task_id": None,
+        "work_type": "task",
+        "parent_work_id": None,
+        "parent_goal_id": None,
         "dependencies_json": None,
         "priority": 1,
+        "status": "pending",
     }),
-    ("TaskStatusChanged", "task", "t1", {"status": "running"}),
-    ("TaskCompleted", "task", "t1", {}),
-    # Actions
-    ("ActionCreated", "action", "act1", {"goal_id": "g2", "title": "Do thing", "status": "pending"}),
-    ("ActionUpdated", "action", "act1", {"status": "completed"}),
-    ("ActionDeleted", "action", "act1", {}),
+    ("WorkItemStatusChanged", "work_item", "wi1", {"status": "running"}),
+    ("WorkItemStatusChanged", "work_item", "wi1", {"status": "completed"}),
+    ("WorkItemDeleted", "work_item", "wi1", {}),
     # Conversations
     ("ConversationCreated", "conversation", "conv1", {"title": "Rebuild chat"}),
     (
@@ -82,14 +82,9 @@ SAMPLE_SCENARIO: list[tuple[str, str, str, dict[str, Any]]] = [
     ("PolicyCreated", "policy", "policy_read_file", {"capability": "read_file", "risk_level": "low"}),
     ("PolicyCreated", "policy", "policy_shell_exec", {"capability": "shell_exec", "risk_level": "high"}),
     ("PolicyCreated", "policy", "policy_forbidden_tool", {"capability": "forbidden_tool", "risk_level": "forbidden"}),
-    # Grant (Phase 3)
-    ("GrantCreated", "grant", "grant_agent1_web_search", {"principal_id": "agent1", "capability": "web_search"}),
-    ("GrantCreated", "grant", "grant_agent1_wildcard", {"principal_id": "agent1", "capability": "*"}),
-    ("GrantRevoked", "grant", "grant_agent1_wildcard", {}),
     # Timer (Phase 2)
     ("TimerCreated", "timer", "timer_cron_1", {"handler_name": "test_timer", "schedule_type": "cron", "cron_expr": "hour=8,minute=0", "fire_at": "2026-06-10T08:00:00Z"}),
     ("TimerFired", "timer", "timer_cron_1", {"fired_at": "2026-06-10T08:00:00Z"}),
-    ("TimerCancelled", "timer", "timer_cron_1", {}),
 ]
 
 
@@ -107,7 +102,7 @@ def main():
     db = Database(db_path=str(db_path))
     k = Kernel(db=db)
 
-    tables = ["goals", "actions", "approvals", "memories", "tasks", "conversations", "messages", "notifications", "timer_events", "policy_events", "grant_events"]
+    tables = ["goals", "work_items", "approvals", "memories", "conversations", "messages", "notifications", "timer_events", "policy_events"]
 
     # 1. Emit sample scenario
     for evt in SAMPLE_SCENARIO:
