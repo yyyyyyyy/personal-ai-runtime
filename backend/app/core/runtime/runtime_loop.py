@@ -177,7 +177,7 @@ class RuntimeLoop:
     async def _maintenance(self) -> None:
         """Background maintenance (ex-background_worker polling)."""
         try:
-            await kernel.agent_registry.cleanup_stale()
+            await kernel.cleanup_stale()
         except Exception:
             logger.exception("Agent cleanup failed")
 

@@ -34,8 +34,6 @@ from .query_builder import build_where, safe_limit, safe_order
 if TYPE_CHECKING:
     import asyncio
 
-    from .agent_registry import AgentRegistry
-
 logger = logging.getLogger(__name__)
 
 Subscriber = Callable[[Event], None]
@@ -91,19 +89,16 @@ class Kernel(QueryStateMixin, GovernanceMixin, SovereigntyMixin):
         self._commands_lock = threading.Lock()
         self._ensure_schema()
 
-    @property
-    def agent_registry(self) -> "AgentRegistry":
-        """Lazy-initialized AgentRegistry (minimal stub in single-user mode)."""
-        if not hasattr(self, "_agent_registry"):
-            from app.core.runtime.agent_registry import AgentRegistry
-            self._agent_registry = AgentRegistry(self)
-        return self._agent_registry
+    # -- Task & Agent lifecycle -----------------------------------------------
 
     def _ensure_schema(self) -> None:
         """Run Alembic migrations; fall back to raw DDL for test/custom DBs."""
         from app.store.schema_init import ensure_schema
-
         ensure_schema(self._db)
+
+    async def cleanup_stale(self, max_age_seconds: int | None = None) -> list[str]:
+        """No-op stub — Agent lifecycle was removed in v0.4.0 (single-user mode)."""
+        return []
 
     # --- Truth layer ---------------------------------------------------------
 
@@ -711,7 +706,7 @@ class Kernel(QueryStateMixin, GovernanceMixin, SovereigntyMixin):
     def metrics(self) -> dict[str, int]:
         """Return runtime health/counters for observability."""
         return {
-            "registry_instances": len(self.agent_registry),
+            "registry_instances": 0,  # v0.4.0: Agent lifecycle removed (single-user)
         }
 
     # --- WorkItem persistence (Execution Model) ---------------------------

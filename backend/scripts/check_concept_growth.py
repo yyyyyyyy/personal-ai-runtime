@@ -109,13 +109,7 @@ def count_god_object_max_loc() -> int:
 # historical evolution.  These files have zero runtime callers.
 # When a file from this list is deleted, also remove its entry here so the
 # dead_code_files count decreases.
-_KNOWN_DEAD_FILES = [
-    "backend/app/core/runtime/capability_policy.py",        # full duplicate of capability_governance
-    "backend/app/core/runtime/agent_registry.py",           # all-methods-return-[] stub
-    "backend/app/core/runtime/execution_shadow_compare.py", # approved-for-deletion shadow compare
-    "backend/app/fragments/universal/actions.py",           # superseded by timeline fragment
-    "backend/app/fragments/universal/events.py",            # superseded by timeline fragment
-]
+_KNOWN_DEAD_FILES: list[str] = []
 
 
 def count_dead_code_files() -> int:
@@ -129,14 +123,14 @@ def count_dead_code_files() -> int:
 # the table in docs/02-concepts/runtime-algebra.md §4.6.
 
 BASELINE = {
-    "runtime_files": 61,               # core/runtime/ 递归 .py 文件数
+    "runtime_files": 58,               # core/runtime/ 递归 .py 文件数 (-3 dead files removed)
     "event_types": 67,                 # constants.py 中的 EVENT_* = "..." 赋值
     "query_state_selectors": 15,
     "fragments": 13,                   # register.py 的 _ALL_FRAGMENT_CLASSES 中的 Fragment 类
     "governed_tables": 15,
     "projector_files": 9,              # kernel/projectors_*.py 文件数（不含 projectors.py 调度器）
     "god_object_max_loc": 2010,        # 最大 God Object LOC (Kernel + mixins)
-    "dead_code_files": 5,              # 已知死代码文件数（参见 _KNOWN_DEAD_FILES）
+    "dead_code_files": 0,              # 已知死代码文件数（参见 _KNOWN_DEAD_FILES）
 }
 
 

@@ -1,7 +1,9 @@
-"""Coverage tests for capability_policy external MCP tool registration."""
+"""Coverage tests for capability governance external MCP tool registration.
+
+v0.7.0: Migrated from capability_policy → capability_governance (superset)."""
 import pytest
 
-from app.core.runtime.capability_policy import capability_policy
+from app.core.runtime.capability_governance import capability_governance
 from app.core.runtime.kernel import Kernel
 from app.store.database import Database
 
@@ -15,34 +17,34 @@ def kernel():
 
 def test_register_external_tool_auto_allow(kernel):
     """Registering a low-risk external tool caches it in memory."""
-    capability_policy.register_external_tool("ext_tool_1", risk="low")
-    risk = capability_policy.risk_for("ext_tool_1")
+    capability_governance.register_external_tool("ext_tool_1", risk="low")
+    risk = capability_governance.risk_for("ext_tool_1")
     assert risk == "low"
 
 
 def test_register_external_tool_high_risk(kernel):
     """Registering a high-risk external tool returns 'high'."""
-    capability_policy.register_external_tool("ext_tool_2", risk="high")
-    risk = capability_policy.risk_for("ext_tool_2")
+    capability_governance.register_external_tool("ext_tool_2", risk="high")
+    risk = capability_governance.risk_for("ext_tool_2")
     assert risk == "high"
 
 
 def test_register_external_tool_forbidden(kernel):
     """Registering a forbidden external tool returns 'forbidden'."""
-    capability_policy.register_external_tool("ext_danger", risk="forbidden")
-    risk = capability_policy.risk_for("ext_danger")
+    capability_governance.register_external_tool("ext_danger", risk="forbidden")
+    risk = capability_governance.risk_for("ext_danger")
     assert risk == "forbidden"
 
 
 def test_clear_external_tools(kernel):
     """After clearing external tools, risk_for reverts unknown tools to default."""
-    capability_policy.register_external_tool("ext_temp", risk="low")
-    capability_policy.clear_external_tools()
-    risk = capability_policy.risk_for("ext_temp")
+    capability_governance.register_external_tool("ext_temp", risk="low")
+    capability_governance.clear_external_tools()
+    risk = capability_governance.risk_for("ext_temp")
     assert risk in ("low", "high")
 
 
 def test_risk_for_unknown_tool_default(kernel):
     """risk_for on unknown tool returns default risk."""
-    risk = capability_policy.risk_for("completely_unknown_tool")
+    risk = capability_governance.risk_for("completely_unknown_tool")
     assert risk in ("low", "high")

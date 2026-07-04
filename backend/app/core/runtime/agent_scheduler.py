@@ -37,7 +37,48 @@ from app.core.runtime.execution_events import (
     emit_execution_retried,
     emit_execution_started,
 )
-from app.core.runtime.execution_shadow_compare import verify_persist_matches_projection
+
+# ── Shadow-compare helpers (inlined from execution_shadow_compare.py, v0.7.0) ──
+
+_SHADOW_FIELDS: tuple[str, ...] = (
+    "id", "status", "retry_count", "created_at", "started_at", "completed_at",
+    "error", "policy_json", "event_seq", "event_id", "handler_name",
+    "instance_id", "correlation_id",
+)
+
+
+def _shadow_compare(kernel, item) -> list[str]:
+    """Verify WorkItem.to_row() matches what the projector wrote to handler_executions."""
+    import json
+
+    def _normalize(row: dict) -> dict:
+        out = {k: row.get(k) for k in _SHADOW_FIELDS if k in row}
+        pj = out.get("policy_json")
+        if isinstance(pj, str) and pj:
+            out["policy_json"] = json.dumps(json.loads(pj), sort_keys=True)
+        for key in ("started_at", "completed_at", "error"):
+            if out.get(key) is None:
+                out[key] = ""
+        return out
+
+    persist = item.to_row()
+    with kernel._db.get_db() as conn:
+        row = conn.execute(
+            "SELECT * FROM handler_executions WHERE id = ?", (item.id,),
+        ).fetchone()
+    if row is None:
+        diffs = ["handler_executions row missing after dual-write"]
+    else:
+        exp = _normalize(persist)
+        act = _normalize(dict(row))
+        diffs = [
+            f"{k}: persist={exp.get(k)!r} projection={act.get(k)!r}"
+            for k in _SHADOW_FIELDS if exp.get(k) != act.get(k)
+        ]
+    if diffs:
+        _log.warning("shadow compare mismatch for %s: %s", item.id, "; ".join(diffs))
+    return diffs
+
 
 if TYPE_CHECKING:
     from .kernel.event import Event
@@ -155,7 +196,7 @@ class Scheduler:
         between the event payload semantics and the projector's SQL.
         """
         emit_fn()
-        verify_persist_matches_projection(self._kernel, item)
+        _shadow_compare(self._kernel, item)
 
     # --- enqueue ---------------------------------------------------------
 

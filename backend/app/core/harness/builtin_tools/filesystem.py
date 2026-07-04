@@ -26,7 +26,6 @@ def default_protected_paths() -> list[str]:
         str(runtime / "kernel"),
         str(base / "backend/scripts/check_boundary.py"),
         str(base / "backend/capability_policy.json"),
-        str(runtime / "capability_policy.py"),
         str(runtime / "taint.py"),
         str(runtime / "sensitive_router.py"),
         str(base / ".env"),

@@ -9,7 +9,7 @@ Validates:
 
 import pytest
 
-from app.core.runtime.capability_policy import capability_policy
+from app.core.runtime.capability_governance import capability_governance
 from app.core.runtime.kernel import Kernel
 from app.store.database import Database
 
@@ -20,7 +20,7 @@ def kernel(tmp_path):
     db = Database(db_path=str(tmp_path / "c3_policy.db"))
     k = Kernel(db=db)
     # Simulate startup: seed the JSON-based policies and store kernel reference
-    capability_policy.seed_from_json(k)
+    capability_governance.seed_from_json(k)
     return k
 
 
@@ -28,12 +28,12 @@ def kernel(tmp_path):
 def _reset_policy():
     """Clean up external tools after each test."""
     yield
-    capability_policy.clear_external_tools()
+    capability_governance.clear_external_tools()
 
 
 def test_register_external_tool_emits_policy_created(kernel):
     """register_external_tool emits PolicyCreated into event_log."""
-    capability_policy.register_external_tool("mock_external_search", risk="high")
+    capability_governance.register_external_tool("mock_external_search", risk="high")
 
     events = kernel.read_events(aggregate_type="policy")
     created = [e for e in events if e.type == "PolicyCreated" and e.payload.get("capability") == "mock_external_search"]
@@ -44,7 +44,7 @@ def test_register_external_tool_emits_policy_created(kernel):
 
 def test_rebuild_recovers_external_tool_policy(kernel):
     """rebuild("policy") recovers external tool policy from event_log."""
-    capability_policy.register_external_tool("mock_external_search", risk="high")
+    capability_governance.register_external_tool("mock_external_search", risk="high")
 
     # Verify it's in the projection
     rows = kernel.query_state("policy_events", capability="mock_external_search", status="active")
@@ -61,10 +61,10 @@ def test_rebuild_recovers_external_tool_policy(kernel):
 
 def test_clear_external_tools_emits_policy_revoked(kernel):
     """clear_external_tools emits PolicyRevoked and clears in-memory cache."""
-    capability_policy.register_external_tool("mock_external_search", risk="high")
-    capability_policy.register_external_tool("mock_external_write", risk="forbidden")
+    capability_governance.register_external_tool("mock_external_search", risk="high")
+    capability_governance.register_external_tool("mock_external_write", risk="forbidden")
 
-    capability_policy.clear_external_tools()
+    capability_governance.clear_external_tools()
 
     # Verify PolicyRevoked events exist
     events = kernel.read_events(aggregate_type="policy")
@@ -74,15 +74,15 @@ def test_clear_external_tools_emits_policy_revoked(kernel):
     assert capabilities == {"mock_external_search", "mock_external_write"}
 
     # In-memory cache is empty
-    assert not capability_policy._external_auto_allow
-    assert not capability_policy._external_needs_user
-    assert not capability_policy._external_forbidden
+    assert not capability_governance._external_auto_allow
+    assert not capability_governance._external_needs_user
+    assert not capability_governance._external_forbidden
 
 
 def test_rebuild_after_clear_excludes_revoked(kernel):
     """After clear, rebuild("policy") should NOT include revoked tools as active."""
-    capability_policy.register_external_tool("mock_external_search", risk="high")
-    capability_policy.clear_external_tools()
+    capability_governance.register_external_tool("mock_external_search", risk="high")
+    capability_governance.clear_external_tools()
 
     kernel.rebuild("policy")
 
@@ -97,11 +97,11 @@ def test_rebuild_after_clear_excludes_revoked(kernel):
 
 def test_reregister_after_clear_reactivates(kernel):
     """Re-registering after clear emits a new PolicyCreated (re-activation)."""
-    capability_policy.register_external_tool("mock_external_search", risk="high")
-    capability_policy.clear_external_tools()
+    capability_governance.register_external_tool("mock_external_search", risk="high")
+    capability_governance.clear_external_tools()
 
     # Re-register
-    capability_policy.register_external_tool("mock_external_search", risk="low")
+    capability_governance.register_external_tool("mock_external_search", risk="low")
 
     # Verify the tool is now active with the new risk
     rows = kernel.query_state("policy_events", capability="mock_external_search", status="active")
@@ -124,9 +124,9 @@ def test_reregister_after_clear_reactivates(kernel):
 
 def test_risk_update_emits_policy_updated(kernel):
     """Changing risk on an existing active external tool emits PolicyUpdated."""
-    capability_policy.register_external_tool("mock_external_search", risk="high")
+    capability_governance.register_external_tool("mock_external_search", risk="high")
     # Re-register with different risk
-    capability_policy.register_external_tool("mock_external_search", risk="forbidden")
+    capability_governance.register_external_tool("mock_external_search", risk="forbidden")
 
     events = kernel.read_events(aggregate_type="policy")
     updated = [e for e in events if e.type == "PolicyUpdated" and e.payload.get("capability") == "mock_external_search"]
@@ -141,11 +141,11 @@ def test_risk_update_emits_policy_updated(kernel):
 
 def test_no_duplicate_event_on_same_risk(kernel):
     """Re-registering with the same risk does not emit duplicate events."""
-    capability_policy.register_external_tool("mock_external_search", risk="high")
+    capability_governance.register_external_tool("mock_external_search", risk="high")
     # Count events before re-registration
     before = len(kernel.read_events(aggregate_type="policy"))
 
-    capability_policy.register_external_tool("mock_external_search", risk="high")
+    capability_governance.register_external_tool("mock_external_search", risk="high")
     after = len(kernel.read_events(aggregate_type="policy"))
 
     assert after == before  # No new events emitted

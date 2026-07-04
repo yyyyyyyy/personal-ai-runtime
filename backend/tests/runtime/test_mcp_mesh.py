@@ -4,7 +4,7 @@ import pytest
 
 from app.core.harness.mcp_hub import ToolDef, mcp_hub
 from app.core.harness.mcp_mesh import MCPMesh
-from app.core.runtime.capability_policy import capability_policy
+from app.core.runtime.capability_governance import capability_governance
 from app.core.runtime.kernel import Kernel
 from app.core.runtime.taint import register_external_write_tool, taint_registry
 from app.store.database import Database
@@ -48,7 +48,7 @@ async def test_external_write_tool_taint_escalation(kernel, monkeypatch):
             requires_confirmation=True,
         )
     )
-    capability_policy.register_external_tool(tool_name, risk="high")
+    capability_governance.register_external_tool(tool_name, risk="high")
     register_external_write_tool(tool_name)
 
     corr = "corr-ext-write"
@@ -61,5 +61,5 @@ async def test_external_write_tool_taint_escalation(kernel, monkeypatch):
     )
     assert result["status"] == "pending"
     mcp_hub.unregister_tool(tool_name)
-    capability_policy.clear_external_tools()
+    capability_governance.clear_external_tools()
     taint_registry.clear(corr)
