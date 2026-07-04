@@ -21,7 +21,7 @@ class TestCoreTierSelector:
         selected = selector.select(AnalysisResult(tags=set()))
         ids = {f.id for f in selected}
 
-        assert "core.memory" in ids
+        assert "core.background" in ids
         assert "core.timeline" in ids
         assert "core.timeline" in ids
         assert "core.goals" in ids
@@ -52,7 +52,7 @@ class TestCoreTierRegistration:
         ids = register_all_fragments(registry)
         assert "core.timeline" in ids
         assert "core.timeline" in ids
-        assert "core.memory" in ids
+        assert "core.background" in ids
 
 
 class TestCoreTierCompile:
@@ -64,7 +64,7 @@ class TestCoreTierCompile:
         from app.context_runtime import FragmentRegistry
         from app.core.runtime.governance.context_pipeline import ContextPipeline
 
-        # Patch read_ports.retrieve_memory_with_sources for citation-aware MemoryContextFragment
+        # Patch read_ports.retrieve_memory_with_sources for citation-aware BackgroundContextFragment
         monkeypatch.setattr(
             "app.core.runtime.read_ports.retrieve_memory_with_sources",
             lambda msg, **kwargs: ("## Relevant Memories\n- recalled fact", [{"id": "mem1", "type": "memory", "title": "recalled fact"}]),

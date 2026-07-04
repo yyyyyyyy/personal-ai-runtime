@@ -150,7 +150,7 @@ class TestFragmentSelector:
         assert "core.conversation_state" in ids
 
     def test_selector_scenario_fragments_planning(self):
-        """planning 标签触发 core.world。"""
+        """planning 标签触发 core.background。"""
         from app.context_runtime import FragmentRegistry
         from app.core.runtime.governance.fragment_selector import FragmentSelector
         from app.core.runtime.governance.query_analyzer import QueryAnalyzer
@@ -165,7 +165,7 @@ class TestFragmentSelector:
         selector = FragmentSelector(registry)
         selected = selector.select(analysis)
         ids = {f.id for f in selected}
-        assert "core.world" in ids
+        assert "core.background" in ids
         assert "core.goals" in ids
 
     def test_selector_no_duplicates(self):
@@ -306,31 +306,31 @@ class TestConversationStateFragment:
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# PR-7: MemoryContextFragment
+# PR-7: BackgroundContextFragment (was MemoryContextFragment)
 # ═══════════════════════════════════════════════════════════════════════════
 
-class TestMemoryContextFragment:
-    """验证记忆 Fragment 只读。"""
+class TestBackgroundContextFragment:
+    """验证背景 Fragment 只读。"""
 
-    def test_memory_fragment(self):
+    def test_background_fragment(self):
         from app.context_runtime import RuntimeContext
-        from app.fragments.universal.memory import MemoryContextFragment
+        from app.fragments.universal.background import BackgroundContextFragment
 
-        f = MemoryContextFragment()
-        assert f.id == "core.memory"
-        assert f.priority == 60
-        assert "memory" in f.tags
+        f = BackgroundContextFragment()
+        assert f.id == "core.background"
+        assert f.priority == 58  # between memory(60) and world(55)
+        assert {"memory", "world"}.issubset(f.tags)  # merged from both sources
 
-        # 无 user_message 时返回空
+        # 无 user_message 时仅返回 world snapshot（不需用户输入）
         import asyncio
         result = asyncio.run(f.collect(RuntimeContext(user_message="")))
-        assert result.content == ""
+        assert "Life Snapshot" in result.content  # world snapshot always present
 
-    def test_memory_fragment_is_read_only(self):
-        """MemoryFragment 没有 write/emit 方法。"""
-        from app.fragments.universal.memory import MemoryContextFragment
+    def test_background_fragment_is_read_only(self):
+        """BackgroundFragment 没有 write/emit 方法。"""
+        from app.fragments.universal.background import BackgroundContextFragment
 
-        f = MemoryContextFragment()
+        f = BackgroundContextFragment()
         assert not hasattr(f, 'store_memory')
         assert not hasattr(f, 'emit_event')
         assert not hasattr(f, 'write')
@@ -373,7 +373,7 @@ class TestEndToEndPipeline:
         assert isinstance(result, str)
 
     def test_pipeline_planning_message(self):
-        """规划类消息触发 core.world。"""
+        """规划类消息触发 core.background。"""
         from app.context_runtime import FragmentRegistry
         from app.core.runtime.governance.fragment_selector import FragmentSelector
         from app.core.runtime.governance.query_analyzer import QueryAnalyzer
@@ -390,5 +390,5 @@ class TestEndToEndPipeline:
         selector = FragmentSelector(registry)
         fragments = selector.select(analysis)
         ids = {f.id for f in fragments}
-        assert "core.world" in ids
+        assert "core.background" in ids
         assert "core.goals" in ids

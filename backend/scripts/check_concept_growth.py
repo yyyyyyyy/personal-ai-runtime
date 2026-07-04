@@ -126,7 +126,7 @@ BASELINE = {
     "runtime_files": 55,               # core/runtime/ (-2: merged projectors_aux+user → core)
     "event_types": 60,                 # constants.py 中的 EVENT_* = "..." 赋值
     "query_state_selectors": 12,
-    "fragments": 13,                   # register.py 的 _ALL_FRAGMENT_CLASSES 中的 Fragment 类
+    "fragments": 10,                   # register.py (-3: memory+world→background, mail/calendar identity merged)
     "governed_tables": 13,             # -2 (actions/tasks removed)
     "projector_files": 7,              # kernel/projectors_*.py (-2: aux+user merged into core)
     "god_object_max_loc": 1857,        # 最大 God Object LOC (-57: deprecated query functions removed)

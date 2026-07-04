@@ -96,8 +96,7 @@ class TestFragmentReadBoundary:
         data_fragment_modules = [
             "universal/goals.py",
             "universal/conversation_state.py",
-            "universal/memory.py",
-            "universal/world.py",
+            "universal/background.py",
             "mail/__init__.py",
             "calendar/__init__.py",
         ]

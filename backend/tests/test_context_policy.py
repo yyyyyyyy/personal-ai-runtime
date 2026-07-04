@@ -193,7 +193,7 @@ class TestStageInfluence:
         assert chat_ids != post_tool_ids
         assert "core.timeline" in chat_ids
         assert "core.timeline" not in post_tool_ids
-        assert "core.memory" in post_tool_ids
+        assert "core.background" in post_tool_ids
 
     def test_chat_differs_from_brief(self):
         registry = FragmentRegistry()

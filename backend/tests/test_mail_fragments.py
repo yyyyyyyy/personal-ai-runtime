@@ -7,15 +7,14 @@ from app.context_runtime import FragmentRegistry, RuntimeContext
 
 
 class TestMailFragments:
-    def test_mail_identity_fragment(self):
-        from app.fragments.mail import MailIdentityFragment
+    def test_recent_emails_fragment_includes_identity(self):
+        from app.fragments.mail import RecentEmailsFragment
 
-        f = MailIdentityFragment()
-        assert f.id == "mail.identity"
+        f = RecentEmailsFragment()
+        assert f.id == "mail.recent_emails"
 
         result = asyncio.run(f.collect(RuntimeContext()))
-        assert "Mail assistant" in result.content
-        assert "email-related" in result.content.lower()
+        assert "mail assistant" in result.content.lower()
 
     def test_recent_emails_fragment_exists(self):
         from app.fragments.mail import RecentEmailsFragment
@@ -29,9 +28,9 @@ class TestMailFragments:
         assert EmailSearchFragment().id == "mail.email_search"
 
     def test_fragment_has_no_kernel_reference(self):
-        from app.fragments.mail import MailIdentityFragment
+        from app.fragments.mail import RecentEmailsFragment
 
-        f = MailIdentityFragment()
+        f = RecentEmailsFragment()
         assert not hasattr(f, "_kernel")
         assert not hasattr(f, "emit")
         assert not hasattr(f, "emit_event")
@@ -39,47 +38,46 @@ class TestMailFragments:
 
 class TestFragmentRegistry:
     def test_fragment_registry_register_and_get(self):
-        from app.fragments.mail import MailIdentityFragment
+        from app.fragments.mail import RecentEmailsFragment
 
         registry = FragmentRegistry()
-        f = MailIdentityFragment()
+        f = RecentEmailsFragment()
         registry.register(f)
 
-        assert registry.get("mail.identity") is not None
-        assert registry.get("mail.identity").id == "mail.identity"
+        assert registry.get("mail.recent_emails") is not None
+        assert registry.get("mail.recent_emails").id == "mail.recent_emails"
 
     def test_fragment_registry_get_nonexistent(self):
         registry = FragmentRegistry()
         assert registry.get("nonexistent") is None
 
     def test_fragment_registry_list_ids(self):
-        from app.fragments.mail import MailIdentityFragment, RecentEmailsFragment
+        from app.fragments.mail import RecentEmailsFragment, EmailSearchFragment
 
         registry = FragmentRegistry()
-        registry.register(MailIdentityFragment())
         registry.register(RecentEmailsFragment())
+        registry.register(EmailSearchFragment())
 
         ids = registry.list_ids()
-        assert "mail.identity" in ids
         assert "mail.recent_emails" in ids
+        assert "mail.email_search" in ids
 
     def test_register_all_fragments_includes_mail(self):
         from app.fragments.register import register_all_fragments
 
         registry = FragmentRegistry()
         ids = register_all_fragments(registry)
-        assert "mail.identity" in ids
         assert "mail.recent_emails" in ids
         assert "mail.email_search" in ids
         assert "mail.email_thread" not in ids
-        assert len(ids) == 13
+        assert len(ids) == 10
 
 
 class TestRuntimeGovernanceGuarantees:
     def test_fragment_does_not_hold_kernel_reference(self):
-        from app.fragments.mail import MailIdentityFragment, RecentEmailsFragment
+        from app.fragments.mail import RecentEmailsFragment, EmailSearchFragment
 
-        for f in [MailIdentityFragment(), RecentEmailsFragment()]:
+        for f in [RecentEmailsFragment(), EmailSearchFragment()]:
             assert not hasattr(f, "_kernel")
             assert not hasattr(f, "emit_event")
             assert not hasattr(f, "invoke_capability")
@@ -117,20 +115,18 @@ class TestContextReduction:
     def test_mail_fragment_count(self):
         from app.fragments.mail import (
             EmailSearchFragment,
-            MailIdentityFragment,
             RecentEmailsFragment,
         )
 
         fragments = [
-            MailIdentityFragment(),
             RecentEmailsFragment(),
             EmailSearchFragment(),
         ]
-        assert len(fragments) == 3
+        assert len(fragments) == 2
 
-    def test_identity_fragment_is_smaller_than_old_system_prompt(self):
-        from app.fragments.mail import MailIdentityFragment
+    def test_identity_included_in_recent_emails_fragment(self):
+        from app.fragments.mail import RecentEmailsFragment
 
-        f = MailIdentityFragment()
+        f = RecentEmailsFragment()
         result = asyncio.run(f.collect(RuntimeContext()))
         assert len(result.content) < 2000

@@ -20,7 +20,7 @@ class TestFragmentRegistration:
         from app.fragments.register import register_all_fragments
 
         ids = register_all_fragments()
-        assert len(ids) == 13, f"Expected 13 fragments, got {len(ids)}"
+        assert len(ids) == 10, f"Expected 10 fragments, got {len(ids)}"
 
     def test_core_goals_registered(self):
         from app.fragments.register import register_all_fragments
@@ -28,7 +28,7 @@ class TestFragmentRegistration:
         register_all_fragments()
         fids = fragment_registry.list_ids()
         assert "core.goals" in fids
-        assert "core.world" in fids
+        assert "core.background" in fids
         assert "goals.active" not in fids
 
     def test_calendar_fragments_registered(self):
@@ -36,7 +36,7 @@ class TestFragmentRegistration:
 
         register_all_fragments()
         fids = fragment_registry.list_ids()
-        assert "calendar.identity" in fids
+        assert "calendar.today" in fids
         assert "calendar.today" in fids
         assert "calendar.upcoming" in fids
 
@@ -58,10 +58,10 @@ class TestFragmentCollection:
         assert "[active] Ship v1" in r.content
 
     @pytest.mark.asyncio
-    async def test_calendar_identity(self):
-        from app.fragments.calendar import CalendarIdentityFragment
+    async def test_calendar_today(self):
+        from app.fragments.calendar import DailyAgendaFragment
 
-        r = await CalendarIdentityFragment().collect(RuntimeContext())
+        r = await DailyAgendaFragment().collect(RuntimeContext())
         assert "Calendar" in r.content
 
     @pytest.mark.asyncio

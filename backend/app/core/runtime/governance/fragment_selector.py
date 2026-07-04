@@ -14,24 +14,23 @@ from app.core.runtime.governance.query_analyzer import AnalysisResult
 # ── Core Tier — Runtime cognition primitives (always selected) ───────────
 
 CORE_TIER_FRAGMENT_IDS: tuple[str, ...] = (
-    "core.memory",
-    "core.timeline",   # merged actions + events (v0.6.0)
+    "core.background",
+    "core.timeline",
     "core.goals",
 )
 
 # Stage-specific fragment sets (Policy Activation)
 
 POST_TOOL_FRAGMENT_IDS: tuple[str, ...] = (
-    "core.memory",
+    "core.background",
     "core.conversation_state",
 )
 
 BRIEF_FRAGMENT_IDS: tuple[str, ...] = (
     "core.goals",
-    "core.world",
+    "core.background",
     "calendar.today",
     "calendar.upcoming",
-    "calendar.identity",
 )
 
 _PRIORITY_TIER_MIN = 80
@@ -39,10 +38,10 @@ _PRIORITY_TIER_MIN = 80
 # ── 标签 → Fragment ID 映射 ────────────────────────────────────────────────
 
 _SCENARIO_TAG_FRAGMENTS: dict[str, list[str]] = {
-    "mail":      ["mail.recent_emails", "mail.identity", "mail.email_search"],
-    "calendar":  ["calendar.today", "calendar.upcoming", "calendar.identity"],
-    "planning":  ["core.world"],
-    "review":    ["core.world"],
+    "mail":      ["mail.recent_emails", "mail.email_search"],
+    "calendar":  ["calendar.today", "calendar.upcoming"],
+    "planning":  ["core.background"],
+    "review":    ["core.background"],
     "knowledge": ["scenario.knowledge"],
 }
 

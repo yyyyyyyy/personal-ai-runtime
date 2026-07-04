@@ -12,21 +12,18 @@ from app.core.runtime.governance.fragment_selector import (
 )
 from app.fragments.register import register_all_fragments
 
-_EXPECTED_FRAGMENT_COUNT = 13  # v0.6.1: governance fragment added (12→13)
+_EXPECTED_FRAGMENT_COUNT = 10  # v0.7.0: memory+world merged into background, mail+calendar identity merged into existing fragments
 
 FRAGMENT_TRIGGER_MATRIX: dict[str, str] = {
-    "core.memory": "Core Tier",
+    "core.background": "Core Tier",
     "core.timeline": "Core Tier",  # merged actions + events
     "core.goals": "Core Tier",
     "core.governance": "Priority Tier (>=80)",  # runtime governance snapshot
     "core.conversation_state": "Priority Tier (>=80)",
-    "core.world": "Scenario: planning / review tag",
     "mail.recent_emails": "Scenario: mail tag",
-    "mail.identity": "Scenario: mail tag",
     "mail.email_search": "Scenario: mail tag",
     "calendar.today": "Scenario: calendar tag",
     "calendar.upcoming": "Scenario: calendar tag",
-    "calendar.identity": "Scenario: calendar tag",
     "scenario.knowledge": "Scenario: knowledge tag",
 }
 
@@ -72,24 +69,25 @@ class TestFragmentRegistryAudit:
 
 
 
-class TestWorldReachability:
-    def test_planning_tag_selects_core_world(self):
+class TestBackgroundReachability:
+    def test_planning_tag_selects_core_background(self):
         registry = FragmentRegistry()
         register_all_fragments(registry)
         ids = reachable_fragment_ids(registry, tags={"planning"})
-        assert "core.world" in ids
+        assert "core.background" in ids
 
-    def test_review_tag_selects_core_world(self):
+    def test_review_tag_selects_core_background(self):
         registry = FragmentRegistry()
         register_all_fragments(registry)
         ids = reachable_fragment_ids(registry, tags={"review"})
-        assert "core.world" in ids
+        assert "core.background" in ids
 
-    def test_default_chat_does_not_select_world(self):
+    def test_default_chat_includes_background(self):
+        """Default chat includes background (Core Tier — universal context)."""
         registry = FragmentRegistry()
         register_all_fragments(registry)
         ids = reachable_fragment_ids(registry)
-        assert "core.world" not in ids
+        assert "core.background" in ids  # v0.7.0: background is Core Tier
 
 
 class TestIdentitySingleSource:

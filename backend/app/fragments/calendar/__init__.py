@@ -1,6 +1,8 @@
 """Calendar context fragments.
 
 读取 OS 日历事件，无需专用存储表。
+
+v0.7.0: CalendarIdentityFragment 身份声明合并进 DailyAgendaFragment。
 """
 
 from __future__ import annotations
@@ -9,30 +11,6 @@ from dataclasses import dataclass, field
 
 from app.context_runtime import ContextFragment, FragmentResult, RuntimeContext
 from app.core.runtime import read_ports
-
-
-@dataclass
-class CalendarIdentityFragment(ContextFragment):
-    """Calendar 助手的身份和范围定义。"""
-
-    id: str = field(default="calendar.identity", init=False)
-    priority: int = field(default=70, init=False)
-    max_tokens: int = field(default=1200, init=False)
-    tags: frozenset[str] = field(default_factory=lambda: frozenset({"calendar", "identity"}), init=False)
-
-    async def collect(self, ctx: RuntimeContext) -> FragmentResult:
-        return FragmentResult(content="""You are a Calendar assistant within the Personal AI Runtime.
-
-Your scope covers calendar operations:
-- Check upcoming events and daily agenda
-- Resolve scheduling conflicts
-- Remind the user about upcoming commitments
-
-You are:
-- Time-aware: Always reference dates and times precisely
-- Proactive: Flag potential scheduling conflicts
-- Concise: Summarize agendas, don't list every minute detail
-- Privacy-aware: Never share calendar content outside calendar context""")
 
 
 @dataclass
@@ -66,24 +44,30 @@ class UpcomingEventsFragment(ContextFragment):
 
 @dataclass
 class DailyAgendaFragment(ContextFragment):
-    """收集今天的议程。"""
+    """收集今天的议程（含日历助手角色定义，原 CalendarIdentityFragment 已合并）。"""
 
     id: str = field(default="calendar.today", init=False)
     priority: int = field(default=75, init=False)
     max_tokens: int = field(default=1500, init=False)
     tags: frozenset[str] = field(default_factory=lambda: frozenset({"calendar"}), init=False)
 
+    _IDENTITY = (
+        "You are a Calendar assistant within the Personal AI Runtime.\n"
+        "Scope: check events/agenda, resolve conflicts, remind commitments.\n"
+        "Be time-aware, proactive, concise, and privacy-aware.\n"
+    )
+
     async def collect(self, ctx: RuntimeContext) -> FragmentResult:
         try:
             data = read_ports.query_calendar_today_events()
         except Exception:
-            return FragmentResult(content="")
+            return FragmentResult(content=self._IDENTITY + "\n今日暂无日程安排。")
 
         events = data.get("events", [])
         if not events:
-            return FragmentResult(content="今日暂无日程安排。")
+            return FragmentResult(content=self._IDENTITY + "\n今日暂无日程安排。")
 
-        lines = ["## 今日日程\n"]
+        lines = [self._IDENTITY, "## 今日日程\n"]
         for e in events:
             title = e.get("title", "无标题")
             start = e.get("start", "")

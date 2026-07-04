@@ -1,43 +1,36 @@
 """Fragment registration — single entrypoint for all context fragments.
 
-v0.6.0: Actions + Events merged into TimelineFragment.
-Calendar + Mail kept as separate modules but can be lazy-loaded.
-Total: 13 → 10 registered (lowered by 3 via Timeline merge).
+v0.7.0: Memory+World → BackgroundContext; MailIdentity → RecentEmails;
+        CalendarIdentity → DailyAgenda. Total: 13 → 10.
 """
 
 from __future__ import annotations
 
 from app.context_runtime import FragmentRegistry, fragment_registry
 from app.fragments.calendar import (
-    CalendarIdentityFragment,
     DailyAgendaFragment,
     UpcomingEventsFragment,
 )
 from app.fragments.mail import (
     EmailSearchFragment,
-    MailIdentityFragment,
     RecentEmailsFragment,
 )
+from app.fragments.universal.background import BackgroundContextFragment
 from app.fragments.universal.conversation_state import ConversationStateFragment
 from app.fragments.universal.goals import GoalsContextFragment
 from app.fragments.universal.governance import GovernanceContextFragment
 from app.fragments.universal.knowledge_context import KnowledgeContextFragment
-from app.fragments.universal.memory import MemoryContextFragment
 from app.fragments.universal.timeline import TimelineContextFragment
-from app.fragments.universal.world import WorldContextFragment
 
 _ALL_FRAGMENT_CLASSES = [
     ConversationStateFragment,
-    MemoryContextFragment,
-    TimelineContextFragment,    # merged actions + events
+    BackgroundContextFragment,   # merged memory + world
+    TimelineContextFragment,     # merged actions + events
     GoalsContextFragment,
-    WorldContextFragment,
-    GovernanceContextFragment,  # runtime governance snapshot (FACT-36 activation)
-    MailIdentityFragment,
-    RecentEmailsFragment,
+    GovernanceContextFragment,   # runtime governance snapshot
+    RecentEmailsFragment,        # merged identity + recent
     EmailSearchFragment,
-    CalendarIdentityFragment,
-    DailyAgendaFragment,
+    DailyAgendaFragment,         # merged identity + today
     UpcomingEventsFragment,
     KnowledgeContextFragment,
 ]

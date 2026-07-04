@@ -48,7 +48,7 @@ class TestContextPipeline:
 
         assert "core.conversation_state" in ids
 
-        assert "core.memory" in ids
+        assert "core.background" in ids
 
         assert "core.timeline" in ids
 
