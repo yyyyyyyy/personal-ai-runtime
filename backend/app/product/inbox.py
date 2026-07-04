@@ -330,7 +330,7 @@ def generate_inbox_digest() -> dict | None:
         rows = conn.execute(
             """SELECT category, sender, subject, reason, importance
                FROM inbox_emails
-               WHERE digested = 0 AND COALESCE(status, 'pending') = 'pending'
+               WHERE COALESCE(digested, 0) = 0 AND COALESCE(status, 'pending') = 'pending'
                ORDER BY importance DESC, created_at DESC
                LIMIT 50"""
         ).fetchall()
@@ -371,7 +371,7 @@ def generate_inbox_digest() -> dict | None:
     notif = push_notification("inbox_digest", title, content)
 
     with db.get_db() as conn:
-        conn.execute("UPDATE inbox_emails SET digested = 1 WHERE digested = 0")
+        conn.execute("UPDATE inbox_emails SET digested = 1 WHERE COALESCE(digested, 0) = 0")
 
     return notif
 
