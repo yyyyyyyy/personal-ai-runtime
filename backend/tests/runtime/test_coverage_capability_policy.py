@@ -37,14 +37,14 @@ def test_register_external_tool_forbidden(kernel):
 
 
 def test_clear_external_tools(kernel):
-    """After clearing external tools, risk_for reverts unknown tools to default."""
+    """After clearing external tools, risk_for reverts unknown tools to low (default)."""
     capability_governance.register_external_tool("ext_temp", risk="low")
     capability_governance.clear_external_tools()
     risk = capability_governance.risk_for("ext_temp")
-    assert risk in ("low", "high")
+    assert risk == "low"
 
 
 def test_risk_for_unknown_tool_default(kernel):
-    """risk_for on unknown tool returns default risk."""
+    """risk_for on unknown tool returns default risk 'low' (no kernel means no policy match)."""
     risk = capability_governance.risk_for("completely_unknown_tool")
-    assert risk in ("low", "high")
+    assert risk == "low"

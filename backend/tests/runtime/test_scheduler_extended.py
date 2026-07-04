@@ -63,6 +63,9 @@ async def test_run_deadline_alert_creates_notifications(mock_query):
 
 @pytest.mark.asyncio
 async def test_call_product_unknown_handler():
+    """Unknown handler name must not crash — should log warning and return."""
     from app.core.agents.mvp.timer_trigger_handler import _call_product
 
-    await _call_product("nonexistent_handler")
+    result = await _call_product("nonexistent_handler")
+    # Unknown handler path logs warning and returns None (no-op)
+    assert result is None

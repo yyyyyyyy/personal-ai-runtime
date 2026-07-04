@@ -113,5 +113,20 @@ class TestScheduler:
         from app.core.runtime.cron_registry import init_scheduler, shutdown_scheduler
 
         k, db = isolated_kernel
-        init_scheduler()
+        # Patch kernel singleton so init_scheduler targets the test kernel
+        import app.core.runtime.cron_registry as cr
+        old_kernel = cr.kernel
+        cr.kernel = k
+        try:
+            init_scheduler()
+        finally:
+            cr.kernel = old_kernel
+
+        # Verify timer events were created in the test DB
+        with db.get_db() as conn:
+            rows = conn.execute("SELECT id FROM timer_events").fetchall()
+            names = {r[0] for r in rows}
+            assert "morning_brief" in names, f"Expected timers not found, got: {names}"
+            assert "inbox_poll" in names
+
         shutdown_scheduler()

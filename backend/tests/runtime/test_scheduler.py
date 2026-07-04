@@ -57,9 +57,12 @@ async def test_on_task_completed_starts_dependents(tmp_path, monkeypatch):
     assert task2["status"] == "running"
 
 
-def test_shutdown_scheduler_stops_timer_engine(monkeypatch):
-    # v0.3.0: shutdown_scheduler is now a no-op; timer scanning is in RuntimeLoop.
+def test_shutdown_scheduler_stops_timer_engine():
+    """shutdown_scheduler is a no-op stub (timer scanning lives in RuntimeLoop).
+
+    It must be callable without side effects — the real cleanup is handled
+    by RuntimeLoop._maintenance.
+    """
     from app.core.runtime.cron_registry import shutdown_scheduler
 
-    shutdown_scheduler()
-    # No exception = pass.
+    shutdown_scheduler()  # No-op — must not raise.
