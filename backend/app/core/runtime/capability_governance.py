@@ -399,9 +399,9 @@ class CapabilityGovernance:
         task_map: dict[str, str] = {}
         for tid in task_ids:
             try:
-                task_rows = kernel.query_state("tasks", id=tid)
+                task_rows = kernel.query_state("work_items", id=tid)
                 if task_rows:
-                    task_map[tid] = task_rows[0].get("name", "")
+                    task_map[tid] = task_rows[0].get("title", "")
             except Exception:
                 pass
 

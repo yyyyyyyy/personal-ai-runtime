@@ -20,6 +20,10 @@ _LEGACY_TYPE: dict[str, str] = {
     "ActionCreated": "action_created",
     "ActionUpdated": "action_status_changed",
     "ActionDeleted": "action_deleted",
+    "WorkItemCreated": "task_created",
+    "WorkItemUpdated": "task_status_changed",
+    "WorkItemStatusChanged": "task_status_changed",
+    "WorkItemDeleted": "task_status_changed",
     "CapabilityInvoked": "tool_call",
     "ApprovalRequested": "approval_requested",
     "ApprovalGranted": "approval_granted",
@@ -37,8 +41,8 @@ def _goal_id_for(event: Event) -> str | None:
     """Extract goal_id from an event's aggregate or payload."""
     if event.aggregate_type == "goal":
         return event.aggregate_id
-    if event.aggregate_type == "action":
-        return event.payload.get("goal_id")
+    if event.aggregate_type in ("action", "work_item"):
+        return event.payload.get("goal_id") or event.payload.get("parent_goal_id")
     return event.payload.get("goal_id")
 
 
@@ -66,6 +70,10 @@ def _summary_for(event: Event) -> str:
         return f"Task created: {p.get('name', '')}"
     if t in ("TaskCompleted", "TaskFailed", "TaskStatusChanged"):
         return f"Task {p.get('status', t)}: {event.aggregate_id}"
+    if t == "WorkItemCreated":
+        return f"WorkItem created: {p.get('title', '')}"
+    if t in ("WorkItemStatusChanged", "WorkItemUpdated"):
+        return f"WorkItem {p.get('status', t)}: {event.aggregate_id}"
     if t == "MemoryDerived":
         return f"Memory derived: {str(p.get('content', ''))[:60]}"
     if t == "ConversationRecorded":
@@ -88,7 +96,7 @@ def to_legacy_dict(event: Event) -> dict:
 
 
 def goal_events(goal_id: str, *, limit: int = 20) -> list[dict]:
-    """Return goal-scoped events from event_log (goal + related actions)."""
+    """Return goal-scoped events from event_log (goal + related actions/work_items)."""
     from app.core.runtime.kernel_instance import kernel
 
     goal_ev = kernel.read_events(
@@ -98,7 +106,11 @@ def goal_events(goal_id: str, *, limit: int = 20) -> list[dict]:
         aggregate_type="action", payload_goal_id=goal_id,
         order="desc", limit=limit,
     )
-    combined = sorted(goal_ev + action_ev, key=lambda e: e.seq or 0, reverse=True)[:limit]
+    work_item_ev = kernel.read_events(
+        aggregate_type="work_item", payload_goal_id=goal_id,
+        order="desc", limit=limit,
+    )
+    combined = sorted(goal_ev + action_ev + work_item_ev, key=lambda e: e.seq or 0, reverse=True)[:limit]
     return [to_legacy_dict(e) for e in combined]
 
 

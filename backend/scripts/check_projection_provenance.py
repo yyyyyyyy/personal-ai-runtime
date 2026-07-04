@@ -26,13 +26,12 @@ if str(_BACKEND_ROOT) not in sys.path:
 os.environ.setdefault("LLM_API_KEY", "test-key")
 
 from app.core.runtime.kernel.constants import (  # noqa: E402
-    AGGREGATE_ACTION,
     AGGREGATE_APPROVAL,
     AGGREGATE_CONVERSATION,
     AGGREGATE_EXECUTION,
     AGGREGATE_GOAL,
     AGGREGATE_MEMORY,
-    AGGREGATE_TASK,
+    AGGREGATE_WORK_ITEM,
     EVENT_EXECUTION_REQUESTED,
 )
 
@@ -191,12 +190,12 @@ def check_provenance(conn: Any) -> list[Violation]:
             """SELECT 1 FROM event_log
                WHERE aggregate_type = ? AND aggregate_id = ?
                LIMIT 1""",
-            (AGGREGATE_ACTION, action_id),
+            (AGGREGATE_WORK_ITEM, action_id),
         ).fetchone()
         if not found:
             violations.append(
                 ("actions", action_id,
-                 f"no event_log row for aggregate_type={AGGREGATE_ACTION!r}"),
+                 f"no event_log row for aggregate_type={'action'!r}"),
             )
         if goal_id:
             gf = conn.execute(
@@ -240,7 +239,7 @@ def bootstrap_sample_scenario(kernel: Any) -> None:
     """Emit a minimal event chain so provenance checks pass on a fresh database."""
     trigger = kernel.emit_event(
         "TaskCreated",
-        AGGREGATE_TASK,
+        "task",
         "prov_task_1",
         payload={"name": "provenance sample"},
         actor="verify",
@@ -271,7 +270,7 @@ def bootstrap_sample_scenario(kernel: Any) -> None:
     # Goal action provenance
     kernel.emit_event(
         "ActionCreated",
-        AGGREGATE_ACTION,
+        "action",
         "prov_act_1",
         payload={"goal_id": "prov_goal_1", "title": "Provenance action", "status": "pending"},
         actor="verify",

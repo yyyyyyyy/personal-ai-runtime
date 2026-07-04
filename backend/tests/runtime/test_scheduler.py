@@ -33,27 +33,27 @@ async def test_on_task_completed_starts_dependents(tmp_path, monkeypatch):
     monkeypatch.setattr("app.core.runtime.cron_registry.kernel", k)
     monkeypatch.setattr("app.core.runtime.task_engine.kernel", k)
 
-    k.emit_event("TaskCreated", "task", "t1", payload={"name": "Dep"})
+    k.emit_event("WorkItemCreated", "work_item", "t1", payload={"title": "Dep"})
     k.emit_event(
-        "TaskCreated",
-        "task",
+        "WorkItemCreated",
+        "work_item",
         "t2",
-        payload={"name": "Blocked", "dependencies_json": '["t1"]'},
+        payload={"title": "Blocked", "dependencies_json": '["t1"]'},
     )
-    k.emit_event("TaskStatusChanged", "task", "t1", payload={"status": "completed"}, actor="user")
+    k.emit_event("WorkItemStatusChanged", "work_item", "t1", payload={"status": "completed"}, actor="user")
 
     from app.core.runtime.cron_registry import _on_task_completed
     from app.core.runtime.kernel.event import Event
 
     evt = Event(
-        type="TaskCompleted",
-        aggregate_type="task",
+        type="WorkItemCompleted",
+        aggregate_type="work_item",
         aggregate_id="t1",
         payload={"status": "completed"},
     )
     _on_task_completed(evt)
 
-    task2 = k.query_state("tasks", id="t2")[0]
+    task2 = k.query_state("work_items", id="t2")[0]
     assert task2["status"] == "running"
 
 

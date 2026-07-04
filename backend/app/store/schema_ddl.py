@@ -16,17 +16,6 @@ CREATE TABLE IF NOT EXISTS goals (
     last_activity_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE TABLE IF NOT EXISTS actions (
-    id TEXT PRIMARY KEY,
-    goal_id TEXT NOT NULL,
-    title TEXT NOT NULL,
-    status TEXT DEFAULT 'pending',
-    executable_plan TEXT,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    completed_at DATETIME,
-    FOREIGN KEY (goal_id) REFERENCES goals(id)
-);
-
 CREATE TABLE IF NOT EXISTS conversations (
     id TEXT PRIMARY KEY,
     title TEXT,
@@ -64,21 +53,6 @@ CREATE TABLE IF NOT EXISTS activity_log (
     type TEXT NOT NULL,
     payload TEXT,
     timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE TABLE IF NOT EXISTS tasks (
-    id TEXT PRIMARY KEY,
-    name TEXT NOT NULL,
-    description TEXT,
-    parent_goal_id TEXT,
-    parent_task_id TEXT,
-    status TEXT DEFAULT 'pending',
-    priority INTEGER DEFAULT 0,
-    dependencies_json TEXT,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (parent_goal_id) REFERENCES goals(id),
-    FOREIGN KEY (parent_task_id) REFERENCES tasks(id)
 );
 
 CREATE TABLE IF NOT EXISTS memories (

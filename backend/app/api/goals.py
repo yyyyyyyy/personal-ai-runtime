@@ -93,7 +93,7 @@ async def get_goal(goal_id: str):
     if not goals:
         raise HTTPException(status_code=404, detail="Goal not found")
     goal = goals[0]
-    goal["actions"] = kernel.query_state("actions", goal_id=goal_id)
+    goal["actions"] = kernel.query_state("work_items", parent_goal_id=goal_id, work_type="action")
     goal["events"] = goal_events(goal_id, limit=10)
     return goal
 

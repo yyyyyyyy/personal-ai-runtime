@@ -10,16 +10,7 @@ EVENT_GOAL_CREATED = "GoalCreated"
 EVENT_GOAL_UPDATED = "GoalUpdated"
 EVENT_GOAL_DELETED = "GoalDeleted"
 
-# ── Task / Action (v0.5.0: unified as WorkItem) ──────────────────────
-# DEPRECATED — use WorkItemCreated/Updated/Deleted/StatusChanged instead.
-EVENT_TASK_CREATED = "TaskCreated"
-EVENT_TASK_STARTED = "TaskStarted"
-EVENT_TASK_COMPLETED = "TaskCompleted"
-EVENT_TASK_FAILED = "TaskFailed"
-EVENT_TASK_STATUS_CHANGED = "TaskStatusChanged"
-EVENT_ACTION_CREATED = "ActionCreated"
-
-# ── WorkItem (unified task + action aggregate) ────────────────────────
+# ── WorkItem (unified task + action aggregate, v0.7.0) ──────────────
 EVENT_WORK_ITEM_CREATED = "WorkItemCreated"
 EVENT_WORK_ITEM_UPDATED = "WorkItemUpdated"
 EVENT_WORK_ITEM_DELETED = "WorkItemDeleted"
@@ -43,8 +34,6 @@ EVENT_CONVERSATION_CREATED = "ConversationCreated"
 EVENT_CONVERSATION_UPDATED = "ConversationUpdated"
 EVENT_CONVERSATION_DELETED = "ConversationDeleted"
 EVENT_MESSAGE_APPENDED = "MessageAppended"
-
-EVENT_ACTION_CREATED = "ActionCreated"
 
 EVENT_NOTIFICATION_CREATED = "NotificationCreated"
 EVENT_NOTIFICATION_UPDATED = "NotificationUpdated"
@@ -106,13 +95,11 @@ EVENT_USER_PROFILE_UPDATED = "UserProfileUpdated"
 # ── Aggregate types ─────────────────────────────────────────────────────────
 
 AGGREGATE_GOAL = "goal"
-AGGREGATE_TASK = "task"
 AGGREGATE_APPROVAL = "approval"
 AGGREGATE_CAPABILITY = "capability"
 AGGREGATE_MEMORY = "memory"
 AGGREGATE_CONVERSATION = "conversation"
-AGGREGATE_ACTION = "action"
-AGGREGATE_WORK_ITEM = "work_item"  # v0.5.0: unified task + action aggregate
+AGGREGATE_WORK_ITEM = "work_item"  # v0.7.0: fully supersedes task + action
 AGGREGATE_NOTIFICATION = "notification"
 AGGREGATE_EXECUTION = "execution"
 AGGREGATE_TIMER = "timer"
@@ -140,7 +127,7 @@ EVENT_GRANT_REVOKED = "GrantRevoked"
 
 # ── Snapshot-eligible aggregates ─────────────────────────────────────────────
 
-PROJECTION_SNAPSHOT_AGGREGATES = ("goal", "task", "work_item", "memory", "conversation")
+PROJECTION_SNAPSHOT_AGGREGATES = ("goal", "work_item", "memory", "conversation")
 
 # ── Memory index event types ────────────────────────────────────────────────
 

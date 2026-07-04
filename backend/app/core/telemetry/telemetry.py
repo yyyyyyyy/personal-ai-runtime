@@ -184,7 +184,7 @@ class Telemetry:
     def get_health(self) -> dict:
         """Get runtime health snapshot."""
         queue_len = sum(
-            len(kernel.query_state("tasks", status=status, limit=5000))
+            len(kernel.query_state("work_items", status=status, limit=5000))
             for status in ("pending", "running", "blocked")
         )
         with db.get_db() as conn:

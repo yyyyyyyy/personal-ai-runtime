@@ -25,8 +25,8 @@ SCHEDULES: list[dict] = [
 
 def init_scheduler():
     """Register timer schedules and dependency triggers."""
-    kernel.subscribe_events(_on_task_completed, type="TaskCompleted")
-    kernel.subscribe_events(_on_task_completed, type="TaskStatusChanged")
+    kernel.subscribe_events(_on_task_completed, type="WorkItemCompleted")
+    kernel.subscribe_events(_on_task_completed, type="WorkItemStatusChanged")
     _init_timers()
 
 
@@ -52,20 +52,19 @@ def _init_timers():
 
 
 def _on_task_completed(event):
-    """When a task completes, start dependents whose dependencies are met."""
-    if event.type == "TaskStatusChanged":
+    """When a work item completes, start dependents whose dependencies are met."""
+    if event.type == "WorkItemStatusChanged":
         status = (event.payload or {}).get("status")
         if status not in ("completed", "failed"):
             return
 
     from app.core.runtime.task_engine import task_engine
 
-    rows = kernel.query_state("tasks", status="pending", limit=100)
-    for task in rows:
-        if task_engine.are_dependencies_met(task["id"]):
-            # Use legacy event type to update the tasks projection table
+    rows = kernel.query_state("work_items", status="pending", limit=100)
+    for item in rows:
+        if task_engine.are_dependencies_met(item["id"]):
             kernel.emit_event(
-                "TaskStatusChanged", "task", task["id"],
+                "WorkItemStatusChanged", "work_item", item["id"],
                 payload={"status": "running"}, actor="system",
             )
 

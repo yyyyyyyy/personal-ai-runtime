@@ -48,33 +48,33 @@ class TestQueryStateW2:
         k = _kernel(tmp_path)
         k.emit_event("GoalCreated", "goal", "g1", payload={"title": "G"})
         k.emit_event(
-            "ActionCreated",
-            "action",
+            "WorkItemCreated",
+            "work_item",
             "a1",
-            payload={"goal_id": "g1", "title": "Pending", "status": "pending"},
+            payload={"parent_goal_id": "g1", "title": "Pending", "status": "pending", "work_type": "action"},
         )
         k.emit_event(
-            "ActionCreated",
-            "action",
+            "WorkItemCreated",
+            "work_item",
             "a2",
-            payload={"goal_id": "g1", "title": "Done", "status": "done"},
+            payload={"parent_goal_id": "g1", "title": "Done", "status": "done", "work_type": "action"},
         )
 
-        pending = k.query_state("actions", status="pending", limit=10)
+        pending = k.query_state("work_items", status="pending", limit=10)
         assert len(pending) == 1
         assert pending[0]["id"] == "a1"
 
     def test_tasks_depends_on_filter(self, tmp_path):
         k = _kernel(tmp_path)
         k.emit_event("GoalCreated", "goal", "g1", payload={"title": "G"})
-        k.emit_event("TaskCreated", "task", "t1", payload={"name": "Dep"})
+        k.emit_event("WorkItemCreated", "work_item", "t1", payload={"title": "Dep"})
         k.emit_event(
-            "TaskCreated",
-            "task",
+            "WorkItemCreated",
+            "work_item",
             "t2",
-            payload={"name": "Blocked", "dependencies_json": '["t1"]'},
+            payload={"title": "Blocked", "dependencies_json": '["t1"]'},
         )
 
-        blocked = k.query_state("tasks", status="pending", depends_on_task="t1")
+        blocked = k.query_state("work_items", status="pending", depends_on_task="t1")
         assert len(blocked) == 1
         assert blocked[0]["id"] == "t2"

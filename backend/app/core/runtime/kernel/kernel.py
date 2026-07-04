@@ -384,7 +384,11 @@ class Kernel(QueryStateMixin, GovernanceMixin, SovereigntyMixin):
             clauses.append("type = ?")
             params.append(type)
         if payload_goal_id is not None:
-            clauses.append("json_extract(payload, '$.goal_id') = ?")
+            clauses.append(
+                "(json_extract(payload, '$.goal_id') = ? OR "
+                "json_extract(payload, '$.parent_goal_id') = ?)"
+            )
+            params.append(payload_goal_id)
             params.append(payload_goal_id)
         if correlation_id is not None:
             clauses.append("correlation_id = ?")

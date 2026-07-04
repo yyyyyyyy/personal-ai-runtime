@@ -117,7 +117,7 @@ async def on_execute_requested(ctx: "ExecutionContext", event: "Event") -> None:
         return
 
     # Load action's executable plan
-    rows = kernel.query_state("actions", id=action_id)
+    rows = kernel.query_state("work_items", id=action_id)
     if not rows:
         ctx.emit(
             "ExecuteCompleted", "action", f"exec_{action_id}",

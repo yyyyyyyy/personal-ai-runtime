@@ -109,26 +109,26 @@ class TestQueryStateW3:
     def test_tasks_by_parent_task_id(self, tmp_path):
         k = _kernel(tmp_path)
         k.emit_event("GoalCreated", "goal", "gp", payload={"title": "Parent"})
-        k.emit_event("TaskCreated", "task", "t-p", payload={
-            "name": "Parent", "parent_goal_id": "gp",
+        k.emit_event("WorkItemCreated", "work_item", "t-p", payload={
+            "title": "Parent", "parent_goal_id": "gp",
         })
-        k.emit_event("TaskCreated", "task", "t-c", payload={
-            "name": "Child", "parent_goal_id": "gp",
-            "parent_task_id": "t-p", "priority": 1,
+        k.emit_event("WorkItemCreated", "work_item", "t-c", payload={
+            "title": "Child", "parent_goal_id": "gp",
+            "parent_work_id": "t-p", "priority": 1,
         })
-        subs = k.query_state("tasks", parent_task_id="t-p")
+        subs = k.query_state("work_items", parent_work_id="t-p")
         assert len(subs) == 1 and subs[0]["id"] == "t-c"
 
     def test_tasks_by_status_with_order(self, tmp_path):
         k = _kernel(tmp_path)
         for i in range(3):
-            k.emit_event("TaskCreated", "task", f"t{i}", payload={
-                "name": f"T{i}", "priority": i,
+            k.emit_event("WorkItemCreated", "work_item", f"t{i}", payload={
+                "title": f"T{i}", "priority": i,
             })
-        k.emit_event("TaskStatusChanged", "task", "t1", payload={
+        k.emit_event("WorkItemStatusChanged", "work_item", "t1", payload={
             "status": "completed",
         }, actor="user")
-        pending = k.query_state("tasks", status="pending", limit=2,
+        pending = k.query_state("work_items", status="pending", limit=2,
                                 order="priority_desc_created_desc")
         assert len(pending) == 2
         for t in pending:
@@ -170,19 +170,19 @@ class TestKernelEdgePaths:
             async def _emit_later():
                 await asyncio.sleep(0.05)
                 k.emit_event(
-                    "TaskCompleted", "task", "ts",
+                    "WorkItemCompleted", "work_item", "ts",
                     payload={"status": "completed"},
                     correlation_id="corr-sc",
                 )
             task = asyncio.create_task(_emit_later())
             result = await k.submit_command(
-                type="TaskRequested",
-                aggregate_type="task",
+                type="WorkItemRequested",
+                aggregate_type="work_item",
                 aggregate_id="ts",
-                payload={"name": "Test"},
+                payload={"title": "Test"},
                 actor="user",
                 correlation_id="corr-sc",
-                completion_type="TaskCompleted",
+                completion_type="WorkItemCompleted",
                 timeout=2.0,
             )
             await task
@@ -320,7 +320,7 @@ class TestKernelReadEvents:
 
         async def _run():
             result = await k.submit_command(
-                type="TaskRequested", aggregate_type="task",
+                type="WorkItemRequested", aggregate_type="work_item",
                 aggregate_id="to", payload={}, actor="user",
                 correlation_id="no-one-completes", timeout=0.1,
             )

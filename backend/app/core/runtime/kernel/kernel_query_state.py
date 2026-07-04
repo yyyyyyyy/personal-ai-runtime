@@ -103,87 +103,23 @@ class QueryStateMixin:  # type: ignore[attr-defined]  # mixed into Kernel which 
         return [dict(r) for r in rows]
 
     def _query_actions(self, filters: dict[str, Any]) -> list[dict]:
-        goal_id = filters.get("goal_id")
-        action_id = filters.get("id")
-        status = filters.get("status")
-        limit = filters.get("limit", 100)
-        order = filters.get("order", "created_at_asc")
-
-        order_clauses = {
-            "created_at_asc": "created_at ASC",
-            "created_at_desc": "created_at DESC",
-        }
-        order_sql = order_clauses.get(order, order_clauses["created_at_asc"])
-
-        with self._db.get_db() as conn:
-            if action_id:
-                row = conn.execute("SELECT * FROM actions WHERE id = ?", (action_id,)).fetchone()
-                return [dict(row)] if row else []
-
-            clauses: list[str] = []
-            params: list[Any] = []
-            if goal_id is not None:
-                clauses.append("goal_id = ?")
-                params.append(goal_id)
-            if status is not None:
-                clauses.append("status = ?")
-                params.append(status)
-
-            where = f" WHERE {' AND '.join(clauses)}" if clauses else ""
-            params.append(limit)
-            rows = conn.execute(
-                f"SELECT * FROM actions{where} ORDER BY {order_sql} LIMIT ?",
-                params,
-            ).fetchall()
-        return [dict(r) for r in rows]
+        """DEPRECATED: redirect to _query_work_items (v0.7.0)."""
+        mapped: dict[str, Any] = {k: v for k, v in filters.items() if k != "goal_id"}
+        if "goal_id" in filters:
+            mapped["parent_goal_id"] = filters["goal_id"]
+        mapped.setdefault("work_type", "action")
+        return self._query_work_items(mapped)
 
     def _query_tasks(self, filters: dict[str, Any]) -> list[dict]:
-        task_id = filters.get("id")
-        status = filters.get("status")
-        parent_goal_id = filters.get("parent_goal_id")
-        parent_task_id = filters.get("parent_task_id")
-        root_only = filters.get("root_only")
-        depends_on_task = filters.get("depends_on_task")
-        limit = filters.get("limit")
-        order = filters.get("order", "created_at_asc")
-
-        order_clauses = {
-            "created_at_asc": "created_at ASC",
-            "created_at_desc": "created_at DESC",
-            "priority_desc": "priority DESC, created_at ASC",
-            "priority_desc_created_desc": "priority DESC, created_at DESC",
-        }
-        order_sql = order_clauses.get(order, order_clauses["created_at_asc"])
-
-        with self._db.get_db() as conn:
-            if task_id:
-                row = conn.execute("SELECT * FROM tasks WHERE id = ?", (task_id,)).fetchone()
-                return [dict(row)] if row else []
-
-            clauses: list[str] = []
-            params: list[Any] = []
-            if status is not None:
-                clauses.append("status = ?")
-                params.append(status)
-            if parent_goal_id is not None:
-                clauses.append("parent_goal_id = ?")
-                params.append(parent_goal_id)
-            if parent_task_id is not None:
-                clauses.append("parent_task_id = ?")
-                params.append(parent_task_id)
-            if root_only:
-                clauses.append("parent_task_id IS NULL")
-            if depends_on_task is not None:
-                clauses.append("dependencies_json LIKE ?")
-                params.append(f"%{depends_on_task}%")
-
-            where = f" WHERE {' AND '.join(clauses)}" if clauses else ""
-            limit_sql = f" LIMIT {int(limit)}" if limit is not None else ""
-            rows = conn.execute(
-                f"SELECT * FROM tasks{where} ORDER BY {order_sql}{limit_sql}",
-                params,
-            ).fetchall()
-        return [dict(r) for r in rows]
+        """DEPRECATED: redirect to _query_work_items (v0.7.0)."""
+        mapped: dict[str, Any] = {k: v for k, v in filters.items() if k not in ("parent_task_id", "root_only", "depends_on_task")}
+        if "parent_task_id" in filters:
+            mapped["parent_work_id"] = filters["parent_task_id"]
+        if filters.get("root_only"):
+            mapped["root_only"] = True
+        if "depends_on_task" in filters:
+            mapped["depends_on_work"] = filters["depends_on_task"]
+        return self._query_work_items(mapped)
 
     def _query_work_items(self, filters: dict[str, Any]) -> list[dict]:
         """Unified query for work_items table (v0.5.0: supersedes tasks+actions)."""
@@ -192,6 +128,8 @@ class QueryStateMixin:  # type: ignore[attr-defined]  # mixed into Kernel which 
         work_type = filters.get("work_type")
         parent_goal_id = filters.get("parent_goal_id")
         parent_work_id = filters.get("parent_work_id")
+        root_only = filters.get("root_only")
+        depends_on_work = filters.get("depends_on_work")
         limit = filters.get("limit", 50)
         order = filters.get("order", "created_at_asc")
 
@@ -221,6 +159,11 @@ class QueryStateMixin:  # type: ignore[attr-defined]  # mixed into Kernel which 
             if parent_work_id is not None:
                 clauses.append("parent_work_id = ?")
                 params.append(parent_work_id)
+            if root_only:
+                clauses.append("parent_work_id IS NULL")
+            if depends_on_work is not None:
+                clauses.append("dependencies_json LIKE ?")
+                params.append(f"%{depends_on_work}%")
 
             where = f" WHERE {' AND '.join(clauses)}" if clauses else ""
             params.append(int(limit))

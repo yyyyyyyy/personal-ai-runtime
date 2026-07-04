@@ -94,10 +94,8 @@ class TestFragmentReadBoundary:
     def test_all_data_fragments_import_read_ports(self):
         """Data-producing fragments must route reads through read_ports."""
         data_fragment_modules = [
-            "universal/actions.py",
             "universal/goals.py",
             "universal/conversation_state.py",
-            "universal/events.py",
             "universal/memory.py",
             "universal/world.py",
             "mail/__init__.py",

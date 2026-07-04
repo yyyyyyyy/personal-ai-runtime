@@ -30,7 +30,6 @@ from app.core.runtime.kernel.constants import (
     EVENT_CAPABILITY_FAILED,
     EVENT_CAPABILITY_INVOKED,
     EVENT_EXECUTION_FAILED,
-    EVENT_TASK_FAILED,
 )
 
 if TYPE_CHECKING:
@@ -88,7 +87,7 @@ _TOOL_FRAGMENT_TAG_MAP: dict[str, str] = {
 _FAILURE_EVENT_TYPES: frozenset[str] = frozenset({
     EVENT_CAPABILITY_FAILED,
     EVENT_EXECUTION_FAILED,
-    EVENT_TASK_FAILED,
+    "TaskFailed",  # legacy event type, kept for backward compat
 })
 
 # ── Default lookback windows ─────────────────────────────────────────────

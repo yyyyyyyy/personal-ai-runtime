@@ -10,8 +10,6 @@ from __future__ import annotations
 GOVERNED_TABLES: frozenset[str] = frozenset({
     "event_log",
     "goals",
-    "actions",
-    "tasks",
     "work_items",  # v0.5.0: unified task + action projection
     "memories",
     "approvals",
@@ -68,13 +66,6 @@ GOVERNED_SCHEMA: dict[str, frozenset[str]] = {
     "goals": frozenset({
         "id", "title", "description", "status", "progress", "importance", "urgency",
         "deadline", "parent_id", "created_at", "updated_at", "last_activity_at",
-    }),
-    "actions": frozenset({
-        "id", "goal_id", "title", "status", "executable_plan", "created_at", "completed_at",
-    }),
-    "tasks": frozenset({
-        "id", "name", "description", "parent_goal_id", "parent_task_id", "status",
-        "priority", "dependencies_json", "created_at", "updated_at",
     }),
     "work_items": frozenset({  # v0.5.0: unified task + action
         "id", "title", "description", "work_type", "parent_work_id",

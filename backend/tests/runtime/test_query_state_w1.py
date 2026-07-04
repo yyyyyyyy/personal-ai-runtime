@@ -17,34 +17,34 @@ class TestQueryStateW1:
         k = _kernel(tmp_path)
         k.emit_event("GoalCreated", "goal", "g1", payload={"title": "Goal"})
         k.emit_event(
-            "TaskCreated",
-            "task",
+            "WorkItemCreated",
+            "work_item",
             "t-root",
-            payload={"name": "Root", "parent_goal_id": "g1", "parent_task_id": None},
+            payload={"title": "Root", "parent_goal_id": "g1", "parent_work_id": None},
         )
         k.emit_event(
-            "TaskCreated",
-            "task",
+            "WorkItemCreated",
+            "work_item",
             "t-child",
-            payload={"name": "Child", "parent_goal_id": "g1", "parent_task_id": "t-root", "priority": 5},
+            payload={"title": "Child", "parent_goal_id": "g1", "parent_work_id": "t-root", "priority": 5},
         )
 
-        assert k.query_state("tasks", id="t-root")[0]["name"] == "Root"
-        subs = k.query_state("tasks", parent_task_id="t-root", order="priority_desc")
+        assert k.query_state("work_items", id="t-root")[0]["title"] == "Root"
+        subs = k.query_state("work_items", parent_work_id="t-root", order="priority_desc")
         assert len(subs) == 1
-        assert subs[0]["name"] == "Child"
+        assert subs[0]["title"] == "Child"
 
-        roots = k.query_state("tasks", parent_goal_id="g1", root_only=True, order="priority_desc")
+        roots = k.query_state("work_items", parent_goal_id="g1", root_only=True, order="priority_desc")
         assert len(roots) == 1
         assert roots[0]["id"] == "t-root"
 
     def test_tasks_status_and_limit(self, tmp_path):
         k = _kernel(tmp_path)
-        k.emit_event("TaskCreated", "task", "t1", payload={"name": "A", "priority": 1})
-        k.emit_event("TaskCreated", "task", "t2", payload={"name": "B", "priority": 2})
-        k.emit_event("TaskStatusChanged", "task", "t1", payload={"status": "running"}, actor="user")
+        k.emit_event("WorkItemCreated", "work_item", "t1", payload={"title": "A", "priority": 1})
+        k.emit_event("WorkItemCreated", "work_item", "t2", payload={"title": "B", "priority": 2})
+        k.emit_event("WorkItemStatusChanged", "work_item", "t1", payload={"status": "running"}, actor="user")
 
-        running = k.query_state("tasks", status="running", limit=10, order="priority_desc_created_desc")
+        running = k.query_state("work_items", status="running", limit=10, order="priority_desc_created_desc")
         assert len(running) == 1
         assert running[0]["id"] == "t1"
 

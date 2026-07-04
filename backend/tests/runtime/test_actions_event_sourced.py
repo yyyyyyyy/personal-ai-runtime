@@ -18,27 +18,27 @@ class TestActionsEventSourced:
         k.emit_event("GoalCreated", "goal", "g1", {"title": "Test Goal"}, actor="user")
 
         k.emit_event(
-            "ActionCreated", "action", "a1",
-            {"goal_id": "g1", "title": "Step 1", "status": "pending"},
+            "WorkItemCreated", "work_item", "a1",
+            {"parent_goal_id": "g1", "title": "Step 1", "status": "pending", "work_type": "action"},
             actor="user",
         )
         k.emit_event(
-            "ActionCreated", "action", "a2",
-            {"goal_id": "g1", "title": "Step 2", "status": "pending"},
+            "WorkItemCreated", "work_item", "a2",
+            {"parent_goal_id": "g1", "title": "Step 2", "status": "pending", "work_type": "action"},
             actor="user",
         )
         k.emit_event(
-            "ActionUpdated", "action", "a1",
+            "WorkItemUpdated", "work_item", "a1",
             {"status": "completed", "completed_at": "2026-01-01T00:00:00"},
             actor="user",
         )
-        k.emit_event("ActionDeleted", "action", "a2", actor="user")
+        k.emit_event("WorkItemDeleted", "work_item", "a2", actor="user")
 
-        before = k.query_state("actions", goal_id="g1")
+        before = k.query_state("work_items", parent_goal_id="g1", work_type="action")
         assert len(before) == 1
         assert before[0]["status"] == "completed"
 
-        count = k.rebuild("action")
+        count = k.rebuild("work_item")
         assert count >= 4
-        after = k.query_state("actions", goal_id="g1")
+        after = k.query_state("work_items", parent_goal_id="g1", work_type="action")
         assert before == after

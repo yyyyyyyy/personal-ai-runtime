@@ -229,78 +229,8 @@ def _on_memory_deleted(event: Event, conn) -> None:
     conn.execute("DELETE FROM memories WHERE id = ?", (event.aggregate_id,))
 
 
-# --- Task / Agent projection -------------------------------------------------
-
-_OWNED_TABLES["task"] = ["tasks"]
-
-
-@projector("TaskCreated")
-def _on_task_created(event: Event, conn) -> None:
-    p = event.payload
-    conn.execute(
-        """INSERT OR REPLACE INTO tasks
-           (id, name, description, parent_goal_id, parent_task_id, status, priority,
-            dependencies_json, created_at, updated_at)
-           VALUES (?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?)""",
-        (
-            event.aggregate_id,
-            p.get("name", ""),
-            p.get("description", ""),
-            p.get("parent_goal_id"),
-            p.get("parent_task_id"),
-            p.get("priority", 0),
-            p.get("dependencies_json"),
-            event.ts,
-            event.ts,
-        ),
-    )
-
-
-@projector("TaskStarted")
-def _on_task_started(event: Event, conn) -> None:
-    conn.execute(
-        "UPDATE tasks SET status = 'running', updated_at = ? WHERE id = ?",
-        (event.ts, event.aggregate_id),
-    )
-
-
-@projector("TaskCompleted")
-def _on_task_completed(event: Event, conn) -> None:
-    conn.execute(
-        "UPDATE tasks SET status = 'completed', updated_at = ? WHERE id = ?",
-        (event.ts, event.aggregate_id),
-    )
-
-
-@projector("TaskFailed")
-def _on_task_failed(event: Event, conn) -> None:
-    conn.execute(
-        "UPDATE tasks SET status = 'failed', updated_at = ? WHERE id = ?",
-        (event.ts, event.aggregate_id),
-    )
-
-
-@projector("TaskStatusChanged")
-def _on_task_status_changed(event: Event, conn) -> None:
-    """Generic task status transition (task_engine path)."""
-    status = event.payload.get("status")
-    if not status:
-        return
-    conn.execute(
-        "UPDATE tasks SET status = ?, updated_at = ? WHERE id = ?",
-        (status, event.ts, event.aggregate_id),
-    )
-
-
-@projector("TaskDeleted")
-def _on_task_deleted(event: Event, conn) -> None:
-    conn.execute("DELETE FROM tasks WHERE id = ?", (event.aggregate_id,))
-
-
 # --- Unified WorkItem projection (v0.5.0: merges task + action) ------------
-# The `work_items` table supersedes both `tasks` and `actions`.
-# Old Task* and Action* projectors are kept for backward compatibility
-# with existing event_log data. New code should emit WorkItem* events.
+# The `work_items` table fully supersedes both `tasks` and `actions`.
 
 _OWNED_TABLES["work_item"] = ["work_items"]
 
@@ -370,52 +300,6 @@ def _on_work_item_status_changed(event: Event, conn) -> None:
 @projector("WorkItemDeleted")
 def _on_work_item_deleted(event: Event, conn) -> None:
     conn.execute("DELETE FROM work_items WHERE id = ?", (event.aggregate_id,))
-
-
-# --- Action projection -------------------------------------------------------
-# The `actions` table is the read model for goal sub-actions.
-
-_OWNED_TABLES["action"] = ["actions"]
-
-
-@projector("ActionCreated")
-def _on_action_created(event: Event, conn) -> None:
-    p = event.payload
-    conn.execute(
-        """INSERT OR REPLACE INTO actions
-           (id, goal_id, title, status, executable_plan, created_at, completed_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?)""",
-        (
-            event.aggregate_id,
-            p.get("goal_id", ""),
-            p.get("title", ""),
-            p.get("status", "pending"),
-            p.get("executable_plan"),
-            p.get("created_at", event.ts),
-            p.get("completed_at"),
-        ),
-    )
-
-
-@projector("ActionUpdated")
-def _on_action_updated(event: Event, conn) -> None:
-    p = event.payload
-    updatable = ("title", "status", "executable_plan", "completed_at")
-    fields = [k for k in updatable if k in p]
-    if not fields:
-        return
-    set_clause = ", ".join(f"{k} = ?" for k in fields)
-    params = [p[k] for k in fields]
-    params.append(event.aggregate_id)
-    conn.execute(
-        f"UPDATE actions SET {set_clause} WHERE id = ?",
-        params,
-    )
-
-
-@projector("ActionDeleted")
-def _on_action_deleted(event: Event, conn) -> None:
-    conn.execute("DELETE FROM actions WHERE id = ?", (event.aggregate_id,))
 
 
 # --- Claim authority projection (Meaning Boundary G1) ------------------------
