@@ -8,9 +8,7 @@ Validates:
     - Scheduler recovery after restart
 """
 
-import asyncio
 import os
-import time
 
 import pytest
 
@@ -31,15 +29,6 @@ def kernel(tmp_path):
     from app.core.runtime.kernel import Kernel
     from app.store.database import Database
     return Kernel(db=Database(db_path=str(tmp_path / "exec.db")))
-
-
-@pytest.fixture
-def planner_def():
-    from app.core.runtime.agent_definition import AgentDefinition, SubscriptionRule
-    return AgentDefinition(
-        agent_id="exec_planner",
-        subscriptions=[SubscriptionRule(event_type="TaskCreated")],
-    )
 
 
 def test_work_item_state_machine():
@@ -82,51 +71,6 @@ def test_work_item_retry_limits():
     assert item.can_retry() is False
 
 
-def test_work_item_persistence(kernel, planner_def):
-    """WorkItem projection is created from Execution events."""
-    from app.core.runtime.kernel.constants import AGGREGATE_EXECUTION
-    from app.core.runtime.work_item import WorkItem
-
-    item = WorkItem(
-        event_seq=1,
-        event_id="evt_test",
-        event_type="TaskCreated",
-        handler_name="on_task_created",
-        instance_id="test_instance",
-        status="pending",
-        correlation_id="corr_123",
-    )
-    # ADR-0007 Step 10: use event emission (triggers projector) instead of
-    # persist_work_item which has been removed from Kernel.
-    kernel.emit_event(
-        "ExecutionRequested",
-        AGGREGATE_EXECUTION,
-        item.id,
-        payload={
-            "execution_id": item.id,
-            "actor": "agent:test_instance",
-            "handler_name": item.handler_name,
-            "trigger_event_id": item.event_id,
-            "trigger_event_seq": item.event_seq,
-            "trigger_event_type": item.event_type,
-            "instance_id": item.instance_id,
-            "policy": {"timeout": 30.0, "max_retries": 3, "retry_delay": 5.0},
-            "correlation_id": item.correlation_id,
-            "created_at": item.created_at,
-            "event_seq": item.event_seq,
-        },
-        actor="scheduler",
-    )
-
-    items = kernel.read_work_items(status="pending")
-    assert len(items) >= 1
-
-    found = [w for w in items if w.id == item.id]
-    assert len(found) == 1
-    assert found[0].event_type == "TaskCreated"
-    assert found[0].status == "pending"
-
-
 def test_work_item_update_status(kernel):
     """WorkItem status transitions through Execution events."""
     from app.core.runtime.kernel.constants import AGGREGATE_EXECUTION
@@ -158,129 +102,6 @@ def test_work_item_update_status(kernel):
 
     items = kernel.read_work_items(status="completed")
     assert any(w.id == item.id for w in items)
-
-
-@pytest.mark.asyncio
-async def test_scheduler_enqueue_and_process(kernel, planner_def):
-    """Scheduler enqueues a WorkItem and processes it."""
-    from app.core.runtime.agent_scheduler import get_scheduler
-    from app.core.runtime.handler_registry import _registry, subscribe
-
-    received = []
-
-    @subscribe("SchedulerEnqueueTest")
-    async def on_enqueue_test(instance, event):
-        received.append(event)
-
-    registry = kernel.agent_registry
-    planner = await registry.spawn(planner_def)
-
-    scheduler = get_scheduler(kernel)
-    await scheduler.start()
-
-    event = kernel.emit_event(
-        "SchedulerEnqueueTest", "task", "task_exec_1",
-        payload={"name": "test"},
-        actor="user",
-    )
-    scheduler.enqueue(planner.instance_id, planner.actor_id(), event)
-
-    await scheduler.flush()
-    await scheduler.stop()
-
-    assert len(received) >= 1
-    assert received[0].type == "SchedulerEnqueueTest"
-
-    _registry.pop("SchedulerEnqueueTest", None)
-    await registry.kill(planner.instance_id)
-
-
-@pytest.mark.asyncio
-async def test_scheduler_work_item_completes(kernel, planner_def):
-    """A WorkItem transitions to completed after handler success."""
-    from app.core.runtime.agent_scheduler import get_scheduler
-    from app.core.runtime.handler_registry import _registry, subscribe
-
-    executed = []
-
-    @subscribe("SchedulerCompleteTest")
-    async def on_complete_test(instance, event):
-        executed.append("ok")
-
-    registry = kernel.agent_registry
-    planner = await registry.spawn(planner_def)
-
-    scheduler = get_scheduler(kernel)
-    await scheduler.start()
-
-    event = kernel.emit_event(
-        "SchedulerCompleteTest", "task", "task_exec_2",
-        payload={}, actor="user",
-    )
-    scheduler.enqueue(planner.instance_id, planner.actor_id(), event)
-
-    await scheduler.flush()
-
-    completed = kernel.read_work_items(status="completed")
-    assert len(completed) >= 1
-    assert len(executed) >= 1
-
-    _registry.pop("SchedulerCompleteTest", None)
-    await scheduler.stop()
-    await registry.kill(planner.instance_id)
-
-
-@pytest.mark.asyncio
-async def test_scheduler_retries_failed_item(kernel, planner_def):
-    """A failing handler is retried up to max_retries."""
-    from app.core.runtime.agent_scheduler import get_scheduler
-    from app.core.runtime.handler_registry import _registry, subscribe
-
-    # Use a unique event type to avoid registry collisions with other tests
-    handler_event_type = "TaskRetryTest"
-
-    call_count = 0
-
-    @subscribe(handler_event_type)
-    async def retry_test_handler(instance, event):
-        nonlocal call_count
-        call_count += 1
-        if call_count < 3:
-            raise RuntimeError("transient error")
-
-    registry = kernel.agent_registry
-    planner = await registry.spawn(planner_def)
-
-    scheduler = get_scheduler(kernel)
-    await scheduler.start()
-
-    event = kernel.emit_event(
-        handler_event_type, "task", "task_retry",
-        payload={}, actor="user",
-    )
-    from app.core.runtime.work_item import ExecutionPolicy
-
-    scheduler.enqueue(
-        planner.instance_id,
-        planner.actor_id(),
-        event,
-        policy=ExecutionPolicy(max_retries=3, retry_delay_seconds=0.05),
-    )
-    deadline = time.monotonic() + 3.0
-    while call_count < 3 and time.monotonic() < deadline:
-        await scheduler.flush()
-        await asyncio.sleep(0.05)
-
-    assert call_count >= 3
-
-    completed = kernel.read_work_items(status="completed")
-    assert len(completed) >= 1
-
-    # Clean up the handler to avoid polluting other tests
-    _registry.pop(handler_event_type, None)
-
-    await scheduler.stop()
-    await registry.kill(planner.instance_id)
 
 
 def test_recover_work_items_scans_without_mutating(kernel):

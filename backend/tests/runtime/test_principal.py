@@ -74,27 +74,15 @@ def test_principal_is_capable_of():
 
 
 def test_resolver_agent_actor(kernel):
-    import asyncio
-
-    from app.core.runtime.agent_definition import AgentDefinition
+    """Agent actors resolve to Principal.agent(id, ['*']) in single-agent runtime."""
     from app.core.runtime.identity_resolver import identity_resolver
     from app.core.runtime.principal import Principal
 
-    async def _run():
-        registry = kernel.agent_registry
-        definition = AgentDefinition(
-            agent_id="test_agent",
-            tools=["web_search", "read_file"],
-        )
-        instance = await registry.spawn(definition)
-        p = identity_resolver.resolve(f"agent:{instance.instance_id}", kernel)
-        assert isinstance(p, Principal)
-        assert p.type == "agent"
-        assert p.principal_id == instance.instance_id
-        assert "web_search" in p.allowed_capabilities
-        await registry.kill(instance.instance_id)
-
-    asyncio.run(_run())
+    p = identity_resolver.resolve("agent:test_instance_123", kernel)
+    assert isinstance(p, Principal)
+    assert p.type == "agent"
+    assert p.principal_id == "test_instance_123"
+    assert "*" in p.allowed_capabilities
 
 
 def test_resolver_system_actor(kernel):
@@ -121,11 +109,12 @@ def test_resolver_user_actor(kernel):
 
 
 def test_resolver_unregistered_agent(kernel):
+    """Any agent actor resolves to a Principal with wildcard capabilities."""
     from app.core.runtime.identity_resolver import identity_resolver
 
     p = identity_resolver.resolve("agent:nonexistent_instance", kernel)
     assert p.type == "agent"
-    assert p.allowed_capabilities == ()
+    assert "*" in p.allowed_capabilities
 
 
 # ── ExecutionContext integration ───────────────────────────────────────

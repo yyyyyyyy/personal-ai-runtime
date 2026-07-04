@@ -1,6 +1,8 @@
-"""Coverage tests for timer_engine and approval lifecycle."""
+"""Coverage tests for timer and approval lifecycle.
+
+v0.6.0: timer_engine deleted; _next_cron_fire lives on RuntimeLoop.
+"""
 from app.core.runtime.runtime_loop import RuntimeLoop
-from app.core.runtime.timer_engine import ensure_schedules
 
 _next_cron_fire = RuntimeLoop._next_cron_fire
 
@@ -23,21 +25,20 @@ class TestTimerEngineCron:
         result = _next_cron_fire("day=15,hour=8,minute=0")
         assert result is not None
 
-    def test_ensure_schedules_creates_timer_events(self, isolated_kernel):
+    def test_timer_schedule_registration(self, isolated_kernel):
+        """Verify timer events can be created via cron_registry init."""
         k, db = isolated_kernel
-        import app.core.runtime.timer_engine as te
-        te.kernel = k
+        from app.core.runtime.cron_registry import _init_timers
+        # monkeypatch kernel for cron_registry
+        import app.core.runtime.cron_registry as cr
+        old_kernel = cr.kernel
+        cr.kernel = k  # type: ignore[attr-defined]
         try:
-            te.ensure_schedules([{
-                "name": "test_timer",
-                "cron_expr": "hour=12,minute=0",
-                "schedule_type": "cron",
-                "handler_name": "test_handler",
-            }])
+            _init_timers()
         finally:
-            te.kernel = k
+            cr.kernel = old_kernel  # type: ignore[attr-defined]
         with db.get_db() as conn:
-            row = conn.execute("SELECT 1 FROM timer_events WHERE id='test_timer'").fetchone()
+            row = conn.execute("SELECT 1 FROM timer_events WHERE id='morning_brief'").fetchone()
             assert row is not None
 
 
