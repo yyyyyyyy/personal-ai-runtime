@@ -14,9 +14,9 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Literal, Protocol
 
 from app.context_runtime import ContextFragment, FragmentRegistry, fragment_registry
+from app.core.runtime.execution import Principal
 from app.core.runtime.governance.fragment_selector import FragmentSelector
 from app.core.runtime.governance.query_analyzer import AnalysisResult, QueryAnalyzer
-from app.core.runtime.execution import Principal
 
 if TYPE_CHECKING:
     pass

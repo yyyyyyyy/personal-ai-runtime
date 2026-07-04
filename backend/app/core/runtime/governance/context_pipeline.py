@@ -35,6 +35,7 @@ from app.context_runtime import (
     RuntimeContext,
     fragment_registry,
 )
+from app.core.runtime.execution import Principal
 from app.core.runtime.governance.context_policy import (
     CompilePlan,
     CompileRequest,
@@ -42,7 +43,6 @@ from app.core.runtime.governance.context_policy import (
     ContextPolicy,
     DefaultContextPolicy,
 )
-from app.core.runtime.execution import Principal
 from app.core.runtime.runtime_container import _LazyProxy, runtime
 
 _MAX_RECENT_FRAGMENT_HISTORY = 5

@@ -29,6 +29,8 @@ class QueryStateMixin:  # type: ignore[attr-defined]  # mixed into Kernel which 
             return self._query_timer_events(filters)
         if selector == "policy_events":
             return self._query_policy_events(filters)
+        if selector == "conversations":
+            return self._query_conversations(filters)
         if selector == "messages":
             return self._query_messages(filters)
         if selector == "inbox_emails":
@@ -285,6 +287,24 @@ class QueryStateMixin:  # type: ignore[attr-defined]  # mixed into Kernel which 
         from app.store.vector import vector_store
 
         return vector_store.search_knowledge(query, n_results=k)
+
+    def _query_conversations(self, filters: dict[str, Any]) -> list[dict]:
+        conv_id = filters.get("id")
+        limit = filters.get("limit", 50)
+        order = filters.get("order", "created_at_desc")
+
+        order_sql = "updated_at DESC" if order == "created_at_desc" else "created_at ASC"
+        with self._db.get_db() as conn:
+            if conv_id:
+                row = conn.execute(
+                    "SELECT * FROM conversations WHERE id = ?", (conv_id,)
+                ).fetchone()
+                return [dict(row)] if row else []
+            rows = conn.execute(
+                f"SELECT * FROM conversations ORDER BY {order_sql} LIMIT ?",
+                (limit,),
+            ).fetchall()
+        return [dict(r) for r in rows]
 
     def _query_messages(self, filters: dict[str, Any]) -> list[dict]:
         conversation_id = filters.get("conversation_id")

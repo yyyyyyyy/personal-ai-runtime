@@ -76,7 +76,7 @@ def _shadow_compare(kernel, item) -> list[str]:
             for k in _SHADOW_FIELDS if exp.get(k) != act.get(k)
         ]
     if diffs:
-        _log.warning("shadow compare mismatch for %s: %s", item.id, "; ".join(diffs))
+        logger.warning("shadow compare mismatch for %s: %s", item.id, "; ".join(diffs))
     return diffs
 
 

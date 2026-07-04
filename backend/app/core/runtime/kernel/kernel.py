@@ -546,10 +546,10 @@ class Kernel(QueryStateMixin, GovernanceMixin, SovereigntyMixin):
         args = args or {}
         from app.core.harness.mcp_hub import mcp_hub
         from app.core.runtime.capability_governance import capability_governance
-        from app.core.runtime.execution import identity_resolver
         from app.core.runtime.execution import (
             actor_requires_execution_ownership,
             get_current_execution_id,
+            identity_resolver,
         )
 
         tool = mcp_hub.get_tool(name)

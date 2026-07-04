@@ -125,11 +125,11 @@ def count_dead_code_files() -> int:
 BASELINE = {
     "runtime_files": 55,               # core/runtime/ (-2: merged projectors_aux+user → core)
     "event_types": 54,                 # -6 dead events (grant, execution pause/resume/cancel, timer cancel)
-    "query_state_selectors": 11,  # -4 total (tasks/actions/triggers/grant_events removed)
+    "query_state_selectors": 12,  # -3 total (tasks/actions/triggers removed, conversations restored)
     "fragments": 10,                   # register.py (-3: memory+world→background, mail/calendar identity merged)
     "governed_tables": 12,             # -3 total (actions/tasks/grant_events removed)
     "projector_files": 7,              # kernel/projectors_*.py (-2: aux+user merged into core)
-    "god_object_max_loc": 1828,        # -29 (dead projector fns removed)
+    "god_object_max_loc": 1848,        # +20 (_query_conversations restored)
     "dead_code_files": 0,              # 已知死代码文件数
 }
 
@@ -201,7 +201,7 @@ def _record_snapshot():
     import json
     from datetime import UTC, datetime
 
-    current = measure_all()
+    current: dict[str, int | str] = dict(measure_all())
     current["ts"] = datetime.now(UTC).isoformat()
 
     data_dir = ROOT / "backend" / "data"

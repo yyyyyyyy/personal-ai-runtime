@@ -126,13 +126,13 @@ def build_report(snapshots: list[dict]) -> str:
     lines.append("## Distance to 1-Year Target")
     lines.append("")
     for key, name in METRICS:
-        cur = latest.get(key)
-        target = ASPIRATIONAL_TARGETS.get(key)
-        if isinstance(cur, int) and isinstance(target, int) and cur > target:
-            pct = round((cur - target) / target * 100) if target > 0 else 100
-            lines.append(f"- **{name}**: {cur} → {target} (need -{cur - target}, {pct}% over)")
-        elif isinstance(cur, int) and isinstance(target, int) and cur <= target:
-            lines.append(f"- {name}: {cur} ≤ {target} ✅")
+        cur_val: int | str = latest.get(key, 0)
+        tgt: int | None = ASPIRATIONAL_TARGETS.get(key)
+        if isinstance(cur_val, int) and isinstance(tgt, int) and cur_val > tgt:
+            pct = round((cur_val - tgt) / tgt * 100) if tgt > 0 else 100
+            lines.append(f"- **{name}**: {cur_val} → {tgt} (need -{cur_val - tgt}, {pct}% over)")
+        elif isinstance(cur_val, int) and isinstance(tgt, int) and cur_val <= tgt:
+            lines.append(f"- {name}: {cur_val} ≤ {tgt} ✅")
 
     return "\n".join(lines) + "\n"
 
