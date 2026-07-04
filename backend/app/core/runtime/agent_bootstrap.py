@@ -5,6 +5,8 @@ Scheduler is the only execution engine — no Agent abstraction needed.
 """
 from __future__ import annotations
 
+import app.core.agents.mvp  # noqa: F401 — registers @subscribe handlers
+
 _started = False
 
 

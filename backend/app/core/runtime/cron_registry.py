@@ -60,15 +60,14 @@ def _on_task_completed(event):
 
     from app.core.runtime.task_engine import task_engine
 
-    rows = kernel.query_state(
-        "tasks",
-        status="pending",
-        order="created_at_asc",
-        limit=100,
-    )
+    rows = kernel.query_state("tasks", status="pending", limit=100)
     for task in rows:
         if task_engine.are_dependencies_met(task["id"]):
-            task_engine.update_task_status(task["id"], "running")
+            # Use legacy event type to update the tasks projection table
+            kernel.emit_event(
+                "TaskStatusChanged", "task", task["id"],
+                payload={"status": "running"}, actor="system",
+            )
 
 
 def _deadline_target_dates() -> set:

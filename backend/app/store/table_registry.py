@@ -58,6 +58,9 @@ APP_STORAGE_TABLES: frozenset[str] = frozenset({
     # App settings (UI preferences, LLM/Email connection config). Local-only
     # operational config; not a governed fact.
     "app_settings",
+    # Legacy events table and email settings (configuration, not governed).
+    "events",
+    "email_settings",
 })
 
 # Expected columns for governed projection tables (PRAGMA contract).

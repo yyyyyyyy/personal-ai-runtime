@@ -203,6 +203,8 @@ CREATE TABLE IF NOT EXISTS inbox_emails (
     category TEXT,
     importance REAL DEFAULT 0.5,
     reason TEXT,
+    notified INTEGER DEFAULT 0,
+    digested INTEGER DEFAULT 0,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     received_at DATETIME
 );
