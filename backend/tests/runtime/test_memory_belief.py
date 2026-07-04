@@ -79,17 +79,17 @@ class TestMemoryBelief:
         assert before == after, "memory projection must be byte-identical after rebuild"
         assert len(after) == 2
 
-    def test_memory_event_persists_when_chroma_fails(self, tmp_path, monkeypatch):
+    def test_memory_event_persists_when_chroma_fails(self, tmp_path):
         k, _ = make_kernel(tmp_path)
 
         class BrokenVectorStore:
             def delete_memory(self, *_args, **_kwargs):
                 raise RuntimeError("chroma unavailable")
 
-            def add_memory(self, *_args, **_kwargs):
+            def index_memory(self, *_args, **_kwargs):
                 raise RuntimeError("chroma unavailable")
 
-        monkeypatch.setattr("app.store.vector.vector_store", BrokenVectorStore())
+        k._memory_index = BrokenVectorStore()
 
         k.emit_event(
             "MemoryDerived",

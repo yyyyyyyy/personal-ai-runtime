@@ -76,13 +76,14 @@ def clear_pending_memory_index_repairs() -> int:
     return count
 
 class Kernel(QueryStateMixin, GovernanceMixin, SovereigntyMixin):
-    def __init__(self, db=None):
+    def __init__(self, db=None, *, memory_index=None):
         # Default to the global Database singleton; tests inject their own.
         if db is None:
             from app.store.database import db as global_db
 
             db = global_db
         self._db = db
+        self._memory_index = memory_index  # MemoryIndexPort | None
         self._subscribers: list[tuple[dict, Subscriber]] = []
         self._async_dispatchers: list[Callable] = []
         self._pending_commands: dict[tuple[str, str], "asyncio.Future"] = {}
@@ -128,18 +129,15 @@ class Kernel(QueryStateMixin, GovernanceMixin, SovereigntyMixin):
             correlation_id=correlation_id,
         )
 
-        # For memory events, pre-compute the ChromaDB embedding_id so the
-        # projector can write it in the same SQLite transaction. This
-        # eliminates the cross-connection UPDATE that previously happened
-        # in _sync_memory_index after commit.
-        if type in MEMORY_INDEX_EVENT_TYPES and type != "MemoryDeleted":
+        # Pre-compute embedding_id via MemoryIndexPort so the projector can
+        # write it in the same SQLite transaction.
+        if type in MEMORY_INDEX_EVENT_TYPES and type != "MemoryDeleted" and self._memory_index is not None:
             try:
                 p = event.payload
                 content = str(p.get("content", ""))
                 if content:
-                    from app.store.vector import vector_store
-                    vector_store.delete_memory(aggregate_id)
-                    embedding_id = vector_store.add_memory(
+                    self._memory_index.delete_memory(aggregate_id)
+                    embedding_id = self._memory_index.index_memory(
                         content=content,
                         metadata={
                             "category": str(p.get("category", "general")),
@@ -150,7 +148,7 @@ class Kernel(QueryStateMixin, GovernanceMixin, SovereigntyMixin):
                     p["embedding_id"] = embedding_id
             except Exception:
                 logger.debug(
-                    "Pre-compute ChromaDB embedding failed for %s — "
+                    "Pre-compute embedding failed for %s — "
                     "embedding_id will be NULL in projection; sync will retry",
                     aggregate_id,
                     exc_info=True,
@@ -257,79 +255,44 @@ class Kernel(QueryStateMixin, GovernanceMixin, SovereigntyMixin):
                 self._pending_commands.pop(key, None)
 
     def _sync_memory_index(self, event: Event) -> None:
-        """Keep ChromaDB as a derived index of memory projection events.
-
-        Runs after the SQL transaction commits so Chroma failures cannot roll
-        back governed memory events or projections. The embedding_id is now
-        pre-computed in emit_event and written by the projector in the same
-        transaction — this method only handles Chroma reconciliation and
-        frontend notification.
-        """
+        """Synchronise memory events with the MemoryIndexPort (if configured)."""
         if event.type not in MEMORY_INDEX_EVENT_TYPES:
             return
+        content = str(event.payload.get("content", ""))
         try:
-            p = event.payload
-            content = p.get("content", "")
-
-            if event.type == "MemoryDeleted":
-                from app.store.vector import vector_store
-                vector_store.delete_memory(event.aggregate_id)
-                self._notify_memory_changed(event, "")
-                return
-
-            # Embedding was already written by the projector in the same
-            # transaction. Only reconcile Chroma if the pre-compute failed
-            # (embedding_id is still None in the payload).
-            if not p.get("embedding_id"):
-                from app.store.vector import vector_store
-
-                category = p.get("category", "general")
-                embedding_id = vector_store.add_memory(
-                    content=str(content),
-                    metadata={
-                        "category": str(category),
-                        "source": str(p.get("source", "")),
-                    },
-                    memory_id=event.aggregate_id,
-                )
-                # Backfill embedding_id through the Kernel so the projector
-                # writes it in the governed memories table (no direct DML).
-                try:
-                    self.emit_event(
-                        "MemoryUpdated",
-                        "memory",
-                        event.aggregate_id,
-                        payload={"embedding_id": embedding_id},
-                        actor="kernel",
+            if self._memory_index is not None:
+                if event.type == "MemoryDeleted":
+                    self._memory_index.delete_memory(event.aggregate_id)
+                elif not event.payload.get("embedding_id"):
+                    embedding_id = self._memory_index.index_memory(
+                        content=content,
+                        metadata={
+                            "category": str(event.payload.get("category", "general")),
+                            "source": str(event.payload.get("source", "")),
+                        },
+                        memory_id=event.aggregate_id,
                     )
-                except Exception:
-                    logger.debug(
-                        "Backfill embedding_id for %s failed; "
-                        "reconcile will fix on next consistency check",
-                        event.aggregate_id,
-                        exc_info=True,
-                    )
-
-            self._notify_memory_changed(event, str(content) if content else "")
+                    try:
+                        self.emit_event(
+                            "MemoryUpdated", "memory", event.aggregate_id,
+                            payload={"embedding_id": embedding_id},
+                            actor="kernel",
+                        )
+                    except Exception:
+                        logger.debug("Backfill embedding_id failed for %s", event.aggregate_id, exc_info=True)
         except Exception as exc:
-            repair_hint = "Run `make vector-consistency-verify` to reconcile SQLite and Chroma."
-            _pending_memory_index_repairs.append(
-                {
-                    "aggregate_id": event.aggregate_id,
-                    "event_type": event.type,
-                    "seq": event.seq,
-                    "error": str(exc),
-                }
-            )
+            _pending_memory_index_repairs.append({
+                "aggregate_id": event.aggregate_id,
+                "event_type": event.type,
+                "seq": event.seq,
+                "error": str(exc),
+            })
             logger.warning(
-                "Memory index sync failed for %s (%s): %s — %s "
-                "(%d event(s) pending repair)",
-                event.aggregate_id,
-                event.type,
-                exc,
-                repair_hint,
-                len(_pending_memory_index_repairs),
+                "Memory index sync failed for %s (%s) — %d pending repairs",
+                event.aggregate_id, event.type, len(_pending_memory_index_repairs),
+                exc_info=True,
             )
+        self._notify_memory_changed(event, content if content else "")
 
     def _notify_memory_changed(self, event: Event, content: str) -> None:
         """Push a lightweight WS event so frontends can invalidate caches.

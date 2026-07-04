@@ -119,7 +119,8 @@ class RuntimeContainer:
     def kernel(self) -> "Kernel":
         if self._kernel is None:
             from app.core.runtime.kernel.kernel import Kernel
-            self._kernel = Kernel()
+            from app.store.vector import vector_store
+            self._kernel = Kernel(memory_index=vector_store)
             self._register("kernel", "app.core.runtime.kernel.kernel", "Kernel")
         return self._kernel
 
