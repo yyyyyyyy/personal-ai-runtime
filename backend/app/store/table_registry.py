@@ -59,6 +59,11 @@ APP_STORAGE_TABLES: frozenset[str] = frozenset({
     "events",
     "email_settings",
     "grant_events",  # legacy — projectors deleted v0.7.0; kept for historical data
+    # Pending ChromaDB index repairs for memory events whose embedding sync
+    # failed. The authoritative record is the MemoryDerived/Updated event in
+    # event_log; this queue tracks outstanding reconciliation work and is
+    # drained by RuntimeLoop._maintenance via the memory index repair worker.
+    "memory_index_repairs",
 })
 
 # Expected columns for governed projection tables (PRAGMA contract).

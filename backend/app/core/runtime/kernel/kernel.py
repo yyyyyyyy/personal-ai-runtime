@@ -57,7 +57,12 @@ def _log_dispatch_task_exception(task: "asyncio.Task") -> None:
         )
 
 
-# In-process queue of memory events whose Chroma index sync failed (repair hint only).
+# In-process queue of memory events whose Chroma index sync failed.
+# Kept as an in-memory mirror of the durable `memory_index_repairs` table for
+# cheap runtime observability. The authoritative repair queue lives in
+# SQLite and is drained by RuntimeLoop._maintenance; this deque only holds
+# the most recent failures (maxlen) so dashboards can surface them without
+# hitting the DB.
 _MAX_PENDING_MEMORY_INDEX_REPAIRS = 1000
 _pending_memory_index_repairs: deque[dict[str, object]] = deque(
     maxlen=_MAX_PENDING_MEMORY_INDEX_REPAIRS
@@ -70,10 +75,57 @@ def get_pending_memory_index_repairs() -> list[dict[str, object]]:
 
 
 def clear_pending_memory_index_repairs() -> int:
-    """Clear the in-process repair queue; returns number of entries removed."""
+    """Clear the in-process repair queue; returns number of entries removed.
+
+    NOTE: this only clears the in-memory mirror. The durable rows in
+    ``memory_index_repairs`` survive process restarts and are drained by the
+    RuntimeLoop repair worker. Tests that need a clean slate should also
+    truncate the table.
+    """
     count = len(_pending_memory_index_repairs)
     _pending_memory_index_repairs.clear()
     return count
+
+
+def _persist_memory_index_repair(
+    db,
+    aggregate_id: str,
+    event_type: str,
+    event_seq: int,
+    error: str,
+) -> None:
+    """Append a failed memory index sync to the durable repair queue.
+
+    Idempotent on (aggregate_id, event_seq): if a row already exists for the
+    same event we leave it untouched so the retry counter and status reflect
+    the original failure rather than being reset on every emit.
+    """
+    from datetime import UTC, datetime
+
+    now_iso = datetime.now(UTC).isoformat()
+    try:
+        with db.get_db() as conn:
+            existing = conn.execute(
+                "SELECT 1 FROM memory_index_repairs "
+                "WHERE aggregate_id = ? AND event_seq = ? LIMIT 1",
+                (aggregate_id, event_seq),
+            ).fetchone()
+            if existing:
+                return
+            conn.execute(
+                "INSERT INTO memory_index_repairs "
+                "(aggregate_id, event_type, event_seq, error, status, created_at) "
+                "VALUES (?, ?, ?, ?, 'pending', ?)",
+                (aggregate_id, event_type, event_seq, error[:500], now_iso),
+            )
+    except Exception:
+        # If the table does not exist yet (pre-migration) we cannot persist;
+        # fall back to in-memory only so emit_event is not blocked.
+        logger.debug(
+            "Could not persist memory index repair for %s — table unavailable",
+            aggregate_id,
+            exc_info=True,
+        )
 
 class Kernel(QueryStateMixin, GovernanceMixin, SovereigntyMixin):
     def __init__(self, db=None, *, memory_index=None):
@@ -147,9 +199,10 @@ class Kernel(QueryStateMixin, GovernanceMixin, SovereigntyMixin):
                     )
                     p["embedding_id"] = embedding_id
             except Exception:
-                logger.debug(
+                logger.warning(
                     "Pre-compute embedding failed for %s — "
-                    "embedding_id will be NULL in projection; sync will retry",
+                    "embedding_id will be NULL in projection; the durable "
+                    "repair queue will retry via RuntimeLoop",
                     aggregate_id,
                     exc_info=True,
                 )
@@ -287,8 +340,15 @@ class Kernel(QueryStateMixin, GovernanceMixin, SovereigntyMixin):
                 "seq": event.seq,
                 "error": str(exc),
             })
+            _persist_memory_index_repair(
+                self._db, event.aggregate_id, event.type,
+                event.seq, str(exc),
+            )
             logger.warning(
-                "Memory index sync failed for %s (%s) — %d pending repairs",
+                "Memory index sync failed for %s (%s) — queued for repair "
+                "(in-memory mirror: %d entries). The durable row will be "
+                "drained by RuntimeLoop; check 'memory_index_repairs' table "
+                "if recovery does not happen.",
                 event.aggregate_id, event.type, len(_pending_memory_index_repairs),
                 exc_info=True,
             )

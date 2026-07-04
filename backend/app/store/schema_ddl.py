@@ -305,6 +305,22 @@ CREATE INDEX IF NOT EXISTS idx_grant_events_capability
     ON grant_events (principal_id, capability);
 """
 
+MEMORY_INDEX_REPAIRS_SCHEMA = """
+CREATE TABLE IF NOT EXISTS memory_index_repairs (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    aggregate_id    TEXT NOT NULL,
+    event_type      TEXT NOT NULL,
+    event_seq       INTEGER NOT NULL,
+    error           TEXT,
+    retry_count     INTEGER NOT NULL DEFAULT 0,
+    status          TEXT NOT NULL DEFAULT 'pending',
+    created_at      TEXT NOT NULL,
+    last_retry_at   TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_memory_repairs_status
+    ON memory_index_repairs (status, retry_count);
+"""
+
 MEMORIES_LEGACY_DDL = [
     "ALTER TABLE memories ADD COLUMN confidence REAL DEFAULT 0.5",
     "ALTER TABLE memories ADD COLUMN derived_from_event TEXT",

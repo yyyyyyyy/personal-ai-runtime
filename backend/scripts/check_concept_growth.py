@@ -124,12 +124,12 @@ def count_dead_code_files() -> int:
 
 BASELINE = {
     "runtime_files": 55,               # core/runtime/ (-2: merged projectors_aux+user → core)
-    "event_types": 54,                 # -6 dead events (grant, execution pause/resume/cancel, timer cancel)
+    "event_types": 55,                 # +1 MemoryIndexRepairFailed (v0.8.0: durable repair queue)
     "query_state_selectors": 12,  # -3 total (tasks/actions/triggers removed, conversations restored)
     "fragments": 10,                   # register.py (-3: memory+world→background, mail/calendar identity merged)
     "governed_tables": 12,             # -3 total (actions/tasks/grant_events removed)
     "projector_files": 7,              # kernel/projectors_*.py (-2: aux+user merged into core)
-    "god_object_max_loc": 1848,        # +20 (_query_conversations restored)
+    "god_object_max_loc": 1908,        # +60 (_persist_memory_index_repair in kernel.py for durable queue)
     "dead_code_files": 0,              # 已知死代码文件数
 }
 

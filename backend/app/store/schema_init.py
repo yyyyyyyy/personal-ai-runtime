@@ -27,11 +27,13 @@ def apply_projection_ddl(db: Database) -> None:
     """
     from app.core.runtime.kernel.projectors_governance import GRANT_DDL, POLICY_DDL
     from app.core.runtime.kernel.projectors_timer import TIMER_DDL
+    from app.store.schema_ddl import MEMORY_INDEX_REPAIRS_SCHEMA
 
     with db.get_db() as conn:
         conn.executescript(TIMER_DDL)
         conn.executescript(POLICY_DDL)
         conn.executescript(GRANT_DDL)
+        conn.executescript(MEMORY_INDEX_REPAIRS_SCHEMA)
         # Migration: add sources column to messages for "I Remember" persistence
         _migrate_messages_sources(conn)
 
@@ -53,6 +55,7 @@ def apply_raw_ddl(db: Database) -> None:
         EVENT_LOG_SCHEMA,
         GRANT_EVENTS_SCHEMA,
         HANDLER_EXECUTIONS_SCHEMA,
+        MEMORY_INDEX_REPAIRS_SCHEMA,
         MEMORIES_LEGACY_DDL,
         POLICY_EVENTS_SCHEMA,
         PROJECTION_CHECKPOINTS_SCHEMA,
@@ -70,6 +73,7 @@ def apply_raw_ddl(db: Database) -> None:
         conn.executescript(TIMER_EVENTS_SCHEMA)
         conn.executescript(POLICY_EVENTS_SCHEMA)
         conn.executescript(GRANT_EVENTS_SCHEMA)
+        conn.executescript(MEMORY_INDEX_REPAIRS_SCHEMA)
         for stmt in MEMORIES_LEGACY_DDL:
             try:
                 conn.execute(stmt)

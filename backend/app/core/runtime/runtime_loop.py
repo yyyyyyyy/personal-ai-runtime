@@ -198,6 +198,139 @@ class RuntimeLoop:
         except Exception:
             logger.exception("Background task processing failed")
 
+        try:
+            self._drain_memory_index_repairs()
+        except Exception:
+            logger.exception("Memory index repair worker failed")
+
+    def _drain_memory_index_repairs(self) -> None:
+        """Re-attempt ChromaDB index syncs that previously failed.
+
+        Pulls a bounded batch of pending rows from memory_index_repairs,
+        retries each one, and either deletes the row (success) or bumps
+        retry_count. Rows that exceed the retry budget are marked
+        'failed_permanent' and emit a MemoryIndexRepairFailed event so the
+        operator (and eventually the UI) can see which memories are not
+        recallable.
+        """
+        from datetime import UTC, datetime
+
+        from app.core.runtime.kernel.constants import (
+            EVENT_MEMORY_INDEX_REPAIR_FAILED,
+            EVENT_MEMORY_UPDATED,
+        )
+
+        if kernel._memory_index is None:
+            return
+
+        max_retries = 5
+        batch_size = 10
+        now_iso = datetime.now(UTC).isoformat()
+        db = kernel._db
+
+        with db.get_db() as conn:
+            rows = conn.execute(
+                "SELECT id, aggregate_id, event_type, event_seq, retry_count "
+                "FROM memory_index_repairs "
+                "WHERE status = 'pending' AND retry_count < ? "
+                "ORDER BY id ASC LIMIT ?",
+                (max_retries, batch_size),
+            ).fetchall()
+
+        for row in rows:
+            repair_id = row["id"]
+            aggregate_id = row["aggregate_id"]
+            event_type = row["event_type"]
+
+            # MemoryDeleted repairs only need a delete; everything else needs re-index.
+            try:
+                if event_type == "MemoryDeleted":
+                    kernel._memory_index.delete_memory(aggregate_id)
+                else:
+                    # Pull current memory content from projection.
+                    mem_rows = kernel.query_state("memories", id=aggregate_id, limit=1)
+                    if not mem_rows:
+                        # Memory was deleted after the failure; nothing to index.
+                        with db.get_db() as conn:
+                            conn.execute(
+                                "DELETE FROM memory_index_repairs WHERE id = ?",
+                                (repair_id,),
+                            )
+                        continue
+                    mem = mem_rows[0]
+                    content = str(mem.get("content", ""))
+                    if not content:
+                        with db.get_db() as conn:
+                            conn.execute(
+                                "DELETE FROM memory_index_repairs WHERE id = ?",
+                                (repair_id,),
+                            )
+                        continue
+                    embedding_id = kernel._memory_index.index_memory(
+                        content=content,
+                        metadata={
+                            "category": str(mem.get("category", "general")),
+                            "source": str(mem.get("source", "")),
+                        },
+                        memory_id=aggregate_id,
+                    )
+                    # Backfill embedding_id into the projection if still missing.
+                    if not mem.get("embedding_id") and embedding_id:
+                        kernel.emit_event(
+                            EVENT_MEMORY_UPDATED, "memory", aggregate_id,
+                            payload={"embedding_id": embedding_id},
+                            actor="kernel",
+                        )
+                with db.get_db() as conn:
+                    conn.execute(
+                        "DELETE FROM memory_index_repairs WHERE id = ?",
+                        (repair_id,),
+                    )
+                logger.info(
+                    "Memory index repair succeeded for %s (event_seq=%s)",
+                    aggregate_id, row["event_seq"],
+                )
+            except Exception as exc:
+                new_count = row["retry_count"] + 1
+                if new_count >= max_retries:
+                    with db.get_db() as conn:
+                        conn.execute(
+                            "UPDATE memory_index_repairs "
+                            "SET retry_count = ?, status = 'failed_permanent', "
+                            "    last_retry_at = ?, error = ? "
+                            "WHERE id = ?",
+                            (new_count, now_iso, str(exc)[:500], repair_id),
+                        )
+                    kernel.emit_event(
+                        EVENT_MEMORY_INDEX_REPAIR_FAILED, "memory", aggregate_id,
+                        payload={
+                            "aggregate_id": aggregate_id,
+                            "event_seq": row["event_seq"],
+                            "retry_count": new_count,
+                            "error": str(exc)[:500],
+                        },
+                        actor="kernel",
+                    )
+                    logger.error(
+                        "Memory index repair permanently failed for %s after "
+                        "%d attempts — memory will not be recallable until "
+                        "verify_vector_consistency.py reconciles it",
+                        aggregate_id, new_count,
+                        exc_info=True,
+                    )
+                else:
+                    with db.get_db() as conn:
+                        conn.execute(
+                            "UPDATE memory_index_repairs "
+                            "SET retry_count = ?, last_retry_at = ?, error = ? "
+                            "WHERE id = ?",
+                            (new_count, now_iso, str(exc)[:500], repair_id),
+                        )
+                    logger.warning(
+                        "Memory index repair retry %d/%d for %s: %s",
+                        new_count, max_retries, aggregate_id, exc,
+                    )
+
     async def _check_reactions(self) -> None:
         """Evaluate registered Reactions (v0.6.0: replaces TriggerEngine)."""
         from app.core.runtime.reaction_registry import get_reaction_registry

@@ -29,6 +29,10 @@ EVENT_CAPABILITY_DEFERRED = "CapabilityDeferred"
 EVENT_MEMORY_DERIVED = "MemoryDerived"
 EVENT_MEMORY_UPDATED = "MemoryUpdated"
 EVENT_MEMORY_DELETED = "MemoryDeleted"
+# Emitted when a ChromaDB index repair exhausts its retry budget. The memory
+# itself remains authoritative in event_log + memories projection; only the
+# derived vector index is missing, so recall silently excludes it.
+EVENT_MEMORY_INDEX_REPAIR_FAILED = "MemoryIndexRepairFailed"
 
 EVENT_CONVERSATION_CREATED = "ConversationCreated"
 EVENT_CONVERSATION_UPDATED = "ConversationUpdated"

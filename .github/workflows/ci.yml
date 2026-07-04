@@ -187,6 +187,11 @@ jobs:
           cd backend
           python scripts/verify_vector_consistency.py
 
+      - name: Verify memory index repair queue (durable reconciliation)
+        run: |
+          cd backend
+          python scripts/verify_memory_index_repairs.py
+
   frontend:
     runs-on: ubuntu-latest
 

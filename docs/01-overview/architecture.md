@@ -68,7 +68,7 @@ flowchart LR
     D -->|resolve futures| Fut[submit_command waiters]
 ```
 
-关键点：投影在 `emit_event` 的**同一 SQLite 事务**内同步完成（[`backend/app/core/runtime/kernel/kernel.py:108-188`](../../backend/app/core/runtime/kernel/kernel.py)），因此投影状态始终与其触发事件一致。ChromaDB 索引在事件提交后维护；失败会进入 `_pending_memory_index_repairs`（上限 1000 条）由 [`scripts/verify_vector_consistency.py`](../../backend/scripts/verify_vector_consistency.py) 对账修复。
+关键点：投影在 `emit_event` 的**同一 SQLite 事务**内同步完成（[`backend/app/core/runtime/kernel/kernel.py`](../../backend/app/core/runtime/kernel/kernel.py) 的 `Kernel.emit_event`），因此投影状态始终与其触发事件一致。ChromaDB 索引在事件提交后维护；失败会被持久化到 `memory_index_repairs` 表（APP_STORAGE），由 [`backend/app/core/runtime/runtime_loop.py`](../../backend/app/core/runtime/runtime_loop.py) 的 `_drain_memory_index_repairs` worker 每 ~10s 重试（上限 5 次）。重试耗尽的行标记为 `failed_permanent` 并发 `MemoryIndexRepairFailed` 事件供前端可见。CI 通过 [`scripts/verify_vector_consistency.py`](../../backend/scripts/verify_vector_consistency.py) 与 [`scripts/verify_memory_index_repairs.py`](../../backend/scripts/verify_memory_index_repairs.py) 对账。
 
 ## 一次聊天回合的执行流
 
