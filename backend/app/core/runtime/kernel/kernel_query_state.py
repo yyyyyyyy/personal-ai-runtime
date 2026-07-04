@@ -17,14 +17,10 @@ class QueryStateMixin:  # type: ignore[attr-defined]  # mixed into Kernel which 
         """Read current State (a projection). Returns list of dict rows."""
         if selector == "goals":
             return self._query_goals(filters)
-        if selector == "tasks":
-            return self._query_tasks(filters)
-        if selector == "work_items":  # v0.5.0: unified task + action
+        if selector == "work_items":  # unified task + action + trigger
             return self._query_work_items(filters)
         if selector == "approvals":
             return self._query_approvals(filters)
-        if selector == "actions":
-            return self._query_actions(filters)
         if selector == "memories":
             return self._query_memories(filters)
         if selector == "notifications":
@@ -41,8 +37,6 @@ class QueryStateMixin:  # type: ignore[attr-defined]  # mixed into Kernel which 
             return self._query_inbox_emails(filters)
         if selector == "background_tasks":
             return self._query_background_tasks(filters)
-        if selector == "triggers":
-            return self._query_triggers(filters)
         if selector == "user_profile":
             return self._query_user_profile(filters)
         raise ValueError(f"Unknown state selector: {selector!r}")
@@ -101,25 +95,6 @@ class QueryStateMixin:  # type: ignore[attr-defined]  # mixed into Kernel which 
                 params,
             ).fetchall()
         return [dict(r) for r in rows]
-
-    def _query_actions(self, filters: dict[str, Any]) -> list[dict]:
-        """DEPRECATED: redirect to _query_work_items (v0.7.0)."""
-        mapped: dict[str, Any] = {k: v for k, v in filters.items() if k != "goal_id"}
-        if "goal_id" in filters:
-            mapped["parent_goal_id"] = filters["goal_id"]
-        mapped.setdefault("work_type", "action")
-        return self._query_work_items(mapped)
-
-    def _query_tasks(self, filters: dict[str, Any]) -> list[dict]:
-        """DEPRECATED: redirect to _query_work_items (v0.7.0)."""
-        mapped: dict[str, Any] = {k: v for k, v in filters.items() if k not in ("parent_task_id", "root_only", "depends_on_task")}
-        if "parent_task_id" in filters:
-            mapped["parent_work_id"] = filters["parent_task_id"]
-        if filters.get("root_only"):
-            mapped["root_only"] = True
-        if "depends_on_task" in filters:
-            mapped["depends_on_work"] = filters["depends_on_task"]
-        return self._query_work_items(mapped)
 
     def _query_work_items(self, filters: dict[str, Any]) -> list[dict]:
         """Unified query for work_items table (v0.5.0: supersedes tasks+actions)."""
@@ -484,38 +459,6 @@ class QueryStateMixin:  # type: ignore[attr-defined]  # mixed into Kernel which 
             params.append(limit)
             rows = conn.execute(
                 f"SELECT * FROM background_tasks{where} ORDER BY {order_clause} LIMIT ?",
-                params,
-            ).fetchall()
-        return [dict(r) for r in rows]
-
-    def _query_triggers(self, filters: dict[str, Any]) -> list[dict]:
-        trigger_id = filters.get("id")
-        name = filters.get("name")
-        enabled = filters.get("enabled")
-        limit = filters.get("limit", 100)
-
-        with self._db.get_db() as conn:
-            if trigger_id:
-                row = conn.execute(
-                    "SELECT * FROM triggers WHERE id = ?", (trigger_id,)
-                ).fetchone()
-                return [dict(row)] if row else []
-            if name:
-                row = conn.execute(
-                    "SELECT * FROM triggers WHERE name = ?", (name,)
-                ).fetchone()
-                return [dict(row)] if row else []
-
-            clauses: list[str] = []
-            params: list[Any] = []
-            if enabled is not None:
-                clauses.append("enabled = ?")
-                params.append(1 if enabled else 0)
-
-            where = f" WHERE {' AND '.join(clauses)}" if clauses else ""
-            params.append(limit)
-            rows = conn.execute(
-                f"SELECT * FROM triggers{where} ORDER BY created_at DESC LIMIT ?",
                 params,
             ).fetchall()
         return [dict(r) for r in rows]

@@ -125,11 +125,11 @@ def count_dead_code_files() -> int:
 BASELINE = {
     "runtime_files": 57,               # core/runtime/ (-1 net: merge 3→1 + ports)
     "event_types": 60,                 # constants.py 中的 EVENT_* = "..." 赋值
-    "query_state_selectors": 15,
+    "query_state_selectors": 12,  # -3 (tasks/actions/triggers removed)
     "fragments": 13,                   # register.py 的 _ALL_FRAGMENT_CLASSES 中的 Fragment 类
     "governed_tables": 13,             # -2 (actions/tasks removed)
     "projector_files": 9,              # kernel/projectors_*.py 文件数
-    "god_object_max_loc": 1914,        # 最大 God Object LOC (-38: ChromaDB extracted to port)
+    "god_object_max_loc": 1857,        # 最大 God Object LOC (-57: deprecated query functions removed)
     "dead_code_files": 0,              # 已知死代码文件数
 }
 
