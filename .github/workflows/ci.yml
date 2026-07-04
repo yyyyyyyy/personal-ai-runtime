@@ -142,6 +142,11 @@ jobs:
           cd backend
           python scripts/check_execution_ownership.py
 
+      - name: Architecture Contract guard (Runtime Algebra §5.2 — concept compression)
+        run: |
+          cd backend
+          python scripts/check_concept_growth.py
+
       - name: Projection provenance guard (goals / approvals / handler_executions / conversations / messages)
         run: |
           cd backend

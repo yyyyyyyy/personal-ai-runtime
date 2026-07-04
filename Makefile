@@ -1,4 +1,4 @@
-.PHONY: install setup init-db dev demo screenshots test test-backend test-frontend test-e2e ci-local lint typecheck desktop desktop-build boundary rebuild-verify export-roundtrip-verify snapshot-verify egress-verify connector-verify alembic-verify vector-consistency-verify docker-up docker-down projection-provenance conversation-rebuild goal-rebuild lockfile secrets-scan
+.PHONY: install setup init-db dev demo screenshots test test-backend test-frontend test-e2e ci-local lint typecheck desktop desktop-build boundary rebuild-verify export-roundtrip-verify snapshot-verify egress-verify connector-verify alembic-verify vector-consistency-verify architecture-check architecture-check-strict architecture-snapshot docker-up docker-down projection-provenance conversation-rebuild goal-rebuild lockfile secrets-scan
 
 # Backend
 BACKEND_DIR := backend
@@ -54,7 +54,7 @@ AGENTS_MYPY := app/core/agents/brain.py app/core/agents/conversation.py app/core
 typecheck:
 	cd $(BACKEND_DIR) && mypy app/ scripts/ --ignore-missing-imports
 
-ci-local: lint typecheck test-backend test-frontend test-e2e boundary execution-ownership projection-provenance conversation-rebuild export-roundtrip-verify
+ci-local: lint typecheck test-backend test-frontend test-e2e boundary execution-ownership projection-provenance conversation-rebuild export-roundtrip-verify architecture-check
 	@echo "ci-local checks passed"
 
 desktop:
@@ -80,6 +80,18 @@ execution-ownership-inventory:
 
 execution-ownership-strict:
 	cd $(BACKEND_DIR) && python3 scripts/check_execution_ownership.py --strict
+
+# Architecture Contract — enforces runtime-algebra.md §5.2 (Concept Compression)
+# Fails CI when any concept metric grows (files, event types, fragments, tables,
+# projectors, God-Object LOC, dead-code files).
+architecture-check:
+	cd $(BACKEND_DIR) && python3 scripts/check_concept_growth.py
+
+architecture-check-strict:
+	cd $(BACKEND_DIR) && python3 scripts/check_concept_growth.py --strict
+
+architecture-snapshot:
+	cd $(BACKEND_DIR) && python3 scripts/check_concept_growth.py --snapshot
 
 projection-provenance:
 	cd $(BACKEND_DIR) && python3 scripts/check_projection_provenance.py
