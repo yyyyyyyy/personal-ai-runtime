@@ -125,7 +125,7 @@ async def test_user_actor_allows_missing_execution_id(kernel):
 
 @pytest.mark.asyncio
 async def test_execution_scope_binds_capability_caused_by(kernel):
-    from app.core.runtime.execution_scope import execution_scope
+    from app.core.runtime.execution import execution_scope
 
     _seed_execution(kernel, "wi_scope_bind")
 

@@ -20,7 +20,7 @@ def kernel(tmp_path):
 def test_capability_decision_allow(kernel):
     """System principal with wildcard capabilities is allowed for low-risk tools."""
     from app.core.runtime.capability_governance import capability_governance as capability_gateway
-    from app.core.runtime.principal import Principal
+    from app.core.runtime.execution import Principal
 
     decision = capability_gateway.decide(
         Principal.system(),
@@ -34,7 +34,7 @@ def test_capability_decision_allow(kernel):
 def test_capability_decision_deny_principal_not_authorized(kernel):
     """Agent principal without the capability in its whitelist is denied."""
     from app.core.runtime.capability_governance import capability_governance as capability_gateway
-    from app.core.runtime.principal import Principal
+    from app.core.runtime.execution import Principal
 
     principal = Principal.agent("aginst_test", ["web_search"])
     decision = capability_gateway.decide(
@@ -50,7 +50,7 @@ def test_capability_decision_deny_principal_not_authorized(kernel):
 def test_capability_decision_allow_agent_with_wildcard(kernel):
     """Agent principal with wildcard grant is allowed for any capability (Phase 3)."""
     from app.core.runtime.capability_governance import capability_governance as capability_gateway
-    from app.core.runtime.principal import Principal
+    from app.core.runtime.execution import Principal
 
     # Phase 3: emit GrantCreated for wildcard
     kernel.emit_event(
@@ -72,7 +72,7 @@ def test_capability_decision_allow_agent_with_wildcard(kernel):
 def test_capability_decision_fail_closed_for_empty_agent(kernel):
     """Agent principal with empty capabilities and no wildcard is denied."""
     from app.core.runtime.capability_governance import capability_governance as capability_gateway
-    from app.core.runtime.principal import Principal
+    from app.core.runtime.execution import Principal
 
     principal = Principal.agent("aginst_test", [])
     decision = capability_gateway.decide(
@@ -104,7 +104,7 @@ async def test_invoke_capability_uses_principal(kernel):
 async def test_invoke_capability_denies_unauthorized_agent(kernel):
     """Agent principal without capabilities is denied by invoke_capability."""
     from app.core.runtime.kernel.constants import AGGREGATE_EXECUTION, EVENT_EXECUTION_REQUESTED
-    from app.core.runtime.principal import Principal
+    from app.core.runtime.execution import Principal
 
     eid = "wi_agent_deny"
     kernel.emit_event(

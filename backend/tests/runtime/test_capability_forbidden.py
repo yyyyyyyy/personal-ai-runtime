@@ -21,7 +21,7 @@ def kernel(tmp_path):
 def test_forbidden_policy_gateway_gate1(kernel):
     """Gate 1: policy_events risk_level=forbidden → deny before principal checks."""
     from app.core.runtime.capability_governance import capability_governance as capability_gateway
-    from app.core.runtime.principal import Principal
+    from app.core.runtime.execution import Principal
 
     kernel.emit_event(
         "PolicyCreated",

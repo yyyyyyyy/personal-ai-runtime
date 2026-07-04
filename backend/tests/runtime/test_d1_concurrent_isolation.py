@@ -133,7 +133,7 @@ async def test_concurrent_capability_taint_no_cross_contamination(kernel, monkey
 @pytest.mark.asyncio
 async def test_execution_contextvar_isolation(kernel):
     """Contextvar execution_id must not leak between concurrent handler executions."""
-    from app.core.runtime.execution_scope import (
+    from app.core.runtime.execution import (
         execution_scope,
         get_current_execution_id,
     )
@@ -160,7 +160,7 @@ async def test_execution_contextvar_isolation(kernel):
 @pytest.mark.asyncio
 async def test_execution_scope_nesting(kernel):
     """Nested execution_scopes must correctly restore the parent scope."""
-    from app.core.runtime.execution_scope import (
+    from app.core.runtime.execution import (
         execution_scope,
         get_current_execution_id,
     )

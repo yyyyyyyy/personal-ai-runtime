@@ -21,7 +21,7 @@ def kernel(tmp_path):
 
 
 def test_principal_system_factory():
-    from app.core.runtime.principal import Principal
+    from app.core.runtime.execution import Principal
 
     p = Principal.system()
     assert p.principal_id == "system"
@@ -31,7 +31,7 @@ def test_principal_system_factory():
 
 
 def test_principal_user_factory():
-    from app.core.runtime.principal import Principal
+    from app.core.runtime.execution import Principal
 
     p = Principal.user("alice")
     assert p.principal_id == "alice"
@@ -40,7 +40,7 @@ def test_principal_user_factory():
 
 
 def test_principal_agent_factory():
-    from app.core.runtime.principal import Principal
+    from app.core.runtime.execution import Principal
 
     p = Principal.agent("aginst_abc", ["web_search", "read_file"])
     assert p.principal_id == "aginst_abc"
@@ -50,7 +50,7 @@ def test_principal_agent_factory():
 
 
 def test_principal_is_frozen():
-    from app.core.runtime.principal import Principal
+    from app.core.runtime.execution import Principal
 
     p = Principal.system()
     with pytest.raises(Exception):
@@ -58,7 +58,7 @@ def test_principal_is_frozen():
 
 
 def test_principal_is_capable_of():
-    from app.core.runtime.principal import Principal
+    from app.core.runtime.execution import Principal
 
     wildcard = Principal.agent("a", ["*"])
     limited = Principal.agent("b", ["web_search"])
@@ -75,8 +75,8 @@ def test_principal_is_capable_of():
 
 def test_resolver_agent_actor(kernel):
     """Agent actors resolve to Principal.agent(id, ['*']) in single-agent runtime."""
-    from app.core.runtime.identity_resolver import identity_resolver
-    from app.core.runtime.principal import Principal
+    from app.core.runtime.execution import identity_resolver
+    from app.core.runtime.execution import Principal
 
     p = identity_resolver.resolve("agent:test_instance_123", kernel)
     assert isinstance(p, Principal)
@@ -86,7 +86,7 @@ def test_resolver_agent_actor(kernel):
 
 
 def test_resolver_system_actor(kernel):
-    from app.core.runtime.identity_resolver import identity_resolver
+    from app.core.runtime.execution import identity_resolver
 
     p = identity_resolver.resolve("system", kernel)
     assert p.type == "system"
@@ -97,7 +97,7 @@ def test_resolver_system_actor(kernel):
 
 
 def test_resolver_user_actor(kernel):
-    from app.core.runtime.identity_resolver import identity_resolver
+    from app.core.runtime.execution import identity_resolver
 
     p = identity_resolver.resolve("user", kernel)
     assert p.type == "user"
@@ -110,7 +110,7 @@ def test_resolver_user_actor(kernel):
 
 def test_resolver_unregistered_agent(kernel):
     """Any agent actor resolves to a Principal with wildcard capabilities."""
-    from app.core.runtime.identity_resolver import identity_resolver
+    from app.core.runtime.execution import identity_resolver
 
     p = identity_resolver.resolve("agent:nonexistent_instance", kernel)
     assert p.type == "agent"
@@ -122,7 +122,7 @@ def test_resolver_unregistered_agent(kernel):
 
 def test_execution_context_has_principal(kernel):
     from app.core.runtime.execution_context import ExecutionContext
-    from app.core.runtime.principal import Principal
+    from app.core.runtime.execution import Principal
 
     p = Principal.user("test_user")
     ctx = ExecutionContext(
@@ -138,7 +138,7 @@ def test_execution_context_has_principal(kernel):
 
 def test_execution_context_default_principal(kernel):
     from app.core.runtime.execution_context import ExecutionContext
-    from app.core.runtime.principal import Principal
+    from app.core.runtime.execution import Principal
 
     ctx = ExecutionContext(
         instance_id="aginst_test",

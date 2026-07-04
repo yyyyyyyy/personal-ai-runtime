@@ -329,7 +329,7 @@ class Scheduler:
         # decouples handler execution from AgentInstance — the handler
         # receives only what it needs (identity + emit + Principal), not
         # the full AgentInstance object. (ADR-0007 Step 5 + Step 8)
-        from .identity_resolver import identity_resolver
+        from .execution import identity_resolver
 
         actor = f"agent:{item.instance_id}"
         principal = identity_resolver.resolve(actor, self._kernel)
@@ -342,7 +342,7 @@ class Scheduler:
             execution_id=item.id,
         )
 
-        from .execution_scope import execution_scope
+        from .execution import execution_scope
 
         with execution_scope(item.id):
             await handler(ctx, event)

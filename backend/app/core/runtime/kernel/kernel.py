@@ -583,7 +583,11 @@ class Kernel(QueryStateMixin, GovernanceMixin, SovereigntyMixin):
         args = args or {}
         from app.core.harness.mcp_hub import mcp_hub
         from app.core.runtime.capability_governance import capability_governance
-        from app.core.runtime.identity_resolver import identity_resolver
+        from app.core.runtime.execution import identity_resolver
+        from app.core.runtime.execution import (
+            actor_requires_execution_ownership,
+            get_current_execution_id,
+        )
 
         tool = mcp_hub.get_tool(name)
         if tool is None:
@@ -592,11 +596,6 @@ class Kernel(QueryStateMixin, GovernanceMixin, SovereigntyMixin):
         # Resolve Principal (Step 8): use provided principal or resolve from actor
         if principal is None:
             principal = identity_resolver.resolve(actor, self)
-
-        from app.core.runtime.execution_scope import (
-            actor_requires_execution_ownership,
-            get_current_execution_id,
-        )
 
         resolved_execution_id = execution_id or get_current_execution_id()
         if resolved_execution_id == "":

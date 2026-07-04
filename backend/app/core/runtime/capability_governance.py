@@ -18,7 +18,7 @@ import logging
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
-from app.core.runtime.principal import Principal
+from app.core.runtime.execution import Principal
 from app.core.runtime.runtime_container import _LazyProxy, runtime
 
 if TYPE_CHECKING:

@@ -15,7 +15,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
-from .principal import Principal
+from .execution import Principal
 
 if TYPE_CHECKING:
     from .kernel.event import Event

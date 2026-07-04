@@ -44,7 +44,7 @@ class ToolDispatcher:
         Returns via final yield a synthetic event when done:
             {"type": "_dispatcher_done", "results": [...], "tool_messages": [...]}
         """
-        from app.core.runtime.execution_scope import get_current_execution_id
+        from app.core.runtime.execution import get_current_execution_id
 
         exec_id = execution_id or get_current_execution_id() or ""
 

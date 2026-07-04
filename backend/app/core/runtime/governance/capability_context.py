@@ -30,7 +30,7 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Literal
 
 if TYPE_CHECKING:
-    from app.core.runtime.principal import Principal
+    from app.core.runtime.execution import Principal
 
 logger = logging.getLogger(__name__)
 
