@@ -75,24 +75,6 @@ def _on_execution_retried(event: Event, conn) -> None:
     )
 
 
-@projector("ExecutionPaused")
-def _on_execution_paused(event: Event, conn) -> None:
-    p = event.payload
-    conn.execute(
-        """UPDATE handler_executions
-           SET status = 'paused', error = ?
-           WHERE id = ?""",
-        (p.get("reason", ""), event.aggregate_id),
-    )
-
-
-@projector("ExecutionResumed")
-def _on_execution_resumed(event: Event, conn) -> None:
-    conn.execute(
-        "UPDATE handler_executions SET status = 'pending' WHERE id = ?",
-        (event.aggregate_id,),
-    )
-
 
 @projector("ExecutionCompleted")
 def _on_execution_completed(event: Event, conn) -> None:
@@ -116,21 +98,6 @@ def _on_execution_failed(event: Event, conn) -> None:
             p.get("failed_at", event.ts),
             p.get("error", ""),
             int(p.get("attempt", 0)),
-            event.aggregate_id,
-        ),
-    )
-
-
-@projector("ExecutionCancelled")
-def _on_execution_cancelled(event: Event, conn) -> None:
-    p = event.payload
-    conn.execute(
-        """UPDATE handler_executions
-           SET status = 'cancelled', completed_at = ?, error = ?
-           WHERE id = ?""",
-        (
-            p.get("cancelled_at", event.ts),
-            p.get("reason", ""),
             event.aggregate_id,
         ),
     )

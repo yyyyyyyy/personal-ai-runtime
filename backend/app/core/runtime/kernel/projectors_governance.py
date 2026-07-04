@@ -81,29 +81,3 @@ def _on_policy_revoked(event: Event, conn) -> None:
         "UPDATE policy_events SET status = 'revoked', updated_at = ? WHERE id = ?",
         (event.ts, event.aggregate_id),
     )
-
-
-# ── Grant projectors ────────────────────────────────────────────────────
-
-@projector("GrantCreated")
-def _on_grant_created(event: Event, conn) -> None:
-    p = event.payload
-    conn.execute(
-        """INSERT OR REPLACE INTO grant_events
-           (id, principal_id, capability, status, created_at)
-           VALUES (?, ?, ?, 'active', ?)""",
-        (
-            event.aggregate_id,
-            p.get("principal_id", ""),
-            p.get("capability", ""),
-            event.ts,
-        ),
-    )
-
-
-@projector("GrantRevoked")
-def _on_grant_revoked(event: Event, conn) -> None:
-    conn.execute(
-        "UPDATE grant_events SET status = 'revoked', revoked_at = ? WHERE id = ?",
-        (event.ts, event.aggregate_id),
-    )

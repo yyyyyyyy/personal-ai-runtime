@@ -20,9 +20,8 @@ from typing import TextIO
 
 PROJECTION_TABLES = (
     "goals",
-    "actions",
+    "work_items",  # v0.7.0: unified tasks + actions
     "approvals",
-    "tasks",
     "memories",
     "messages",
     "conversations",
@@ -30,7 +29,6 @@ PROJECTION_TABLES = (
     "event_log",
     "timer_events",
     "policy_events",
-    "grant_events",
 )
 KERNEL_PREFIX = Path("core/runtime/kernel")
 HARNESS_PREFIX = Path("core/harness")

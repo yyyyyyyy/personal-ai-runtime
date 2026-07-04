@@ -73,21 +73,15 @@ EVENT_APP_CONFIG_CHANGED = "AppConfigChanged"
 EVENT_EXECUTION_REQUESTED = "ExecutionRequested"
 EVENT_EXECUTION_STARTED = "ExecutionStarted"
 EVENT_EXECUTION_RETRIED = "ExecutionRetried"
-EVENT_EXECUTION_PAUSED = "ExecutionPaused"
-EVENT_EXECUTION_RESUMED = "ExecutionResumed"
 EVENT_EXECUTION_COMPLETED = "ExecutionCompleted"
 EVENT_EXECUTION_FAILED = "ExecutionFailed"
-EVENT_EXECUTION_CANCELLED = "ExecutionCancelled"
 
 EXECUTION_EVENT_TYPES = frozenset({
     EVENT_EXECUTION_REQUESTED,
     EVENT_EXECUTION_STARTED,
     EVENT_EXECUTION_RETRIED,
-    EVENT_EXECUTION_PAUSED,
-    EVENT_EXECUTION_RESUMED,
     EVENT_EXECUTION_COMPLETED,
     EVENT_EXECUTION_FAILED,
-    EVENT_EXECUTION_CANCELLED,
 })
 
 EVENT_USER_PROFILE_UPDATED = "UserProfileUpdated"
@@ -112,18 +106,12 @@ AGGREGATE_INBOX_EMAIL = "inbox_email"
 
 EVENT_TIMER_CREATED = "TimerCreated"
 EVENT_TIMER_FIRED = "TimerFired"
-EVENT_TIMER_CANCELLED = "TimerCancelled"
 
 # ── Policy aggregate (Governance Event-Sourced) ─────────────────────────────
 
 EVENT_POLICY_CREATED = "PolicyCreated"
 EVENT_POLICY_UPDATED = "PolicyUpdated"
 EVENT_POLICY_REVOKED = "PolicyRevoked"
-
-# ── Grant aggregate (Governance Event-Sourced) ──────────────────────────────
-
-EVENT_GRANT_CREATED = "GrantCreated"
-EVENT_GRANT_REVOKED = "GrantRevoked"
 
 # ── Snapshot-eligible aggregates ─────────────────────────────────────────────
 

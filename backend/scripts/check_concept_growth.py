@@ -124,12 +124,12 @@ def count_dead_code_files() -> int:
 
 BASELINE = {
     "runtime_files": 55,               # core/runtime/ (-2: merged projectors_aux+user → core)
-    "event_types": 60,                 # constants.py 中的 EVENT_* = "..." 赋值
-    "query_state_selectors": 12,
+    "event_types": 54,                 # -6 dead events (grant, execution pause/resume/cancel, timer cancel)
+    "query_state_selectors": 11,  # -4 total (tasks/actions/triggers/grant_events removed)
     "fragments": 10,                   # register.py (-3: memory+world→background, mail/calendar identity merged)
-    "governed_tables": 13,             # -2 (actions/tasks removed)
+    "governed_tables": 12,             # -3 total (actions/tasks/grant_events removed)
     "projector_files": 7,              # kernel/projectors_*.py (-2: aux+user merged into core)
-    "god_object_max_loc": 1857,        # 最大 God Object LOC (-57: deprecated query functions removed)
+    "god_object_max_loc": 1828,        # -29 (dead projector fns removed)
     "dead_code_files": 0,              # 已知死代码文件数
 }
 

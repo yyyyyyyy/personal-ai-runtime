@@ -47,28 +47,6 @@ def test_capability_decision_deny_principal_not_authorized(kernel):
     assert decision.reason == "principal_not_authorized"
 
 
-def test_capability_decision_allow_agent_with_wildcard(kernel):
-    """Agent principal with wildcard grant is allowed for any capability (Phase 3)."""
-    from app.core.runtime.capability_governance import capability_governance as capability_gateway
-    from app.core.runtime.execution import Principal
-
-    # Phase 3: emit GrantCreated for wildcard
-    kernel.emit_event(
-        "GrantCreated", "grant", "grant_aginst_test_wildcard",
-        payload={"principal_id": "aginst_test", "capability": "*"},
-        actor="test",
-    )
-
-    principal = Principal.agent("aginst_test", ["*"])
-    decision = capability_gateway.decide(
-        principal,
-        "web_search",
-        {},
-        kernel,
-    )
-    assert decision.decision == "allow"
-
-
 def test_capability_decision_fail_closed_for_empty_agent(kernel):
     """Agent principal with empty capabilities and no wildcard is denied."""
     from app.core.runtime.capability_governance import capability_governance as capability_gateway

@@ -29,8 +29,6 @@ class QueryStateMixin:  # type: ignore[attr-defined]  # mixed into Kernel which 
             return self._query_timer_events(filters)
         if selector == "policy_events":
             return self._query_policy_events(filters)
-        if selector == "grant_events":
-            return self._query_grant_events(filters)
         if selector == "messages":
             return self._query_messages(filters)
         if selector == "inbox_emails":
@@ -403,33 +401,6 @@ class QueryStateMixin:  # type: ignore[attr-defined]  # mixed into Kernel which 
             params.append(limit)
             rows = conn.execute(
                 f"SELECT * FROM policy_events{where} ORDER BY capability ASC LIMIT ?",
-                params,
-            ).fetchall()
-        return [dict(r) for r in rows]
-
-    def _query_grant_events(self, filters: dict[str, Any]) -> list[dict]:
-        principal_id = filters.get("principal_id")
-        capability = filters.get("capability")
-        status = filters.get("status")
-        limit = filters.get("limit", 200)
-
-        with self._db.get_db() as conn:
-            clauses: list[str] = []
-            params: list[Any] = []
-            if principal_id is not None:
-                clauses.append("principal_id = ?")
-                params.append(principal_id)
-            if capability is not None:
-                clauses.append("capability = ?")
-                params.append(capability)
-            if status is not None:
-                clauses.append("status = ?")
-                params.append(status)
-
-            where = f" WHERE {' AND '.join(clauses)}" if clauses else ""
-            params.append(limit)
-            rows = conn.execute(
-                f"SELECT * FROM grant_events{where} ORDER BY capability ASC LIMIT ?",
                 params,
             ).fetchall()
         return [dict(r) for r in rows]

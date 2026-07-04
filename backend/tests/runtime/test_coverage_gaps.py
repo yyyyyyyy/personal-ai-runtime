@@ -115,36 +115,6 @@ class TestProjectorsGovernance:
         rows = k.query_state("policy_events", id="pol_cov")
         assert rows[0]["risk_level"] == "high"
 
-    def test_grant_revoked_projector(self, isolated_kernel):
-        k, _db = isolated_kernel
-        k.emit_event(
-            "GrantCreated", "grant", "grt_cov",
-            payload={"principal_id": "user1", "capability": "write_file"},
-            actor="admin",
-        )
-        k.emit_event(
-            "GrantRevoked", "grant", "grt_cov",
-            payload={}, actor="admin",
-        )
-        rows = k.query_state("grant_events", id="grt_cov")
-        assert rows[0]["status"] == "revoked"
-
-
-class TestProjectorsTimer:
-    def test_timer_cancelled_projector(self, isolated_kernel):
-        k, _db = isolated_kernel
-        k.emit_event(
-            "TimerCreated", "timer", "tmr_cov",
-            payload={"handler_name": "test_handler", "fire_at": "2026-01-01T00:00:00"},
-            actor="system",
-        )
-        k.emit_event(
-            "TimerCancelled", "timer", "tmr_cov",
-            payload={}, actor="system",
-        )
-        rows = k.query_state("timer_events", id="tmr_cov")
-        assert rows[0]["status"] == "cancelled"
-
 
 class TestProjectorsChat:
     def test_conversation_updated_with_summary(self, isolated_kernel):

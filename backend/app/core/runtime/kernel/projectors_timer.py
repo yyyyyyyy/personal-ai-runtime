@@ -56,11 +56,3 @@ def _on_timer_fired(event: Event, conn) -> None:
         "UPDATE timer_events SET status = 'fired', fired_at = ? WHERE id = ?",
         (p.get("fired_at", event.ts), event.aggregate_id),
     )
-
-
-@projector("TimerCancelled")
-def _on_timer_cancelled(event: Event, conn) -> None:
-    conn.execute(
-        "UPDATE timer_events SET status = 'cancelled' WHERE id = ?",
-        (event.aggregate_id,),
-    )

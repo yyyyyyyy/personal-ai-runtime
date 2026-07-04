@@ -184,10 +184,14 @@ def _widget_governance_status() -> dict:
     except Exception:
         policies = []
     try:
-        grants = kernel.query_state("grant_events", status="active", limit=200)
+        with db.get_db() as conn:
+            grant_rows = conn.execute(
+                "SELECT COUNT(*) as cnt FROM grant_events WHERE status = 'active'",
+            ).fetchone()
+            grant_count = grant_rows["cnt"] if grant_rows else 0
     except Exception:
-        grants = []
+        grant_count = 0
     return {
         "active_policies": len(policies),
-        "active_grants": len(grants),
+        "active_grants": grant_count,
     }

@@ -219,19 +219,6 @@ class TestUncoveredSelectors:
         all_pols = k.query_state("policy_events", limit=5)
         assert len(all_pols) == 2
 
-    def test_grant_events_by_principal(self, tmp_path):
-        k = _kernel(tmp_path, "grt")
-        k.emit_event("GrantCreated", "grant", "g1", payload={
-            "principal_id": "agent:test", "capability": "read_file",
-        })
-        k.emit_event("GrantCreated", "grant", "g2", payload={
-            "principal_id": "agent:other", "capability": "shell_exec",
-        })
-        results = k.query_state("grant_events", principal_id="agent:test")
-        assert len(results) == 1
-        all_grants = k.query_state("grant_events", limit=5)
-        assert len(all_grants) == 2
-
     def test_goals_updated_since(self, tmp_path):
         k = _kernel(tmp_path, "us")
         k.emit_event("GoalCreated", "goal", "g-upd", payload={

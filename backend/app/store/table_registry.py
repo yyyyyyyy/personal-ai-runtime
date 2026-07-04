@@ -20,7 +20,6 @@ GOVERNED_TABLES: frozenset[str] = frozenset({
     "handler_executions",
     "timer_events",
     "policy_events",
-    "grant_events",
 })
 
 # Application storage (direct read/write outside Kernel ABI is allowed).
@@ -59,6 +58,7 @@ APP_STORAGE_TABLES: frozenset[str] = frozenset({
     # Legacy events table and email settings (configuration, not governed).
     "events",
     "email_settings",
+    "grant_events",  # legacy — projectors deleted v0.7.0; kept for historical data
 })
 
 # Expected columns for governed projection tables (PRAGMA contract).
@@ -110,9 +110,6 @@ GOVERNED_SCHEMA: dict[str, frozenset[str]] = {
     }),
     "policy_events": frozenset({
         "id", "capability", "risk_level", "status", "created_at", "updated_at",
-    }),
-    "grant_events": frozenset({
-        "id", "principal_id", "capability", "status", "created_at", "revoked_at",
     }),
 }
 

@@ -99,7 +99,7 @@ class TestBoundaryGuard:
         fake_app.mkdir(parents=True)
         bad_file = fake_app / "leak.py"
         bad_file.write_text(
-            'rows = conn.execute("SELECT * FROM tasks WHERE status = \'pending\'").fetchall()',
+            'rows = conn.execute("SELECT * FROM goals").fetchall()',
             encoding="utf-8",
         )
 
@@ -109,7 +109,7 @@ class TestBoundaryGuard:
 
             violations = scan_app_root(tmp_path / "app")
             assert len(violations) == 1
-            assert violations[0][3] == "tasks"
+            assert violations[0][3] == "goals"
             assert violations[0][4] == "select"
         finally:
             sys.path.pop(0)
