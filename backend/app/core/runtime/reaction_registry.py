@@ -180,3 +180,14 @@ def reaction(
 
 def get_reaction_registry() -> ReactionRegistry:
     return _reaction_registry
+
+
+def reset_reactions() -> None:
+    """Clear all registered reactions and counters — for test isolation.
+
+    Called by RuntimeContainer.reset() so tests do not leak reactions into
+    each other. Module-level registry is rebuilt lazily on the next @reaction
+    decoration or import of builtin_reactions.
+    """
+    _reaction_registry._reactions.clear()
+    _reaction_registry._counters.clear()

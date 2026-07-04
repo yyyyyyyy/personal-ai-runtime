@@ -123,3 +123,69 @@ def test_runtime_container_inventory():
         assert "module" in entry
         assert "class" in entry
         assert entry["class"] != ""
+
+
+def test_reset_clears_module_singletons_handlers():
+    """reset() must clear handler_registry so tests do not leak handlers."""
+    from app.core.runtime.handler_registry import get_handler, reset_handlers, subscribe
+
+    @subscribe("TestLeakedEvent")
+    async def _handler(ctx, event):
+        pass
+
+    assert get_handler("TestLeakedEvent") is _handler
+
+    from app.core.runtime.runtime_container import runtime
+    runtime.reset()
+
+    assert get_handler("TestLeakedEvent") is None
+
+
+def test_reset_clears_module_singletons_reactions():
+    """reset() must clear reaction_registry so tests do not leak reactions."""
+    from app.core.runtime.reaction_registry import (
+        Reaction,
+        ReactionWhen,
+        get_reaction_registry,
+        reset_reactions,
+    )
+
+    registry = get_reaction_registry()
+    registry.register(Reaction("test_leaked", when=ReactionWhen(event_type="Foo")))
+    assert any(r.name == "test_leaked" for r in registry._reactions.values())
+
+    from app.core.runtime.runtime_container import runtime
+    runtime.reset()
+
+    assert all(r.name != "test_leaked" for r in registry._reactions.values())
+
+
+def test_reset_clears_module_singletons_fragments():
+    """reset() must clear fragment_registry so tests do not leak fragments."""
+    from app.context_runtime import ContextFragment, fragment_registry, reset_fragment_registry
+
+    frag = ContextFragment(id="test.leaked", priority=10)
+    fragment_registry.register(frag)
+    assert fragment_registry.get("test.leaked") is frag
+
+    from app.core.runtime.runtime_container import runtime
+    runtime.reset()
+
+    assert fragment_registry.get("test.leaked") is None
+
+
+def test_reset_clears_module_singletons_scheduler():
+    """reset() must reset scheduler singleton so tests do not leak scheduler state."""
+    from app.core.runtime.agent_scheduler import get_scheduler, reset_scheduler
+
+    # Force creation of scheduler singleton by querying it once.
+    from app.core.runtime.kernel_instance import kernel
+    get_scheduler(kernel)
+
+    from app.core.runtime import agent_scheduler
+    assert agent_scheduler._scheduler is not None
+
+    from app.core.runtime.runtime_container import runtime
+    runtime.reset()
+
+    assert agent_scheduler._scheduler is None

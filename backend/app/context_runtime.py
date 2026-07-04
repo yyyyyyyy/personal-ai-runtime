@@ -97,7 +97,21 @@ class FragmentRegistry:
         """按多个标签查找（任意匹配）。"""
         return [f for f in self._fragments.values() if tags & f.tags]
 
+    def reset(self) -> None:
+        """Clear all registered fragments — for test isolation.
+
+        Called by RuntimeContainer.reset() so tests do not leak fragments
+        into each other. Fragments are rebuilt lazily when
+        ContextPipeline._ensure_fragments_registered() runs on first access.
+        """
+        self._fragments.clear()
+
 
 # ── Global singleton ────────────────────────────────────────────────────
 
 fragment_registry = FragmentRegistry()
+
+
+def reset_fragment_registry() -> None:
+    """Clear the global fragment registry — for test isolation."""
+    fragment_registry.reset()

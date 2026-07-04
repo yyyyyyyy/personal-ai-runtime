@@ -72,3 +72,13 @@ def get_handler(event_type: str) -> Handler | None:
 def registered_types() -> list[str]:
     """Return all registered event types (for debugging / introspection)."""
     return sorted(_registry.keys())
+
+
+def reset_handlers() -> None:
+    """Clear all registered handlers — for test isolation.
+
+    Called by RuntimeContainer.reset() so tests do not leak handlers into
+    each other. Handlers are rebuilt lazily when their defining modules are
+    re-imported (typically via builtin_reactions / agent_bootstrap).
+    """
+    _registry.clear()

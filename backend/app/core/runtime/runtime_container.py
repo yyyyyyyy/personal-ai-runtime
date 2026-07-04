@@ -271,7 +271,8 @@ class RuntimeContainer:
 
         Drops every cached singleton so the next access rebuilds it from
         scratch, then clears module-level registries that live outside the
-        container (taint tool sets, citation source registry, etc.).
+        container (taint tool sets, citation source registry, scheduler,
+        handlers, reactions, fragments).
         """
         with self._lock:
             # Drop cached instances — properties will lazily rebuild on access.
@@ -283,6 +284,14 @@ class RuntimeContainer:
             reset_source_registry()
             from app.core.runtime.taint import reset_external_tools
             reset_external_tools()
+            from app.core.runtime.agent_scheduler import reset_scheduler
+            reset_scheduler()
+            from app.core.runtime.reaction_registry import reset_reactions
+            reset_reactions()
+            from app.core.runtime.handler_registry import reset_handlers
+            reset_handlers()
+            from app.context_runtime import reset_fragment_registry
+            reset_fragment_registry()
 
 
 runtime = RuntimeContainer()
