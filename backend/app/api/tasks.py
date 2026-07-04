@@ -4,7 +4,6 @@ v0.5.0: uses WorkItemCreated/StatusChanged/Deleted events and work_items project
 """
 from fastapi import APIRouter, HTTPException
 
-from app.core.runtime.kernel_instance import kernel
 from app.core.runtime.task_engine import task_engine
 
 router = APIRouter(prefix="/api/tasks", tags=["tasks"])

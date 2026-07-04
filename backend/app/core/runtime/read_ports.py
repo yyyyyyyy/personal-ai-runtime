@@ -12,8 +12,8 @@ import json
 from datetime import date as date_type
 from typing import Any
 
-from app.core.runtime.kernel_instance import kernel
 from app.core.runtime.event_formatting import recent_events
+from app.core.runtime.kernel_instance import kernel
 
 
 def query_pending_actions(*, limit: int = 5) -> list[dict[str, Any]]:

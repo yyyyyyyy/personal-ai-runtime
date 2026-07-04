@@ -7,8 +7,8 @@ from datetime import UTC, datetime
 from fastapi import APIRouter, HTTPException
 
 from app.api.models import CreateActionRequest, CreateGoalRequest
-from app.core.runtime.kernel_instance import kernel
 from app.core.runtime.event_formatting import goal_events
+from app.core.runtime.kernel_instance import kernel
 
 router = APIRouter(prefix="/api/goals", tags=["goals"])
 
@@ -368,7 +368,7 @@ def _on_action_completed(goal_id: str, action_id: str, action_title: str):
             create_notification(
                 "goal_progress",
                 f"完成一步：{action_title}",
-                f"目标「{goal_title}」进度：{completed}/{len(all_actions)} 步已完成。",
+                f"目标「{goal_title}」进度：{completed}/{len(all_items)} 步已完成。",
             )
 
         # 3. 提炼经验存入记忆

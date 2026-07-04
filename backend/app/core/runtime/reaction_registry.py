@@ -16,7 +16,7 @@ Usage:
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any, Callable
 
 if TYPE_CHECKING:
