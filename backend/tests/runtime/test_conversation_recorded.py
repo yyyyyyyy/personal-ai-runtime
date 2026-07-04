@@ -7,8 +7,8 @@ import pytest
 os.environ.setdefault("LLM_API_KEY", "test-key")
 
 from app.core.runtime.conversation_recorder import record_conversation_turn
+from app.core.runtime.event_formatting import to_legacy_dict
 from app.core.runtime.kernel import Kernel
-from app.core.runtime.legacy_event_adapter import to_legacy_dict
 from app.store.database import Database
 
 
@@ -42,7 +42,7 @@ def test_conversation_recorded_emits_to_event_log(tmp_path):
     assert rows[0].payload["user_message"] == "我想辞职创业"
 
 
-def test_legacy_adapter_maps_conversation_type(tmp_path):
+def test_event_formatting_maps_conversation_type(tmp_path):
     k = Kernel(db=Database(db_path=str(tmp_path / "conv2.db")))
     import app.core.runtime.kernel_instance as ki
     import app.store.database as db_mod
