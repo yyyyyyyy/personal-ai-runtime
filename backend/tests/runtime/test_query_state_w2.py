@@ -75,6 +75,6 @@ class TestQueryStateW2:
             payload={"title": "Blocked", "dependencies_json": '["t1"]'},
         )
 
-        blocked = k.query_state("work_items", status="pending", depends_on_task="t1")
+        blocked = k.query_state("work_items", status="pending", depends_on_work="t1")
         assert len(blocked) == 1
         assert blocked[0]["id"] == "t2"

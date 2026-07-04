@@ -183,7 +183,7 @@ def check_provenance(conn: Any) -> list[Violation]:
                 ),
             )
 
-    for row in conn.execute("SELECT id, goal_id FROM actions").fetchall():
+    for row in conn.execute("SELECT id, parent_goal_id as goal_id FROM work_items WHERE work_type = 'action'").fetchall():
         action_id = row["id"]
         goal_id = row["goal_id"] or ""
         found = conn.execute(
@@ -194,8 +194,8 @@ def check_provenance(conn: Any) -> list[Violation]:
         ).fetchone()
         if not found:
             violations.append(
-                ("actions", action_id,
-                 f"no event_log row for aggregate_type={'action'!r}"),
+                ("work_items", action_id,
+                 f"no event_log row for aggregate_type={'work_item'!r}"),
             )
         if goal_id:
             gf = conn.execute(
@@ -206,7 +206,7 @@ def check_provenance(conn: Any) -> list[Violation]:
             ).fetchone()
             if not gf:
                 violations.append(
-                    ("actions", action_id,
+                    ("work_items", action_id,
                      f"referenced goal_id {goal_id!r} has no event_log row"),
                 )
 
@@ -238,10 +238,10 @@ def print_violations(violations: list[Violation], stream: TextIO = sys.stderr) -
 def bootstrap_sample_scenario(kernel: Any) -> None:
     """Emit a minimal event chain so provenance checks pass on a fresh database."""
     trigger = kernel.emit_event(
-        "TaskCreated",
-        "task",
+        "WorkItemCreated",
+        "work_item",
         "prov_task_1",
-        payload={"name": "provenance sample"},
+        payload={"title": "provenance sample", "work_type": "task"},
         actor="verify",
     )
     assert trigger.seq is not None
@@ -269,10 +269,10 @@ def bootstrap_sample_scenario(kernel: Any) -> None:
     )
     # Goal action provenance
     kernel.emit_event(
-        "ActionCreated",
-        "action",
+        "WorkItemCreated",
+        "work_item",
         "prov_act_1",
-        payload={"goal_id": "prov_goal_1", "title": "Provenance action", "status": "pending"},
+        payload={"parent_goal_id": "prov_goal_1", "title": "Provenance action", "status": "pending", "work_type": "action"},
         actor="verify",
     )
     # Memory provenance
