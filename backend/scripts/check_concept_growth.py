@@ -123,12 +123,12 @@ def count_dead_code_files() -> int:
 # the table in docs/02-concepts/runtime-algebra.md §4.6.
 
 BASELINE = {
-    "runtime_files": 57,               # core/runtime/ (-1 net: merge 3→1 + ports)
+    "runtime_files": 55,               # core/runtime/ (-2: merged projectors_aux+user → core)
     "event_types": 60,                 # constants.py 中的 EVENT_* = "..." 赋值
-    "query_state_selectors": 12,  # -3 (tasks/actions/triggers removed)
+    "query_state_selectors": 12,
     "fragments": 13,                   # register.py 的 _ALL_FRAGMENT_CLASSES 中的 Fragment 类
     "governed_tables": 13,             # -2 (actions/tasks removed)
-    "projector_files": 9,              # kernel/projectors_*.py 文件数
+    "projector_files": 7,              # kernel/projectors_*.py (-2: aux+user merged into core)
     "god_object_max_loc": 1857,        # 最大 God Object LOC (-57: deprecated query functions removed)
     "dead_code_files": 0,              # 已知死代码文件数
 }

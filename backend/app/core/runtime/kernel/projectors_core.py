@@ -354,3 +354,64 @@ def _on_claim_revised(event: Event, conn) -> None:
     )
 
 
+# --- User Profile projection (was projectors_user.py, merged v0.7.0) ---------
+
+@projector("UserProfileUpdated")
+def _on_user_profile_updated(event: Event, conn) -> None:
+    p = event.payload
+    category = p["category"]
+    conn.execute(
+        """INSERT OR REPLACE INTO user_profile
+           (id, category, data_json, confidence, updated_at)
+           VALUES (?, ?, ?, ?, ?)""",
+        (category, category, p["data_json"], p["confidence"], event.ts),
+    )
+
+
+# --- Notification projection (was projectors_aux.py, merged v0.7.0) ----------
+
+_OWNED_TABLES["notification"] = ["notifications"]
+
+
+@projector("NotificationCreated")
+def _on_notification_created(event: Event, conn) -> None:
+    p = event.payload
+    conn.execute(
+        """INSERT OR REPLACE INTO notifications
+           (id, type, title, content, read,
+            related_id, related_type, notification_type, created_at)
+           VALUES (?, ?, ?, ?, 0, ?, ?, ?, ?)""",
+        (
+            event.aggregate_id,
+            p.get("type", ""),
+            p.get("title", ""),
+            p.get("content", ""),
+            p.get("related_id"),
+            p.get("related_type"),
+            p.get("notification_type"),
+            p.get("created_at", event.ts),
+        ),
+    )
+
+
+@projector("NotificationUpdated")
+def _on_notification_updated(event: Event, conn) -> None:
+    p = event.payload
+    conn.execute(
+        "UPDATE notifications SET content = ? WHERE id = ?",
+        (p.get("content", ""), event.aggregate_id),
+    )
+
+
+@projector("NotificationRead")
+def _on_notification_read(event: Event, conn) -> None:
+    conn.execute(
+        "UPDATE notifications SET read = 1 WHERE id = ?",
+        (event.aggregate_id,),
+    )
+
+
+@projector("NotificationReadAll")
+def _on_notification_read_all(event: Event, conn) -> None:
+    conn.execute("UPDATE notifications SET read = 1 WHERE read = 0")
+
