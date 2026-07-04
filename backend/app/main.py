@@ -276,9 +276,8 @@ async def lifespan(app: FastAPI):
     # Start unified runtime loop (replaces background_worker + scheduler + timer_engine)
     await runtime_loop.start()
 
-    from app.core.runtime.trigger_engine import trigger_engine
-
-    trigger_engine.seed_builtin_triggers()
+    # Register built-in Reactions (v0.6.0: replaces trigger_engine.seed_builtin_triggers)
+    import app.core.runtime.builtin_reactions  # noqa: F401 — registers @reaction decorators
 
     try:
         from app.core.harness.mcp_lifecycle import start_mcp_mesh

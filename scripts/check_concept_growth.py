@@ -81,11 +81,11 @@ def count_projector_files() -> int:
 
 BASELINE = {
     "runtime_files": 61,      # core/runtime/ 递归 .py 文件数
-    "event_types": 69,        # constants.py 中的 EVENT_* = "..." 赋值 (+4 WorkItem)
-    "query_state_selectors": 15,  # +1 work_items selector
+    "event_types": 67,        # constants.py 中的 EVENT_* = "..." 赋值 (-2 trigger events)
+    "query_state_selectors": 15,
     "fragments": 13,          # register.py 的 _ALL_FRAGMENT_CLASSES 中的 Fragment 类
-    "governed_tables": 15,    # +1 work_items table
-    "projector_files": 10,    # kernel/projectors_*.py 文件数
+    "governed_tables": 15,
+    "projector_files": 9,     # kernel/projectors_*.py 文件数 (-1 projectors_trigger)
 }
 
 

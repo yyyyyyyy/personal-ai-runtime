@@ -189,70 +189,23 @@ class RuntimeLoop:
             logger.exception("Approval expiry failed")
 
         try:
-            await self._smart_notification_check()
+            await self._check_reactions()
         except Exception:
-            logger.exception("Smart notification check failed")
-
-        try:
-            await self._check_triggers()
-        except Exception:
-            logger.exception("Trigger evaluation failed")
+            logger.exception("Reaction evaluation failed")
 
         try:
             await self._process_background_tasks()
         except Exception:
             logger.exception("Background task processing failed")
 
-    async def _smart_notification_check(self) -> None:
-        """Check for stagnant goals, create notifications."""
-        from datetime import UTC, datetime
+    async def _check_reactions(self) -> None:
+        """Evaluate registered Reactions (v0.6.0: replaces TriggerEngine)."""
+        from app.core.runtime.reaction_registry import get_reaction_registry
 
-        stagnant_goals = kernel.query_state(
-            "goals", status="active", last_activity_older_than_days=3,
-            order="last_activity_asc", limit=5,
-        )
-        for goal in stagnant_goals:
-            goal_id = goal.get("id", "")
-            title = goal.get("title", "")
-            last_activity = goal.get("last_activity_at") or goal.get("created_at", "")
-            existing = kernel.query_state(
-                "notifications", related_id=goal_id,
-                notification_type="goal_stagnant", limit=1,
-            )
-            if existing:
-                notif_time = existing[0].get("created_at", "")
-                if notif_time > last_activity:
-                    continue
-            try:
-                activity_dt = datetime.fromisoformat(last_activity)
-                days_stagnant = (datetime.now(UTC) - activity_dt).days
-            except (ValueError, TypeError):
-                days_stagnant = 3
-            kernel.emit_event(
-                "NotificationCreated", "notification", f"notif_stagnant_{goal_id}",
-                payload={
-                    "type": "goal_stagnant",
-                    "title": f"目标停滞: {title}",
-                    "content": f"目标已 {days_stagnant} 天未更新，需要关注",
-                    "severity": "warning",
-                    "related_id": goal_id,
-                    "related_type": "goal",
-                    "notification_type": "goal_stagnant",
-                },
-                actor="system",
-            )
-            logger.info("Created stagnant goal notification for: %s", title)
+        registry = get_reaction_registry()
+        registry.evaluate_cycle(kernel)
 
-    async def _check_triggers(self) -> None:
-        """Evaluate condition-based triggers (ex-trigger_engine TimerFired handler).
-
-        This runs every maintenance tick (~10s) instead of on a separate
-        cron schedule, unifying time-based and condition-based triggers into
-        a single reactive-producer pattern within RuntimeLoop.
-        """
-        from app.core.runtime.trigger_engine import trigger_engine
-
-        trigger_engine.evaluate_and_notify()
+    # --- Backward compat (kept for the staleness reaction path) ----------------
 
     async def _process_background_tasks(self) -> None:
         """Process pending background tasks."""

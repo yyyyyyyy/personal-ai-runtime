@@ -31,7 +31,6 @@ if TYPE_CHECKING:
     from app.core.runtime.state_manager import StateManager
     from app.core.runtime.taint import TaintRegistry
     from app.core.runtime.task_engine import TaskEngine
-    from app.core.runtime.trigger_engine import TriggerEngine
 
 
 class _LazyProxy:
@@ -244,9 +243,9 @@ class RuntimeContainer:
         return task_engine
 
     @property
-    def trigger_engine(self) -> "TriggerEngine":
-        from app.core.runtime.trigger_engine import trigger_engine
-        return trigger_engine
+    def trigger_engine(self):
+        from app.core.runtime.reaction_registry import get_reaction_registry
+        return get_reaction_registry()  # v0.6.0: ReactionRegistry replaces TriggerEngine
 
     # ── Lifecycle ──────────────────────────────────────────────────────
 

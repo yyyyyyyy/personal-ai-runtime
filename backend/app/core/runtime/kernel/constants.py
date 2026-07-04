@@ -75,11 +75,6 @@ EVENT_INBOX_EMAIL_RECORDED = "InboxEmailRecorded"
 EVENT_CHAT_TEXT_DELTA = "ChatTextDelta"   # DELIBERATELY NOT EMITTED TO EVENT_LOG — pushed to SSE queue to avoid polluting Truth Layer
 EVENT_CHAT_DONE = "ChatDone"
 
-# ── Trigger audit ──────────────────────────────────────────────
-
-EVENT_TRIGGER_CREATED = "TriggerCreated"
-EVENT_TRIGGER_DELETED = "TriggerDeleted"
-
 # ── Application audit ──────────────────────────────────────────
 
 EVENT_APP_CONFIG_CHANGED = "AppConfigChanged"
@@ -125,7 +120,6 @@ AGGREGATE_POLICY = "policy"
 AGGREGATE_GRANT = "grant"
 AGGREGATE_BACKGROUND_TASK = "background_task"
 AGGREGATE_INBOX_EMAIL = "inbox_email"
-AGGREGATE_TRIGGER = "trigger"
 
 # ── Timer aggregate ─────────────────────────────────────────────────────────
 
