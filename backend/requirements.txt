@@ -5,7 +5,6 @@ pydantic==2.10.4
 pydantic-settings==2.14.2
 python-dotenv==1.2.2
 chromadb==0.5.23
-apscheduler==3.11.0
 httpx==0.28.1
 mcp>=1.0.0
 alembic==1.18.5

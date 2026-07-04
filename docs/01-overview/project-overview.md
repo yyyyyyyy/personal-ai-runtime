@@ -81,8 +81,6 @@ personal-ai-runtime/
 
 代码中可观察到的、文档需明确标注的现状：
 
-- `backend/app/api/workflows.py` 定义了完整 router，但 [`backend/app/main.py`](../../backend/app/main.py) **未通过 `include_router` 挂载**。前端 `WorkflowList.tsx`、`WorkflowEditor.tsx`、`SceneTemplates.tsx`、`IntegrationsHub.tsx` 同样未进入 [`frontend/src/router.tsx`](../../frontend/src/router.tsx)。这些端点与页面在当前运行实例中不可达。
-- `apscheduler==3.11.0` 仍在 [`backend/requirements.txt`](../../backend/requirements.txt) 与 [`backend/pyproject.toml`](../../backend/pyproject.toml) 中，但 [`backend/app/core/runtime/cron_registry.py`](../../backend/app/core/runtime/cron_registry.py) 注释声明 v0.3.0 起定时器扫描已迁移到 `runtime_loop`。代码库中证据不足：未在 `backend/app/core/` 中观察到对 APScheduler 的实际导入。
 - `desktop/preload.js` 通过 `contextBridge.exposeInMainWorld('electronAPI', ...)` 暴露了 `getBackendUrl`、`sendNotification`、`platform`，但在 `frontend/src/` 中未观察到任何对这些绑定的消费代码。代码库中证据不足：当前前端不使用这些 IPC 绑定。
 - `backend/app/version.py` 标注 `VERSION = "0.2.0"`，但其他模块 docstring 中出现 `v0.3.0`/`v0.4.0`/`v0.5.0` 等子系统版本号；这些是子系统演进标记，与项目整体版本不同步。
 
