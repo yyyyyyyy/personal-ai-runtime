@@ -19,13 +19,12 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from . import projectors  # noqa: F811 — used via SovereigntyMixin mixin
+from . import projectors
 from .constants import (
     CHAT_EVENT_TYPES,
     MEMORY_INDEX_EVENT_TYPES,
     PROJECTION_SNAPSHOT_AGGREGATES,
 )
-from .projectors import projectors
 
 EXPORT_FORMAT = "snapshot"
 
