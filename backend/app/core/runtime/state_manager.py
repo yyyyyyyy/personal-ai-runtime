@@ -17,16 +17,21 @@ class TaskStatus(str, Enum):
     COMPLETED = "completed"
     FAILED = "failed"
     CANCELLED = "cancelled"
+    RETRYING = "retrying"
 
 
 # Valid state transitions
 _TRANSITIONS: dict[TaskStatus, set[TaskStatus]] = {
     TaskStatus.PENDING: {TaskStatus.RUNNING, TaskStatus.CANCELLED},
-    TaskStatus.RUNNING: {TaskStatus.BLOCKED, TaskStatus.WAITING_APPROVAL, TaskStatus.COMPLETED, TaskStatus.FAILED},
+    TaskStatus.RUNNING: {
+        TaskStatus.BLOCKED, TaskStatus.WAITING_APPROVAL,
+        TaskStatus.COMPLETED, TaskStatus.FAILED, TaskStatus.RETRYING,
+    },
     TaskStatus.BLOCKED: {TaskStatus.PENDING, TaskStatus.RUNNING, TaskStatus.CANCELLED},
     TaskStatus.WAITING_APPROVAL: {TaskStatus.RUNNING, TaskStatus.CANCELLED},
+    TaskStatus.RETRYING: {TaskStatus.PENDING, TaskStatus.FAILED},
     TaskStatus.COMPLETED: set(),  # terminal
-    TaskStatus.FAILED: {TaskStatus.PENDING},  # can retry
+    TaskStatus.FAILED: {TaskStatus.PENDING, TaskStatus.RETRYING},  # can retry
     TaskStatus.CANCELLED: set(),  # terminal
 }
 

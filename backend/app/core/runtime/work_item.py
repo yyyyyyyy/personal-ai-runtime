@@ -92,7 +92,16 @@ class WorkItem:
     _event: object | None = field(default=None, repr=False, compare=False)
 
     def transition_to(self, status: WorkItemStatus) -> None:
-        """Move to a new status, updating timestamps."""
+        """Move to a new status, updating timestamps.
+
+        Validates the transition through StateManager so that illegal
+        state machine jumps (e.g. completed → running) raise immediately
+        rather than silently corrupting handler_executions.
+        """
+        from app.core.runtime.state_manager import TaskStatus, state_manager
+        state_manager.validate_transition(
+            TaskStatus(self.status), TaskStatus(status),
+        )
         self.status = status
         if status == "running" and self.started_at is None:
             self.started_at = datetime.now(UTC).isoformat()

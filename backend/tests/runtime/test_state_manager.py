@@ -41,3 +41,40 @@ class TestStateManager:
         entity_id = "test-task-1"
         result = state_manager.transition(entity_id, "task", TaskStatus.PENDING, TaskStatus.RUNNING)
         assert result == TaskStatus.RUNNING
+
+    def test_retrying_transitions(self):
+        """RETRYING must be reachable from RUNNING/FAILED and resolve to PENDING/FAILED."""
+        assert state_manager.validate_transition(TaskStatus.RUNNING, TaskStatus.RETRYING)
+        assert state_manager.validate_transition(TaskStatus.FAILED, TaskStatus.RETRYING)
+        assert state_manager.validate_transition(TaskStatus.RETRYING, TaskStatus.PENDING)
+        assert state_manager.validate_transition(TaskStatus.RETRYING, TaskStatus.FAILED)
+        with pytest.raises(ValueError):
+            state_manager.validate_transition(TaskStatus.RETRYING, TaskStatus.COMPLETED)
+        with pytest.raises(ValueError):
+            state_manager.validate_transition(TaskStatus.PENDING, TaskStatus.RETRYING)
+
+
+class TestWorkItemTransitionValidation:
+    """WorkItem.transition_to must enforce StateManager rules."""
+
+    def test_valid_transition_succeeds(self):
+        from app.core.runtime.work_item import WorkItem
+        item = WorkItem(event_type="X")
+        item.transition_to("running")
+        assert item.status == "running"
+        assert item.started_at is not None
+
+    def test_invalid_transition_raises(self):
+        from app.core.runtime.work_item import WorkItem
+        item = WorkItem(event_type="X", status="completed")
+        with pytest.raises(ValueError):
+            item.transition_to("running")
+
+    def test_running_to_retrying_succeeds(self):
+        from app.core.runtime.work_item import WorkItem
+        item = WorkItem(event_type="X", status="running")
+        item.transition_to("retrying")
+        assert item.status == "retrying"
+        # retrying → pending is the recovery path used by Scheduler._recover
+        item.transition_to("pending")
+        assert item.status == "pending"
