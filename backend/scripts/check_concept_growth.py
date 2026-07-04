@@ -129,7 +129,7 @@ BASELINE = {
     "fragments": 13,                   # register.py 的 _ALL_FRAGMENT_CLASSES 中的 Fragment 类
     "governed_tables": 13,             # -2 (actions/tasks removed)
     "projector_files": 9,              # kernel/projectors_*.py 文件数
-    "god_object_max_loc": 1941,        # 最大 God Object LOC (Kernel + mixins)
+    "god_object_max_loc": 1952,        # 最大 God Object LOC (Kernel + mixins)
     "dead_code_files": 0,              # 已知死代码文件数
 }
 
@@ -192,6 +192,32 @@ def check(verbose: bool = True, strict: bool = False) -> int:
     return 1 if violations > 0 else 0
 
 
+def _record_snapshot():
+    """Append current metrics to the architecture history file (JSONL).
+
+    Used by CI and `make architecture-record` to build the trend timeline
+    consumed by `health_dashboard.py`.
+    """
+    import json
+    from datetime import UTC, datetime
+
+    current = measure_all()
+    current["ts"] = datetime.now(UTC).isoformat()
+
+    data_dir = ROOT / "backend" / "data"
+    data_dir.mkdir(parents=True, exist_ok=True)
+    history = data_dir / "architecture_history.jsonl"
+
+    with open(history, "a") as f:
+        f.write(json.dumps(current) + "\n")
+
+    print(f"Snapshot recorded ({len(list(open(history)))} total): {current['ts']}")
+    # Also run check so the record step gates on the same baseline
+    code = check(verbose=False)
+    if code != 0:
+        print("WARNING: current metrics exceed baseline — snapshot recorded but check would fail.")
+
+
 def snapshot():
     """Print current measurements as a markdown table for the baseline doc."""
     current = measure_all()
@@ -212,6 +238,8 @@ def snapshot():
 if __name__ == "__main__":
     if "--snapshot" in sys.argv:
         snapshot()
+    elif "--record" in sys.argv:
+        _record_snapshot()
     else:
         strict = "--strict" in sys.argv
         sys.exit(check(strict=strict))

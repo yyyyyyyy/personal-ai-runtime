@@ -1,4 +1,4 @@
-.PHONY: install setup init-db dev demo screenshots test test-backend test-frontend test-e2e ci-local lint typecheck desktop desktop-build boundary rebuild-verify export-roundtrip-verify snapshot-verify egress-verify connector-verify alembic-verify vector-consistency-verify architecture-check architecture-check-strict architecture-snapshot docker-up docker-down projection-provenance conversation-rebuild goal-rebuild lockfile secrets-scan
+.PHONY: install setup init-db dev demo screenshots test test-backend test-frontend test-e2e ci-local lint typecheck desktop desktop-build boundary rebuild-verify export-roundtrip-verify snapshot-verify egress-verify connector-verify alembic-verify vector-consistency-verify architecture-check architecture-check-strict architecture-snapshot architecture-record dashboard dashboard-write docker-up docker-down projection-provenance conversation-rebuild goal-rebuild lockfile secrets-scan
 
 # Backend
 BACKEND_DIR := backend
@@ -92,6 +92,15 @@ architecture-check-strict:
 
 architecture-snapshot:
 	cd $(BACKEND_DIR) && python3 scripts/check_concept_growth.py --snapshot
+
+architecture-record:
+	cd $(BACKEND_DIR) && python3 scripts/check_concept_growth.py --record
+
+dashboard:
+	cd $(BACKEND_DIR) && python3 scripts/health_dashboard.py
+
+dashboard-write:
+	cd $(BACKEND_DIR) && python3 scripts/health_dashboard.py --write
 
 projection-provenance:
 	cd $(BACKEND_DIR) && python3 scripts/check_projection_provenance.py
