@@ -175,7 +175,8 @@ def test_work_item_to_row_roundtrip(kernel):
         policy=policy,
         correlation_id="corr_abc",
     )
-    original.transition_to("running")
+    # status is already running; transition straight to completed (the
+    # no-op running->running is rejected by StateManager validation).
     original.transition_to("completed")
 
     row = original.to_row()
