@@ -4,7 +4,7 @@
 
 ## 入口：`Kernel.invoke_capability`
 
-所有工具调用（内建工具与外部 MCP 工具）的唯一入口是 `Kernel.invoke_capability()`（[`backend/app/core/runtime/kernel/kernel.py:558-702`](../../backend/app/core/runtime/kernel/kernel.py)）。签名：
+所有工具调用（内建工具与外部 MCP 工具）的唯一入口是 `Kernel.invoke_capability()`（[`backend/app/core/runtime/kernel/kernel.py`](../../backend/app/core/runtime/kernel/kernel.py) 的 `Kernel.invoke_capability`）。签名：
 
 ```
 invoke_capability(name, args, actor, correlation_id,
@@ -22,7 +22,7 @@ invoke_capability(name, args, actor, correlation_id,
 
 ## 4-Gate 授权
 
-`CapabilityGovernance.decide()`（[`backend/app/core/runtime/capability_governance.py:291-357`](../../backend/app/core/runtime/capability_governance.py)）依次执行：
+`CapabilityGovernance.decide()`（[`backend/app/core/runtime/capability_governance.py`](../../backend/app/core/runtime/capability_governance.py) 的 `CapabilityGovernance.decide`）依次执行：
 
 ```mermaid
 flowchart TB
@@ -110,10 +110,8 @@ Principal(principal_id, type ∈ {system, user, agent}, actor, allowed_capabilit
 
 治理本身是事件溯源的根：
 
-- `policy_events` 表 — 每个能力的风险等级与状态变更历史。
-- `grant_events` 表 — 每个 principal 的能力授权发放/撤销历史。
-
-两者都由 [`projectors_governance.py`](../../backend/app/core/runtime/kernel/projectors_governance.py) 从 `event_log` 投影。`risk_for` 读取 `policy_events` 投影（带缓存）。
+- `policy_events` 表 — 每个能力的风险等级与状态变更历史，由 [`projectors_governance.py`](../../backend/app/core/runtime/kernel/projectors_governance.py) 从 `PolicyCreated/Updated/Revoked` 事件投影。`risk_for` 读取此投影（带缓存）。
+- `grant_events` 表 — **状态有歧义（v0.7.0）**：曾是 grant 聚合的投影，但 `projectors_governance.py` 已无 `Grant*` projector，表已归入 APP_STORAGE 作为 legacy。然而 [`capability_governance.py:234-243`](../../backend/app/core/runtime/capability_governance.py) 的 Gate 2 仍 SELECT 此表。实际后果：`GrantCreated/Revoked` 事件不会被投影，agent principal 在 Gate 2 永远查不到授权行，被 fail-closed 拒绝。当前实际行为是只有 `system`/`user` principal 能通过 Gate 2。修复路径待定（补 projector 或彻底删除 Gate 2 + 表）。
 
 ## 出口审计
 

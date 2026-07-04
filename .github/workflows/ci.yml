@@ -147,6 +147,11 @@ jobs:
           cd backend
           python scripts/check_concept_growth.py
 
+      - name: Doc ↔ table_registry sync guard
+        run: |
+          cd backend
+          python scripts/check_doc_table_sync.py
+
       - name: Projection provenance guard (goals / approvals / handler_executions / conversations / messages)
         run: |
           cd backend

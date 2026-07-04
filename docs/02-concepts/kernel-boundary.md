@@ -17,7 +17,8 @@
 ```python
 GOVERNED_TABLES = frozenset({
     "event_log",          # 不可变事件日志（真相之源）
-    "goals", "actions", "tasks",
+    "goals",
+    "work_items",         # v0.5.0：统一 task + action
     "memories",
     "approvals",
     "conversations", "messages",
@@ -26,7 +27,6 @@ GOVERNED_TABLES = frozenset({
     "handler_executions",      # 执行模型持久化
     "timer_events",
     "policy_events",           # 治理事件溯源根
-    "grant_events",            # 能力授权事件溯源根
 })
 ```
 
@@ -45,10 +45,13 @@ APP_STORAGE_TABLES = frozenset({
     "user_profile",      # 本地偏好，无审计价值
     "inbox_emails",      # IMAP 原始邮件缓存；权威记录是 InboxEmailRecorded 事件
     "app_settings",      # UI 偏好、LLM/Email 连接配置
+    "email_settings",    # IMAP/SMTP 连接配置
+    "grant_events",      # legacy：v0.7.0 projector 已删除（见 capability-governance.md 的状态歧义说明）
+    "memory_index_repairs",  # v0.8.0：ChromaDB 索引修复队列
 })
 ```
 
-[`table_registry.py:28-35`](../../backend/app/store/table_registry.py) 的注释解释了为何每张表**不**做事件溯源：可从权威源重建 / 纯缓存 / 应用本地配置无审计需求。它们永远不得被呈现为「第二个真相之源」。
+[`table_registry.py`](../../backend/app/store/table_registry.py) 的注释解释了为何每张表**不**做事件溯源：可从权威源重建 / 纯缓存 / 应用本地配置无审计需求。它们永远不得被呈现为「第二个真相之源」。
 
 ## Schema 契约
 

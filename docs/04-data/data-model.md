@@ -15,16 +15,16 @@ SQLite 启用 WAL + `synchronous=NORMAL`（[`backend/app/store/database.py:41-44
 
 ## 表分类总览
 
-全部 23 张表必须归入 GOVERNED 或 APP_STORAGE（[`backend/app/store/table_registry.py`](../../backend/app/store/table_registry.py)）。
+全部 24 张表必须归入 GOVERNED 或 APP_STORAGE（[`backend/app/store/table_registry.py`](../../backend/app/store/table_registry.py)）。
 
 | 类别 | 表数 | 写入权 |
 |---|---|---|
-| GOVERNED_TABLES | 14 | 仅 Kernel（事件溯源投影） |
-| APP_STORAGE_TABLES | 9 | 任意模块直访 |
+| GOVERNED_TABLES | 12 | 仅 Kernel（事件溯源投影） |
+| APP_STORAGE_TABLES | 12 | 任意模块直访 |
 
 ## GOVERNED 表（事件溯源投影）
 
-预期列契约定义于 [`table_registry.py:64-119`](../../backend/app/store/table_registry.py) 的 `GOVERNED_SCHEMA`。
+预期列契约定义于 [`table_registry.py`](../../backend/app/store/table_registry.py) 的 `GOVERNED_SCHEMA`。
 
 ### `event_log`（真相之源）
 
@@ -48,25 +48,17 @@ frozenset({
 
 `parent_id` 自引用外键（-goal 树）。
 
-### `actions`
+### `work_items`（v0.5.0：统一 task + action）
 
 ```python
 frozenset({
-    "id", "goal_id", "title", "status", "executable_plan",
-    "created_at", "completed_at",
+    "id", "title", "description", "work_type", "parent_work_id",
+    "parent_goal_id", "status", "priority", "dependencies_json",
+    "executable_plan", "created_at", "updated_at", "completed_at",
 })
 ```
 
-### `tasks`
-
-```python
-frozenset({
-    "id", "name", "description", "parent_goal_id", "parent_task_id", "status",
-    "priority", "dependencies_json", "created_at", "updated_at",
-})
-```
-
-统一任务模型（Goal → Project → Task → Execution）。
+`work_type` 区分 `task` / `action` / `background`。`parent_goal_id` 关联 `goals.id`，`parent_work_id` 支持工作项嵌套。`dependencies_json` 是依赖 work_item id 数组，由 [`cron_registry._on_task_completed`](../../backend/app/core/runtime/cron_registry.py) 在依赖满足时自动激活。v0.5.0 起取代独立的 `actions` 与 `tasks` 表。
 
 ### `memories`
 
@@ -146,15 +138,13 @@ frozenset({
 })
 ```
 
-### `policy_events` / `grant_events`（治理事件溯源根）
+### `policy_events`（治理事件溯源根）
 
 ```python
-# policy_events
 frozenset({"id", "capability", "risk_level", "status", "created_at", "updated_at"})
-
-# grant_events
-frozenset({"id", "principal_id", "capability", "status", "created_at", "revoked_at"})
 ```
+
+`grant_events` 表曾是 grant 聚合的投影，v0.7.0 起 projector 被删除、表归入 APP_STORAGE（详见下文）。
 
 ## APP_STORAGE 表（可直访）
 
@@ -169,6 +159,9 @@ frozenset({"id", "principal_id", "capability", "status", "created_at", "revoked_
 | `user_profile` | 本地偏好 | 无审计价值，导出 event_log 足够主权 |
 | `inbox_emails` | IMAP 原始邮件缓存 | 权威记录是 `InboxEmailRecorded` 事件 |
 | `app_settings` | UI 偏好、LLM/Email 连接配置 | 本地运营配置 |
+| `email_settings` | IMAP/SMTP 连接配置 | 本地运营配置 |
+| `grant_events` | 历史 grant 投影 | **状态有歧义**：[`projectors_governance.py`](../../backend/app/core/runtime/kernel/projectors_governance.py) 已无 `Grant*` projector（v0.7.0 删除），但 [`capability_governance.py:234-243`](../../backend/app/core/runtime/capability_governance.py) 的 Gate 2 仍在 SELECT 此表。结果是：任何 `GrantCreated/Revoked` 事件都不会被投影，agent principal 在 Gate 2 永远查到 0 行并被 fail-closed 拒绝。当前系统实际只有 system/user principal 能通过 Gate 2。修复路径待定（补回 projector，或彻底删除 Gate 2 + 表）。 |
+| `memory_index_repairs` | 失败的 ChromaDB 索引同步修复队列（v0.8.0） | 由 [`RuntimeLoop._drain_memory_index_repairs`](../../backend/app/core/runtime/runtime_loop.py) 每 ~10s 重试，retry_count ≥ 5 标记 `failed_permanent` 并发 `MemoryIndexRepairFailed` 事件。权威记录是 `MemoryDerived/Updated/Deleted` 事件。 |
 
 ## ChromaDB Collections
 
@@ -190,6 +183,7 @@ frozenset({"id", "principal_id", "capability", "status", "created_at", "revoked_
 | `initial`（`initial_schema.py`） | — | 基线：一次性创建所有应用表 + kernel 表（含 `event_log` append-only 触发器）+ `projection_checkpoints` + `handler_executions` |
 | `v02_projection_tables` | `initial` | 创建 `timer_events`/`policy_events`/`grant_events`；ALTER 加 `messages.sources` 列 |
 | `v03_notification_dedup` | `v02_projection_tables` | ALTER 加 `notifications.related_id`/`related_type`/`notification_type`；创建 `ix_notifications_related_type` 索引（参考 `FACT-37`） |
+| `v04_memory_index_repairs` | `v03_notification_dedup` | 创建 `memory_index_repairs` 表 + `idx_memory_repairs_status` 索引（v0.8.0：durable ChromaDB 修复队列） |
 
 `run_migrations()`（[`backend/app/store/alembic_runner.py`](../../backend/app/store/alembic_runner.py)）用 `backend/alembic.ini`，`command.upgrade(cfg, "head")`，幂等。`env.py` import `app.config.settings` 构造 `sqlite:///{settings.sqlite_path}`，并 `setdefault("LLM_API_KEY", "alembic-migration-key")` 避免 Settings 校验失败。
 

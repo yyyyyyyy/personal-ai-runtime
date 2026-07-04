@@ -49,7 +49,7 @@ Kernel 提供两类读 API：
 
 - **拉取式** `read_events(...)`（[`kernel.py:356-410`](../../backend/app/core/runtime/kernel/kernel.py)）— 支持按类型、聚合、时间、actor 等过滤的事件日志读取。
 - **订阅式** `subscribe_events(handler, type, aggregate_type)`（[`kernel.py:425-441`](../../backend/app/core/runtime/kernel/kernel.py)）— 注册回调，返回反订阅函数。
-- **状态查询** `query_state(selector, **filters)`（[`kernel_query_state.py`](../../backend/app/core/runtime/kernel_query_state.py)）— 从投影表读取当前状态。支持的选择器：`goals`、`tasks`、`approvals`、`actions`、`memories`、`notifications`、`timer_events`、`policy_events`、`grant_events`、`messages`、`inbox_emails`、`background_tasks`、`triggers`、`user_profile`。
+- **状态查询** `query_state(selector, **filters)`（[`kernel_query_state.py`](../../backend/app/core/runtime/kernel_query_state.py)）— 从投影表读取当前状态。支持的选择器：`goals`、`work_items`、`approvals`、`memories`、`notifications`、`timer_events`、`policy_events`、`messages`、`conversations`、`inbox_emails`、`background_tasks`、`triggers`、`user_profile`。
 
 ## 投影器
 
