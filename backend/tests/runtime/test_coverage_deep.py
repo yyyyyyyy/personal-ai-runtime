@@ -20,7 +20,6 @@ class TestTimerEngineScan:
         }, actor="verify")
 
         # Temporarily swap kernel singleton so _check_timers uses test kernel
-        from app.core.runtime.kernel_instance import kernel as global_kernel
         import app.core.runtime.runtime_loop as rl_mod
         original = rl_mod.kernel
         rl_mod.kernel = k
@@ -53,7 +52,6 @@ class TestTimerEngineScan:
             "fire_at": future,
         }, actor="verify")
 
-        from app.core.runtime.kernel_instance import kernel as global_kernel
         import app.core.runtime.runtime_loop as rl_mod
         original = rl_mod.kernel
         rl_mod.kernel = k

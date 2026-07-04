@@ -7,6 +7,7 @@ Covers paths not exercised by existing decision/forbidden tests:
 """
 
 import os
+
 import pytest
 
 os.environ.setdefault("LLM_API_KEY", "test-key")

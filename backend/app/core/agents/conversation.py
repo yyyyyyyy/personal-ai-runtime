@@ -87,7 +87,8 @@ class ConversationManager:
             payload=payload,
             actor="user",
         )
-        return db.get_message(msg_id) or {
+        rows = self._k().query_state("messages", id=msg_id)
+        return rows[0] if rows else {
             "id": msg_id,
             "conversation_id": self.conversation_id,
             "role": role,
@@ -127,7 +128,8 @@ class ConversationAPI:
             payload={"title": title or "New Conversation", "created_at": now},
             actor="user",
         )
-        return db.get_conversation(conv_id) or {
+        rows = k.query_state("conversations", id=conv_id)
+        return rows[0] if rows else {
             "id": conv_id,
             "title": title or "New Conversation",
             "created_at": now,
@@ -136,11 +138,12 @@ class ConversationAPI:
 
     @staticmethod
     def get(conv_id: str) -> dict | None:
-        return db.get_conversation(conv_id)
+        rows = default_kernel.query_state("conversations", id=conv_id)
+        return rows[0] if rows else None
 
     @staticmethod
     def list_all(limit: int = 50) -> list[dict]:
-        return db.list_conversations(limit=limit)
+        return default_kernel.query_state("conversations", limit=limit)
 
     @staticmethod
     def delete(conv_id: str, *, kernel=None):

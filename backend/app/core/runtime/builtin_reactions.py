@@ -11,7 +11,6 @@ from app.core.runtime.reaction_registry import (
     reaction,
 )
 
-
 # ── Email backlog ─────────────────────────────────────────────────────────
 
 @reaction(
@@ -33,7 +32,6 @@ def email_backlog_50(event_or_kernel=None) -> None:
 
 def _register_staleness_reactions():
     """Register staleness-check reactions triggered by periodic evaluation."""
-    from app.core.runtime.kernel_instance import kernel
 
     registry = get_reaction_registry()
 

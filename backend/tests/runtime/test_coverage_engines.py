@@ -28,9 +28,9 @@ class TestTimerEngineCron:
     def test_timer_schedule_registration(self, isolated_kernel):
         """Verify timer events can be created via cron_registry init."""
         k, db = isolated_kernel
-        from app.core.runtime.cron_registry import _init_timers
         # monkeypatch kernel for cron_registry
         import app.core.runtime.cron_registry as cr
+        from app.core.runtime.cron_registry import _init_timers
         old_kernel = cr.kernel
         cr.kernel = k  # type: ignore[attr-defined]
         try:

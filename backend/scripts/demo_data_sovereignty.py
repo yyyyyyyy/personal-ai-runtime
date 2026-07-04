@@ -20,10 +20,7 @@ Requirements:
 """
 
 import json
-import os
 import subprocess
-import sys
-import time
 from pathlib import Path
 
 BACKEND_DIR = Path(__file__).resolve().parent.parent
@@ -82,14 +79,14 @@ def main():
     step("1/6 当前数据存储位置")
     print(f"\n  SQLite 数据库: {DEMO_DATA_DIR / 'personal_ai_runtime.db'}")
     print(f"  ChromaDB 向量: {DEMO_DATA_DIR / 'vectors/'}")
-    print(f"  Event Log:     数据库 event_log 表 (append-only)")
-    print(f"  状态投影:       数据库 goals/memories/conversations 等表")
+    print("  Event Log:     数据库 event_log 表 (append-only)")
+    print("  状态投影:       数据库 goals/memories/conversations 等表")
 
     if (DEMO_DATA_DIR / "personal_ai_runtime.db").exists():
         size = (DEMO_DATA_DIR / "personal_ai_runtime.db").stat().st_size
         print(f"\n  ✓ 数据文件存在 ({size:,} 字节)")
     else:
-        print(f"\n  ○ 数据文件尚不存在（首次使用后自动创建）")
+        print("\n  ○ 数据文件尚不存在（首次使用后自动创建）")
 
     # Step 2: Show data sovereignty dashboard
     step("2/6 查看数据主权仪表盘")

@@ -6,8 +6,8 @@ os.environ.setdefault("LLM_API_KEY", "test-key")
 
 import pytest
 
-from app.core.agents.memory_extractor import MemoryExtractor
 from app.core.agents.memory_engine import memory_engine
+from app.core.agents.memory_extractor import MemoryExtractor
 from app.core.runtime.kernel import Kernel
 from app.store.database import Database
 
@@ -128,6 +128,7 @@ class TestMemoryExtractor:
     async def test_cloud_extract_failure_is_logged(self, monkeypatch):
         """Cloud extraction failures must surface as a warning, not silent []."""
         from unittest.mock import patch
+
         from app.core.agents import memory_extractor as me_mod
 
         class _BoomClient:

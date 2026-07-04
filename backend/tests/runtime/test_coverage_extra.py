@@ -2,7 +2,6 @@
 
 v0.6.0: timer_engine deleted; _next_cron_fire lives on RuntimeLoop.
 """
-import pytest
 
 from app.core.runtime.runtime_loop import RuntimeLoop
 

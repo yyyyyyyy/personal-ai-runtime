@@ -2,7 +2,6 @@
 
 v0.6.0: replaces imperative trigger_engine with declarative ReactionRegistry.
 """
-import json
 
 from fastapi import APIRouter, HTTPException
 
@@ -22,7 +21,6 @@ async def create_trigger(body: CreateTriggerRequest):
     name = body.name.strip()
     trigger_type = body.trigger_type
     condition = body.condition
-    action_type = body.action_type
     action_config = body.action_config or {}
 
     if not name or not trigger_type or not condition:

@@ -16,7 +16,6 @@ import uuid
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
-
 DEFAULT_APPROVAL_TTL_SECONDS = 86_400  # 24 hours
 
 

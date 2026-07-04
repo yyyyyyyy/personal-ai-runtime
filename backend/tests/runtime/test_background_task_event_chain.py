@@ -37,7 +37,8 @@ def bg_env(tmp_path, monkeypatch):
 
 def _create_bg_task(kernel, user_request, plan=None):
     """Inline create_task — mirrors background_tasks API."""
-    import json, uuid
+    import json
+    import uuid
     from datetime import UTC, datetime
 
     task_id = str(uuid.uuid4())
