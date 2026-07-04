@@ -9,7 +9,7 @@ from __future__ import annotations
 from typing import Any
 
 
-class QueryStateMixin:
+class QueryStateMixin:  # type: ignore[attr-defined]  # mixed into Kernel which provides _db
     """Read layer: query_state and projection table accessors."""
 
     def query_state(self, selector: str, **filters: Any) -> list[dict]:

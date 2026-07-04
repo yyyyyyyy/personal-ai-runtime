@@ -19,7 +19,7 @@ from typing import Any
 DEFAULT_APPROVAL_TTL_SECONDS = 86_400  # 24 hours
 
 
-class GovernanceMixin:
+class GovernanceMixin:  # type: ignore[attr-defined]  # mixed into Kernel which provides emit_event/_db
     """Approval governance for capability invocations.
 
     Mixed into Kernel. Uses self._db, self.emit_event, and related

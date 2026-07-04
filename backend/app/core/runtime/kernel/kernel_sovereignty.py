@@ -19,6 +19,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from . import projectors  # noqa: F811 — used via SovereigntyMixin mixin
 from .constants import (
     CHAT_EVENT_TYPES,
     MEMORY_INDEX_EVENT_TYPES,
@@ -39,7 +40,7 @@ def _all_projection_tables() -> set[str]:
     return result
 
 
-class SovereigntyMixin:
+class SovereigntyMixin:  # type: ignore[attr-defined]  # mixed into Kernel which provides _db/emit_event/read_events
     """Data sovereignty operations — export, import, rebuild.
 
     Mixed into Kernel. Uses self._db, self.emit_event, self.read_events,

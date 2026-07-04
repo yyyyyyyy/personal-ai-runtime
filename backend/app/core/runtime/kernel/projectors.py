@@ -12,7 +12,6 @@ from . import (  # noqa: F401 — register handlers
     projectors_execution,
     projectors_governance,
     projectors_timer,
-    projectors_trigger,
     projectors_user,
 )
 from .projectors_registry import _OWNED_TABLES, apply, owned_tables
