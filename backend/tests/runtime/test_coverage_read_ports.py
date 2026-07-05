@@ -18,7 +18,7 @@ def test_query_top_active_goals(isolated_kernel):
     """query_top_active_goals returns active goals from projection."""
     k, db = isolated_kernel
     k.emit_event("WorkItemCreated", "work_item", "goal_cov", payload={
-        "work_type": "goal",
+        "work_type": "goal", "status": "active",
         "title": "Coverage test goal",
     }, actor="verify")
     result = query_top_active_goals(limit=5)

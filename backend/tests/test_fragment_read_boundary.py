@@ -206,5 +206,5 @@ class TestKernelReadSelectors:
         monkeypatch.setattr(read_ports.kernel, "query_state", fake_query_state)
         rows = read_ports.query_top_active_goals(limit=3)
         assert rows[0]["title"] == "Test Goal"
-        assert calls[0][0] == "goals"
+        assert calls[0][0] == "work_items"
         assert calls[0][1]["status_in"] == ("active", "in_progress")
