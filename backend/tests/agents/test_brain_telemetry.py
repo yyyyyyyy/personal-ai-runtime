@@ -1,8 +1,4 @@
-"""Tests for Brain._record_llm_telemetry usage precedence.
-
-The telemetry helper must prefer provider-reported token usage (accurate for
-CJK text) and fall back to a tiktoken estimate only when usage is absent.
-"""
+"""Tests for brain_telemetry.record_llm_call — usage precedence."""
 
 from __future__ import annotations
 
@@ -12,7 +8,7 @@ from unittest.mock import patch
 
 os.environ.setdefault("LLM_API_KEY", "test-key")
 
-from app.core.agents.brain import Brain
+from app.core.agents.brain_telemetry import record_llm_call
 
 
 class _FakeProvider:
@@ -25,12 +21,18 @@ class _FakeProvider:
 def test_telemetry_prefers_provider_usage():
     """When usage is provided, tiktoken is NOT consulted."""
     usage = SimpleNamespace(prompt_tokens=42, completion_tokens=7)
-    with patch("app.core.agents.brain.telemetry") as mock_telemetry:
-        tokens = Brain._record_llm_telemetry(
+    provider = _FakeProvider()
+    with patch(
+        "app.core.agents.brain_telemetry.telemetry"
+    ) as mock_telemetry:
+        tokens = record_llm_call(
             messages=[{"role": "user", "content": "hello"}],
             assistant_content="hi",
-            used_provider=_FakeProvider(),
             llm_start=0.0,
+            provider_name=provider.name,
+            provider_model=provider.model,
+            price_per_prompt_token=provider.price_per_prompt_token,
+            price_per_completion_token=provider.price_per_completion_token,
             usage=usage,
         )
     assert tokens == 42
@@ -41,12 +43,18 @@ def test_telemetry_prefers_provider_usage():
 
 def test_telemetry_falls_back_to_tiktoken_without_usage():
     """When usage is None, tiktoken estimate is used."""
-    with patch("app.core.agents.brain.telemetry") as mock_telemetry:
-        tokens = Brain._record_llm_telemetry(
+    provider = _FakeProvider()
+    with patch(
+        "app.core.agents.brain_telemetry.telemetry"
+    ) as mock_telemetry:
+        tokens = record_llm_call(
             messages=[{"role": "user", "content": "hello world"}],
             assistant_content="hi there",
-            used_provider=_FakeProvider(),
             llm_start=0.0,
+            provider_name=provider.name,
+            provider_model=provider.model,
+            price_per_prompt_token=provider.price_per_prompt_token,
+            price_per_completion_token=provider.price_per_completion_token,
             usage=None,
         )
     assert tokens > 0

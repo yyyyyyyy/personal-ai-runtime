@@ -12,9 +12,9 @@ from typing import Any, AsyncIterator
 
 from app.config import settings
 from app.core.agents.brain_completion import BrainCompletionMixin
+from app.core.agents.brain_telemetry import record_llm_call
 from app.core.agents.conversation import ConversationManager
 from app.core.agents.llm_failover import llm_router
-from app.core.agents.token_counter import count_message_tokens, count_text_tokens
 from app.core.agents.tool_dispatcher import ToolDispatcher
 from app.core.agents.tool_markup import (
     parse_tool_calls,
@@ -24,7 +24,6 @@ from app.core.agents.tool_postprocess import canned_summary, compact_for_llm
 from app.core.runtime.governance.context_pipeline import get_sources
 from app.core.runtime.kernel_instance import kernel
 from app.core.runtime.taint import taint_registry
-from app.core.telemetry.telemetry import LLMCallRecord, telemetry
 
 logger = logging.getLogger(__name__)
 
@@ -161,8 +160,12 @@ class Brain(BrainCompletionMixin):
             assistant_content = assistant_visible
 
             # Record LLM call telemetry (latency, tokens, cost).
-            turn_tokens = self._record_llm_telemetry(
-                messages, assistant_content, used_provider, llm_start,
+            turn_tokens = record_llm_call(
+                messages, assistant_content, llm_start,
+                provider_name=used_provider.name,
+                provider_model=used_provider.model,
+                price_per_prompt_token=used_provider.price_per_prompt_token,
+                price_per_completion_token=used_provider.price_per_completion_token,
                 usage=stream_usage,
             )
             cumulative_prompt_tokens += turn_tokens
@@ -255,45 +258,6 @@ class Brain(BrainCompletionMixin):
             conversation.save_assistant_message(full_content, sources=sources)
 
         yield {"type": "done"}
-
-    @staticmethod
-    def _record_llm_telemetry(
-        messages: list[dict],
-        assistant_content: str,
-        used_provider: Any,
-        llm_start: float,
-        *,
-        usage: Any = None,
-    ) -> int:
-        """Record an LLM call (latency, tokens, cost) to telemetry.
-
-        Extracted from chat_stream so the hot path reads top-to-bottom as
-        reasoning steps, while telemetry bookkeeping is isolated and testable.
-        Prefers the provider-reported token usage (accurate, includes CJK
-        correctly) and falls back to a tiktoken estimate when the provider
-        does not return usage. Returns the prompt token count so callers can
-        enforce a cumulative cap.
-        """
-        llm_latency = (time.time() - llm_start) * 1000
-        if usage is not None:
-            prompt_tokens = int(getattr(usage, "prompt_tokens", 0) or 0)
-            completion_tokens = int(getattr(usage, "completion_tokens", 0) or 0)
-        else:
-            prompt_tokens = count_message_tokens(messages, model=used_provider.model)
-            completion_tokens = count_text_tokens(assistant_content, model=used_provider.model)
-        estimated_cost = (
-            prompt_tokens * used_provider.price_per_prompt_token
-            + completion_tokens * used_provider.price_per_completion_token
-        )
-        telemetry.record_llm_call(LLMCallRecord(
-            provider=used_provider.name,
-            model=used_provider.model,
-            prompt_tokens=prompt_tokens,
-            completion_tokens=completion_tokens,
-            latency_ms=llm_latency,
-            cost=estimated_cost,
-        ))
-        return prompt_tokens
 
     async def chat(
         self,
