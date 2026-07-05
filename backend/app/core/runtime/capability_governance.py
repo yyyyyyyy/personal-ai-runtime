@@ -43,40 +43,6 @@ class CapabilityDecision:
     approval_id: str | None = None
 
 
-# ── Flow classification helpers (ex-approval enrichment) ─────────
-
-_CORR_PREFIX_MAP: list[tuple[str, str]] = [
-    ("chat_", "对话"),
-    ("sched_", "定时任务"),
-    ("trigger_", "定时任务"),
-]
-_CORR_EXACT_MAP: dict[str, tuple[str, str]] = {
-    "approval-resolve-test": ("测试", "审批解析测试"),
-}
-
-
-def _classify_flow(corr_id: str, task_id: str | None, task_map: dict[str, str]) -> str:
-    if task_id and task_id in task_map:
-        return "任务"
-    for prefix, label in _CORR_PREFIX_MAP:
-        if corr_id.startswith(prefix):
-            return label
-    exact = _CORR_EXACT_MAP.get(corr_id)
-    if exact:
-        return exact[0]
-    return "系统" if corr_id else "未知"
-
-
-def _label_flow(corr_id: str, task_id: str | None, task_map: dict[str, str]) -> str:
-    if task_id and task_id in task_map:
-        return task_map[task_id]
-    for prefix, label in _CORR_PREFIX_MAP:
-        if corr_id.startswith(prefix):
-            return f"{label} ({corr_id})"
-    exact = _CORR_EXACT_MAP.get(corr_id)
-    if exact:
-        return exact[1]
-    return corr_id or ""
 
 
 class CapabilityGovernance:
@@ -350,50 +316,7 @@ class CapabilityGovernance:
     def list_all(kernel: Kernel, limit: int = 50) -> list[dict]:
         return kernel.query_state("approvals", limit=limit)
 
-    @staticmethod
-    def list_pending_enriched(kernel: Kernel) -> list[dict]:
-        """List pending approvals with context info (correlation_id, conversation title, task info).
 
-        Batched to avoid N+1: one ``read_events`` call fetches all
-        ApprovalRequested events, one ``query_state`` call fetches all tasks.
-        """
-        pending = kernel.query_state("approvals", status="pending")
-        if not pending:
-            return []
-
-        # Batch 1: all ApprovalRequested events in one query.
-        approval_ids = [a["id"] for a in pending]
-        correlation_map: dict[str, str] = {}
-        for aid in approval_ids:
-            events = kernel.read_events(
-                aggregate_type="approval", aggregate_id=aid,
-                type="ApprovalRequested", limit=1,
-            )
-            if events:
-                correlation_map[aid] = events[0].correlation_id or ""
-
-        # Batch 2: collect unique task ids, single query per unique id
-        # (deduplication avoids re-querying the same task across approvals).
-        task_ids = {str(a["task_id"]) for a in pending if a.get("task_id")}
-        task_map: dict[str, str] = {}
-        for tid in task_ids:
-            try:
-                task_rows = kernel.query_state("work_items", id=tid)
-                if task_rows:
-                    task_map[tid] = task_rows[0].get("title", "")
-            except Exception:
-                pass
-
-        enriched = []
-        for a in pending:
-            corr_id = correlation_map.get(a["id"], "")
-            enriched.append({
-                **a,
-                "correlation_id": corr_id,
-                "flow_type": _classify_flow(corr_id, a.get("task_id"), task_map),
-                "flow_label": _label_flow(corr_id, a.get("task_id"), task_map),
-            })
-        return enriched
 
     # ── Lifecycle ─────────────────────────────────────────────────
 
