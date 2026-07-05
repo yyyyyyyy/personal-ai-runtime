@@ -127,6 +127,7 @@ sequenceDiagram
 | 事件日志可重建 | `verify_rebuild.py` 等 12 个脚本 | 重放 `event_log` 重建全部投影并与原状态字节比对 |
 | LLM 出口审计 | `verify_egress.py` | 验证 `prepare_llm_egress` 发出 `EgressApproved` 事件 |
 | 向量一致性 | `verify_vector_consistency.py` | SQLite 记忆集合与 ChromaDB collection 集合对账 |
+| 收件箱双写一致性 | `verify_inbox_audit.py` | 验证 `inbox_emails` 表与 `InboxEmailRecorded` 事件 1:1 对应 |
 | Schema 完整性 | `verify_alembic.py` + 测试 | 20 张必需表存在 + PRAGMA 校验 |
 
 这些不变量是文档后续章节的基础，详见 [05-engineering/testing.md](../05-engineering/testing.md)。
