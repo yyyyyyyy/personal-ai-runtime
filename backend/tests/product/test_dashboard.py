@@ -21,10 +21,10 @@ def test_generate_dashboard_with_seeded_data(tmp_path, monkeypatch):
 
     # Seed: goals
     k.emit_event("WorkItemCreated", "work_item", "g1",
-                 payload={"title": "Learn Rust", "importance": 0.9, "progress": 0.5},
+                 payload={"work_type": "goal", "status": "active", "title": "Learn Rust", "importance": 0.9, "progress": 0.5},
                  actor="test")
     k.emit_event("WorkItemCreated", "work_item", "g2",
-                 payload={"title": "Ship feature", "importance": 0.7, "progress": 0.2},
+                 payload={"work_type": "goal", "status": "active", "title": "Ship feature", "importance": 0.7, "progress": 0.2},
                  actor="test")
 
     # Seed: timer

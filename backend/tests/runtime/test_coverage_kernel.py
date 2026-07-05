@@ -21,6 +21,7 @@ def test_rebuild_single_aggregate(isolated_kernel):
     """Rebuild specific aggregate type should work."""
     k, db = isolated_kernel
     k.emit_event("WorkItemCreated", "work_item", "goal_rebuild_test", payload={
+        "work_type": "goal",
         "title": "Rebuild test",
     }, actor="verify")
 
@@ -45,6 +46,7 @@ def test_query_state_simple(isolated_kernel):
     """query_state should return projection rows."""
     k, db = isolated_kernel
     k.emit_event("WorkItemCreated", "work_item", "goal_qs", payload={
+        "work_type": "goal",
         "title": "Query test",
     }, actor="verify")
 
@@ -57,6 +59,7 @@ def test_query_state_multiple_conditions(isolated_kernel):
     """query_state with multiple conditions."""
     k, db = isolated_kernel
     k.emit_event("WorkItemCreated", "work_item", "goal_qs2", payload={
+        "work_type": "goal",
         "title": "Query2",
     }, actor="verify")
 

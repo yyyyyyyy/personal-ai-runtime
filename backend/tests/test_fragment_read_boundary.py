@@ -124,12 +124,12 @@ class TestKernelReadSelectors:
 
         k.emit_event(
             "WorkItemCreated", "work_item", "g1",
-            {"title": "Active Goal", "status": "active", "importance": 5, "urgency": 3},
+            {"work_type": "goal", "title": "Active Goal", "status": "active", "importance": 5, "urgency": 3},
             actor="test",
         )
         k.emit_event(
             "WorkItemCreated", "work_item", "g2",
-            {"title": "In Progress Goal", "status": "in_progress", "importance": 4, "urgency": 2},
+            {"work_type": "goal", "title": "In Progress Goal", "status": "in_progress", "importance": 4, "urgency": 2},
             actor="test",
         )
         k.emit_event(
