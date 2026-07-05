@@ -123,17 +123,17 @@ class TestKernelReadSelectors:
         k, _ = self._make_kernel(tmp_path)
 
         k.emit_event(
-            "GoalCreated", "goal", "g1",
+            "WorkItemCreated", "work_item", "g1",
             {"title": "Active Goal", "status": "active", "importance": 5, "urgency": 3},
             actor="test",
         )
         k.emit_event(
-            "GoalCreated", "goal", "g2",
+            "WorkItemCreated", "work_item", "g2",
             {"title": "In Progress Goal", "status": "in_progress", "importance": 4, "urgency": 2},
             actor="test",
         )
         k.emit_event(
-            "GoalCreated", "goal", "g3",
+            "WorkItemCreated", "work_item", "g3",
             {"title": "Done Goal", "status": "completed", "importance": 10, "urgency": 10},
             actor="test",
         )

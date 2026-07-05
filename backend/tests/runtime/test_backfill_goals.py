@@ -15,7 +15,12 @@ import pytest
 
 @pytest.fixture
 def kernel_with_legacy_goals(tmp_path):
-    """Build a Kernel with goals rows that need backfilling to work_items."""
+    """Build a Kernel with raw SQL goals rows (simulating a pre-v1.0 DB).
+
+    v1.0 Phase 4 removed the Goal* projectors, so the goals table can only
+    be populated via raw INSERT. This fixture seeds two goals directly into
+    the goals table — exactly what backfill_goals_to_work_items reads.
+    """
     from app.core.runtime.kernel import Kernel
     from app.store.database import Database
 
@@ -23,33 +28,27 @@ def kernel_with_legacy_goals(tmp_path):
     db = Database(db_path=db_path)
     kernel = Kernel(db=db)
 
-    # Seed two legacy goals via the existing goal projector.
-    kernel.emit_event(
-        "WorkItemCreated", "work_item", "g_backfill_1",
-        payload={'work_type': 'goal', 
-            "title": "Legacy goal 1",
-            "description": "From the goals table",
-            "status": "active",
-            "progress": 0.4,
-            "importance": 0.8,
-            "urgency": 0.3,
-            "deadline": "2026-12-01T00:00:00Z",
-            "parent_id": None,
-        },
-        actor="test",
-    )
-    kernel.emit_event(
-        "WorkItemCreated", "work_item", "g_backfill_2",
-        payload={'work_type': 'goal', 
-            "title": "Legacy goal 2",
-            "status": "active",
-            "progress": 1.0,
-            "importance": 0.5,
-            "urgency": 0.5,
-            "parent_id": "g_backfill_1",
-        },
-        actor="test",
-    )
+    # Raw INSERT into the legacy goals table (no projector since v1.0).
+    now_iso = "2026-07-05T00:00:00Z"
+    with db.get_db() as conn:
+        conn.execute(
+            """INSERT INTO goals
+               (id, title, description, status, progress, importance, urgency,
+                deadline, parent_id, created_at, updated_at, last_activity_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            ("g_backfill_1", "Legacy goal 1", "From the goals table",
+             "active", 0.4, 0.8, 0.3, "2026-12-01T00:00:00Z",
+             None, now_iso, now_iso, now_iso),
+        )
+        conn.execute(
+            """INSERT INTO goals
+               (id, title, description, status, progress, importance, urgency,
+                deadline, parent_id, created_at, updated_at, last_activity_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            ("g_backfill_2", "Legacy goal 2", "",
+             "active", 1.0, 0.5, 0.5, None,
+             "g_backfill_1", now_iso, now_iso, now_iso),
+        )
 
     return kernel, db_path
 
@@ -66,17 +65,13 @@ def test_backfill_emits_work_items_for_each_goal(kernel_with_legacy_goals):
     assert summary["skipped"] == 0
     assert summary["errors"] == 0
 
-    rows = kernel.query_state("goals")
+    rows = kernel.query_state("work_items", work_type="goal")
     assert len(rows) == 2
     by_id = {r["id"]: r for r in rows}
     assert "g_backfill_1" in by_id
     assert "g_backfill_2" in by_id
 
     # Spot-check field migration for goal 1.
-    # Note: progress is now derived from children (v1.0 Phase 3c projector).
-    # g_backfill_1 has one child (g_backfill_2 via parent_id), so progress = 0/1 = 0.
-    # The legacy goal's progress=0.4 is NOT preserved when the goal has children —
-    # this is intentional: v1.0 derives progress from child state, not manual edits.
     g1 = by_id["g_backfill_1"]
     assert g1["title"] == "Legacy goal 1"
     assert g1["work_type"] == "goal"
@@ -93,8 +88,9 @@ def test_backfill_maps_parent_id_to_parent_work_id(kernel_with_legacy_goals):
     kernel, db_path = kernel_with_legacy_goals
     backfill(db_path)
 
-    g2 = kernel.query_state("work_items", id="g_backfill_2")[0]
-    assert g2["parent_work_id"] == "g_backfill_1"
+    g2 = kernel.query_state("work_items", id="g_backfill_2")
+    assert g2
+    assert g2[0]["parent_work_id"] == "g_backfill_1"
 
 
 def test_backfill_is_idempotent(kernel_with_legacy_goals):
@@ -120,8 +116,7 @@ def test_backfill_dry_run_does_not_emit(kernel_with_legacy_goals):
     summary = backfill(db_path, dry_run=True)
     assert summary["emitted"] == 2
 
-    # No work_items rows should exist
-    rows = kernel.query_state("goals")
+    rows = kernel.query_state("work_items", work_type="goal")
     assert len(rows) == 0
 
 

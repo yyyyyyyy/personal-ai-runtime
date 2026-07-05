@@ -23,7 +23,7 @@ def test_timeline_events_filter_by_type(client: TestClient):
     assert r.status_code == 200
     data = r.json()
     for item in data["items"]:
-        assert item["type"] == "GoalCreated"
+        assert item["type"] == "WorkItemCreated"
 
 
 def test_timeline_events_date_filter(client: TestClient):

@@ -187,7 +187,7 @@ def test_scheduler_max_concurrent_batch(kernel):
         item = WorkItem(
             id=f"wi_batch_{i}",
             instance_id=f"agent_test_{i % 3}",
-            event_type="GoalCreated",
+            event_type="WorkItemCreated",
             event_seq=i + 1,
             event_id=f"evt_{i}",
             correlation_id="batch_test",

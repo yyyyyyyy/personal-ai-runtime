@@ -408,7 +408,7 @@ class TestTriggersAPI:
         resp = client.post("/api/triggers/", json={
             "name": "stale goal alert",
             "trigger_type": "event_count",
-            "condition": {"event_type": "GoalCreated", "count": 3, "window_days": 7},
+            "condition": {"event_type": "WorkItemCreated", "count": 3, "window_days": 7},
         })
         assert resp.status_code == 200
         assert resp.json()["status"] == "registered"

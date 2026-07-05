@@ -8,9 +8,9 @@ router = APIRouter(prefix="/api/timeline", tags=["timeline"])
 
 # Event type → human-readable label mapping
 EVENT_LABELS: dict[str, str] = {
-    "GoalCreated": "创建了目标",
-    "GoalUpdated": "更新了目标",
-    "GoalCompleted": "完成了目标",
+    "WorkItemCreated": "创建了目标",
+    "WorkItemUpdated": "更新了目标",
+    "WorkItemStatusChanged": "完成了目标",
     "GoalActionCreated": "为目标添加了任务",
     "GoalActionCompleted": "完成了任务",
     "GoalActionUpdated": "更新了任务",
@@ -46,9 +46,9 @@ def _translate_event(event) -> dict:
 
     # Build a descriptive sentence
     description = label
-    if event_type == "GoalCreated":
+    if event_type == "WorkItemCreated":
         description = f'{label}「{payload.get("title", "")}」'
-    elif event_type == "GoalCompleted":
+    elif event_type == "WorkItemStatusChanged":
         description = f'{label}「{payload.get("title", "")}」'
     elif event_type == "GoalActionCompleted":
         description = f'{label}「{payload.get("title", "")}」'
@@ -88,9 +88,9 @@ def _translate_event(event) -> dict:
 
 
 EVENT_ICONS: dict[str, str] = {
-    "GoalCreated": "target",
-    "GoalUpdated": "target",
-    "GoalCompleted": "check-circle",
+    "WorkItemCreated": "target",
+    "WorkItemUpdated": "target",
+    "WorkItemStatusChanged": "check-circle",
     "GoalActionCreated": "check",
     "GoalActionCompleted": "check-circle",
     "MemoryDerived": "brain",

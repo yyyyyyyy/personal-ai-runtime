@@ -32,13 +32,13 @@ def main():
     db = Database(db_path=str(db_path))
     k = Kernel(db=db)
 
-    k.emit_event("GoalCreated", "goal", "goal_parent", payload={
+    k.emit_event("WorkItemCreated", "work_item", "goal_parent", payload={
         "title": "Parent Goal", "importance": 0.9,
     }, actor="verify")
-    k.emit_event("GoalCreated", "goal", "goal_child", payload={
+    k.emit_event("WorkItemCreated", "work_item", "goal_child", payload={
         "title": "Child Goal", "parent_id": "goal_parent", "importance": 0.5,
     }, actor="verify")
-    k.emit_event("GoalUpdated", "goal", "goal_child", payload={
+    k.emit_event("WorkItemUpdated", "work_item", "goal_child", payload={
         "progress": 0.3,
     }, actor="verify")
 
@@ -69,7 +69,7 @@ def main():
             sys.exit(1)
 
     # Rebuild and verify intact
-    k.rebuild("goal")
+    k.rebuild("work_item")
 
     with db.get_db() as conn:
         conn.execute("PRAGMA foreign_keys = OFF")

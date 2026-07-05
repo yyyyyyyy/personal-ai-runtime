@@ -64,7 +64,7 @@ def test_non_memory_event_does_not_broadcast(isolated_kernel):
         "app.core.runtime.notification_bridge.broadcast_event"
     ) as broadcast:
         k.emit_event(
-            type="GoalCreated",
+            type="WorkItemCreated",
             aggregate_type="goal",
             aggregate_id="goal_no_broadcast",
             payload={"title": "x"},

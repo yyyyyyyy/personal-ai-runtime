@@ -17,7 +17,7 @@ from app.core.runtime.kernel import Kernel
 from app.store.database import Database
 
 
-def snapshot_goals(db: Database) -> list[dict]:
+def snapshot_work_items(db: Database) -> list[dict]:
     with db.get_db() as conn:
         return [dict(r) for r in conn.execute("SELECT * FROM goals ORDER BY id").fetchall()]
 
@@ -39,15 +39,15 @@ def main() -> int:
     db = Database(db_path=str(db_path))
     k = Kernel(db=db)
 
-    k.emit_event("GoalCreated", "goal", "g1", payload={"title": "First"}, actor="verify")
+    k.emit_event("WorkItemCreated", "work_item", "g1", payload={"title": "First"}, actor="verify")
     k.save_projection_snapshot("goal")
 
-    k.emit_event("GoalCreated", "goal", "g2", payload={"title": "Second"}, actor="verify")
-    k.emit_event("GoalUpdated", "goal", "g1", payload={"progress": 0.5}, actor="verify")
+    k.emit_event("WorkItemCreated", "work_item", "g2", payload={"title": "Second"}, actor="verify")
+    k.emit_event("WorkItemUpdated", "work_item", "g1", payload={"progress": 0.5}, actor="verify")
 
-    before = snapshot_goals(db)
-    replayed = k.rebuild("goal")
-    after = snapshot_goals(db)
+    before = snapshot_work_items(db)
+    replayed = k.rebuild("work_item")
+    after = snapshot_work_items(db)
 
     if before != after:
         print("FAIL: goals differ after incremental rebuild", file=sys.stderr)
@@ -61,7 +61,7 @@ def main() -> int:
         print("FAIL: goal checkpoint missing before export test", file=sys.stderr)
         return 1
 
-    k.emit_event("GoalUpdated", "goal", "g2", payload={"progress": 0.25}, actor="verify")
+    k.emit_event("WorkItemUpdated", "work_item", "g2", payload={"progress": 0.25}, actor="verify")
     k.snapshot()
 
     seq_after_export = read_checkpoint_seq(db, "goal")

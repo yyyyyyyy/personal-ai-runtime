@@ -38,7 +38,7 @@ def test_rebuild_all(isolated_kernel):
 
     result = k.rebuild_all()
     assert isinstance(result, dict)
-    assert "goal" in result
+    assert "work_item" in result
 
 
 def test_query_state_simple(isolated_kernel):
@@ -72,10 +72,10 @@ def test_read_events_filter(isolated_kernel):
         "title": "Event test",
     }, actor="verify")
 
-    events = k.read_events(types=["GoalCreated"], limit=10)
+    events = k.read_events(types=["WorkItemCreated"], limit=10)
     assert isinstance(events, list)
     assert len(events) > 0
-    assert events[0].type == "GoalCreated"
+    assert events[0].type == "WorkItemCreated"
 
 
 def test_emit_event_with_caused_by(isolated_kernel):

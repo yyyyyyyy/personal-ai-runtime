@@ -25,11 +25,11 @@ from app.store.database import Database
 
 SAMPLE_SCENARIO: list[tuple[str, str, str, dict[str, Any]]] = [
     # Goals
-    ("GoalCreated", "goal", "g1", {"title": "Project Alpha", "importance": 0.9}),
-    ("GoalCreated", "goal", "g2", {"title": "Learn Zig", "urgency": 0.7}),
-    ("GoalUpdated", "goal", "g1", {"progress": 0.5}),
-    ("GoalCompleted", "goal", "g2", {}),
-    ("GoalDeleted", "goal", "g1", {}),
+    ("WorkItemCreated", "work_item", "g1", {"title": "Project Alpha", "importance": 0.9}),
+    ("WorkItemCreated", "work_item", "g2", {"title": "Learn Zig", "urgency": 0.7}),
+    ("WorkItemUpdated", "work_item", "g1", {"progress": 0.5}),
+    ("WorkItemStatusChanged", "work_item", "g2", {}),
+    ("WorkItemDeleted", "work_item", "g1", {}),
     # Approvals
     ("ApprovalRequested", "approval", "apr1", {"action": "write_file", "risk": "high", "ctx": {}}),
     ("ApprovalGranted", "approval", "apr1", {}),
@@ -102,7 +102,7 @@ def main():
     db = Database(db_path=str(db_path))
     k = Kernel(db=db)
 
-    tables = ["goals", "work_items", "approvals", "memories", "conversations", "messages", "notifications", "timer_events", "policy_events"]
+    tables = ["work_items", "approvals", "memories", "conversations", "messages", "notifications", "timer_events", "policy_events"]
 
     # 1. Emit sample scenario
     for evt in SAMPLE_SCENARIO:

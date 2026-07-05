@@ -1,4 +1,9 @@
-"""Goals & Actions API — manage goals and their sub-actions."""
+"""Goals & Actions API — manage goals and their sub-actions.
+
+v1.0: uses WorkItemCreated/Updated/StatusChanged/Deleted events with
+work_type='goal' and aggregate_type='work_item' (previously GoalCreated/
+Updated/Completed/Deleted/Touched with aggregate_type='goal').
+"""
 
 import json
 import uuid
@@ -51,24 +56,19 @@ async def create_goal(body: CreateGoalRequest):
     goal_id = str(uuid.uuid4())
     now = datetime.now(UTC).isoformat()
 
-    description = body.description
-    importance = body.importance
-    urgency = body.urgency
-
-    deadline = body.deadline
-    parent_id = body.parent_id
-
     kernel.emit_event(
-        type="GoalCreated",
-        aggregate_type="goal",
+        type="WorkItemCreated",
+        aggregate_type="work_item",
         aggregate_id=goal_id,
         payload={
             "title": title,
-            "description": description,
-            "importance": importance,
-            "urgency": urgency,
-            "deadline": deadline,
-            "parent_id": parent_id,
+            "description": body.description,
+            "work_type": "goal",
+            "status": "active",
+            "importance": body.importance,
+            "urgency": body.urgency,
+            "deadline": body.deadline,
+            "parent_work_id": body.parent_id,  # v1.0: goal.parent_id → parent_work_id
             "created_at": now,
         },
         actor="user",
@@ -89,11 +89,12 @@ async def list_goals(status: str | None = None, limit: int = 50):
 @router.get("/{goal_id}")
 async def get_goal(goal_id: str):
     """Get a goal with its actions and events."""
-    goals = kernel.query_state("goals", id=goal_id)
-    if not goals:
+    goal = _get_goal(goal_id)
+    if not goal:
         raise HTTPException(status_code=404, detail="Goal not found")
-    goal = goals[0]
-    goal["actions"] = kernel.query_state("work_items", parent_goal_id=goal_id, work_type="action")
+    goal["actions"] = kernel.query_state(
+        "work_items", parent_goal_id=goal_id, work_type="action",
+    )
     goal["events"] = goal_events(goal_id, limit=10)
     return goal
 
@@ -106,11 +107,17 @@ async def update_goal(goal_id: str, body: dict):
     if not goal:
         raise HTTPException(status_code=404, detail="Goal not found")
 
-    updatable = ["title", "description", "status", "progress", "importance", "urgency", "deadline", "parent_id"]
+    updatable = [
+        "title", "description", "status", "progress",
+        "importance", "urgency", "deadline", "parent_work_id",
+    ]
     changed = {}
     for key in updatable:
         if key in body:
             changed[key] = body[key]
+    # Support legacy field name
+    if "parent_id" in body and "parent_work_id" not in changed:
+        changed["parent_work_id"] = body["parent_id"]
 
     if not changed:
         return goal
@@ -119,16 +126,16 @@ async def update_goal(goal_id: str, body: dict):
 
     if changed.get("status") == "completed":
         kernel.emit_event(
-            type="GoalCompleted",
-            aggregate_type="goal",
+            type="WorkItemStatusChanged",
+            aggregate_type="work_item",
             aggregate_id=goal_id,
-            payload=changed,
+            payload={"status": "completed"},
             actor="user",
         )
     else:
         kernel.emit_event(
-            type="GoalUpdated",
-            aggregate_type="goal",
+            type="WorkItemUpdated",
+            aggregate_type="work_item",
             aggregate_id=goal_id,
             payload=changed,
             actor="user",
@@ -152,8 +159,8 @@ async def delete_goal(goal_id: str):
             actor="user",
         )
     kernel.emit_event(
-        type="GoalDeleted",
-        aggregate_type="goal",
+        type="WorkItemDeleted",
+        aggregate_type="work_item",
         aggregate_id=goal_id,
         actor="user",
     )
@@ -169,8 +176,7 @@ async def create_action(goal_id: str, body: CreateActionRequest):
     if not title:
         raise HTTPException(status_code=400, detail="Title is required")
 
-    goal = _get_goal(goal_id)
-    if not goal:
+    if not _get_goal(goal_id):
         raise HTTPException(status_code=404, detail="Goal not found")
 
     action_id = str(uuid.uuid4())
@@ -189,7 +195,14 @@ async def create_action(goal_id: str, body: CreateActionRequest):
         },
         actor="user",
     )
-    kernel.emit_event("GoalTouched", "goal", goal_id, actor="user")
+    # v1.0: GoalTouched replaced with WorkItemUpdated bumping last_activity_at
+    kernel.emit_event(
+        type="WorkItemUpdated",
+        aggregate_type="work_item",
+        aggregate_id=goal_id,
+        payload={"last_activity_at": now},
+        actor="user",
+    )
 
     rows = kernel.query_state("work_items", id=action_id)
     return rows[0] if rows else {"id": action_id, "parent_goal_id": goal_id, "title": title, "status": "pending"}
@@ -222,7 +235,15 @@ async def update_action(goal_id: str, action_id: str, body: dict):
             payload=payload,
             actor="user",
         )
-        kernel.emit_event("GoalTouched", "goal", goal_id, actor="user")
+        # v1.0: bump parent goal's last_activity_at
+        now = datetime.now(UTC).isoformat()
+        kernel.emit_event(
+            type="WorkItemUpdated",
+            aggregate_type="work_item",
+            aggregate_id=goal_id,
+            payload={"last_activity_at": now},
+            actor="user",
+        )
 
         if status == "completed":
             _on_action_completed(goal_id, action_id, rows[0].get("title", ""))
@@ -255,11 +276,7 @@ def _get_goal(goal_id: str) -> dict | None:
 
 @router.post("/{goal_id}/decompose")
 async def decompose_goal(goal_id: str):
-    """Use AI to decompose a goal into actionable steps.
-
-    Returns a list of suggested action titles. The frontend can then
-    display these for user confirmation before creating them.
-    """
+    """Use AI to decompose a goal into actionable steps."""
     goal = _get_goal(goal_id)
     if not goal:
         raise HTTPException(status_code=404, detail="Goal not found")
@@ -267,7 +284,6 @@ async def decompose_goal(goal_id: str):
     title = goal.get("title", "")
     description = goal.get("description", "")
 
-    # Build prompt for goal decomposition
     prompt = f"""You are a goal decomposition assistant. Break down the following goal into 3-7 concrete, actionable steps.
 
 Goal: {title}
@@ -294,37 +310,27 @@ Only return the JSON array, no other text."""
         )
 
         content = response.choices[0].message.content or ""
-
-        # Try to parse JSON from the response
-        # Handle cases where LLM wraps JSON in markdown code blocks
         content = content.strip()
         if content.startswith("```"):
-            # Remove markdown code blocks
             lines = content.split("\n")
             content = "\n".join(lines[1:-1]) if len(lines) > 2 else content
 
-        # Parse the JSON array
         steps = json.loads(content)
-
         if not isinstance(steps, list):
             raise ValueError("Response is not a list")
 
-        # Validate and limit step titles
         validated_steps = []
-        for step in steps[:10]:  # Limit to 10 steps max
+        for step in steps[:10]:
             if isinstance(step, str) and step.strip():
-                validated_steps.append(step.strip()[:200])  # Limit length
+                validated_steps.append(step.strip()[:200])
 
         return {"steps": validated_steps}
 
     except json.JSONDecodeError:
-        # If JSON parsing fails, try to extract steps from plain text
-        # Split by newlines or numbered lists
         lines = content.strip().split("\n")
         steps = []
         for line in lines:
             line = line.strip()
-            # Remove common list prefixes like "1.", "-", "*"
             if line.startswith(("-", "*")):
                 line = line[1:].strip()
             elif "." in line and line[0].isdigit():
@@ -348,7 +354,6 @@ def _on_action_completed(goal_id: str, action_id: str, action_title: str):
         all_items = kernel.query_state("work_items", parent_goal_id=goal_id, limit=500)
         completed = sum(1 for a in all_items if a.get("status") == "completed") if all_items else 0
 
-        # 1. Notification
         from app.product.notifications import create_notification
 
         goal_rows = kernel.query_state("goals", id=goal_id)
@@ -368,7 +373,6 @@ def _on_action_completed(goal_id: str, action_id: str, action_title: str):
                 f"目标「{goal_title}」进度：{completed}/{total} 步已完成。",
             )
 
-        # 2. Memory extraction
         from app.core.agents.memory_engine import memory_engine
 
         memory_engine.store_memory(

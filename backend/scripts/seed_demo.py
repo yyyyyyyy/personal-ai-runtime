@@ -40,7 +40,7 @@ def seed() -> dict:
 
     goal_id = str(uuid.uuid4())
     kernel.emit_event(
-        type="GoalCreated",
+        type="WorkItemCreated",
         aggregate_type="goal",
         aggregate_id=goal_id,
         payload={
@@ -55,7 +55,7 @@ def seed() -> dict:
     ).aggregate_id
 
     kernel.emit_event(
-        type="GoalCreated",
+        type="WorkItemCreated",
         aggregate_type="goal",
         aggregate_id=str(uuid.uuid4()),
         payload={
