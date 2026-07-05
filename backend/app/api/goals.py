@@ -338,41 +338,39 @@ Only return the JSON array, no other text."""
 
 
 def _on_action_completed(goal_id: str, action_id: str, action_title: str):
-    """联动逻辑：行动完成时自动更新目标进度、发通知、提炼记忆。"""
-    try:
-        # 1. 计算目标进度（已完成 action 数 / 总 action 数）
-        all_items = kernel.query_state("work_items", parent_goal_id=goal_id, limit=500)
-        if all_items:
-            completed = sum(1 for a in all_items if a.get("status") == "completed")
-            progress = completed / len(all_items)
-            kernel.emit_event(
-                "GoalUpdated",
-                "goal",
-                goal_id,
-                payload={"progress": progress},
-                actor="system",
-            )
+    """Side-effects to fire when a goal's child action completes.
 
-        # 2. 发通知
+    v1.0 Phase 3c: progress recalculation moved into the WorkItemStatusChanged
+    projector (pure projection, rebuild-safe). This function now only fires
+    the user-facing side-effects: notification + memory extraction.
+    """
+    try:
+        all_items = kernel.query_state("work_items", parent_goal_id=goal_id, limit=500)
+        completed = sum(1 for a in all_items if a.get("status") == "completed") if all_items else 0
+
+        # 1. Notification
         from app.product.notifications import create_notification
+
         goal_rows = kernel.query_state("goals", id=goal_id)
         goal_title = goal_rows[0]["title"] if goal_rows else "目标"
-        all_done = all(a.get("status") == "completed" for a in all_items) if all_items else False
-        if all_done and all_items:
+        all_done = bool(all_items) and all(a.get("status") == "completed" for a in all_items)
+        if all_done:
             create_notification(
                 "goal_complete",
                 f"目标「{goal_title}」的所有步骤已完成",
                 f"你完成了所有行动步骤：{goal_title}。可以去目标页标记完成，或让 AI 帮你总结经验。",
             )
         else:
+            total = len(all_items) if all_items else 0
             create_notification(
                 "goal_progress",
                 f"完成一步：{action_title}",
-                f"目标「{goal_title}」进度：{completed}/{len(all_items)} 步已完成。",
+                f"目标「{goal_title}」进度：{completed}/{total} 步已完成。",
             )
 
-        # 3. 提炼经验存入记忆
+        # 2. Memory extraction
         from app.core.agents.memory_engine import memory_engine
+
         memory_engine.store_memory(
             category="event",
             content=f"完成了行动步骤：{action_title}（目标：{goal_title}）",

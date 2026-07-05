@@ -312,6 +312,59 @@ def _on_work_item_status_changed(event: Event, conn) -> None:
         vals,
     )
 
+    # v1.0 Phase 3c: derive parent goal progress when a child changes status.
+    # This replaces the api/goals.py _on_action_completed imperative联动.
+    # Pure projection (same transaction) — rebuild produces byte-identical
+    # state because the same event sequence replays the same calculation.
+    _recalculate_parent_goal_progress(conn, event.aggregate_id, event.ts)
+
+
+def _recalculate_parent_goal_progress(conn, child_id: str, ts: str) -> None:
+    """When a child work_item's status changes, recompute its parent goal's
+    progress as completed_children / total_children (only if the parent is a
+    goal). Pure SQL within the projector's transaction — no event emission,
+    so no recursion risk.
+
+    The definition matches the legacy api/goals.py _on_action_completed:
+        progress = completed / total  (only children of this parent counted)
+    """
+    # Look up the parent reference of the child that just changed.
+    row = conn.execute(
+        "SELECT parent_work_id, parent_goal_id FROM work_items WHERE id = ?",
+        (child_id,),
+    ).fetchone()
+    if row is None:
+        return
+    parent_id = row["parent_work_id"] or row["parent_goal_id"]
+    if not parent_id:
+        return
+
+    # Only recompute if the parent is a goal (tasks don't track progress).
+    parent = conn.execute(
+        "SELECT work_type FROM work_items WHERE id = ?", (parent_id,),
+    ).fetchone()
+    if parent is None or parent["work_type"] != "goal":
+        return
+
+    # Count children and completed children. Children can reference the goal
+    # via either parent_work_id (v1.0 unified) or parent_goal_id (legacy).
+    children = conn.execute(
+        "SELECT status FROM work_items "
+        "WHERE parent_work_id = ? OR parent_goal_id = ?",
+        (parent_id, parent_id),
+    ).fetchall()
+    if not children:
+        return
+    total = len(children)
+    completed = sum(1 for c in children if c["status"] == "completed")
+    progress = completed / total if total > 0 else 0.0
+
+    conn.execute(
+        "UPDATE work_items SET progress = ?, last_activity_at = ?, updated_at = ? "
+        "WHERE id = ?",
+        (progress, ts, ts, parent_id),
+    )
+
 
 @projector("WorkItemDeleted")
 def _on_work_item_deleted(event: Event, conn) -> None:
