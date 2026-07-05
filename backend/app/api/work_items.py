@@ -8,7 +8,7 @@ v1.0 Phase 3a: this endpoint coexists with /api/goals and /api/tasks. Frontend
 migration is incremental; Phase 4 will retire the legacy endpoints.
 """
 from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
 from app.core.runtime.task_engine import task_engine
 

@@ -342,7 +342,7 @@ class Kernel(QueryStateMixin, GovernanceMixin, SovereigntyMixin):
             })
             _persist_memory_index_repair(
                 self._db, event.aggregate_id, event.type,
-                event.seq, str(exc),
+                event.seq or 0, str(exc),
             )
             logger.warning(
                 "Memory index sync failed for %s (%s) — queued for repair "
