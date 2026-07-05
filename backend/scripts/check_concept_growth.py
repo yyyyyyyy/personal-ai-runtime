@@ -129,7 +129,7 @@ BASELINE = {
     "fragments": 10,                   # register.py (-3: memory+world→background, mail/calendar identity merged)
     "governed_tables": 12,             # -3 total (actions/tasks/grant_events removed)
     "projector_files": 7,              # kernel/projectors_*.py (-2: aux+user merged into core)
-    "god_object_max_loc": 1908,        # +60 (_persist_memory_index_repair in kernel.py for durable queue)
+    "god_object_max_loc": 1911,        # +3 (set_async_dispatcher docstring longer than register)
     "dead_code_files": 0,              # 已知死代码文件数
 }
 
