@@ -11,8 +11,8 @@ import uuid
 from typing import Any, AsyncIterator
 
 from app.config import settings
-from app.core.agents.brain_completion import BrainCompletionMixin
 from app.core.agents.brain_history_builder import build_messages
+from app.core.agents.brain_llm_client import BrainLLMClient
 from app.core.agents.brain_telemetry import record_llm_call
 from app.core.agents.conversation import ConversationManager
 from app.core.agents.llm_failover import llm_router
@@ -29,11 +29,20 @@ from app.core.runtime.taint import taint_registry
 logger = logging.getLogger(__name__)
 
 
-class Brain(BrainCompletionMixin):
-    """Stateless reasoning engine. One instance per request. Uses LLM Router for multi-provider support."""
+class Brain:
+    """Stateless reasoning engine. One instance per request.
+
+    Uses injected ``BrainLLMClient`` for all LLM calls (streaming, one-shot,
+    synthesis). Does NOT own state — that belongs to Runtime.
+    """
 
     def __init__(self):
-        self.client, self.provider = llm_router.get_client()
+        client, provider = llm_router.get_client()
+        self._llm = BrainLLMClient(
+            client=client,
+            provider=provider,
+            build_messages_fn=build_messages,
+        )
 
     async def chat_stream(
         self,
@@ -83,12 +92,12 @@ class Brain(BrainCompletionMixin):
             # Call LLM (with multi-provider fallback)
             llm_start = time.time()
             try:
-                response, client, used_provider = await self._create_llm_stream(messages)
+                response, client, used_provider = await self._llm.create_stream(messages)
             except Exception as e:
                 yield {"type": "error", "content": f"LLM API error: {str(e)}"}
                 return
-            if used_provider.name != self.provider.name:
-                self.client, self.provider = client, used_provider
+            if used_provider.name != self._llm.provider.name:
+                self._llm.replace_provider(client, used_provider)
 
             # Collect streaming response — token-level text deltas are yielded
             # directly here so SSE streaming stays live. Tool-call assembly and
@@ -175,7 +184,7 @@ class Brain(BrainCompletionMixin):
             if not tool_calls_data:
                 full_content = assistant_content
                 if not full_content.strip():
-                    full_content = await self._complete_text_only(messages, user_message)
+                    full_content = await self._llm.complete_text_only(messages, user_message)
                     if full_content:
                         yield {"type": "text_delta", "content": full_content}
                 break
@@ -235,7 +244,7 @@ class Brain(BrainCompletionMixin):
                     full_content = assistant_content
                     yield {"type": "text_delta", "content": assistant_content}
                 else:
-                    synthesized = await self._synthesize_from_tool_results(messages)
+                    synthesized = await self._llm.synthesize_from_tool_results(messages)
                     if synthesized:
                         full_content = synthesized
                         yield {"type": "text_delta", "content": synthesized}
@@ -298,6 +307,14 @@ class Brain(BrainCompletionMixin):
             "tool_args": pending_tool_args,
             "approval_id": pending_approval_id,
         }
+
+    async def continue_after_tool_result(
+        self, conversation: ConversationManager, *, depth: int = 0,
+    ) -> str:
+        """Delegate to BrainLLMClient.continue_after_tool_result (v0.10.0)."""
+        return await self._llm.continue_after_tool_result(
+            conversation, depth=depth,
+        )
 
     def _build_messages(
         self,

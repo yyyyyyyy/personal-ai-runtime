@@ -1,0 +1,273 @@
+"""Brain LLM Client — standalone LLM calling layer (v0.10.0).
+
+Decoupled from Brain via explicit injection: the client and provider come
+from ``llm_router.get_client()``, and the ``build_messages_fn`` callback
+replaces the former mixin's implicit ``self._build_messages`` contract.
+
+Inline imports of ``prompt_compiler`` and ``conversation`` keep the module
+importable without pulling in the full chat subsystem.
+"""
+
+from __future__ import annotations
+
+import asyncio
+import logging
+import time
+from typing import TYPE_CHECKING, Any, Callable
+
+from app.core.agents.llm_failover import llm_router
+from app.core.agents.tool_markup import strip_tool_markup
+from app.core.runtime.egress.egress_gate import prepare_llm_egress
+from app.core.runtime.kernel_instance import kernel
+from app.core.runtime.runtime_config import runtime_config
+from app.core.telemetry.telemetry import LLMCallRecord, telemetry
+
+if TYPE_CHECKING:
+    from app.core.agents.conversation import ConversationManager
+
+logger = logging.getLogger(__name__)
+
+# Signature of the message-building helper originally on Brain.
+BuildMessagesFn = Callable[..., list[dict]]
+
+
+class BrainLLMClient:
+    """Stateless LLM caller: streaming, retry, one-shot, synthesis.
+
+    ``client`` and ``provider`` are injected so multiple Brain instances
+    (or tests) can use different providers without sharing mutable state.
+    """
+
+    _MAX_CONTINUE_DEPTH = 3
+
+    def __init__(
+        self,
+        *,
+        client: Any,
+        provider: Any,
+        build_messages_fn: BuildMessagesFn,
+    ):
+        self._client = client
+        self._provider = provider
+        self._build_messages_fn = build_messages_fn
+
+    @property
+    def provider(self):
+        """Expose provider name for failover detection in Brain.chat_stream."""
+        return self._provider
+
+    def replace_provider(self, client: Any, provider: Any) -> None:
+        """Swap client+provider after LLM failover (Brain hot path)."""
+        self._client = client
+        self._provider = provider
+
+    # ── Non-streaming (approval continuation) ──────────────────────────
+
+    async def continue_after_tool_result(
+        self, conversation: "ConversationManager", *, depth: int = 0,
+    ) -> str:
+        """One-shot LLM completion after approval resolution closes the tool loop.
+
+        ``depth`` bounds recursive re-entry: each approval resolution may
+        trigger another tool call that again needs approval, and without a
+        cap the loop could recurse indefinitely.
+        """
+        if depth >= self._MAX_CONTINUE_DEPTH:
+            logger.warning(
+                "continue_after_tool_result hit depth cap (%d); stopping",
+                self._MAX_CONTINUE_DEPTH,
+            )
+            return "操作已完成，但后续推理深度已达上限。"
+        from app.chat.prompt_compiler import (
+            CompileContext,
+            latest_user_message_from_history,
+            prompt_compiler,
+        )
+
+        history = conversation.get_history()
+        latest_user = latest_user_message_from_history(history)
+        system_prompt = await prompt_compiler.compile(
+            CompileContext(
+                conversation_id=conversation.conversation_id,
+                execution_id=None,
+                user_message=latest_user,
+                stage="post_tool",
+            ),
+        )
+        messages = self._build_messages_fn(
+            conversation, user_message="", system_prompt=system_prompt,
+        )
+        if messages and messages[-1].get("role") == "user" and not messages[-1].get("content"):
+            messages.pop()
+
+        egress_messages, _egress_audit = prepare_llm_egress(
+            messages, purpose="chat_continue"
+        )
+
+        content = ""
+        try:
+            response = await self._client.chat.completions.create(
+                model=self._provider.model,
+                messages=egress_messages,
+                temperature=runtime_config.get_generation_params()[0],
+                max_tokens=runtime_config.get_generation_params()[1],
+            )
+            content = response.choices[0].message.content or ""
+        except Exception as e:
+            logger.warning("continue_after_tool_result first attempt failed: %s", e)
+
+        cleaned = strip_tool_markup(content)
+
+        if not cleaned.strip():
+            original_raw = content[:200] if content else "(empty)"
+            logger.warning(
+                "continue_after_tool_result: empty after strip, raw=%r — retrying",
+                original_raw,
+            )
+            retry_messages = list(egress_messages)
+            retry_messages.append({
+                "role": "user",
+                "content": "请只用文字回复，不要调用任何工具。",
+            })
+            try:
+                response = await self._client.chat.completions.create(
+                    model=self._provider.model,
+                    messages=retry_messages,
+                    temperature=runtime_config.get_generation_params()[0],
+                    max_tokens=runtime_config.get_generation_params()[1],
+                )
+                content = response.choices[0].message.content or ""
+                cleaned = strip_tool_markup(content)
+                if not cleaned.strip():
+                    logger.warning(
+                        "continue_after_tool_result: retry also empty, raw=%r — giving up",
+                        content[:200],
+                    )
+                    cleaned = "操作已完成。如需继续，请告诉我下一步想做什么。"
+            except Exception as e:
+                logger.exception("continue_after_tool_result retry failed")
+                cleaned = f"操作已完成，但无法生成后续回复：{e}"
+
+        if cleaned.strip():
+            conversation.save_assistant_message(cleaned)
+        return cleaned
+
+    # ── Streaming (primary loop path) ───────────────────────────────────
+
+    async def create_stream(self, messages: list[dict]):
+        """Try primary LLM provider (with retries for transient errors), then fallbacks."""
+        from openai import APIConnectionError as _OpenAIConnectionError
+        from openai import AsyncOpenAI
+
+        from app.core.agents.llm_failover import LLMProvider
+
+        TRANSIENT_ERRORS = (_OpenAIConnectionError, TimeoutError, asyncio.TimeoutError)
+        MAX_PRIMARY_ATTEMPTS = 3
+
+        candidates: list[tuple[AsyncOpenAI, LLMProvider]] = [
+            (self._client, self._provider),
+            *llm_router.get_fallback_clients(),
+        ]
+        errors: list[str] = []
+        llm_start = time.time()
+        egress_messages, _egress_audit = prepare_llm_egress(messages, purpose="chat_stream")
+        for idx, (client, provider) in enumerate(candidates):
+            is_primary = idx == 0
+            max_attempts = MAX_PRIMARY_ATTEMPTS if is_primary else 1
+
+            for attempt in range(max_attempts):
+                try:
+                    response = await client.chat.completions.create(
+                        model=provider.model,
+                        messages=egress_messages,
+                        tools=kernel.list_capability_definitions(),
+                        tool_choice="auto",
+                        temperature=runtime_config.get_generation_params()[0],
+                        max_tokens=runtime_config.get_generation_params()[1],
+                        stream=True,
+                        stream_options={"include_usage": True},
+                    )
+                    return response, client, provider
+                except TRANSIENT_ERRORS as e:
+                    if attempt < max_attempts - 1:
+                        wait = 1.0 * (2 ** attempt)
+                        logger.warning(
+                            "Transient error on %s (attempt %d/%d), retrying in %.1fs: %s",
+                            provider.name, attempt + 1, max_attempts, wait, e,
+                        )
+                        await asyncio.sleep(wait)
+                        continue
+                    errors.append(f"{provider.name}({type(e).__name__}: {e})")
+                    telemetry.record_llm_call(LLMCallRecord(
+                        provider=provider.name,
+                        model=provider.model,
+                        latency_ms=(time.time() - llm_start) * 1000,
+                        success=False,
+                        error_message=str(e),
+                    ))
+                    break
+                except Exception as e:
+                    errors.append(f"{provider.name}({type(e).__name__}: {e})")
+                    telemetry.record_llm_call(LLMCallRecord(
+                        provider=provider.name,
+                        model=provider.model,
+                        latency_ms=(time.time() - llm_start) * 1000,
+                        success=False,
+                        error_message=str(e),
+                    ))
+                    break
+        if len(candidates) > 1:
+            raise RuntimeError(f"All LLM providers failed: {'; '.join(errors)}")
+        raise RuntimeError(errors[0]) if errors else RuntimeError("No LLM provider available")
+
+    # ── Post-loop synthesis ─────────────────────────────────────────────
+
+    async def synthesize_from_tool_results(self, messages: list[dict]) -> str:
+        """Final text-only pass when the tool loop hits its iteration cap."""
+        synth_messages = list(messages)
+        synth_messages.append({
+            "role": "user",
+            "content": (
+                "已达到工具调用次数上限。请仅根据上述对话与工具返回的结果，"
+                "用中文直接回答用户最初的问题，不要再调用任何工具。"
+            ),
+        })
+        egress_messages, _egress_audit = prepare_llm_egress(
+            synth_messages, purpose="synthesize_tool_results",
+        )
+        try:
+            response = await self._client.chat.completions.create(
+                model=self._provider.model,
+                messages=egress_messages,
+                temperature=runtime_config.get_generation_params()[0],
+                max_tokens=runtime_config.get_generation_params()[1],
+            )
+            return strip_tool_markup((response.choices[0].message.content or "").strip())
+        except Exception:
+            logger.exception("synthesize_from_tool_results failed")
+            return ""
+
+    async def complete_text_only(self, messages: list[dict], user_message: str) -> str:
+        """Retry once without tools when the model returns an empty completion."""
+        retry_messages = list(messages)
+        retry_messages.append({
+            "role": "user",
+            "content": (
+                f"{user_message}\n\n"
+                "(请直接文字回复。)"
+            ),
+        })
+        egress_messages, _egress_audit = prepare_llm_egress(
+            retry_messages, purpose="complete_text_only",
+        )
+        try:
+            response = await self._client.chat.completions.create(
+                model=self._provider.model,
+                messages=egress_messages,
+                temperature=runtime_config.get_generation_params()[0],
+                max_tokens=runtime_config.get_generation_params()[1],
+            )
+            return strip_tool_markup((response.choices[0].message.content or "").strip())
+        except Exception:
+            logger.exception("complete_text_only retry failed")
+            return "抱歉，我暂时无法生成回复，请再试一次。"
