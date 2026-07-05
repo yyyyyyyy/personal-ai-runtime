@@ -58,7 +58,7 @@ APP_STORAGE_TABLES: frozenset[str] = frozenset({
     # Legacy events table and email settings (configuration, not governed).
     "events",
     "email_settings",
-    "grant_events",  # legacy — projectors deleted v0.7.0; kept for historical data
+    "grant_events",  # v0.9.0 legacy: projectors deleted v0.7.0, Gate 2 reader deleted v0.9.0; retained for historical migration only
     # Pending ChromaDB index repairs for memory events whose embedding sync
     # failed. The authoritative record is the MemoryDerived/Updated event in
     # event_log; this queue tracks outstanding reconciliation work and is

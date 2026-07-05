@@ -160,7 +160,7 @@ frozenset({"id", "capability", "risk_level", "status", "created_at", "updated_at
 | `inbox_emails` | IMAP 原始邮件缓存 | 权威记录是 `InboxEmailRecorded` 事件 |
 | `app_settings` | UI 偏好、LLM/Email 连接配置 | 本地运营配置 |
 | `email_settings` | IMAP/SMTP 连接配置 | 本地运营配置 |
-| `grant_events` | 历史 grant 投影 | **状态有歧义**：[`projectors_governance.py`](../../backend/app/core/runtime/kernel/projectors_governance.py) 已无 `Grant*` projector（v0.7.0 删除），但 [`capability_governance.py:234-243`](../../backend/app/core/runtime/capability_governance.py) 的 Gate 2 仍在 SELECT 此表。结果是：任何 `GrantCreated/Revoked` 事件都不会被投影，agent principal 在 Gate 2 永远查到 0 行并被 fail-closed 拒绝。当前系统实际只有 system/user principal 能通过 Gate 2。修复路径待定（补回 projector，或彻底删除 Gate 2 + 表）。 |
+| `grant_events` | 历史 grant 投影（v0.9.0 legacy） | **完全 legacy**：[`projectors_governance.py`](../../backend/app/core/runtime/kernel/projectors_governance.py) v0.7.0 删除 projector，[`capability_governance.py`](../../backend/app/core/runtime/capability_governance.py) v0.9.0 删除 Gate 2 后再无 production 读路径。表保留以兼容历史 DB，无写入也无读取。 |
 | `memory_index_repairs` | 失败的 ChromaDB 索引同步修复队列（v0.8.0） | 由 [`RuntimeLoop._drain_memory_index_repairs`](../../backend/app/core/runtime/runtime_loop.py) 每 ~10s 重试，retry_count ≥ 5 标记 `failed_permanent` 并发 `MemoryIndexRepairFailed` 事件。权威记录是 `MemoryDerived/Updated/Deleted` 事件。 |
 
 ## ChromaDB Collections

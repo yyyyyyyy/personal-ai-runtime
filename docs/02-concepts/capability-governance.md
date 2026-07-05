@@ -1,6 +1,8 @@
 # 能力治理
 
-本文档解释 Personal AI Runtime 的能力治理模型——LLM 调用任何工具前必须通过的 4-gate 授权、防提示注入的 taint 追踪、身份解析与执行归属。
+本文档解释 Personal AI Runtime 的能力治理模型——LLM 调用任何工具前必须通过的 3-gate 授权、防提示注入的 taint 追踪、身份解析与执行归属。
+
+> v0.9.0：4-gate 改为 3-gate。原 Gate 2（agent principal grant_events 检查）删除——grant_events 表自 v0.7.0 起无 projector 写入，Gate 2 永远 fail-closed。同时 `Principal.agent` 工厂方法删除；`agent:*` actor 现在统一解析为 system principal（Scheduler 内部信任代码）。详见 [PR-6 changelog](../../CHANGELOG.md)。
 
 ## 入口：`Kernel.invoke_capability`
 
@@ -16,11 +18,11 @@ invoke_capability(name, args, actor, correlation_id,
 
 1. 解析 Principal（`identity_resolver.resolve(actor)`）。
 2. 执行归属校验：`agent:*` / `scheduler` / `executor` / `background` 类 actor 必须绑定 `execution_id`，否则拒绝（见下文）。
-3. 调用 `capability_governance.decide(...)` 走 4-gate。
+3. 调用 `capability_governance.decide(...)` 走 3-gate。
 4. 根据 decision 发出 `CapabilityDenied` / `CapabilityDeferred` / `CapabilityInvoked` / `CapabilityFailed` 事件。
 5. 若工具属外部摄入类，成功后 `taint_registry.mark(correlation_id)`。
 
-## 4-Gate 授权
+## 3-Gate 授权
 
 `CapabilityGovernance.decide()`（[`backend/app/core/runtime/capability_governance.py`](../../backend/app/core/runtime/capability_governance.py) 的 `CapabilityGovernance.decide`）依次执行：
 
@@ -29,13 +31,11 @@ flowchart TB
     Start([invoke_capability])
     Start --> G1{"Gate 1: risk_for(name)<br/>读 policy_events 投影"}
     G1 -->|forbidden| Deny["Decision: deny"]
-    G1 -->|low or high| G2{"Gate 2: Principal 授权检查"}
-    G2 -->|agent 无 grant_events 行| Deny
-    G2 -->|system/user 或有授权| G3{"Gate 3: pre_approved?"}
-    G3 -->|是| Consume["_consume_pre_approved<br/>消费待审批"]
+    G1 -->|low or high| G2{"Gate 2: pre_approved?"}
+    G2 -->|是| Consume["_consume_pre_approved<br/>消费待审批"]
     Consume --> Allow["Decision: allow"]
-    G3 -->|否| G4{"Gate 4: 风险评估 + 审批"}
-    G4 --> RR["sensitive_router.elevated_risk<br/>+ policy risk 合并"]
+    G2 -->|否| G3{"Gate 3: 风险评估 + 审批"}
+    G3 --> RR["sensitive_router.elevated_risk<br/>+ policy risk 合并"]
     RR --> Taint{correlation_id 被 taint?}
     Taint -->|是 且 写类工具| Force["强制 high"]
     Taint -->|否| Comb[合并风险]
@@ -94,24 +94,29 @@ flowchart TB
 
 ### Principal
 
-[`backend/app/core/runtime/principal.py`](../../backend/app/core/runtime/principal.py) + [`identity_resolver.py`](../../backend/app/core/runtime/identity_resolver.py) 定义类型化运行时身份（ADR-0007 Step 8）：
+[`backend/app/core/runtime/execution.py`](../../backend/app/core/runtime/execution.py) 定义类型化运行时身份（ADR-0007 Step 8，v0.9.0 简化）：
 
 ```
-Principal(principal_id, type ∈ {system, user, agent}, actor, allowed_capabilities)
+Principal(principal_id, type ∈ {system, user}, actor, allowed_capabilities)
 ```
 
-冻结 dataclass。`IdentityResolver.resolve(actor, kernel)` 把 `agent:xxx` / `system` / `user` 映射到 Principal。system/user principal 在 Gate 2 永远通过；agent principal 需要 `grant_events` 投影中有匹配行（或 `*` 通配）。
+冻结 dataclass。`IdentityResolver.resolve(actor, kernel)` 把 actor 映射到 Principal：
+
+- `system` / `kernel` / `scheduler` / `executor` / `background` / `agent:*`（legacy Scheduler actor） → `Principal.system()`
+- 其他任意 actor（含 `user`、用户名） → `Principal.user(actor)`
+
+v0.9.0 起不再有 `agent` principal 类型——Scheduler 是受信任的 Runtime 代码，所有内部 actor 统一以 system 身份运行。`Principal.agent` 工厂方法已删除。
 
 ### execution_scope
 
-[`backend/app/core/runtime/execution_scope.py`](../../backend/app/core/runtime/execution_scope.py) 提供 `execution_scope(execution_id)` 上下文管理器，通过 ContextVar 绑定当前执行 id。`actor_requires_execution_ownership()` 对 `agent:*`、`scheduler`、`executor`、`background` 返回 True。`Kernel.invoke_capability` 在此类 actor 未绑定 `execution_id` 时直接拒绝——保证所有工具调用可归属到一条 `handler_executions` 记录，用于崩溃恢复与审计。
+[`backend/app/core/runtime/execution.py`](../../backend/app/core/runtime/execution.py) 提供 `execution_scope(execution_id)` 上下文管理器，通过 ContextVar 绑定当前执行 id。`actor_requires_execution_ownership()` 对 `agent:*`、`scheduler`、`executor`、`background` 返回 True。`Kernel.invoke_capability` 在此类 actor 未绑定 `execution_id` 时直接拒绝——保证所有工具调用可归属到一条 `handler_executions` 记录，用于崩溃恢复与审计。
 
 ## 治理事件溯源
 
 治理本身是事件溯源的根：
 
 - `policy_events` 表 — 每个能力的风险等级与状态变更历史，由 [`projectors_governance.py`](../../backend/app/core/runtime/kernel/projectors_governance.py) 从 `PolicyCreated/Updated/Revoked` 事件投影。`risk_for` 读取此投影（带缓存）。
-- `grant_events` 表 — **状态有歧义（v0.7.0）**：曾是 grant 聚合的投影，但 `projectors_governance.py` 已无 `Grant*` projector，表已归入 APP_STORAGE 作为 legacy。然而 [`capability_governance.py:234-243`](../../backend/app/core/runtime/capability_governance.py) 的 Gate 2 仍 SELECT 此表。实际后果：`GrantCreated/Revoked` 事件不会被投影，agent principal 在 Gate 2 永远查不到授权行，被 fail-closed 拒绝。当前实际行为是只有 `system`/`user` principal 能通过 Gate 2。修复路径待定（补 projector 或彻底删除 Gate 2 + 表）。
+- `grant_events` 表 — **v0.9.0 起 legacy**：曾是 grant 聚合的投影，v0.7.0 删除 projector，v0.9.0 删除 Gate 2 后再无 production 读路径。表保留在 schema 中以兼容历史 DB，但无写入也无读取。
 
 ## 出口审计
 

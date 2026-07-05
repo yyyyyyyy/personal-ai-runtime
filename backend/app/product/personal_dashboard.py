@@ -179,20 +179,17 @@ def _widget_timer_status() -> dict:
 
 
 def _widget_governance_status() -> dict:
-    """Policy and Grant status — Governance Runtime health (query_state only)."""
+    """Policy status — Governance Runtime health (query_state only).
+
+    v0.9.0: grant_events reporting removed — table has no projector writer
+    since v0.7.0, so the count was always 0. active_grants kept in the
+    response shape for frontend backward-compat but is hardcoded 0.
+    """
     try:
         policies = kernel.query_state("policy_events", status="active", limit=200)
     except Exception:
         policies = []
-    try:
-        with db.get_db() as conn:
-            grant_rows = conn.execute(
-                "SELECT COUNT(*) as cnt FROM grant_events WHERE status = 'active'",
-            ).fetchone()
-            grant_count = grant_rows["cnt"] if grant_rows else 0
-    except Exception:
-        grant_count = 0
     return {
         "active_policies": len(policies),
-        "active_grants": grant_count,
+        "active_grants": 0,
     }

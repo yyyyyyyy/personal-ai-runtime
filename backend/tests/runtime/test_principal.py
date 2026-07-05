@@ -1,4 +1,9 @@
-"""ADR-0007 Step 8 — Principal and IdentityResolver tests."""
+"""ADR-0007 Step 8 — Principal and IdentityResolver tests.
+
+v0.9.0: agent principal tests removed — Principal.agent was deleted.
+Agent actor strings now resolve to system principal (they only appear
+internally in the Scheduler, which is fully trusted Runtime code).
+"""
 
 from __future__ import annotations
 
@@ -39,16 +44,6 @@ def test_principal_user_factory():
     assert p.actor == "alice"
 
 
-def test_principal_agent_factory():
-    from app.core.runtime.execution import Principal
-
-    p = Principal.agent("aginst_abc", ["web_search", "read_file"])
-    assert p.principal_id == "aginst_abc"
-    assert p.type == "agent"
-    assert p.actor == "agent:aginst_abc"
-    assert p.allowed_capabilities == ("web_search", "read_file")
-
-
 def test_principal_is_frozen():
     from app.core.runtime.execution import Principal
 
@@ -57,31 +52,29 @@ def test_principal_is_frozen():
         p.principal_id = "hacker"  # type: ignore[misc]
 
 
-def test_principal_is_capable_of():
+def test_principal_user_is_capable_of_anything():
     from app.core.runtime.execution import Principal
 
-    wildcard = Principal.agent("a", ["*"])
-    limited = Principal.agent("b", ["web_search"])
     user = Principal.user()
-
-    assert wildcard.is_capable_of("anything")
-    assert limited.is_capable_of("web_search")
-    assert not limited.is_capable_of("shell_exec")
     assert user.is_capable_of("anything")
 
 
 # ── IdentityResolver ───────────────────────────────────────────────────
 
 
-def test_resolver_agent_actor(kernel):
-    """Agent actors resolve to Principal.agent(id, ['*']) in single-agent runtime."""
-    from app.core.runtime.execution import identity_resolver
-    from app.core.runtime.execution import Principal
+def test_resolver_agent_actor_maps_to_system(kernel):
+    """Agent actors resolve to system principal in single-user runtime.
 
-    p = identity_resolver.resolve("agent:test_instance_123", kernel)
+    Scheduler emits ``agent:primary`` internally; since v0.9.0 there is no
+    separate agent principal type. The Scheduler is trusted Runtime code
+    and runs as system identity.
+    """
+    from app.core.runtime.execution import Principal, identity_resolver
+
+    p = identity_resolver.resolve("agent:primary", kernel)
     assert isinstance(p, Principal)
-    assert p.type == "agent"
-    assert p.principal_id == "test_instance_123"
+    assert p.type == "system"
+    assert p.principal_id == "system"
     assert "*" in p.allowed_capabilities
 
 
@@ -96,6 +89,15 @@ def test_resolver_system_actor(kernel):
     assert p2.type == "system"
 
 
+def test_resolver_runtime_actors_map_to_system(kernel):
+    """scheduler / executor / background / kernel are trusted Runtime actors."""
+    from app.core.runtime.execution import identity_resolver
+
+    for actor in ("scheduler", "executor", "background", "kernel"):
+        p = identity_resolver.resolve(actor, kernel)
+        assert p.type == "system", f"{actor!r} should map to system, got {p.type}"
+
+
 def test_resolver_user_actor(kernel):
     from app.core.runtime.execution import identity_resolver
 
@@ -103,18 +105,10 @@ def test_resolver_user_actor(kernel):
     assert p.type == "user"
     assert p.principal_id == "user"
 
-    p2 = identity_resolver.resolve("background", kernel)
+    # Any non-runtime, non-system actor is treated as a user.
+    p2 = identity_resolver.resolve("alice", kernel)
     assert p2.type == "user"
-    assert p2.principal_id == "background"
-
-
-def test_resolver_unregistered_agent(kernel):
-    """Any agent actor resolves to a Principal with wildcard capabilities."""
-    from app.core.runtime.execution import identity_resolver
-
-    p = identity_resolver.resolve("agent:nonexistent_instance", kernel)
-    assert p.type == "agent"
-    assert "*" in p.allowed_capabilities
+    assert p2.principal_id == "alice"
 
 
 # ── ExecutionContext integration ───────────────────────────────────────
@@ -147,4 +141,5 @@ def test_execution_context_default_principal(kernel):
         _kernel=kernel,
     )
     assert isinstance(ctx.principal, Principal)
+    # agent: actors now resolve to system (v0.9.0).
     assert ctx.principal.type == "system"

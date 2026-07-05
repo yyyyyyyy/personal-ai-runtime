@@ -1,14 +1,20 @@
 """CapabilityGovernance — unified capability authorization and policy management.
 
 v0.4.0: Merged from CapabilityGateway + CapabilityPolicy + ApprovalEngine.
-Single module for policy seeding, risk lookup, 4-gate authorization, approval
+Single module for policy seeding, risk lookup, 3-gate authorization, approval
 queries, and external tool registration. Eliminates the approval dual-path
 (FACT-35).
 
+v0.9.0: Gate 2 (agent principal grant_events check) removed. The single-user
+runtime only emits system/user principals in practice — Scheduler-derived
+actors ("agent:primary", "scheduler", "executor", "background") are mapped
+to system principal by IdentityResolver, and grant_events had no projector
+to populate it. The data path was dead; Gate 2 always returned fail-closed
+deny. Removing it eliminates the grant_events concept entirely.
+
 Gate 1: policy_events projection (forbidden check)
-Gate 2: grant_events projection (principal authorization)
-Gate 3: pre-approved fast path (consume pre-approved approval)
-Gate 4: risk assessment + approval deferral
+Gate 2: pre-approved fast path (consume pre-approved approval)
+Gate 3: risk assessment + approval deferral
 """
 
 from __future__ import annotations
@@ -223,32 +229,7 @@ class CapabilityGovernance:
                 result.add(row.get("capability", ""))
         return result
 
-    # ── Principal grant check (ex-Gate 2) ─────────────────────────
-
-    @staticmethod
-    def _principal_has_grant(principal: Principal, capability: str, kernel: Kernel) -> bool:
-        if principal.type in ("system", "user"):
-            return True
-        try:
-            grants = kernel.query_state(
-                "grant_events", principal_id=principal.principal_id,
-                capability=capability, status="active", limit=1,
-            )
-            if grants:
-                return True
-            grants = kernel.query_state(
-                "grant_events", principal_id=principal.principal_id,
-                capability="*", status="active", limit=1,
-            )
-            return len(grants) > 0
-        except Exception:
-            logger.warning(
-                "grant_events query failed for agent principal %s (capability=%s) — fail-closed",
-                principal.principal_id, capability, exc_info=True,
-            )
-            return False
-
-    # ── Capability authorization (4-gate model, ex-Gateway) ───────
+    # ── Capability authorization (3-gate model, ex-Gateway) ───────
 
     @staticmethod
     def _parse_approval_params(approval: dict[str, Any]) -> dict[str, Any]:
@@ -313,12 +294,7 @@ class CapabilityGovernance:
         if policy_risk == "forbidden":
             return CapabilityDecision("deny", "forbidden_by_policy")
 
-        # Gate 2: principal capability via grant_events
-        if principal.type == "agent":
-            if not self._principal_has_grant(principal, capability, kernel):
-                return CapabilityDecision("deny", "principal_not_authorized")
-
-        # Gate 3: pre-approved fast path
+        # Gate 2: pre-approved fast path
         if pre_approved:
             if not approval_id:
                 return CapabilityDecision("deny", "pre_approved_requires_approval_id")
@@ -329,7 +305,7 @@ class CapabilityGovernance:
             if pre_err is not None:
                 return CapabilityDecision("deny", pre_err.get("error", "pre_approved_mismatch"))
 
-        # Gate 4: risk assessment + approval
+        # Gate 3: risk assessment + approval
         if not pre_approved:
             risk = sensitive_router.elevated_risk(capability, args) or (
                 "high" if policy_risk == "high" else "low"
@@ -341,6 +317,9 @@ class CapabilityGovernance:
             ):
                 risk = "high"
 
+            # Only user principal can defer for human approval on high risk.
+            # System/kernel principals running background loops cannot be
+            # escalated to a human — high risk auto-denies instead.
             if risk == "high" and principal.type != "user":
                 return CapabilityDecision("deny", f"high_risk_{principal.type}_auto_denied")
 
