@@ -204,6 +204,36 @@ export interface Goal {
   events?: GoalEvent[];
 }
 
+/**
+ * v1.0 WorkItem — unified type for tasks, actions, goals.
+ *
+ * Coexists with the legacy `Goal` interface during the v1.0 migration;
+ * Phase 4 will retire `Goal` and `GoalAction` in favour of this type.
+ */
+export type WorkItemType = "task" | "action" | "background" | "goal";
+
+export interface WorkItem {
+  id: string;
+  title: string;
+  description: string | null;
+  work_type: WorkItemType;
+  parent_work_id: string | null;
+  parent_goal_id: string | null;
+  status: string;
+  priority: number;
+  dependencies_json: string | null;
+  executable_plan: string | null;
+  created_at: string;
+  updated_at: string;
+  completed_at: string | null;
+  // v1.0 goal-unification fields (populated when work_type="goal")
+  progress: number;
+  importance: number;
+  urgency: number;
+  deadline: string | null;
+  last_activity_at: string | null;
+}
+
 export interface Approval {
   id: string;
   action?: string;
