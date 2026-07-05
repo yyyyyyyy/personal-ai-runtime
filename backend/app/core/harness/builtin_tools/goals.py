@@ -95,10 +95,18 @@ class GoalsServer:
         }, ensure_ascii=False)
 
     def list_active_goals(self) -> str:
-        """List the user's active goals."""
+        """List the user's active goals.
+
+        v1.0 Phase 3b: prefer work_items(work_type='goal'), fall back to goals.
+        """
         from app.core.runtime.kernel_instance import kernel
 
-        goals = kernel.query_state("goals", status="active", limit=20, order="importance_desc")
+        goals = kernel.query_state(
+            "work_items", work_type="goal", status="active",
+            limit=20, order="importance_desc",
+        )
+        if not goals:
+            goals = kernel.query_state("goals", status="active", limit=20, order="importance_desc")
         return json.dumps({
             "count": len(goals),
             "goals": [{"id": g["id"], "title": g["title"], "progress": g.get("progress", 0),

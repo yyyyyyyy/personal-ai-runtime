@@ -31,14 +31,26 @@ class WorldModel:
         now = datetime.now(UTC)
         thirty_days_ago = (now - timedelta(days=30)).isoformat()
 
-        active_goals = kernel.query_state("goals", status="active", limit=500)
-        all_goals = kernel.query_state("goals", limit=500)
-        completed_recently = kernel.query_state(
-            "goals",
-            status="completed",
-            updated_since=thirty_days_ago,
-            limit=500,
+        # v1.0 Phase 3b: prefer work_items(work_type='goal'), fall back to goals.
+        active_goals = kernel.query_state(
+            "work_items", work_type="goal", status="active", limit=500,
         )
+        if not active_goals:
+            active_goals = kernel.query_state("goals", status="active", limit=500)
+        all_goals = kernel.query_state(
+            "work_items", work_type="goal", limit=500,
+        )
+        if not all_goals:
+            all_goals = kernel.query_state("goals", limit=500)
+        completed_recently = kernel.query_state(
+            "work_items", work_type="goal",
+            status="completed", updated_since=thirty_days_ago, limit=500,
+        )
+        if not completed_recently:
+            completed_recently = kernel.query_state(
+                "goals", status="completed",
+                updated_since=thirty_days_ago, limit=500,
+            )
 
         recent_kernel_events = kernel.read_events(
             since_ts=thirty_days_ago, limit=50, order="desc"

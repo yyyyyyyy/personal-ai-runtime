@@ -170,14 +170,23 @@ class ExecutionContextProvider:
                 recent_failures.append(detail)
 
         # 2. Check for stagnant goals (no activity > threshold)
+        # v1.0 Phase 3b: prefer work_items(work_type='goal'), fall back to goals.
         try:
             goals = kernel.query_state(
-                "goals",
+                "work_items", work_type="goal",
                 status_in=("active", "in_progress"),
                 last_activity_older_than_days=self._stagnation_days,
                 limit=20,
                 order="last_activity_asc",
             )
+            if not goals:
+                goals = kernel.query_state(
+                    "goals",
+                    status_in=("active", "in_progress"),
+                    last_activity_older_than_days=self._stagnation_days,
+                    limit=20,
+                    order="last_activity_asc",
+                )
             for g in goals:
                 gid = g.get("id", "")
                 if gid:

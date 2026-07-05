@@ -150,9 +150,13 @@ async def get_portrait():
     # 2. Habits — memories with category="habit"
     habits = memory_engine.list_memories(category="habit", limit=50)
 
-    # 3. Active goals — query kernel projection
+    # 3. Active goals — query kernel projection (v1.0 Phase 3b: prefer work_items)
     try:
-        goal_rows = kernel.query_state("goals", status="active", limit=20)
+        goal_rows = kernel.query_state(
+            "work_items", work_type="goal", status="active", limit=20,
+        )
+        if not goal_rows:
+            goal_rows = kernel.query_state("goals", status="active", limit=20)
     except Exception:
         import logging
         logging.getLogger(__name__).warning(

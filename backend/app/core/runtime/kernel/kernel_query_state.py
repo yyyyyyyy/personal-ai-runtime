@@ -97,14 +97,24 @@ class QueryStateMixin:  # type: ignore[attr-defined]  # mixed into Kernel which 
         return [dict(r) for r in rows]
 
     def _query_work_items(self, filters: dict[str, Any]) -> list[dict]:
-        """Unified query for work_items table (v0.5.0: supersedes tasks+actions)."""
+        """Unified query for work_items table.
+
+        v0.5.0: supersedes tasks+actions.
+        v1.0 Phase 3b: also serves goal readers (work_type='goal') by
+        supporting the same filters/orders that _query_goals offered.
+        """
         item_id = filters.get("id")
         status = filters.get("status")
+        status_in = filters.get("status_in")
         work_type = filters.get("work_type")
         parent_goal_id = filters.get("parent_goal_id")
         parent_work_id = filters.get("parent_work_id")
         root_only = filters.get("root_only")
         depends_on_work = filters.get("depends_on_work")
+        last_activity_older_than_days = filters.get("last_activity_older_than_days")
+        deadline_within_days = filters.get("deadline_within_days")
+        updated_since = filters.get("updated_since")
+        has_deadline = filters.get("has_deadline")
         limit = filters.get("limit", 50)
         order = filters.get("order", "created_at_asc")
 
@@ -112,6 +122,11 @@ class QueryStateMixin:  # type: ignore[attr-defined]  # mixed into Kernel which 
             "created_at_asc": "created_at ASC",
             "created_at_desc": "created_at DESC",
             "priority_desc": "priority DESC, created_at ASC",
+            # v1.0 Phase 3b: goal-style orders, ported from _query_goals.
+            "importance_desc": "importance DESC, created_at DESC",
+            "importance_urgency_desc": "importance DESC, urgency DESC",
+            "last_activity_asc": "last_activity_at ASC",
+            "importance_desc_only": "importance DESC",
         }
         order_sql = order_clauses.get(order, order_clauses["created_at_asc"])
 
@@ -122,7 +137,13 @@ class QueryStateMixin:  # type: ignore[attr-defined]  # mixed into Kernel which 
 
             clauses: list[str] = []
             params: list[Any] = []
-            if status is not None:
+            # status_in takes precedence over status when both are present
+            # (mirrors _query_goals semantics).
+            if status_in is not None:
+                placeholders = ",".join("?" * len(status_in))
+                clauses.append(f"status IN ({placeholders})")
+                params.extend(status_in)
+            elif status is not None:
                 clauses.append("status = ?")
                 params.append(status)
             if work_type is not None:
@@ -139,6 +160,20 @@ class QueryStateMixin:  # type: ignore[attr-defined]  # mixed into Kernel which 
             if depends_on_work is not None:
                 clauses.append("dependencies_json LIKE ?")
                 params.append(f"%{depends_on_work}%")
+            # v1.0 Phase 3b: goal-style filters, ported from _query_goals.
+            if last_activity_older_than_days is not None:
+                clauses.append("last_activity_at < datetime('now', ?)")
+                params.append(f"-{int(last_activity_older_than_days)} days")
+            if deadline_within_days is not None:
+                clauses.append(
+                    "deadline IS NOT NULL AND deadline BETWEEN datetime('now') AND datetime('now', ?)"
+                )
+                params.append(f"+{int(deadline_within_days)} days")
+            if updated_since is not None:
+                clauses.append("updated_at >= ?")
+                params.append(updated_since)
+            if has_deadline:
+                clauses.append("deadline IS NOT NULL")
 
             where = f" WHERE {' AND '.join(clauses)}" if clauses else ""
             params.append(int(limit))

@@ -51,10 +51,16 @@ def _check_stagnant_goals(kernel=None) -> None:
     from app.core.runtime.kernel_instance import kernel as k
     kern = kernel or k
 
+    # v1.0 Phase 3b: prefer work_items(work_type='goal'), fall back to goals.
     stagnant = kern.query_state(
-        "goals", status="active",
+        "work_items", work_type="goal", status="active",
         last_activity_older_than_days=3, limit=5,
     )
+    if not stagnant:
+        stagnant = kern.query_state(
+            "goals", status="active",
+            last_activity_older_than_days=3, limit=5,
+        )
     import logging
     logger = logging.getLogger(__name__)
 
