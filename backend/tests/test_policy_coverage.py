@@ -16,13 +16,13 @@ _GOVERNANCE_ROOT = _APP_ROOT / "core" / "runtime" / "governance"
 # Known compilation entrypoints: file (relative to app/) → expected stage
 _POLICY_COVERAGE_MATRIX: dict[str, str] = {
     "core/agents/mvp/chat_handler.py": "chat",
-    "core/agents/brain_completion.py": "post_tool",
+    "core/agents/brain_llm_client.py": "post_tool",
 }
 
 # PromptCompiler is the LLM-facing compile facade for chat stages
 _PROMPT_COMPILER_ENTRYPOINTS = frozenset({
     "core/agents/mvp/chat_handler.py",
-    "core/agents/brain_completion.py",
+    "core/agents/brain_llm_client.py",
 })
 
 # Non-LLM paths may call ContextPipeline directly (still via Policy)
@@ -138,9 +138,9 @@ class TestCoverageCompleteness:
     """Documented non-policy paths must not assemble fragment context."""
 
     def test_brain_synthesis_does_not_recompile_context(self):
-        source = _read_source("core/agents/brain_completion.py")
-        assert "_synthesize_from_tool_results" in source
-        synth_start = source.index("async def _synthesize_from_tool_results")
+        source = _read_source("core/agents/brain_llm_client.py")
+        assert "synthesize_from_tool_results" in source
+        synth_start = source.index("async def synthesize_from_tool_results")
         synth_body = source[synth_start:synth_start + 800]
         assert "prompt_compiler" not in synth_body
         assert "context_pipeline" not in synth_body

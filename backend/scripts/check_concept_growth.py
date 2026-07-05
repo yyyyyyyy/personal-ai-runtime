@@ -97,7 +97,7 @@ def count_god_object_max_loc() -> int:
     )
     brain_loc = _loc(
         ROOT / "backend" / "app" / "core" / "agents" / "brain.py",
-        ROOT / "backend" / "app" / "core" / "agents" / "brain_completion.py",
+        ROOT / "backend" / "app" / "core" / "agents" / "brain_llm_client.py",
     )
     hub_loc = _loc(
         ROOT / "backend" / "app" / "core" / "harness" / "mcp_hub.py",
