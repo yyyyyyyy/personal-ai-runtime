@@ -18,7 +18,6 @@ Widgets:
 from datetime import UTC, datetime, timedelta
 
 from app.core.runtime.kernel_instance import kernel
-from app.store.database import db
 
 # Maximum items per widget
 _MAX_RECENT_EVENTS = 10

@@ -10,17 +10,12 @@
 import { API_BASE, request } from "./core";
 import type { WorkItem, WorkItemType } from "./types";
 
-export async function listWorkItems(
-  workType?: WorkItemType,
-  status?: string,
-): Promise<WorkItem[]> {
+export async function listWorkItems(workType?: WorkItemType, status?: string): Promise<WorkItem[]> {
   const params = new URLSearchParams();
   if (workType) params.set("work_type", workType);
   if (status) params.set("status", status);
   const qs = params.toString();
-  const url = qs
-    ? `${API_BASE}/work-items/?${qs}`
-    : `${API_BASE}/work-items/`;
+  const url = qs ? `${API_BASE}/work-items/?${qs}` : `${API_BASE}/work-items/`;
   return request<WorkItem[]>(url);
 }
 
@@ -50,9 +45,7 @@ export interface CreateWorkItemPayload {
   last_activity_at?: string;
 }
 
-export async function createWorkItem(
-  body: CreateWorkItemPayload,
-): Promise<WorkItem> {
+export async function createWorkItem(body: CreateWorkItemPayload): Promise<WorkItem> {
   return request<WorkItem>(`${API_BASE}/work-items/`, {
     method: "POST",
     body: JSON.stringify(body),
@@ -82,10 +75,7 @@ export async function updateWorkItem(
   });
 }
 
-export async function transitionStatus(
-  itemId: string,
-  status: string,
-): Promise<WorkItem> {
+export async function transitionStatus(itemId: string, status: string): Promise<WorkItem> {
   return request<WorkItem>(`${API_BASE}/work-items/${itemId}/status`, {
     method: "POST",
     body: JSON.stringify({ status }),

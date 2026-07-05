@@ -30,8 +30,6 @@ import time as _time
 from collections import deque
 from typing import TYPE_CHECKING
 
-logger = logging.getLogger(__name__)
-
 from app.assembler.context_assembler import ContextAssembler
 from app.context_runtime import (
     FragmentRegistry,
@@ -47,6 +45,8 @@ from app.core.runtime.governance.context_policy import (
     DefaultContextPolicy,
 )
 from app.core.runtime.runtime_container import _LazyProxy, runtime
+
+logger = logging.getLogger(__name__)
 
 _MAX_RECENT_FRAGMENT_HISTORY = 5
 
