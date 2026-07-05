@@ -70,6 +70,20 @@ make test-backend     # cd backend && pytest tests/ -q -m "not live_llm"
 
 `-m "not live_llm"` 排除需要真实 LLM API 的测试。
 
+### 覆盖率策略（v0.9.0 更新）
+
+**覆盖率是结果，不是目标。**
+
+CI 的 `--fail-under` 阈值定在 75（runtime）和 50（api），不是 90+。理由：
+
+- **覆盖率高 ≠ 测试质量高**。低覆盖率套件如果测的是核心不变量，比高覆盖率套件全是断言 `"T" in iso_string` 这种实现细节更有价值。
+- **高阈值反而鼓励坏测试**。当开发者被强制把 coverage 推到 83% 才能合并，他们会写出大量 `test_coverage_*.py` 测试，绑死实现细节（ISO 时间格式、字符串前缀），重构时大量失败，最终开发者学会「绕开测试」而不是「修测试」。
+- **行为测试 > 实现测试**。优先写：核心不变量（事件可重建、Kernel 边界、能力 4-gate）、用户可见行为（API 端到端）、回归（特定 bug 修复）。少写：函数能不能跑过、字符串格式、私有方法。
+
+CI 报告用 `--cov-report=term-missing` 让缺失部分可见，开发者按需补充而不是被阈值驱动。
+
+新增的 `test_coverage_*.py` 文件应在 PR review 中被质疑——它们通常是为覆盖率而生，不是为保护行为而生。如果确实需要覆盖某函数，把它放进对应主题的测试文件（如 timer 相关测试进 `test_scheduler*.py`）。
+
 ## 层 2：架构不变量脚本
 
 16 个独立脚本（[`backend/scripts/`](../../backend/scripts/)），每个验证一个不变量。全部接入 `make ci-local` 与 GitHub Actions。

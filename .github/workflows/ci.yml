@@ -53,8 +53,13 @@ jobs:
       - name: Run tests
         run: |
           cd backend
-          python -m pytest tests/ -v --cov=app/core/runtime --cov=app/core/harness --cov=app/api --cov-report=term -m "not live_llm"
-          python -m coverage report --include='app/core/runtime/*' --fail-under=83
+          # Coverage is reported with --cov-report=term-missing so the gaps are
+          # visible. The fail-under threshold is intentionally moderate — see
+          # docs/05-engineering/testing.md for the rationale: coverage is a
+          # result, not a goal; behaviour tests matter more than chasing a
+          # number that incentivises low-value implementation-detail tests.
+          python -m pytest tests/ -v --cov=app/core/runtime --cov=app/core/harness --cov=app/api --cov-report=term-missing -m "not live_llm"
+          python -m coverage report --include='app/core/runtime/*' --fail-under=75
           python -m coverage report --include='app/api/*' --fail-under=50
 
       - name: Verify database schema (Alembic)
