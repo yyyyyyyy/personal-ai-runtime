@@ -179,14 +179,7 @@ class ExecutionContextProvider:
                 limit=20,
                 order="last_activity_asc",
             )
-            if not goals:
-                goals = kernel.query_state(
-                    "goals",
-                    status_in=("active", "in_progress"),
-                    last_activity_older_than_days=self._stagnation_days,
-                    limit=20,
-                    order="last_activity_asc",
-                )
+
             for g in goals:
                 gid = g.get("id", "")
                 if gid:

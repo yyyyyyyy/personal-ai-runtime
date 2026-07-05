@@ -22,15 +22,11 @@ async def _call_product(handler_name: str) -> None:
         if handler_name == "deadline_alert":
             from app.core.runtime.kernel_instance import kernel
 
-            # v1.0 Phase 3b: prefer work_items(work_type='goal'), fall back to goals.
+            # v1.0 Phase 4: goals table retired
             candidates = kernel.query_state(
                 "work_items", work_type="goal", status="active",
                 has_deadline=True, limit=500,
             )
-            if not candidates:
-                candidates = kernel.query_state(
-                    "goals", status="active", has_deadline=True, limit=500,
-                )
             today_utc = datetime.now(UTC).date()
             target_dates = {today_utc + timedelta(days=offset) for offset in (1, 3)}
             for goal in candidates:
@@ -88,8 +84,7 @@ async def _call_product(handler_name: str) -> None:
                 active_goals = kernel.query_state(
                     "work_items", work_type="goal", status="active", limit=10,
                 )
-                if not active_goals:
-                    active_goals = kernel.query_state("goals", status="active", limit=10)
+
                 goal_lines = "\n".join([f"  · {g.get('title', '')} (进度 {g.get('progress', 0)}%)" for g in active_goals[:5]]) if active_goals else "  无"
             except Exception:
                 goal_lines = "  获取失败"

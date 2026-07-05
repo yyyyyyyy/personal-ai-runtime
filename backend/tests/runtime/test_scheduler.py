@@ -33,7 +33,7 @@ async def test_on_task_completed_starts_dependents(tmp_path, monkeypatch):
     monkeypatch.setattr("app.core.runtime.cron_registry.kernel", k)
     monkeypatch.setattr("app.core.runtime.task_engine.kernel", k)
 
-    k.emit_event("WorkItemCreated", "work_item", "t1", payload={"title": "Dep"})
+    k.emit_event("GoalCreated", "goal", "t1", payload={"title": "Dep"})
     k.emit_event(
         "WorkItemCreated",
         "work_item",

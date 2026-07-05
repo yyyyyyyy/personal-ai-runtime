@@ -18,13 +18,11 @@ os.environ.setdefault("LLM_API_KEY", "test-key")
 REQUIRED_TABLES = [
     "conversations",
     "messages",
-    "goals",
-    "actions",
+    "work_items",  # v1.0: unified tasks + actions + goals
     "events",
     "memories",
     "notifications",
     "activity_log",
-    "tasks",
     "llm_calls",
     "tool_calls",
     "approvals",

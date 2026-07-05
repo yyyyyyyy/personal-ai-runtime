@@ -109,10 +109,10 @@ class TestQueryStateW3:
     def test_tasks_by_parent_task_id(self, tmp_path):
         k = _kernel(tmp_path)
         k.emit_event("GoalCreated", "goal", "gp", payload={"title": "Parent"})
-        k.emit_event("WorkItemCreated", "work_item", "t-p", payload={
+        k.emit_event("GoalCreated", "goal", "t-p", payload={
             "title": "Parent", "parent_goal_id": "gp",
         })
-        k.emit_event("WorkItemCreated", "work_item", "t-c", payload={
+        k.emit_event("GoalCreated", "goal", "t-c", payload={
             "title": "Child", "parent_goal_id": "gp",
             "parent_work_id": "t-p", "priority": 1,
         })
@@ -122,7 +122,7 @@ class TestQueryStateW3:
     def test_tasks_by_status_with_order(self, tmp_path):
         k = _kernel(tmp_path)
         for i in range(3):
-            k.emit_event("WorkItemCreated", "work_item", f"t{i}", payload={
+            k.emit_event("GoalCreated", "goal", f"t{i}", payload={
                 "title": f"T{i}", "priority": i,
             })
         k.emit_event("WorkItemStatusChanged", "work_item", "t1", payload={

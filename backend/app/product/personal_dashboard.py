@@ -69,18 +69,14 @@ def _widget_data_sovereignty() -> dict:
         self_report_count = 0
         claim_count = 0
 
-    # Active vs completed goals (v1.0 Phase 3b: prefer work_items, fall back to goals)
+    # Active vs completed goals (v1.0 Phase 4: goals table retired)
     try:
         goals_active = kernel.query_state(
             "work_items", work_type="goal", status="active", limit=5000,
         )
-        if not goals_active:
-            goals_active = kernel.query_state("goals", status="active", limit=5000)
         goals_completed = kernel.query_state(
             "work_items", work_type="goal", status="completed", limit=5000,
         )
-        if not goals_completed:
-            goals_completed = kernel.query_state("goals", status="completed", limit=5000)
     except Exception:
         goals_active = []
         goals_completed = []
@@ -109,18 +105,11 @@ def _widget_data_sovereignty() -> dict:
 
 
 def _widget_active_goals() -> dict:
-    """Active goals — count + top by importance (query_state only).
-
-    v1.0 Phase 3b: prefer work_items(work_type='goal'), fall back to goals.
-    """
+    """Active goals — count + top by importance (v1.0: unified work_items)."""
     active = kernel.query_state(
         "work_items", work_type="goal", status="active",
         limit=50, order="importance_desc",
     )
-    if not active:
-        active = kernel.query_state(
-            "goals", status="active", limit=50, order="importance_desc",
-        )
     top = active[:_MAX_TOP_GOALS]
     return {
         "count": len(active),

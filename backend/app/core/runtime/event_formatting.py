@@ -13,10 +13,6 @@ from datetime import UTC, datetime, timedelta
 from app.core.runtime.kernel.event import Event
 
 _LEGACY_TYPE: dict[str, str] = {
-    "GoalCreated": "goal_created",
-    "GoalUpdated": "goal_status_changed",
-    "GoalCompleted": "goal_status_changed",
-    "GoalDeleted": "goal_deleted",
     "ActionCreated": "action_created",
     "ActionUpdated": "action_status_changed",
     "ActionDeleted": "action_deleted",
@@ -38,10 +34,13 @@ _LEGACY_TYPE: dict[str, str] = {
 
 
 def _goal_id_for(event: Event) -> str | None:
-    """Extract goal_id from an event's aggregate or payload."""
-    if event.aggregate_type == "goal":
-        return event.aggregate_id
-    if event.aggregate_type in ("action", "work_item"):
+    """Extract goal_id from an event's aggregate or payload.
+
+    v1.0: Goal aggregate retired. goal_id comes from work_item payload or parent_goal_id.
+    """
+    if event.aggregate_type == "work_item":
+        return event.payload.get("parent_goal_id") or event.aggregate_id
+    if event.aggregate_type in ("action"):
         return event.payload.get("goal_id") or event.payload.get("parent_goal_id")
     return event.payload.get("goal_id")
 
@@ -50,10 +49,6 @@ def _summary_for(event: Event) -> str:
     """Generate a human-readable summary string for an event."""
     p = event.payload
     t = event.type
-    if t == "GoalCreated":
-        return f"Goal created: {p.get('title', '')}"
-    if t in ("GoalUpdated", "GoalCompleted"):
-        return f"Goal status -> {p.get('status', t)}"
     if t == "ActionCreated":
         return f"Action created: {p.get('title', '')}"
     if t == "ActionUpdated":

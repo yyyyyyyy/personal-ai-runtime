@@ -18,12 +18,12 @@ class TestActionsEventSourced:
         k.emit_event("GoalCreated", "goal", "g1", {"title": "Test Goal"}, actor="user")
 
         k.emit_event(
-            "WorkItemCreated", "work_item", "a1",
+            "GoalCreated", "goal", "a1",
             {"parent_goal_id": "g1", "title": "Step 1", "status": "pending", "work_type": "action"},
             actor="user",
         )
         k.emit_event(
-            "WorkItemCreated", "work_item", "a2",
+            "GoalCreated", "goal", "a2",
             {"parent_goal_id": "g1", "title": "Step 2", "status": "pending", "work_type": "action"},
             actor="user",
         )

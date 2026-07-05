@@ -56,11 +56,7 @@ def _check_stagnant_goals(kernel=None) -> None:
         "work_items", work_type="goal", status="active",
         last_activity_older_than_days=3, limit=5,
     )
-    if not stagnant:
-        stagnant = kern.query_state(
-            "goals", status="active",
-            last_activity_older_than_days=3, limit=5,
-        )
+
     import logging
     logger = logging.getLogger(__name__)
 

@@ -40,8 +40,8 @@ class TestQueryStateW1:
 
     def test_tasks_status_and_limit(self, tmp_path):
         k = _kernel(tmp_path)
-        k.emit_event("WorkItemCreated", "work_item", "t1", payload={"title": "A", "priority": 1})
-        k.emit_event("WorkItemCreated", "work_item", "t2", payload={"title": "B", "priority": 2})
+        k.emit_event("GoalCreated", "goal", "t1", payload={"title": "A", "priority": 1})
+        k.emit_event("GoalCreated", "goal", "t2", payload={"title": "B", "priority": 2})
         k.emit_event("WorkItemStatusChanged", "work_item", "t1", payload={"status": "running"}, actor="user")
 
         running = k.query_state("work_items", status="running", limit=10, order="priority_desc_created_desc")

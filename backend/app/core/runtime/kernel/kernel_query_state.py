@@ -15,9 +15,11 @@ class QueryStateMixin:  # type: ignore[attr-defined]  # mixed into Kernel which 
 
     def query_state(self, selector: str, **filters: Any) -> list[dict]:
         """Read current State (a projection). Returns list of dict rows."""
+        # v1.0: "goals" is an alias for work_items filtered to work_type='goal'.
         if selector == "goals":
-            return self._query_goals(filters)
-        if selector == "work_items":  # unified task + action + trigger
+            filters.setdefault("work_type", "goal")
+            return self._query_work_items(filters)
+        if selector == "work_items":  # v1.0: unified task + action + goal
             return self._query_work_items(filters)
         if selector == "approvals":
             return self._query_approvals(filters)
@@ -40,61 +42,6 @@ class QueryStateMixin:  # type: ignore[attr-defined]  # mixed into Kernel which 
         if selector == "user_profile":
             return self._query_user_profile(filters)
         raise ValueError(f"Unknown state selector: {selector!r}")
-
-    def _query_goals(self, filters: dict[str, Any]) -> list[dict]:
-        goal_id = filters.get("id")
-        status = filters.get("status")
-        status_in = filters.get("status_in")
-        limit = filters.get("limit", 50)
-        order = filters.get("order", "importance_desc")
-        last_activity_older_than_days = filters.get("last_activity_older_than_days")
-        deadline_within_days = filters.get("deadline_within_days")
-        updated_since = filters.get("updated_since")
-        has_deadline = filters.get("has_deadline")
-
-        order_clauses = {
-            "importance_desc": "importance DESC, created_at DESC",
-            "importance_urgency_desc": "importance DESC, urgency DESC",
-            "last_activity_asc": "last_activity_at ASC",
-            "importance_desc_only": "importance DESC",
-        }
-        order_sql = order_clauses.get(order, order_clauses["importance_desc"])
-
-        with self._db.get_db() as conn:
-            if goal_id:
-                row = conn.execute("SELECT * FROM goals WHERE id = ?", (goal_id,)).fetchone()
-                return [dict(row)] if row else []
-
-            clauses: list[str] = []
-            params: list[Any] = []
-            if status_in is not None:
-                placeholders = ",".join("?" * len(status_in))
-                clauses.append(f"status IN ({placeholders})")
-                params.extend(status_in)
-            elif status is not None:
-                clauses.append("status = ?")
-                params.append(status)
-            if last_activity_older_than_days is not None:
-                clauses.append("last_activity_at < datetime('now', ?)")
-                params.append(f"-{int(last_activity_older_than_days)} days")
-            if deadline_within_days is not None:
-                clauses.append(
-                    "deadline IS NOT NULL AND deadline BETWEEN datetime('now') AND datetime('now', ?)"
-                )
-                params.append(f"+{int(deadline_within_days)} days")
-            if updated_since is not None:
-                clauses.append("updated_at >= ?")
-                params.append(updated_since)
-            if has_deadline:
-                clauses.append("deadline IS NOT NULL")
-
-            where = f" WHERE {' AND '.join(clauses)}" if clauses else ""
-            params.append(limit)
-            rows = conn.execute(
-                f"SELECT * FROM goals{where} ORDER BY {order_sql} LIMIT ?",
-                params,
-            ).fetchall()
-        return [dict(r) for r in rows]
 
     def _query_work_items(self, filters: dict[str, Any]) -> list[dict]:
         """Unified query for work_items table.

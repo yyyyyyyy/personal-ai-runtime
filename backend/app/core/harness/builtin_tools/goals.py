@@ -17,20 +17,19 @@ class GoalsServer:
         from app.core.runtime.kernel_instance import kernel
 
         goal_id = str(uuid.uuid4())
-        payload = {
-            "title": title,
-            "importance": importance,
-        }
-        if description:
-            payload["description"] = description
-        if deadline:
-            payload["deadline"] = deadline
 
         kernel.emit_event(
-            "GoalCreated",
-            "goal",
+            "WorkItemCreated",
+            "work_item",
             goal_id,
-            payload=payload,
+            payload={
+                "title": title,
+                "description": description or "",
+                "work_type": "goal",
+                "status": "active",
+                "importance": importance,
+                "urgency": 0.5,
+            } | ({"deadline": deadline} if deadline else {}),
             actor="user",
         )
 
@@ -48,8 +47,8 @@ class GoalsServer:
         progress = max(0.0, min(1.0, progress))
 
         kernel.emit_event(
-            "GoalUpdated",
-            "goal",
+            "WorkItemUpdated",
+            "work_item",
             goal_id,
             payload={"progress": progress},
             actor="user",
@@ -71,10 +70,10 @@ class GoalsServer:
         from app.core.runtime.kernel_instance import kernel
 
         kernel.emit_event(
-            "GoalCompleted",
-            "goal",
+            "WorkItemStatusChanged",
+            "work_item",
             goal_id,
-            payload={},
+            payload={"status": "completed"},
             actor="user",
         )
 
@@ -105,8 +104,7 @@ class GoalsServer:
             "work_items", work_type="goal", status="active",
             limit=20, order="importance_desc",
         )
-        if not goals:
-            goals = kernel.query_state("goals", status="active", limit=20, order="importance_desc")
+
         return json.dumps({
             "count": len(goals),
             "goals": [{"id": g["id"], "title": g["title"], "progress": g.get("progress", 0),

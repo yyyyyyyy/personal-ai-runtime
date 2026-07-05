@@ -29,7 +29,6 @@ from app.core.runtime.kernel.constants import (  # noqa: E402
     AGGREGATE_APPROVAL,
     AGGREGATE_CONVERSATION,
     AGGREGATE_EXECUTION,
-    AGGREGATE_GOAL,
     AGGREGATE_MEMORY,
     AGGREGATE_WORK_ITEM,
     EVENT_EXECUTION_REQUESTED,
@@ -39,38 +38,8 @@ Violation = tuple[str, str, str]  # (table, row_id, reason)
 
 
 def check_provenance(conn: Any) -> list[Violation]:
-    """Return provenance violations for goals, approvals, handler_executions."""
+    """Return provenance violations for approvals, handler_executions."""
     violations: list[Violation] = []
-
-    for row in conn.execute("SELECT id FROM goals").fetchall():
-        goal_id = row["id"]
-        found = conn.execute(
-            """SELECT 1 FROM event_log
-               WHERE aggregate_type = ? AND aggregate_id = ?
-               LIMIT 1""",
-            (AGGREGATE_GOAL, goal_id),
-        ).fetchone()
-        if not found:
-            violations.append(
-                ( "goals", goal_id, f"no event_log row for aggregate_type={AGGREGATE_GOAL!r}" ),
-            )
-
-    for row in conn.execute(
-        "SELECT id, parent_id FROM goals WHERE parent_id IS NOT NULL AND parent_id != ''"
-    ).fetchall():
-        goal_id = row["id"]
-        parent_id = row["parent_id"]
-        found = conn.execute(
-            """SELECT 1 FROM event_log
-               WHERE aggregate_type = ? AND aggregate_id = ?
-               LIMIT 1""",
-            (AGGREGATE_GOAL, parent_id),
-        ).fetchone()
-        if not found:
-            violations.append(
-                ("goals", goal_id,
-                 f"parent_id {parent_id!r} has no event_log row"),
-            )
 
     for row in conn.execute("SELECT id FROM approvals").fetchall():
         approval_id = row["id"]
@@ -202,7 +171,7 @@ def check_provenance(conn: Any) -> list[Violation]:
                 """SELECT 1 FROM event_log
                    WHERE aggregate_type = ? AND aggregate_id = ?
                    LIMIT 1""",
-                (AGGREGATE_GOAL, goal_id),
+                (AGGREGATE_WORK_ITEM, goal_id),
             ).fetchone()
             if not gf:
                 violations.append(
@@ -247,17 +216,17 @@ def bootstrap_sample_scenario(kernel: Any) -> None:
     assert trigger.seq is not None
 
     kernel.emit_event(
-        "GoalCreated",
-        AGGREGATE_GOAL,
+        "WorkItemCreated",
+        AGGREGATE_WORK_ITEM,
         "prov_goal_1",
-        payload={"title": "Provenance sample goal"},
+        payload={"title": "Provenance sample goal", "work_type": "goal"},
         actor="verify",
     )
     kernel.emit_event(
-        "GoalCreated",
-        AGGREGATE_GOAL,
+        "WorkItemCreated",
+        AGGREGATE_WORK_ITEM,
         "prov_goal_child",
-        payload={"title": "Child goal", "parent_id": "prov_goal_1"},
+        payload={"title": "Child goal", "work_type": "goal", "parent_work_id": "prov_goal_1"},
         actor="verify",
     )
     kernel.emit_event(
@@ -383,7 +352,7 @@ def main(argv: list[str] | None = None) -> int:
         return 1
 
     print(
-        "PROJECTION PROVENANCE OK — goals, approvals, handler_executions, "
+        "PROJECTION PROVENANCE OK — work_items, approvals, handler_executions, "
         "conversations, messages traceable to event_log"
     )
     return 0

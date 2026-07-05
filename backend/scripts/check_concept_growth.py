@@ -123,13 +123,13 @@ def count_dead_code_files() -> int:
 # the table in docs/02-concepts/runtime-algebra.md §4.6.
 
 BASELINE = {
-    "runtime_files": 55,               # core/runtime/ (-2: merged projectors_aux+user → core)
-    "event_types": 55,                 # +1 MemoryIndexRepairFailed (v0.8.0: durable repair queue)
-    "query_state_selectors": 12,  # -3 total (tasks/actions/triggers removed, conversations restored)
-    "fragments": 10,                   # register.py (-3: memory+world→background, mail/calendar identity merged)
-    "governed_tables": 12,             # -3 total (actions/tasks/grant_events removed)
-    "projector_files": 7,              # kernel/projectors_*.py (-2: aux+user merged into core)
-    "god_object_max_loc": 1946,        # +35 (Phase 3b: _query_work_items absorbed goal filters+orders)
+    "runtime_files": 55,               # core/runtime/
+    "event_types": 52,                 # -3 (GoalCreated/Updated/Deleted retired in v1.0 Phase 4)
+    "query_state_selectors": 11,       # -1 (goals selector retired, v1.0 Phase 4)
+    "fragments": 10,                   # register.py
+    "governed_tables": 11,             # -1 (goals table dropped, v1.0 Phase 4)
+    "projector_files": 7,              # kernel/projectors_*.py
+    "god_object_max_loc": 1946,        # Phase 3b: _query_work_items absorbed goal filters+orders
     "dead_code_files": 0,              # 已知死代码文件数
 }
 

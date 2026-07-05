@@ -66,7 +66,7 @@ def test_backfill_emits_work_items_for_each_goal(kernel_with_legacy_goals):
     assert summary["skipped"] == 0
     assert summary["errors"] == 0
 
-    rows = kernel.query_state("work_items", work_type="goal")
+    rows = kernel.query_state("goals")
     assert len(rows) == 2
     by_id = {r["id"]: r for r in rows}
     assert "g_backfill_1" in by_id
@@ -121,7 +121,7 @@ def test_backfill_dry_run_does_not_emit(kernel_with_legacy_goals):
     assert summary["emitted"] == 2
 
     # No work_items rows should exist
-    rows = kernel.query_state("work_items", work_type="goal")
+    rows = kernel.query_state("goals")
     assert len(rows) == 0
 
 

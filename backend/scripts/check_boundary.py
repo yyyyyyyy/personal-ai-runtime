@@ -19,8 +19,7 @@ from pathlib import Path
 from typing import TextIO
 
 PROJECTION_TABLES = (
-    "goals",
-    "work_items",  # v0.7.0: unified tasks + actions
+    "work_items",  # v1.0: unified tasks + actions + goals
     "approvals",
     "memories",
     "messages",

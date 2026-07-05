@@ -6,11 +6,7 @@ CI checks, and verification scripts.
 
 # ── Event types ─────────────────────────────────────────────────────────────
 
-EVENT_GOAL_CREATED = "GoalCreated"
-EVENT_GOAL_UPDATED = "GoalUpdated"
-EVENT_GOAL_DELETED = "GoalDeleted"
-
-# ── WorkItem (unified task + action aggregate, v0.7.0) ──────────────
+# ── WorkItem (unified task + action + goal aggregate, v1.0) ──────────
 EVENT_WORK_ITEM_CREATED = "WorkItemCreated"
 EVENT_WORK_ITEM_UPDATED = "WorkItemUpdated"
 EVENT_WORK_ITEM_DELETED = "WorkItemDeleted"
@@ -92,7 +88,6 @@ EVENT_USER_PROFILE_UPDATED = "UserProfileUpdated"
 
 # ── Aggregate types ─────────────────────────────────────────────────────────
 
-AGGREGATE_GOAL = "goal"
 AGGREGATE_APPROVAL = "approval"
 AGGREGATE_CAPABILITY = "capability"
 AGGREGATE_MEMORY = "memory"
@@ -119,7 +114,7 @@ EVENT_POLICY_REVOKED = "PolicyRevoked"
 
 # ── Snapshot-eligible aggregates ─────────────────────────────────────────────
 
-PROJECTION_SNAPSHOT_AGGREGATES = ("goal", "work_item", "memory", "conversation")
+PROJECTION_SNAPSHOT_AGGREGATES = ("work_item", "memory", "conversation")
 
 # ── Memory index event types ────────────────────────────────────────────────
 

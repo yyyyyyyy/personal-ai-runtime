@@ -67,7 +67,7 @@ class TestQueryStateW2:
     def test_tasks_depends_on_filter(self, tmp_path):
         k = _kernel(tmp_path)
         k.emit_event("GoalCreated", "goal", "g1", payload={"title": "G"})
-        k.emit_event("WorkItemCreated", "work_item", "t1", payload={"title": "Dep"})
+        k.emit_event("GoalCreated", "goal", "t1", payload={"title": "Dep"})
         k.emit_event(
             "WorkItemCreated",
             "work_item",

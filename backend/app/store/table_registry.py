@@ -9,8 +9,7 @@ from __future__ import annotations
 # Kernel-owned projections (event-sourced read models + event log).
 GOVERNED_TABLES: frozenset[str] = frozenset({
     "event_log",
-    "goals",
-    "work_items",  # v0.5.0: unified task + action projection
+    "work_items",  # v1.0: unified task + action + goal projection
     "memories",
     "approvals",
     "conversations",
@@ -68,11 +67,7 @@ APP_STORAGE_TABLES: frozenset[str] = frozenset({
 
 # Expected columns for governed projection tables (PRAGMA contract).
 GOVERNED_SCHEMA: dict[str, frozenset[str]] = {
-    "goals": frozenset({
-        "id", "title", "description", "status", "progress", "importance", "urgency",
-        "deadline", "parent_id", "created_at", "updated_at", "last_activity_at",
-    }),
-    "work_items": frozenset({  # v0.5.0: unified task + action; v1.0: + goal fields
+    "work_items": frozenset({  # v1.0: unified task + action + goal
         "id", "title", "description", "work_type", "parent_work_id",
         "parent_goal_id", "status", "priority", "dependencies_json",
         "executable_plan", "created_at", "updated_at", "completed_at",

@@ -29,20 +29,10 @@ def query_pending_actions(*, limit: int = 5) -> list[dict[str, Any]]:
 def query_top_active_goals(*, limit: int = 5) -> list[dict[str, Any]]:
     """Top active goals ordered by importance × urgency.
 
-    v1.0 Phase 3b: reads from work_items(work_type='goal') first; falls back
-    to the legacy goals projection if no goal rows have been backfilled yet.
-    The fallback is removed in Phase 4 when the goals table is dropped.
+    v1.0: reads from work_items(work_type='goal'); goals table dropped in Phase 4.
     """
-    rows = kernel.query_state(
-        "work_items", work_type="goal",
-        status_in=("active", "in_progress"),
-        limit=limit,
-        order="importance_urgency_desc",
-    )
-    if rows:
-        return rows
     return kernel.query_state(
-        "goals",
+        "work_items", work_type="goal",
         status_in=("active", "in_progress"),
         limit=limit,
         order="importance_urgency_desc",
@@ -201,13 +191,6 @@ def query_stagnant_goal_count(*, days: int = 3) -> int:
     try:
         rows = kernel.query_state(
             "work_items", work_type="goal", status="active",
-            last_activity_older_than_days=days, limit=10,
-        )
-        if rows:
-            return len(rows)
-        # Fallback for environments that have not backfilled goals → work_items.
-        rows = kernel.query_state(
-            "goals", status="active",
             last_activity_older_than_days=days, limit=10,
         )
         return len(rows)
