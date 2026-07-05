@@ -6,24 +6,24 @@
 
 ### HTTP Bearer Token
 
-[`backend/app/main.py`](../../backend/app/main.py) 的 `AuthMiddleware`（[`main.py:110-190`](../../backend/app/main.py)）是纯 ASGI 中间件（刻意避开 `BaseHTTPMiddleware` 以免缓冲 SSE 流）。
+[`backend/app/main.py`](../../backend/app/main.py) 的 `AuthMiddleware`（[`main.py`](../../backend/app/main.py)）是纯 ASGI 中间件（刻意避开 `BaseHTTPMiddleware` 以免缓冲 SSE 流）。
 
 - `settings.auth_token` 为空时直接放行（认证关闭）。
 - 启用时，从 `Authorization: Bearer <token>` 提取，`secrets.compare_digest` 比对；失败返回 401 JSON。
-- 跳过路径 `SKIP_AUTH_PATHS`（[`main.py:63`](../../backend/app/main.py)）：`/`、`/api/system/health`、`/api/system/live`、`/docs`、`/redoc`、`/openapi.json`（前缀匹配，`/` 精确匹配）。
+- 跳过路径 `SKIP_AUTH_PATHS`（[`main.py`](../../backend/app/main.py)）：`/`、`/api/system/health`、`/api/system/live`、`/docs`、`/redoc`、`/openapi.json`（前缀匹配，`/` 精确匹配）。
 - 启用时同时触发限流。
 
 ### 启动安全策略
 
-`lifespan`（[`main.py:244-267`](../../backend/app/main.py)）：未设 `AUTH_TOKEN` 且非 localhost bind（`_is_localhost_bind` 判定 `127.0.0.1`/`::1`/`localhost`/`127.*`）且未开 `ALLOW_NO_AUTH_ON_EXPOSED` → `sys.exit(1)` 拒绝启动。裸奔运行时启动周期性 600s 安全告警协程。
+`lifespan`（[`main.py`](../../backend/app/main.py)）：未设 `AUTH_TOKEN` 且非 localhost bind（`_is_localhost_bind` 判定 `127.0.0.1`/`::1`/`localhost`/`127.*`）且未开 `ALLOW_NO_AUTH_ON_EXPOSED` → `sys.exit(1)` 拒绝启动。裸奔运行时启动周期性 600s 安全告警协程。
 
 ### WebSocket 认证
 
-`WS /ws`（[`main.py:404-429`](../../backend/app/main.py)）经 `Sec-WebSocket-Protocol: auth.<token>` 子协议携带 token（[`main.py:101-107`](../../backend/app/main.py)），失败关闭码 4401，成功回 `auth.ok` 子协议。
+`WS /ws`（[`main.py`](../../backend/app/main.py)）经 `Sec-WebSocket-Protocol: auth.<token>` 子协议携带 token（[`main.py`](../../backend/app/main.py)），失败关闭码 4401，成功回 `auth.ok` 子协议。
 
 ## 限流
 
-[`backend/app/core/rate_limit.py`](../../backend/app/core/rate_limit.py) 内存令牌桶（按端点前缀），仅在 `AuthMiddleware` 启用认证时检查（[`main.py:139-143`](../../backend/app/main.py)）：
+[`backend/app/core/rate_limit.py`](../../backend/app/core/rate_limit.py) 内存令牌桶（按端点前缀），仅在 `AuthMiddleware` 启用认证时检查（[`main.py`](../../backend/app/main.py)）：
 
 | 端点前缀 | 限额 |
 |---|---|
@@ -91,7 +91,7 @@ URL 抓取类工具经 `url_safety.validate_http_url` 校验。相关测试：`t
 
 ## CORS
 
-`CORSMiddleware`（[`main.py:358-365`](../../backend/app/main.py)）：`allow_origins=settings.cors_origins.split(",")`（默认 `http://localhost:5173,http://localhost:5174`）、`allow_credentials=True`、方法 `GET/POST/PUT/PATCH/DELETE/OPTIONS`、头 `Authorization/Content-Type/X-Request-ID`、暴露 `X-Request-ID`。
+`CORSMiddleware`（[`main.py`](../../backend/app/main.py)）：`allow_origins=settings.cors_origins.split(",")`（默认 `http://localhost:5173,http://localhost:5174`）、`allow_credentials=True`、方法 `GET/POST/PUT/PATCH/DELETE/OPTIONS`、头 `Authorization/Content-Type/X-Request-ID`、暴露 `X-Request-ID`。
 
 ## 不在本仓库实现的安全特性
 

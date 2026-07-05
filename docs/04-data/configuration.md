@@ -21,7 +21,7 @@ flowchart LR
 
 ## `.env` 环境变量
 
-模板见 [`.env.example`](../../.env.example)。`Settings`（[`backend/app/config.py:49-159`](../../backend/app/config.py)）从 `BASE_DIR/.env` 读取（`env_file_encoding="utf-8"`、`extra="ignore"`、无 env 前缀）。
+模板见 [`.env.example`](../../.env.example)。`Settings`（[`backend/app/config.py`](../../backend/app/config.py)）从 `BASE_DIR/.env` 读取（`env_file_encoding="utf-8"`、`extra="ignore"`、无 env 前缀）。
 
 ### LLM
 
@@ -46,7 +46,7 @@ flowchart LR
 | `sqlite_path` | `<data_dir>/personal_ai.db` | `SQLITE_PATH` |
 | `vector_dir` | `<data_dir>/vectors` | `VECTOR_DIR` |
 
-相对路径在 `model_post_init`（[`config.py:145-159`](../../backend/app/config.py)）resolve 到 `BASE_DIR`，避免 `backend/backend/data` 幽灵路径。
+相对路径在 `model_post_init`（[`config.py`](../../backend/app/config.py)）resolve 到 `BASE_DIR`，避免 `backend/backend/data` 幽灵路径。
 
 ### 服务器
 
@@ -201,4 +201,4 @@ frontend service 设 `VITE_API_HOST=backend`、`VITE_API_PORT=8000`。
 
 ## 测试环境覆盖
 
-[`backend/tests/conftest.py`](../../backend/tests/conftest.py) 设默认：`LLM_API_KEY=test-key`、Chroma telemetry off、`MCP_EXTERNAL_ENABLED=false`，然后 re-read settings。`reset_settings()`（[`config.py:165-173`](../../backend/app/config.py)）允许测试重建实例。
+[`backend/tests/conftest.py`](../../backend/tests/conftest.py) 设默认：`LLM_API_KEY=test-key`、Chroma telemetry off、`MCP_EXTERNAL_ENABLED=false`，然后 re-read settings。`reset_settings()`（[`config.py`](../../backend/app/config.py)）允许测试重建实例。

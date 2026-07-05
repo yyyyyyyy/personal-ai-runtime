@@ -157,6 +157,11 @@ jobs:
           cd backend
           python scripts/check_doc_table_sync.py
 
+      - name: Doc line-ref drift guard (no .py:NNN in docs)
+        run: |
+          cd backend
+          python scripts/check_doc_line_refs.py
+
       - name: Projection provenance guard (goals / approvals / handler_executions / conversations / messages)
         run: |
           cd backend

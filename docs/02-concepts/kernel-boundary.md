@@ -10,7 +10,7 @@
 
 ## 表分类
 
-仓库中的所有业务表必须归入以下两类之一（[`table_registry.py:10-62`](../../backend/app/store/table_registry.py)）。新增表必须在此显式声明，否则 schema 契约测试失败。
+仓库中的所有业务表必须归入以下两类之一（[`table_registry.py`](../../backend/app/store/table_registry.py)）。新增表必须在此显式声明，否则 schema 契约测试失败。
 
 ### GOVERNED_TABLES（Kernel 投影，事件溯源）
 
@@ -55,7 +55,7 @@ APP_STORAGE_TABLES = frozenset({
 
 ## Schema 契约
 
-每张 governed 表的预期列集合在 [`table_registry.py:64-119`](../../backend/app/store/table_registry.py) 的 `GOVERNED_SCHEMA` 字典中声明。schema 契约测试通过 `PRAGMA table_info` 校验实际列与契约一致。
+每张 governed 表的预期列集合在 [`table_registry.py`](../../backend/app/store/table_registry.py) 的 `GOVERNED_SCHEMA` 字典中声明。schema 契约测试通过 `PRAGMA table_info` 校验实际列与契约一致。
 
 ## 边界守卫：`check_boundary.py`
 
@@ -108,7 +108,7 @@ User Space 通过 `app.core.runtime.kernel_instance` 拿到 Kernel 代理（[`ke
 
 ## RuntimeContainer 单例管理
 
-所有 Kernel 级单例由 [`backend/app/core/runtime/runtime_container.py`](../../backend/app/core/runtime/runtime_container.py) 的 `RuntimeContainer` 集中持有（kernel、capability_governance、taint_registry、agent_bus、context_pipeline、fragment_registry、mcp_hub、llm_router、memory_engine、memory_extractor、state_manager、runtime_config）。`runtime.reset()`（[`runtime_container.py:289-305`](../../backend/app/core/runtime/runtime_container.py)）用于测试隔离——清空单例、`taint.reset_external_tools()`、`context_pipeline.reset_source_registry()`。`conftest.py` 的 autouse fixture 在每个测试间调用它。
+所有 Kernel 级单例由 [`backend/app/core/runtime/runtime_container.py`](../../backend/app/core/runtime/runtime_container.py) 的 `RuntimeContainer` 集中持有（kernel、capability_governance、taint_registry、agent_bus、context_pipeline、fragment_registry、mcp_hub、llm_router、memory_engine、memory_extractor、state_manager、runtime_config）。`runtime.reset()`（[`runtime_container.py`](../../backend/app/core/runtime/runtime_container.py)）用于测试隔离——清空单例、`taint.reset_external_tools()`、`context_pipeline.reset_source_registry()`。`conftest.py` 的 autouse fixture 在每个测试间调用它。
 
 ## Fragment 读边界
 

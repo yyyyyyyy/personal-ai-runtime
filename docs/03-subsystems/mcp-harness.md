@@ -10,14 +10,14 @@
 
 | 常量 | 行 | 内容 |
 |---|---|---|
-| `CORE_CATEGORIES` | [`mcp_hub.py:45`](../../backend/app/core/harness/mcp_hub.py) | time、filesystem、web、calendar、email、browser、shell、git、telegram、goals |
-| `ADVANCED_CATEGORIES` | [`mcp_hub.py:51`](../../backend/app/core/harness/mcp_hub.py) | computer_use、voice、clipboard_ocr（经 `settings.builtin_tool_categories` opt-in） |
+| `CORE_CATEGORIES` | [`mcp_hub.py`](../../backend/app/core/harness/mcp_hub.py) | time、filesystem、web、calendar、email、browser、shell、git、telegram、goals |
+| `ADVANCED_CATEGORIES` | [`mcp_hub.py`](../../backend/app/core/harness/mcp_hub.py) | computer_use、voice、clipboard_ocr（经 `settings.builtin_tool_categories` opt-in） |
 
 `_register_*_tools` 方法注册具体的 `ToolDef`，指向 [`builtin_tools/`](../../backend/app/core/harness/builtin_tools/) 模块。许多带 `requires_confirmation=True`：`write_file`、`apply_patch`、`add_calendar_event`、`send_email`、`shell_exec`、`telegram_send`、`computer_click`/`type`/`key`。
 
 ### Mesh 集成
 
-`register_mesh_tools(discovered)`（[`mcp_hub.py:555-588`](../../backend/app/core/harness/mcp_hub.py)）：每个发现的工具包一层 async handler 调 `mcp_mesh.call_tool`，然后经 `capability_governance.register_external_tool(risk=item.policy_risk)` 注册并分类 taint。
+`register_mesh_tools(discovered)`（[`mcp_hub.py`](../../backend/app/core/harness/mcp_hub.py)）：每个发现的工具包一层 async handler 调 `mcp_mesh.call_tool`，然后经 `capability_governance.register_external_tool(risk=item.policy_risk)` 注册并分类 taint。
 
 ### 调用
 
@@ -49,11 +49,11 @@
 
 [`backend/app/core/harness/mcp_mesh.py`](../../backend/app/core/harness/mcp_mesh.py) 管理 stdio MCP 服务器连接与工具发现。
 
-### `_ServerConnection`（[`mcp_mesh.py:42-94`](../../backend/app/core/harness/mcp_mesh.py)）
+### `_ServerConnection`（[`mcp_mesh.py`](../../backend/app/core/harness/mcp_mesh.py)）
 
 `connect()` 用 `stdio_client(StdioServerParameters)` + `ClientSession`，调 `initialize()` + `list_tools()` 带超时。
 
-### `MCPMesh`（[`mcp_mesh.py:97`](../../backend/app/core/harness/mcp_mesh.py)）
+### `MCPMesh`（[`mcp_mesh.py`](../../backend/app/core/harness/mcp_mesh.py)）
 
 - `start()` 并行连接 startup servers，为 `startup_connect=False` 的服务器 spawn 懒连接后台任务。
 - `call_tool(registered_name, arguments)` 经 `url_safety.validate_http_url` 校验 Playwright URL 工具。

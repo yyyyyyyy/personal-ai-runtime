@@ -9,9 +9,9 @@
 | SQLite（WAL 模式） | 全部业务表 + 事件日志 + 投影 | `settings.sqlite_path`（默认 `<data_dir>/personal_ai.db`） |
 | ChromaDB（PersistentClient） | 记忆与知识的向量索引 | `settings.vector_dir`（默认 `<data_dir>/vectors`） |
 
-`data_dir` 默认 `<repo>/backend/data`，所有相对路径 resolve 到 `BASE_DIR`（[`backend/app/config.py:13-23`](../../backend/app/config.py)）。
+`data_dir` 默认 `<repo>/backend/data`，所有相对路径 resolve 到 `BASE_DIR`（[`backend/app/config.py`](../../backend/app/config.py)）。
 
-SQLite 启用 WAL + `synchronous=NORMAL`（[`backend/app/store/database.py:41-44`](../../backend/app/store/database.py)），线程局部连接缓存。`event_log` 表的两个触发器 `event_log_no_update`/`event_log_no_delete` 对 UPDATE/DELETE 执行 `RAISE(ABORT)` 强制 append-only（[`backend/app/store/schema_ddl.py:220-225`](../../backend/app/store/schema_ddl.py)）。
+SQLite 启用 WAL + `synchronous=NORMAL`（[`backend/app/store/database.py`](../../backend/app/store/database.py)），线程局部连接缓存。`event_log` 表的两个触发器 `event_log_no_update`/`event_log_no_delete` 对 UPDATE/DELETE 执行 `RAISE(ABORT)` 强制 append-only（[`backend/app/store/schema_ddl.py`](../../backend/app/store/schema_ddl.py)）。
 
 ## 表分类总览
 
@@ -172,7 +172,7 @@ frozenset({"id", "capability", "risk_level", "status", "created_at", "updated_at
 | `memories` | 记忆向量 | Kernel（`_sync_memory_index`） |
 | `knowledge` | 知识库文档块向量 | `knowledge` API（上传时分块向量化） |
 
-方法：`add_memory`/`search_memories`/`search_knowledge`/`add_knowledge_chunk`/`delete_memory`/`delete_knowledge_chunks`。ChromaDB 关闭 telemetry 并 monkey-patch `posthog.capture`（[`vector.py:13-20`](../../backend/app/store/vector.py)）。
+方法：`add_memory`/`search_memories`/`search_knowledge`/`add_knowledge_chunk`/`delete_memory`/`delete_knowledge_chunks`。ChromaDB 关闭 telemetry 并 monkey-patch `posthog.capture`（[`vector.py`](../../backend/app/store/vector.py)）。
 
 ## Alembic 迁移
 
@@ -189,10 +189,10 @@ frozenset({"id", "capability", "risk_level", "status", "created_at", "updated_at
 
 ## Schema 初始化策略
 
-[`backend/app/store/schema_init.py`](../../backend/app/store/schema_init.py) 的 `ensure_schema(db)`（[`schema_init.py:77-94`](../../backend/app/store/schema_init.py)）：
+[`backend/app/store/schema_init.py`](../../backend/app/store/schema_init.py) 的 `ensure_schema(db)`（[`schema_init.py`](../../backend/app/store/schema_init.py)）：
 
 - 若 `db_path == settings.sqlite_path`（生产路径）→ 跑 Alembic migrations（失败回退原始 DDL）。
-- 否则（测试/自定义路径）→ 跑 `apply_raw_ddl`（[`schema_init.py:48-74`](../../backend/app/store/schema_init.py)）。
+- 否则（测试/自定义路径）→ 跑 `apply_raw_ddl`（[`schema_init.py`](../../backend/app/store/schema_init.py)）。
 
 ## 一致性验证
 

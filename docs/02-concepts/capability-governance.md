@@ -52,7 +52,7 @@ flowchart TB
 
 `CapabilityGovernance.risk_for(name, kernel, mcp_default_high)` 返回 `"forbidden" | "high" | "low"`。来源：
 
-1. **静态策略种子** — [`backend/capability_policy.json`](../../backend/capability_policy.json) 在启动时由 `capability_governance.seed_from_json(kernel)` 注入为 `PolicyCreated` 事件（[`main.py:272-274`](../../backend/app/main.py)）。该 JSON 仅是种子，投影表 `policy_events` 才是权威。
+1. **静态策略种子** — [`backend/capability_policy.json`](../../backend/capability_policy.json) 在启动时由 `capability_governance.seed_from_json(kernel)` 注入为 `PolicyCreated` 事件（[`main.py`](../../backend/app/main.py)）。该 JSON 仅是种子，投影表 `policy_events` 才是权威。
 
    当前策略：
    - **auto_allow**（28 个只读/搜索/观察工具）：`read_file`、`web_search`、`list_calendar_events`、`check_inbox`、`git_status`/`log`/`diff`、`computer_screenshot`/`move`/`scroll`、`voice_tts`/`stt` 等。
@@ -77,11 +77,11 @@ flowchart TB
 
 关键实现：
 
-- `TaintRegistry`（[`taint.py:65`](../../backend/app/core/runtime/taint.py)）按 `correlation_id` 维护污染标记，**实例级 dict**（非 ContextVar，避免 `asyncio.gather` 扇出 bug），TTL 300s。
+- `TaintRegistry`（[`taint.py`](../../backend/app/core/runtime/taint.py)）按 `correlation_id` 维护污染标记，**实例级 dict**（非 ContextVar，避免 `asyncio.gather` 扇出 bug），TTL 300s。
 - 工具分类集合：
-  - `_BUILTIN_EXTERNAL_INGESTION_TOOLS`（[`taint.py:27-34`](../../backend/app/core/runtime/taint.py)）：`check_inbox`、`read_inbox_email`、`web_search`、`fetch_url`、`search_and_extract`、`open_web_page`。
-  - `WRITE_CLASS_TOOLS`（[`taint.py:52-62`](../../backend/app/core/runtime/taint.py)）：`apply_patch`、`write_file`、`add_calendar_event`、`send_email`、`shell_exec`、`telegram_send`、`computer_click`/`type`/`key`。
-- 集成点：`Kernel.invoke_capability` 在摄入类工具成功后调用 `taint_registry.mark(correlation_id, source="external_ingestion", reason=name)`（[`kernel.py:682-690`](../../backend/app/core/runtime/kernel/kernel.py)）。
+  - `_BUILTIN_EXTERNAL_INGESTION_TOOLS`（[`taint.py`](../../backend/app/core/runtime/taint.py)）：`check_inbox`、`read_inbox_email`、`web_search`、`fetch_url`、`search_and_extract`、`open_web_page`。
+  - `WRITE_CLASS_TOOLS`（[`taint.py`](../../backend/app/core/runtime/taint.py)）：`apply_patch`、`write_file`、`add_calendar_event`、`send_email`、`shell_exec`、`telegram_send`、`computer_click`/`type`/`key`。
+- 集成点：`Kernel.invoke_capability` 在摄入类工具成功后调用 `taint_registry.mark(correlation_id, source="external_ingestion", reason=name)`（[`kernel.py`](../../backend/app/core/runtime/kernel/kernel.py)）。
 - Brain 在每次回合开始时清空该 `correlation_id` 的 taint。
 
 `is_external_ingestion_tool` / `is_write_class_tool` / `register_external_ingestion_tool` / `register_external_write_tool` / `reset_external_tools` 是公开接口。

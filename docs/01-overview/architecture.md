@@ -57,7 +57,7 @@ flowchart TB
 
 ```mermaid
 flowchart LR
-    Caller[调用方<br/>router / handler] -->|emit_event| E["Kernel.emit_event<br/>kernel.py:108-188"]
+    Caller[调用方<br/>router / handler] -->|emit_event| E["Kernel.emit_event"]
     E -->|1 INSERT immutable| L[(event_log)]
     E -->|2 synchronous project| P["projectors.apply<br/>同一事务"]
     P --> S[(governed 投影表)]

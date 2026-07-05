@@ -23,7 +23,7 @@
 
 ## Kernel 写入路径
 
-唯一的写入入口是 `Kernel.emit_event()`（[`backend/app/core/runtime/kernel/kernel.py:108-188`](../../backend/app/core/runtime/kernel/kernel.py)）。它在单个 SQLite 事务内完成四件事：
+唯一的写入入口是 `Kernel.emit_event()`（[`backend/app/core/runtime/kernel/kernel.py`](../../backend/app/core/runtime/kernel/kernel.py)）。它在单个 SQLite 事务内完成四件事：
 
 ```mermaid
 flowchart LR
@@ -41,14 +41,14 @@ flowchart LR
 
 ## 同步命令包装：`submit_command`
 
-`Kernel.submit_command(...)`（[`kernel.py:190-260`](../../backend/app/core/runtime/kernel/kernel.py)）是 `emit_event` 的同步包装：发出请求事件后，await 一个由 `(correlation_id, completion_type)` 匹配的完成事件。默认完成类型把 `Requested` 替换为 `Completed`。HTTP API 的多数写操作（如 `POST /api/chat/approvals/{id}/resolve`、`POST /api/goals/{id}/decompose`）走这条路。
+`Kernel.submit_command(...)`（[`kernel.py`](../../backend/app/core/runtime/kernel/kernel.py)）是 `emit_event` 的同步包装：发出请求事件后，await 一个由 `(correlation_id, completion_type)` 匹配的完成事件。默认完成类型把 `Requested` 替换为 `Completed`。HTTP API 的多数写操作（如 `POST /api/chat/approvals/{id}/resolve`、`POST /api/goals/{id}/decompose`）走这条路。
 
 ## 读路径
 
 Kernel 提供两类读 API：
 
-- **拉取式** `read_events(...)`（[`kernel.py:356-410`](../../backend/app/core/runtime/kernel/kernel.py)）— 支持按类型、聚合、时间、actor 等过滤的事件日志读取。
-- **订阅式** `subscribe_events(handler, type, aggregate_type)`（[`kernel.py:425-441`](../../backend/app/core/runtime/kernel/kernel.py)）— 注册回调，返回反订阅函数。
+- **拉取式** `read_events(...)`（[`kernel.py`](../../backend/app/core/runtime/kernel/kernel.py)）— 支持按类型、聚合、时间、actor 等过滤的事件日志读取。
+- **订阅式** `subscribe_events(handler, type, aggregate_type)`（[`kernel.py`](../../backend/app/core/runtime/kernel/kernel.py)）— 注册回调，返回反订阅函数。
 - **状态查询** `query_state(selector, **filters)`（[`kernel_query_state.py`](../../backend/app/core/runtime/kernel_query_state.py)）— 从投影表读取当前状态。支持的选择器：`goals`、`work_items`、`approvals`、`memories`、`notifications`、`timer_events`、`policy_events`、`messages`、`conversations`、`inbox_emails`、`background_tasks`、`triggers`、`user_profile`。
 
 ## 投影器

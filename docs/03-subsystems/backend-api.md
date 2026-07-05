@@ -4,11 +4,11 @@
 
 ## 应用入口
 
-[`backend/app/main.py`](../../backend/app/main.py) 是 FastAPI 入口：`FastAPI(title="Personal AI Runtime", version=VERSION, lifespan=lifespan)`（[`main.py:333-354`](../../backend/app/main.py)）。
+[`backend/app/main.py`](../../backend/app/main.py) 是 FastAPI 入口：`FastAPI(title="Personal AI Runtime", version=VERSION, lifespan=lifespan)`（[`main.py`](../../backend/app/main.py)）。
 
 ### 路由挂载
 
-16 个 router 在 [`main.py:372-387`](../../backend/app/main.py) 挂载：
+16 个 router 在 [`main.py`](../../backend/app/main.py) 挂载：
 
 ```
 chat, dashboard, system, settings_api, memory, goals, notifications,
@@ -20,13 +20,13 @@ connectors, timeline, knowledge
 
 ### 中间件（外到内）
 
-1. **`RequestIDMiddleware`**（[`main.py:193-231`](../../backend/app/main.py)）— 读取或生成 `X-Request-ID`（uuid4 前 16 位），存入 `request_id_var` ContextVar，响应头回写。
-2. **`CORSMiddleware`**（[`main.py:358-365`](../../backend/app/main.py)）— `allow_origins=settings.cors_origins.split(",")`、`allow_credentials=True`、方法 `GET/POST/PUT/PATCH/DELETE/OPTIONS`、头 `Authorization/Content-Type/X-Request-ID`。
-3. **`AuthMiddleware`**（[`main.py:110-190`](../../backend/app/main.py)）— 纯 ASGI Bearer Token 中间件（刻意避开 `BaseHTTPMiddleware` 以免缓冲 SSE）。详见 [05-engineering/security.md](../05-engineering/security.md)。
+1. **`RequestIDMiddleware`**（[`main.py`](../../backend/app/main.py)）— 读取或生成 `X-Request-ID`（uuid4 前 16 位），存入 `request_id_var` ContextVar，响应头回写。
+2. **`CORSMiddleware`**（[`main.py`](../../backend/app/main.py)）— `allow_origins=settings.cors_origins.split(",")`、`allow_credentials=True`、方法 `GET/POST/PUT/PATCH/DELETE/OPTIONS`、头 `Authorization/Content-Type/X-Request-ID`。
+3. **`AuthMiddleware`**（[`main.py`](../../backend/app/main.py)）— 纯 ASGI Bearer Token 中间件（刻意避开 `BaseHTTPMiddleware` 以免缓冲 SSE）。详见 [05-engineering/security.md](../05-engineering/security.md)。
 
 ## 生命周期
 
-`lifespan(app)`（[`main.py:237-328`](../../backend/app/main.py)）：
+`lifespan(app)`（[`main.py`](../../backend/app/main.py)）：
 
 **Startup**：
 
@@ -72,11 +72,11 @@ connectors, timeline, knowledge
 
 ## SSE 流式端点
 
-**唯一 SSE 端点**：`POST /api/chat/conversations/{conv_id}/messages`（[`chat.py:83-188`](../../backend/app/api/chat.py)），`text/event-stream`。
+**唯一 SSE 端点**：`POST /api/chat/conversations/{conv_id}/messages`（[`chat.py`](../../backend/app/api/chat.py)），`text/event-stream`。
 
 事件类型：`text_delta`、`tool_call_start`、`tool_result`、`sources`、`confirmation_required`、`done`、`error`、`ping`（15s 心跳）。
 
-实现细节（[`chat.py:122-178`](../../backend/app/api/chat.py)）：
+实现细节（[`chat.py`](../../backend/app/api/chat.py)）：
 
 - 内部生成 `correlation_id = "chat_" + uuid[:12]`，从 `sse_queue_registry` 注册内存队列。
 - 上限 `settings.total_tool_loop_timeout + 10s`；超时返回 `error`。
@@ -87,11 +87,11 @@ connectors, timeline, knowledge
 
 ## WebSocket 端点
 
-`WS /ws`（[`main.py:404-429`](../../backend/app/main.py)）— 实时通知推送。
+`WS /ws`（[`main.py`](../../backend/app/main.py)）— 实时通知推送。
 
-- 鉴权：`Sec-WebSocket-Protocol: auth.<token>` 子协议（[`main.py:101-107`](../../backend/app/main.py)），失败关闭码 4401，成功回 `auth.ok`。
+- 鉴权：`Sec-WebSocket-Protocol: auth.<token>` 子协议（[`main.py`](../../backend/app/main.py)），失败关闭码 4401，成功回 `auth.ok`。
 - 行为：维持连接列表，接收客户端 `ping` 回 `pong`。
-- `broadcast_notification(event)`（[`main.py:432-455`](../../backend/app/main.py)）向所有连接广播 JSON，自动清理已断开连接。
+- `broadcast_notification(event)`（[`main.py`](../../backend/app/main.py)）向所有连接广播 JSON，自动清理已断开连接。
 
 无其他 WebSocket 端点。
 
@@ -133,4 +133,4 @@ connectors, timeline, knowledge
 
 所有 Pydantic 模型定义于 [`backend/app/api/models.py`](../../backend/app/api/models.py)（如 `SendMessageRequest`、`ResolveApprovalRequest`、`CreateGoalRequest`、`CreateMemoryRequest`、`UpdateMemoryRequest`（category 必须在 `{fact, preference, habit, belief, insight, work, personal}`）、`CreateTaskRequest`、`UpdateTaskStatusRequest`、`CreateBackgroundTaskRequest`、`CreateTriggerRequest`、`ExportRequest`/`ImportRequest`/`EncryptedExportRequest`/`EncryptedImportRequest`、`UpdateInboxStatusRequest`、`LlmProviderInput`/`UpdateLlmConfigRequest`/`UpdateEmailConfigRequest`/`TestEmailRequest`/`TestLlmRequest`/`PromptConfig`/`NotificationSettings`、`InstallConnectorRequest`）。
 
-确认码常量（[`system.py:31-33`](../../backend/app/api/system.py)）：`EXPORT_CONFIRM="EXPORT_ALL_DATA"`、`DESTROY_CONFIRM="DESTROY_ALL_DATA"`、`IMPORT_CONFIRM="DESTROY_AND_IMPORT"`。
+确认码常量（[`system.py`](../../backend/app/api/system.py)）：`EXPORT_CONFIRM="EXPORT_ALL_DATA"`、`DESTROY_CONFIRM="DESTROY_ALL_DATA"`、`IMPORT_CONFIRM="DESTROY_AND_IMPORT"`。

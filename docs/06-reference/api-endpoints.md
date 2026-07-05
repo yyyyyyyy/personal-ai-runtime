@@ -2,7 +2,7 @@
 
 全端点签名表。认证说明：所有端点（除标 `public`）在 `AUTH_TOKEN` 配置时经全局 `AuthMiddleware` Bearer 校验；**没有任何端点用 FastAPI Depends 式 AUTH_TOKEN 依赖**。
 
-跳过认证路径（`SKIP_AUTH_PATHS`，[`main.py:63`](../../backend/app/main.py)）：`/`、`/api/system/health`、`/api/system/live`、`/docs`、`/redoc`、`/openapi.json`。
+跳过认证路径（`SKIP_AUTH_PATHS`，[`main.py`](../../backend/app/main.py)）：`/`、`/api/system/health`、`/api/system/live`、`/docs`、`/redoc`、`/openapi.json`。
 
 ## chat — `/api/chat`（[`api/chat.py`](../../backend/app/api/chat.py)）
 
@@ -113,7 +113,7 @@
 
 ## system — `/api/system`（[`api/system.py`](../../backend/app/api/system.py)）
 
-确认码常量（[`system.py:31-33`](../../backend/app/api/system.py)）：`EXPORT_CONFIRM="EXPORT_ALL_DATA"`、`DESTROY_CONFIRM="DESTROY_ALL_DATA"`、`IMPORT_CONFIRM="DESTROY_AND_IMPORT"`。
+确认码常量（[`system.py`](../../backend/app/api/system.py)）：`EXPORT_CONFIRM="EXPORT_ALL_DATA"`、`DESTROY_CONFIRM="DESTROY_ALL_DATA"`、`IMPORT_CONFIRM="DESTROY_AND_IMPORT"`。
 
 | 方法 | 路径 | 行 | 请求 | 响应 | Auth | 副作用 |
 |---|---|---|---|---|---|---|
@@ -163,11 +163,11 @@
 |---|---|---|---|---|
 | GET | `/events` | `113-167` | query `page=1`, `page_size=30`(1-100), `event_type?`, `date_from?`, `date_to?` | `{items, total, page, page_size, has_more, icons}`（每事件含中文 description + payload_snippet） |
 
-`EVENT_LABELS`（[`timeline.py:10-37`](../../backend/app/api/timeline.py)）与 `EVENT_ICONS`（[`timeline.py:90-110`](../../backend/app/api/timeline.py)）把内部事件类型翻译为中文 + 图标。一次性拉最多 500 条 event_log 在 Python 中过滤/分页。
+`EVENT_LABELS`（[`timeline.py`](../../backend/app/api/timeline.py)）与 `EVENT_ICONS`（[`timeline.py`](../../backend/app/api/timeline.py)）把内部事件类型翻译为中文 + 图标。一次性拉最多 500 条 event_log 在 Python 中过滤/分页。
 
 ## knowledge — `/api/knowledge`（[`api/knowledge.py`](../../backend/app/api/knowledge.py)）
 
-`MAX_FILE_SIZE=10MB`，`ALLOWED_EXTENSIONS={.pdf,.md,.txt,.markdown,.json,.csv}`（[`knowledge.py:23-24`](../../backend/app/api/knowledge.py)）。元数据存 `app_settings`（`category='knowledge_docs'`），向量化入 ChromaDB。
+`MAX_FILE_SIZE=10MB`，`ALLOWED_EXTENSIONS={.pdf,.md,.txt,.markdown,.json,.csv}`（[`knowledge.py`](../../backend/app/api/knowledge.py)）。元数据存 `app_settings`（`category='knowledge_docs'`），向量化入 ChromaDB。
 
 | 方法 | 路径 | 行 | 请求 | 响应 | 副作用 |
 |---|---|---|---|---|---|
@@ -191,7 +191,7 @@
 
 | 路径 | 行 | 用途 |
 |---|---|---|
-| `WS /ws` | [`main.py:404-429`](../../backend/app/main.py) | 实时通知推送。客户端发 `ping` 得 `pong`；`broadcast_notification` 向所有连接广播 JSON。鉴权 `Sec-WebSocket-Protocol: auth.<token>` |
+| `WS /ws` | [`main.py`](../../backend/app/main.py) | 实时通知推送。客户端发 `ping` 得 `pong`；`broadcast_notification` 向所有连接广播 JSON。鉴权 `Sec-WebSocket-Protocol: auth.<token>` |
 
 ## 未挂载的 workflows router
 

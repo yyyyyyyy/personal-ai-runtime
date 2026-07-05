@@ -60,7 +60,7 @@ Handler 签名 `(ExecutionContext, Event) → None`。`ExecutionContext` 暴露 
 
 添加上下文片段：
 
-1. 子类化 `ContextFragment`（[`backend/app/context_runtime.py:43-69`](../../backend/app/context_runtime.py)）：
+1. 子类化 `ContextFragment`（[`backend/app/context_runtime.py`](../../backend/app/context_runtime.py)）：
 
 ```python
 class YourFragment(ContextFragment):
@@ -74,7 +74,7 @@ class YourFragment(ContextFragment):
         return FragmentResult(content=content, token_count=..., sources=[...])
 ```
 
-2. 在 [`backend/app/fragments/register.py:46-53`](../../backend/app/fragments/register.py) 注册：
+2. 在 [`backend/app/fragments/register.py`](../../backend/app/fragments/register.py) 注册：
 
 ```python
 fragment_registry.register(YourFragment())
@@ -146,11 +146,11 @@ register_rule("your_tool", ToolPostprocessRule(
 
 添加新子系统到 [`backend/app/core/runtime/runtime_container.py`](../../backend/app/core/runtime/runtime_container.py)：
 
-1. 添加私有 attr 并在 `_SINGLETON_ATTRS`（[`runtime_container.py:274`](../../backend/app/core/runtime/runtime_container.py)）登记。
+1. 添加私有 attr 并在 `_SINGLETON_ATTRS`（[`runtime_container.py`](../../backend/app/core/runtime/runtime_container.py)）登记。
 2. 添加 `@property` 返回 `_LazyProxy(lambda: self._your_subsystem)`。
-3. `reset()`（[`runtime_container.py:289-305`](../../backend/app/core/runtime/runtime_container.py)）会自动清空——保证测试隔离。
+3. `reset()`（[`runtime_container.py`](../../backend/app/core/runtime/runtime_container.py)）会自动清空——保证测试隔离。
 
-`_LazyProxy`（[`runtime_container.py:39-83`](../../backend/app/core/runtime/runtime_container.py)）透明转发 `__getattr__`，但 `__setattr__` 让 mock 留在 proxy 本地。
+`_LazyProxy`（[`runtime_container.py`](../../backend/app/core/runtime/runtime_container.py)）透明转发 `__getattr__`，但 `__setattr__` 让 mock 留在 proxy 本地。
 
 ## 扩展时的 CI 检查清单
 
