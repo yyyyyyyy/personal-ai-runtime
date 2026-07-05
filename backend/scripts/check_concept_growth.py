@@ -125,11 +125,11 @@ def count_dead_code_files() -> int:
 BASELINE = {
     "runtime_files": 55,               # core/runtime/
     "event_types": 52,                 # -3 (GoalCreated/Updated/Deleted retired in v1.0 Phase 4)
-    "query_state_selectors": 11,       # -1 (goals selector retired, v1.0 Phase 4)
+    "query_state_selectors": 12,       # +1 (goals alias → work_items, v1.0 Phase 4)
     "fragments": 10,                   # register.py
     "governed_tables": 11,             # -1 (goals table dropped, v1.0 Phase 4)
     "projector_files": 7,              # kernel/projectors_*.py
-    "god_object_max_loc": 1946,        # Phase 3b: _query_work_items absorbed goal filters+orders
+    "god_object_max_loc": 1893,        # -53 (removed 5 Goal* projectors, v1.0 Phase 4)
     "dead_code_files": 0,              # 已知死代码文件数
 }
 

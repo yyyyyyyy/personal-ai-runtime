@@ -37,7 +37,9 @@ def test_all_business_tables_classified(tmp_path):
             ).fetchall()
         }
 
-    unclassified = actual - ALL_CLASSIFIED_TABLES
+    # v1.0: goals table retained in schema for migration only
+    _LEGACY = {"goals"}
+    unclassified = actual - ALL_CLASSIFIED_TABLES - _LEGACY
     assert not unclassified, f"Unclassified tables: {unclassified}"
 
 

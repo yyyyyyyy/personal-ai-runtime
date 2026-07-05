@@ -16,20 +16,20 @@ class TestQueryStateW2:
     def test_goals_stagnant_and_deadline_filters(self, tmp_path):
         k = _kernel(tmp_path)
         k.emit_event(
-            "GoalCreated",
-            "goal",
+            "WorkItemCreated",
+            "work_item",
             "g-stale",
             payload={'work_type': 'goal', "title": "Stale", "status": "active"},
         )
         k.emit_event(
-            "GoalUpdated",
-            "goal",
+            "WorkItemUpdated",
+            "work_item",
             "g-stale",
             payload={'work_type': 'goal', "last_activity_at": "2020-01-01T00:00:00"},
         )
         k.emit_event(
-            "GoalCreated",
-            "goal",
+            "WorkItemCreated",
+            "work_item",
             "g-due",
             payload={'work_type': 'goal', 
                 "title": "Due",
@@ -60,7 +60,7 @@ class TestQueryStateW2:
             payload={"parent_goal_id": "g1", "title": "Done", "status": "done", "work_type": "action"},
         )
 
-        pending = k.query_state("work_items", status="pending", limit=10)
+        pending = k.query_state("work_items", status="pending", work_type="action", limit=10)
         assert len(pending) == 1
         assert pending[0]["id"] == "a1"
 

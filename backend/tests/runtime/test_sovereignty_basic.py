@@ -64,12 +64,12 @@ def test_export_chat_rows_and_bootstrap(kernel):
 def test_save_projection_snapshot_and_rebuild(kernel):
     k = kernel
     k.emit_event("WorkItemCreated", "work_item", "g_snap", payload={'work_type': 'goal', "title": "Snap"})
-    meta = k.save_projection_snapshot("goal")
-    assert meta["aggregate_type"] == "goal"
+    meta = k.save_projection_snapshot("work_item")
+    assert meta["aggregate_type"] == "work_item"
     assert meta["last_applied_seq"] >= 1
 
     with k._db.get_db() as conn:
-        conn.execute("DELETE FROM goals")
+        conn.execute("DELETE FROM work_items")
 
     replayed = k.rebuild("work_item")
     assert replayed >= 0

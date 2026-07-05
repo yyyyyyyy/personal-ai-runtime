@@ -24,7 +24,7 @@ class TestQueryStateW3:
 
     def test_memories_by_claim_status(self, tmp_path):
         k = _kernel(tmp_path)
-        k.emit_event("MemoryDerived", "memory", "m-claim", payload={'work_type': 'work_item', 
+        k.emit_event("MemoryDerived", "memory", "m-claim", payload={'work_type': 'goal', 
             "category": "test", "content": "Claimed", "source": "chat",
             "confidence": 0.7, "origin": "claim", "claim_status": "proposed",
         })
@@ -35,10 +35,10 @@ class TestQueryStateW3:
 
     def test_goals_has_deadline(self, tmp_path):
         k = _kernel(tmp_path)
-        k.emit_event("WorkItemCreated", "work_item", "g-dl", payload={'work_type': 'work_item', 
+        k.emit_event("WorkItemCreated", "work_item", "g-dl", payload={'work_type': 'goal', 
             "title": "Deadline", "deadline": "2099-01-01T00:00:00",
         })
-        k.emit_event("WorkItemCreated", "work_item", "g-nd", payload={'work_type': 'work_item', 
+        k.emit_event("WorkItemCreated", "work_item", "g-nd", payload={'work_type': 'goal', 
             "title": "No deadline",
         })
         results = k.query_state("goals", has_deadline=True)
@@ -48,14 +48,14 @@ class TestQueryStateW3:
 
     def test_approvals_by_status(self, tmp_path):
         k = _kernel(tmp_path)
-        k.emit_event("WorkItemCreated", "work_item", "ga", payload={'work_type': 'work_item', 
+        k.emit_event("WorkItemCreated", "work_item", "ga", payload={'work_type': 'goal', 
             "title": "A", "status": "active",
         })
-        k.emit_event("ApprovalRequested", "approval", "app-pending", payload={'work_type': 'work_item', 
+        k.emit_event("ApprovalRequested", "approval", "app-pending", payload={'work_type': 'goal', 
             "task_id": "ga", "action": "shell_exec", "params": {},
             "proposed_by": "agent:test",
         })
-        k.emit_event("ApprovalRequested", "approval", "app-approved", payload={'work_type': 'work_item', 
+        k.emit_event("ApprovalRequested", "approval", "app-approved", payload={'work_type': 'goal', 
             "task_id": "ga", "action": "write_file", "params": {},
             "proposed_by": "agent:test",
         })
@@ -68,13 +68,13 @@ class TestQueryStateW3:
 
     def test_messages_by_conversation_and_order(self, tmp_path):
         k = _kernel(tmp_path)
-        k.emit_event("ConversationCreated", "conversation", "cv", payload={'work_type': 'work_item', 
+        k.emit_event("ConversationCreated", "conversation", "cv", payload={'work_type': 'goal', 
             "title": "C",
         })
-        k.emit_event("MessageAppended", "conversation", "cv", payload={'work_type': 'work_item', 
+        k.emit_event("MessageAppended", "conversation", "cv", payload={'work_type': 'goal', 
             "role": "user", "content": "hi",
         })
-        k.emit_event("MessageAppended", "conversation", "cv", payload={'work_type': 'work_item', 
+        k.emit_event("MessageAppended", "conversation", "cv", payload={'work_type': 'goal', 
             "role": "assistant", "content": "hey",
         })
         msgs = k.query_state("messages", conversation_id="cv",
@@ -87,10 +87,10 @@ class TestQueryStateW3:
 
     def test_notifications_unread_filter(self, tmp_path):
         k = _kernel(tmp_path)
-        k.emit_event("NotificationCreated", "notification", "n-u", payload={'work_type': 'work_item', 
+        k.emit_event("NotificationCreated", "notification", "n-u", payload={'work_type': 'goal', 
             "type": "goal_stagnant", "title": "Stale", "content": "...",
         })
-        k.emit_event("NotificationCreated", "notification", "n-r", payload={'work_type': 'work_item', 
+        k.emit_event("NotificationCreated", "notification", "n-r", payload={'work_type': 'goal', 
             "type": "info", "title": "Read", "content": "...",
         })
         k.emit_event("NotificationRead", "notification", "n-r", payload={})
@@ -100,7 +100,7 @@ class TestQueryStateW3:
     def test_notifications_by_created_date(self, tmp_path):
         k = _kernel(tmp_path)
         today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-        k.emit_event("NotificationCreated", "notification", "n-d", payload={'work_type': 'work_item', 
+        k.emit_event("NotificationCreated", "notification", "n-d", payload={'work_type': 'goal', 
             "type": "info", "title": "Dated", "content": "...",
         })
         results = k.query_state("notifications", created_on_date=today)
@@ -108,11 +108,11 @@ class TestQueryStateW3:
 
     def test_tasks_by_parent_task_id(self, tmp_path):
         k = _kernel(tmp_path)
-        k.emit_event("WorkItemCreated", "work_item", "gp", payload={'work_type': 'work_item', "title": "Parent"})
-        k.emit_event("WorkItemCreated", "work_item", "t-p", payload={'work_type': 'work_item', 
+        k.emit_event("WorkItemCreated", "work_item", "gp", payload={'work_type': 'goal', "title": "Parent"})
+        k.emit_event("WorkItemCreated", "work_item", "t-p", payload={'work_type': 'goal', 
             "title": "Parent", "parent_goal_id": "gp",
         })
-        k.emit_event("WorkItemCreated", "work_item", "t-c", payload={'work_type': 'work_item', 
+        k.emit_event("WorkItemCreated", "work_item", "t-c", payload={'work_type': 'goal', 
             "title": "Child", "parent_goal_id": "gp",
             "parent_work_id": "t-p", "priority": 1,
         })
@@ -122,10 +122,10 @@ class TestQueryStateW3:
     def test_tasks_by_status_with_order(self, tmp_path):
         k = _kernel(tmp_path)
         for i in range(3):
-            k.emit_event("WorkItemCreated", "work_item", f"t{i}", payload={'work_type': 'work_item', 
+            k.emit_event("WorkItemCreated", "work_item", f"t{i}", payload={'work_type': 'goal', 
                 "title": f"T{i}", "priority": i,
             })
-        k.emit_event("WorkItemStatusChanged", "work_item", "t1", payload={'work_type': 'work_item', 
+        k.emit_event("WorkItemStatusChanged", "work_item", "t1", payload={'work_type': 'goal', 
             "status": "completed",
         }, actor="user")
         pending = k.query_state("work_items", status="pending", limit=2,
@@ -139,8 +139,8 @@ class TestKernelGovernanceCoverage:
 
     def test_expire_stale_approvals(self, tmp_path):
         k = _kernel(tmp_path, "gov")
-        k.emit_event("WorkItemCreated", "work_item", "ge", payload={'work_type': 'work_item', "title": "Expiry"})
-        k.emit_event("ApprovalRequested", "approval", "app-x", payload={'work_type': 'work_item', 
+        k.emit_event("WorkItemCreated", "work_item", "ge", payload={'work_type': 'goal', "title": "Expiry"})
+        k.emit_event("ApprovalRequested", "approval", "app-x", payload={'work_type': 'goal', 
             "task_id": "ge", "action": "shell_exec", "params": {},
             "proposed_by": "agent:test",
         })
@@ -158,8 +158,8 @@ class TestKernelEdgePaths:
 
     def test_read_events_with_limit(self, tmp_path):
         k = _kernel(tmp_path, "re")
-        k.emit_event("WorkItemCreated", "work_item", "g1", payload={'work_type': 'work_item', "title": "One"})
-        k.emit_event("WorkItemCreated", "work_item", "g2", payload={'work_type': 'work_item', "title": "Two"})
+        k.emit_event("WorkItemCreated", "work_item", "g1", payload={'work_type': 'goal', "title": "One"})
+        k.emit_event("WorkItemCreated", "work_item", "g2", payload={'work_type': 'goal', "title": "Two"})
         assert len(k.read_events(limit=1)) == 1
         assert len(k.read_events()) >= 2
 
@@ -171,7 +171,7 @@ class TestKernelEdgePaths:
                 await asyncio.sleep(0.05)
                 k.emit_event(
                     "WorkItemCompleted", "work_item", "ts",
-                    payload={'work_type': 'work_item', "status": "completed"},
+                    payload={'work_type': 'goal', "status": "completed"},
                     correlation_id="corr-sc",
                 )
             task = asyncio.create_task(_emit_later())
@@ -179,7 +179,7 @@ class TestKernelEdgePaths:
                 type="WorkItemRequested",
                 aggregate_type="work_item",
                 aggregate_id="ts",
-                payload={'work_type': 'work_item', "title": "Test"},
+                payload={'work_type': 'goal', "title": "Test"},
                 actor="user",
                 correlation_id="corr-sc",
                 completion_type="WorkItemCompleted",
@@ -208,10 +208,10 @@ class TestUncoveredSelectors:
 
     def test_policy_events_by_capability(self, tmp_path):
         k = _kernel(tmp_path, "pol")
-        k.emit_event("PolicyCreated", "policy", "p1", payload={'work_type': 'work_item', 
+        k.emit_event("PolicyCreated", "policy", "p1", payload={'work_type': 'goal', 
             "capability": "shell_exec", "risk_level": "high",
         })
-        k.emit_event("PolicyCreated", "policy", "p2", payload={'work_type': 'work_item', 
+        k.emit_event("PolicyCreated", "policy", "p2", payload={'work_type': 'goal', 
             "capability": "web_search", "risk_level": "low",
         })
         results = k.query_state("policy_events", capability="shell_exec")
@@ -221,10 +221,10 @@ class TestUncoveredSelectors:
 
     def test_goals_updated_since(self, tmp_path):
         k = _kernel(tmp_path, "us")
-        k.emit_event("WorkItemCreated", "work_item", "g-upd", payload={'work_type': 'work_item', 
+        k.emit_event("WorkItemCreated", "work_item", "g-upd", payload={'work_type': 'goal', 
             "title": "Updated", "status": "active",
         })
-        k.emit_event("WorkItemUpdated", "work_item", "g-upd", payload={'work_type': 'work_item', 
+        k.emit_event("WorkItemUpdated", "work_item", "g-upd", payload={'work_type': 'goal', 
             "title": "Updated Now",
         })
         results = k.query_state("goals", updated_since="2020-01-01", limit=10)
@@ -233,8 +233,8 @@ class TestUncoveredSelectors:
 
     def test_deny_approval(self, tmp_path):
         k = _kernel(tmp_path, "dny")
-        k.emit_event("WorkItemCreated", "work_item", "gd", payload={'work_type': 'work_item', "title": "Deny"})
-        k.emit_event("ApprovalRequested", "approval", "app-d", payload={'work_type': 'work_item', 
+        k.emit_event("WorkItemCreated", "work_item", "gd", payload={'work_type': 'goal', "title": "Deny"})
+        k.emit_event("ApprovalRequested", "approval", "app-d", payload={'work_type': 'goal', 
             "task_id": "gd", "action": "shell_exec", "params": {},
             "proposed_by": "agent:test",
         })
@@ -253,8 +253,8 @@ class TestSovereigntyGaps:
 
     def test_count_events(self, tmp_path):
         k = _kernel(tmp_path, "ce")
-        k.emit_event("WorkItemCreated", "work_item", "g-ce", payload={'work_type': 'work_item', "title": "C"})
-        k.emit_event("WorkItemCreated", "work_item", "g-ce2", payload={'work_type': 'work_item', "title": "D"})
+        k.emit_event("WorkItemCreated", "work_item", "g-ce", payload={'work_type': 'goal', "title": "C"})
+        k.emit_event("WorkItemCreated", "work_item", "g-ce2", payload={'work_type': 'goal', "title": "D"})
         assert k.count_events("work_item") == 2
         assert k.count_events("nonexistent") == 0
 
@@ -272,29 +272,29 @@ class TestKernelReadEvents:
 
     def test_read_events_by_id(self, tmp_path):
         k = _kernel(tmp_path, "rid")
-        k.emit_event("WorkItemCreated", "work_item", "g-id", payload={'work_type': 'work_item', "title": "X"})
+        k.emit_event("WorkItemCreated", "work_item", "g-id", payload={'work_type': 'goal', "title": "X"})
         events = k.read_events()
         results = k.read_events(id=events[0].id)
         assert len(results) == 1 and results[0].id == events[0].id
 
     def test_read_events_by_aggregate_type(self, tmp_path):
         k = _kernel(tmp_path, "rat")
-        k.emit_event("WorkItemCreated", "work_item", "g-at", payload={'work_type': 'work_item', "title": "T"})
+        k.emit_event("WorkItemCreated", "work_item", "g-at", payload={'work_type': 'goal', "title": "T"})
         results = k.read_events(aggregate_type="work_item")
         assert all(e.aggregate_type == "work_item" for e in results)
         assert len(results) >= 1
 
     def test_read_events_by_types(self, tmp_path):
         k = _kernel(tmp_path, "rty")
-        k.emit_event("WorkItemCreated", "work_item", "g-ty", payload={'work_type': 'work_item', "title": "T"})
+        k.emit_event("WorkItemCreated", "work_item", "g-ty", payload={'work_type': 'goal', "title": "T"})
         k.emit_event("WorkItemStatusChanged", "work_item", "g-ty", payload={})
-        results = k.read_events(types=["GoalCreated"])
-        assert all(e.type == "GoalCreated" for e in results)
+        results = k.read_events(types=["WorkItemCreated"])
+        assert all(e.type == "WorkItemCreated" for e in results)
 
     def test_read_events_by_seqs(self, tmp_path):
         k = _kernel(tmp_path, "rseq")
-        k.emit_event("WorkItemCreated", "work_item", "g-s1", payload={'work_type': 'work_item', "title": "S1"})
-        k.emit_event("WorkItemCreated", "work_item", "g-s2", payload={'work_type': 'work_item', "title": "S2"})
+        k.emit_event("WorkItemCreated", "work_item", "g-s1", payload={'work_type': 'goal', "title": "S1"})
+        k.emit_event("WorkItemCreated", "work_item", "g-s2", payload={'work_type': 'goal', "title": "S2"})
         seqs = [e.seq for e in k.read_events()[:2]]
         if len(seqs) >= 2:
             results = k.read_events_by_seqs(seqs)
@@ -332,7 +332,7 @@ class TestQueryGapFill:
 
     def test_memories_by_id(self, tmp_path):
         k = _kernel(tmp_path, "mid")
-        k.emit_event("MemoryDerived", "memory", "m-id", payload={'work_type': 'work_item', 
+        k.emit_event("MemoryDerived", "memory", "m-id", payload={'work_type': 'goal', 
             "category": "test", "content": "By ID", "source": "test",
             "confidence": 0.5, "origin": "self_report",
         })
@@ -341,7 +341,7 @@ class TestQueryGapFill:
 
     def test_notifications_by_type_and_title(self, tmp_path):
         k = _kernel(tmp_path, "ntt")
-        k.emit_event("NotificationCreated", "notification", "nt-x", payload={'work_type': 'work_item', 
+        k.emit_event("NotificationCreated", "notification", "nt-x", payload={'work_type': 'goal', 
             "type": "goal_stagnant", "title": "Special", "content": "...",
         })
         results = k.query_state("notifications", type="goal_stagnant", title="Special")
