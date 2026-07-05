@@ -4,6 +4,7 @@ import json
 
 from fastapi import APIRouter, HTTPException
 
+from app.config import settings
 from app.core.runtime.capability_governance import capability_governance
 from app.core.runtime.kernel_instance import kernel
 
@@ -98,7 +99,7 @@ async def approve(approval_id: str):
             "tool_call_id": "",
         },
         actor="user",
-        timeout=30.0,
+        timeout=settings.submit_command_timeout_approval,
     )
 
     if result.get("error") == "timeout":
@@ -136,7 +137,7 @@ async def reject(approval_id: str, reason: str = ""):
             "tool_call_id": "",
         },
         actor="user",
-        timeout=30.0,
+        timeout=settings.submit_command_timeout_approval,
     )
 
     if result.get("error") == "timeout":

@@ -113,6 +113,16 @@ class Settings(BaseSettings):
     # remain, preventing runaway cost from long tool chains.
     max_tool_loop_prompt_tokens: int = 100_000
 
+    # --- submit_command timeouts (per call site) ---
+    # submit_command emits an event and awaits a matching *Completed event.
+    # Each named timeout controls how long the await blocks before returning
+    # {"error": "timeout"}. Tune per call site — short for interactive paths
+    # (chat / approval), long for background work (inbox, plan execution).
+    submit_command_timeout_chat: float = 60.0
+    submit_command_timeout_approval: float = 60.0
+    submit_command_timeout_background_task: float = 300.0
+    submit_command_timeout_inbox: float = 300.0
+
     # --- Multi-Agent Runtime ---
     # The legacy AgentOrchestrator has been removed (M3 single-track).
     # AgentManager is always active via api/tasks.py.

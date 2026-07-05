@@ -257,7 +257,7 @@ async def resolve_approval(approval_id: str, body: ResolveApprovalRequest):
             "tool_call_id": body.tool_call_id or "",
         },
         actor="user",
-        timeout=30.0,
+        timeout=settings.submit_command_timeout_approval,
     )
 
     if result.get("error") == "timeout":

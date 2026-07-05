@@ -299,7 +299,7 @@ async def poll_inbox(limit: int = 20, *, execution_id: str | None = None) -> dic
         f"inbox_poll_{uuid.uuid4().hex[:8]}",
         payload={"limit": limit},
         actor="scheduler",
-        timeout=120.0,
+        timeout=settings.submit_command_timeout_inbox,
     )
     if result.get("status") == "error":
         return {

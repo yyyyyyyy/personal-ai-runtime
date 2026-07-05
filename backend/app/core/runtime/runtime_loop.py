@@ -14,6 +14,7 @@ from __future__ import annotations
 import asyncio
 import logging
 
+from app.config import settings
 from app.core.runtime.kernel_instance import kernel
 
 logger = logging.getLogger(__name__)
@@ -368,7 +369,7 @@ class RuntimeLoop:
                 "BackgroundTaskRequested", AGGREGATE_BACKGROUND_TASK,
                 f"bg_{task_id}",
                 payload={"task_id": task_id, "plan_json": plan_json, "replan_count": 0},
-                actor="background", timeout=120.0,
+                actor="background", timeout=settings.submit_command_timeout_background_task,
             )
 
 
