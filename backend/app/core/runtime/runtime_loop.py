@@ -50,12 +50,17 @@ class RuntimeLoop:
     async def stop(self) -> None:
         self._running = False
         if self._loop_task:
-            self._loop_task.cancel()
             try:
+                self._loop_task.cancel()
                 await self._loop_task
-            except asyncio.CancelledError:
+            except (asyncio.CancelledError, RuntimeError):
+                # RuntimeError = "no running event loop". Happens when
+                # the old event loop was already shut down (e.g. between
+                # TestClient instances in pytest). In that case we just
+                # clear the zombie task — there is nothing to await.
                 pass
-            self._loop_task = None
+            finally:
+                self._loop_task = None
         logger.info("RuntimeLoop stopped")
 
     # ── main loop ──────────────────────────────────────────────────────
