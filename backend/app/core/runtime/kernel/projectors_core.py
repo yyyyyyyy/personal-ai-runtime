@@ -238,11 +238,16 @@ _OWNED_TABLES["work_item"] = ["work_items"]
 @projector("WorkItemCreated")
 def _on_work_item_created(event: Event, conn) -> None:
     p = event.payload
+    # v1.0 Phase 2: goal-unification columns. WorkItemCreated with
+    # work_type='goal' populates progress/importance/urgency/deadline/
+    # last_activity_at; other work_types fall back to schema defaults
+    # (progress=0, importance=urgency=0.5, deadline/last_activity_at=NULL).
     conn.execute(
         """INSERT OR REPLACE INTO work_items
            (id, title, description, work_type, parent_work_id, parent_goal_id,
-            status, priority, dependencies_json, executable_plan, created_at, updated_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            status, priority, dependencies_json, executable_plan, created_at, updated_at,
+            progress, importance, urgency, deadline, last_activity_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
         (
             event.aggregate_id,
             p.get("title", ""),
@@ -256,6 +261,14 @@ def _on_work_item_created(event: Event, conn) -> None:
             p.get("executable_plan"),
             p.get("created_at", event.ts),
             event.ts,
+            # v1.0 goal fields — only present in payload when work_type='goal'.
+            # Defaults match the schema server_default so non-goal rows are
+            # byte-identical to pre-v1.0 rebuild output.
+            p.get("progress", 0),
+            p.get("importance", 0.5),
+            p.get("urgency", 0.5),
+            p.get("deadline"),
+            p.get("last_activity_at"),
         ),
     )
 
@@ -265,7 +278,10 @@ def _on_work_item_updated(event: Event, conn) -> None:
     p = event.payload
     updatable = ("title", "description", "status", "priority",
                  "dependencies_json", "executable_plan", "completed_at",
-                 "parent_work_id", "parent_goal_id")
+                 "parent_work_id", "parent_goal_id",
+                 # v1.0 Phase 2: goal-unification fields are updatable.
+                 "progress", "importance", "urgency", "deadline",
+                 "last_activity_at")
     fields = [k for k in updatable if k in p]
     if not fields:
         return
