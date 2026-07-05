@@ -272,6 +272,12 @@ def _on_work_item_created(event: Event, conn) -> None:
         ),
     )
 
+    # v1.0 Phase 3c: when a new child is created under a goal, recompute the
+    # parent's progress so the count of children stays consistent. Without
+    # this, adding a child after some siblings are already completed would
+    # leave the parent's progress stale until the next status change.
+    _recalculate_parent_goal_progress(conn, event.aggregate_id, event.ts)
+
 
 @projector("WorkItemUpdated")
 def _on_work_item_updated(event: Event, conn) -> None:
@@ -319,23 +325,30 @@ def _on_work_item_status_changed(event: Event, conn) -> None:
     _recalculate_parent_goal_progress(conn, event.aggregate_id, event.ts)
 
 
-def _recalculate_parent_goal_progress(conn, child_id: str, ts: str) -> None:
-    """When a child work_item's status changes, recompute its parent goal's
-    progress as completed_children / total_children (only if the parent is a
-    goal). Pure SQL within the projector's transaction — no event emission,
-    so no recursion risk.
+def _recalculate_parent_goal_progress(
+    conn, child_id: str, ts: str, parent_id_hint: str | None = None,
+) -> None:
+    """When a child work_item's status changes or is created/deleted, recompute
+    its parent goal's progress as completed_children / total_children (only if
+    the parent is a goal). Pure SQL within the projector's transaction — no
+    event emission, so no recursion risk.
 
     The definition matches the legacy api/goals.py _on_action_completed:
         progress = completed / total  (only children of this parent counted)
+
+    ``parent_id_hint`` lets callers that already know the parent (e.g. delete
+    path, which has to capture it before the row goes away) skip the lookup.
     """
-    # Look up the parent reference of the child that just changed.
-    row = conn.execute(
-        "SELECT parent_work_id, parent_goal_id FROM work_items WHERE id = ?",
-        (child_id,),
-    ).fetchone()
-    if row is None:
-        return
-    parent_id = row["parent_work_id"] or row["parent_goal_id"]
+    parent_id = parent_id_hint
+    if parent_id is None:
+        # Look up the parent reference of the child that just changed.
+        row = conn.execute(
+            "SELECT parent_work_id, parent_goal_id FROM work_items WHERE id = ?",
+            (child_id,),
+        ).fetchone()
+        if row is None:
+            return
+        parent_id = row["parent_work_id"] or row["parent_goal_id"]
     if not parent_id:
         return
 
@@ -354,6 +367,12 @@ def _recalculate_parent_goal_progress(conn, child_id: str, ts: str) -> None:
         (parent_id, parent_id),
     ).fetchall()
     if not children:
+        # No children left — reset progress to 0 (avoids stale non-zero value).
+        conn.execute(
+            "UPDATE work_items SET progress = 0, last_activity_at = ?, updated_at = ? "
+            "WHERE id = ?",
+            (ts, ts, parent_id),
+        )
         return
     total = len(children)
     completed = sum(1 for c in children if c["status"] == "completed")
@@ -368,7 +387,18 @@ def _recalculate_parent_goal_progress(conn, child_id: str, ts: str) -> None:
 
 @projector("WorkItemDeleted")
 def _on_work_item_deleted(event: Event, conn) -> None:
+    # v1.0 Phase 3c: capture parent reference before delete so we can
+    # recompute parent goal progress after the child row is gone.
+    row = conn.execute(
+        "SELECT parent_work_id, parent_goal_id FROM work_items WHERE id = ?",
+        (event.aggregate_id,),
+    ).fetchone()
+    parent_id = row["parent_work_id"] or row["parent_goal_id"] if row else None
+
     conn.execute("DELETE FROM work_items WHERE id = ?", (event.aggregate_id,))
+
+    if parent_id:
+        _recalculate_parent_goal_progress(conn, event.aggregate_id, event.ts)
 
 
 # --- Claim authority projection (Meaning Boundary G1) ------------------------

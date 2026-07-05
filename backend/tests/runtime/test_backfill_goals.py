@@ -72,11 +72,15 @@ def test_backfill_emits_work_items_for_each_goal(kernel_with_legacy_goals):
     assert "g_backfill_1" in by_id
     assert "g_backfill_2" in by_id
 
-    # Spot-check field migration for goal 1
+    # Spot-check field migration for goal 1.
+    # Note: progress is now derived from children (v1.0 Phase 3c projector).
+    # g_backfill_1 has one child (g_backfill_2 via parent_id), so progress = 0/1 = 0.
+    # The legacy goal's progress=0.4 is NOT preserved when the goal has children —
+    # this is intentional: v1.0 derives progress from child state, not manual edits.
     g1 = by_id["g_backfill_1"]
     assert g1["title"] == "Legacy goal 1"
     assert g1["work_type"] == "goal"
-    assert g1["progress"] == 0.4
+    assert g1["progress"] == 0.0  # derived: 0 of 1 child completed
     assert g1["importance"] == 0.8
     assert g1["urgency"] == 0.3
     assert g1["deadline"] == "2026-12-01T00:00:00Z"
