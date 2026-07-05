@@ -88,7 +88,14 @@ CREATE TABLE IF NOT EXISTS work_items (
     executable_plan TEXT,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    completed_at DATETIME
+    completed_at DATETIME,
+    -- v1.0 Goal→Work unification: goal-specific fields (Phase 1, additive).
+    -- Existing rows get sane defaults; goal rows (work_type='goal') populate them.
+    progress REAL DEFAULT 0,
+    importance REAL DEFAULT 0.5,
+    urgency REAL DEFAULT 0.5,
+    deadline TEXT,
+    last_activity_at DATETIME
 );
 """
 

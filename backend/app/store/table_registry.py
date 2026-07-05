@@ -72,10 +72,12 @@ GOVERNED_SCHEMA: dict[str, frozenset[str]] = {
         "id", "title", "description", "status", "progress", "importance", "urgency",
         "deadline", "parent_id", "created_at", "updated_at", "last_activity_at",
     }),
-    "work_items": frozenset({  # v0.5.0: unified task + action
+    "work_items": frozenset({  # v0.5.0: unified task + action; v1.0: + goal fields
         "id", "title", "description", "work_type", "parent_work_id",
         "parent_goal_id", "status", "priority", "dependencies_json",
         "executable_plan", "created_at", "updated_at", "completed_at",
+        # v1.0 goal-unification columns (work_type='goal' rows populate these):
+        "progress", "importance", "urgency", "deadline", "last_activity_at",
     }),
     "memories": frozenset({
         "id", "category", "content", "source", "embedding_id", "created_at",

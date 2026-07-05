@@ -48,17 +48,22 @@ frozenset({
 
 `parent_id` 自引用外键（-goal 树）。
 
-### `work_items`（v0.5.0：统一 task + action）
+### `work_items`（v0.5.0：统一 task + action；v1.0 Phase 1：吸收 goal 字段）
 
 ```python
 frozenset({
     "id", "title", "description", "work_type", "parent_work_id",
     "parent_goal_id", "status", "priority", "dependencies_json",
     "executable_plan", "created_at", "updated_at", "completed_at",
+    # v1.0 Phase 1 (additive): goal-unification columns populated when
+    # work_type='goal'. Other work_types leave these at defaults.
+    "progress", "importance", "urgency", "deadline", "last_activity_at",
 })
 ```
 
-`work_type` 区分 `task` / `action` / `background`。`parent_goal_id` 关联 `goals.id`，`parent_work_id` 支持工作项嵌套。`dependencies_json` 是依赖 work_item id 数组，由 [`cron_registry._on_task_completed`](../../backend/app/core/runtime/cron_registry.py) 在依赖满足时自动激活。v0.5.0 起取代独立的 `actions` 与 `tasks` 表。
+`work_type` 区分 `task` / `action` / `background` / `goal`（v1.0）。`parent_goal_id` 关联 `goals.id`（v1.0 阶段 3 将改为统一用 `parent_work_id`），`parent_work_id` 支持工作项嵌套。`dependencies_json` 是依赖 work_item id 数组，由 [`cron_registry._on_task_completed`](../../backend/app/core/runtime/cron_registry.py) 在依赖满足时自动激活。v0.5.0 起取代独立的 `actions` 与 `tasks` 表；v1.0 阶段 4 起将取代 `goals` 表。
+
+> **v1.0 演进说明**：阶段 1（此版本）只新增列，不动现有读写路径；阶段 2 起 projector 双写；阶段 3 迁移所有读取者；阶段 4 删除 `goals` 表与 `Goal*` 事件类型。详见 [runtime-algebra.md §5.3](../02-concepts/runtime-algebra.md)。
 
 ### `memories`
 
@@ -184,6 +189,7 @@ frozenset({"id", "capability", "risk_level", "status", "created_at", "updated_at
 | `v02_projection_tables` | `initial` | 创建 `timer_events`/`policy_events`/`grant_events`；ALTER 加 `messages.sources` 列 |
 | `v03_notification_dedup` | `v02_projection_tables` | ALTER 加 `notifications.related_id`/`related_type`/`notification_type`；创建 `ix_notifications_related_type` 索引（参考 `FACT-37`） |
 | `v04_memory_index_repairs` | `v03_notification_dedup` | 创建 `memory_index_repairs` 表 + `idx_memory_repairs_status` 索引（v0.8.0：durable ChromaDB 修复队列） |
+| `v05_work_items_goal_columns` | `v04_memory_index_repairs` | ALTER 加 `work_items.progress/importance/urgency/deadline/last_activity_at`（v1.0 Phase 1：goal 字段并入 work_items，additive） |
 
 `run_migrations()`（[`backend/app/store/alembic_runner.py`](../../backend/app/store/alembic_runner.py)）用 `backend/alembic.ini`，`command.upgrade(cfg, "head")`，幂等。`env.py` import `app.config.settings` 构造 `sqlite:///{settings.sqlite_path}`，并 `setdefault("LLM_API_KEY", "alembic-migration-key")` 避免 Settings 校验失败。
 
