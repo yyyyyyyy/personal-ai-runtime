@@ -24,10 +24,13 @@ Usage:
 
 from __future__ import annotations
 
+import logging
 import threading
 import time as _time
 from collections import deque
 from typing import TYPE_CHECKING
+
+logger = logging.getLogger(__name__)
 
 from app.assembler.context_assembler import ContextAssembler
 from app.context_runtime import (
@@ -90,7 +93,14 @@ class ContextPipeline:
     optionally builds a GovernanceExecutionContext for runtime-aware
     policy decisions. Also builds a CapabilityContext for capability-aware
     policy decisions.
+
+    Fragment registration failures are surfaced via ``health_check()`` so
+    startup health can report degradation rather than silently degrade chat
+    quality.
     """
+
+    _REGISTRATION_OK = "ok"
+    _REGISTRATION_FAILED = "failed"
 
     def __init__(
         self,
@@ -102,20 +112,56 @@ class ContextPipeline:
         self._assembler = ContextAssembler()
         self._last_plan: CompilePlan | None = None
         self._recent_fragment_ids: deque[str] = deque(maxlen=_MAX_RECENT_FRAGMENT_HISTORY)
+        # Registration state surfaced through health_check(). Stays "ok" when
+        # register_all_fragments succeeds (the common case) or when the
+        # function is absent (test env without app.fragments).
+        self._registration_state: str = self._REGISTRATION_OK
+        self._registration_error: str = ""
 
         self._ensure_fragments_registered()
 
+    def health_check(self) -> dict:
+        """Return fragment-registration health for startup observability.
+
+        Status values:
+          - ``"ok"``    — registration succeeded (or no registration hook)
+          - ``"failed"`` — register_all_fragments raised; chat will run with
+                           an incomplete fragment set.
+        """
+        return {
+            "fragment_registration": self._registration_state,
+            "error": self._registration_error,
+            "registered_count": len(self._registry.list_all()),
+        }
+
     def _ensure_fragments_registered(self) -> None:
-        """确保所有 Fragment 已注册（幂等）。"""
+        """Register all fragments (idempotent). Failures are surfaced via
+        ``health_check()`` and logged at ERROR level — silent degradation
+        here causes chat behaviour to drift unpredictably.
+        """
         try:
             from app.fragments.register import register_all_fragments
 
             register_all_fragments(self._registry)
-        except Exception:
-            import logging
-            logging.getLogger(__name__).debug(
-                "ContextPipeline: DB may not be available", exc_info=True
+            self._registration_state = self._REGISTRATION_OK
+            self._registration_error = ""
+        except ImportError:
+            # app.fragments may be absent in minimal test environments; treat
+            # as ok since there is nothing to register.
+            self._registration_state = self._REGISTRATION_OK
+            self._registration_error = ""
+        except Exception as exc:
+            # Surface this loudly — a partial fragment set silently produces
+            # worse LLM context and is otherwise hard to diagnose.
+            logger.error(
+                "ContextPipeline: fragment registration failed — chat will "
+                "run with %d fragments registered. Error: %s",
+                len(self._registry.list_all()),
+                exc,
+                exc_info=True,
             )
+            self._registration_state = self._REGISTRATION_FAILED
+            self._registration_error = str(exc)[:500]
 
     def last_compile_plan(self) -> CompilePlan | None:
         """Return the most recent CompilePlan produced by this pipeline."""

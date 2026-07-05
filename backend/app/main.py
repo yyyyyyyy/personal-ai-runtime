@@ -276,6 +276,24 @@ async def lifespan(app: FastAPI):
     except Exception:
         logger.debug("Governance seed skipped (test context)")
 
+    # Surface fragment registration health on startup. Registration runs in
+    # the ContextPipeline constructor (lazy via RuntimeContainer); we trigger
+    # a build here so failures show up in /api/system/health instead of
+    # silently degrading chat quality on the first request.
+    try:
+        from app.core.runtime.runtime_container import runtime
+        ctx_health = runtime.context_pipeline.health_check()
+        if ctx_health.get("fragment_registration") != "ok":
+            logger.warning(
+                "Context fragment registration is degraded: %s",
+                ctx_health.get("error", "(no detail)"),
+            )
+        # Stash on startup_health so /api/system/health can report it.
+        if isinstance(app.state.startup_health, dict):
+            app.state.startup_health["context_pipeline"] = ctx_health
+    except Exception:
+        logger.debug("ContextPipeline health check skipped (test context)")
+
     # Start unified runtime loop (replaces background_worker + scheduler + timer_engine)
     try:
         await runtime_loop.start()
