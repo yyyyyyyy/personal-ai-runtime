@@ -34,5 +34,5 @@ async def ensure_scheduler(kernel) -> None:
             return
         sch.enqueue(_AGENT_ID, _AGENT_ID, event)
 
-    kernel.register_async_dispatcher(_dispatch_to_scheduler)
+    kernel.set_async_dispatcher(_dispatch_to_scheduler)
     _started = True

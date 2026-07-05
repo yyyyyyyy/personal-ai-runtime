@@ -137,7 +137,7 @@ class Kernel(QueryStateMixin, GovernanceMixin, SovereigntyMixin):
         self._db = db
         self._memory_index = memory_index  # MemoryIndexPort | None
         self._subscribers: list[tuple[dict, Subscriber]] = []
-        self._async_dispatchers: list[Callable] = []
+        self._async_dispatcher: Callable | None = None
         self._pending_commands: dict[tuple[str, str], "asyncio.Future"] = {}
         self._commands_lock = threading.Lock()
         self._ensure_schema()
@@ -464,16 +464,20 @@ class Kernel(QueryStateMixin, GovernanceMixin, SovereigntyMixin):
 
         return unsubscribe
 
-    def register_async_dispatcher(self, dispatcher: Callable) -> None:
-        """Register an async dispatcher that will be fire-and-forget called
-        on every event emitted by this kernel.
+    def set_async_dispatcher(self, dispatcher: Callable) -> None:
+        """Set the async dispatcher that will be fire-and-forget called on
+        every event emitted by this kernel.
 
-        This replaces the old AgentBus mechanism: the persistent agent
+        Replaces the old multi-dispatcher list — only one consumer ever
+        registers (the Scheduler via ``agent_bootstrap.ensure_scheduler``).
+        Calling again overwrites the previous dispatcher (set semantics).
+
+        This replaces the old AgentBus mechanism: the persistent scheduler
         registers its dispatch handler here, and _dispatch() fires it for
         every event so the Scheduler can route events to registered
         @subscribe handlers.
         """
-        self._async_dispatchers.append(dispatcher)
+        self._async_dispatcher = dispatcher
 
     def _dispatch(self, event: Event) -> None:
         for flt, handler in list(self._subscribers):
@@ -499,16 +503,15 @@ class Kernel(QueryStateMixin, GovernanceMixin, SovereigntyMixin):
         # so the gap is observable. P1 (Event Log = truth) is not violated
         # because storage has already committed the event by this point;
         # subscribers that miss the live push will see it on next read_events.
-        if self._async_dispatchers:
+        if self._async_dispatcher is not None:
             try:
                 loop = asyncio.get_running_loop()
-                for dispatcher in list(self._async_dispatchers):
-                    task = loop.create_task(dispatcher(event))
-                    task.add_done_callback(_log_dispatch_task_exception)
-                    if not hasattr(self, "_dispatch_tasks"):
-                        self._dispatch_tasks: set[asyncio.Task] = set()
-                    task.add_done_callback(self._dispatch_tasks.discard)
-                    self._dispatch_tasks.add(task)
+                task = loop.create_task(self._async_dispatcher(event))
+                task.add_done_callback(_log_dispatch_task_exception)
+                if not hasattr(self, "_dispatch_tasks"):
+                    self._dispatch_tasks: set[asyncio.Task] = set()
+                task.add_done_callback(self._dispatch_tasks.discard)
+                self._dispatch_tasks.add(task)
             except RuntimeError:
                 # No running loop — fire-and-forget delivery is unavailable.
                 # This is expected in synchronous test contexts.

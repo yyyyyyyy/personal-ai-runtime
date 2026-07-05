@@ -37,11 +37,11 @@ async def test_ensure_scheduler_registers_async_dispatcher(monkeypatch, tmp_path
     import app.core.runtime.agent_bootstrap as boot
     boot._started = False
 
-    # Before ensure_scheduler, no dispatchers
-    assert len(k._async_dispatchers) == 0
+    # Before ensure_scheduler, no dispatcher set
+    assert k._async_dispatcher is None
 
     await boot.ensure_scheduler(k)
 
-    # After ensure_scheduler, one dispatcher registered
-    assert len(k._async_dispatchers) >= 1
-    assert callable(k._async_dispatchers[0])
+    # After ensure_scheduler, dispatcher is set (single field, not list)
+    assert k._async_dispatcher is not None
+    assert callable(k._async_dispatcher)
