@@ -95,7 +95,8 @@ def main() -> int:
         failed = True
 
     msgs = import_kernel.query_state("messages", conversation_id=conv["id"], limit=10)
-    if len(msgs) != 2 or msgs[0]["content"] != "Hello export":
+    msg_contents = {m.get("content", "") for m in msgs}
+    if len(msgs) != 2 or "Hello export" not in msg_contents or "Hello import" not in msg_contents:
         print("FAIL: messages not restored", file=sys.stderr)
         failed = True
 
