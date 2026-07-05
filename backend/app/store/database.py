@@ -1,4 +1,14 @@
-"""SQLite database management with Alembic-powered schema initialization."""
+"""SQLite database management — connection pool + schema lifecycle.
+
+v0.11.0: governed-read methods (get_conversation, list_conversations,
+get_message, get_recent_messages) removed — they SELECT from governed
+tables and belong in Kernel.query_state. The sole caller in
+verify_export_roundtrip.py now uses kernel.query_state().
+
+Remaining responsibilities (both acceptable for a single Database class):
+  1. Connection pool (thread-local, WAL mode, busy_timeout)
+  2. Schema lifecycle (Alembic or raw DDL in constructor)
+"""
 
 import logging
 import sqlite3
@@ -85,40 +95,6 @@ class Database:
             raise
         # Connection is kept open for reuse; closed only on explicit close().
 
-    # --- Conversation methods (read-only; writes go through ConversationAPI) ---
-
-    def get_conversation(self, conv_id: str) -> dict | None:
-        with self.get_db() as conn:
-            row = conn.execute(
-                "SELECT * FROM conversations WHERE id = ?", (conv_id,)
-            ).fetchone()
-        return dict(row) if row else None
-
-    def list_conversations(self, limit: int = 50) -> list[dict]:
-        with self.get_db() as conn:
-            rows = conn.execute(
-                "SELECT * FROM conversations ORDER BY updated_at DESC LIMIT ?",
-                (limit,),
-            ).fetchall()
-        return [dict(r) for r in rows]
-
-    # --- Message methods (read-only; writes go through ConversationManager) ---
-
-    def get_message(self, msg_id: str) -> dict | None:
-        with self.get_db() as conn:
-            row = conn.execute(
-                "SELECT * FROM messages WHERE id = ?", (msg_id,)
-            ).fetchone()
-        return dict(row) if row else None
-
-    def get_recent_messages(self, conv_id: str, limit: int = 50) -> list[dict]:
-        with self.get_db() as conn:
-            rows = conn.execute(
-                "SELECT * FROM messages WHERE conversation_id = ? ORDER BY created_at ASC LIMIT ?",
-                (conv_id, limit),
-            ).fetchall()
-        return [dict(r) for r in rows]
-
     # --- WAL checkpoint — call periodically to keep the WAL file bounded ---
 
     def wal_checkpoint(self, mode: str = "PASSIVE") -> None:
@@ -132,7 +108,7 @@ class Database:
         except Exception:
             logger.debug("WAL checkpoint failed", exc_info=True)
 
-    # --- Activity log ---
+    # --- Activity log (APP_STORAGE, not governed) ---
 
     def log_activity(self, activity_type: str, payload: str | None = None):
         with self.get_db() as conn:

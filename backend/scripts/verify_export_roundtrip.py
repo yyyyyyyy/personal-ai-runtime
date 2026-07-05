@@ -32,10 +32,10 @@ def main() -> int:
     source_kernel = Kernel(db=source_db)
 
     source_kernel.emit_event(
-        "GoalCreated",
-        "goal",
+        "WorkItemCreated",
+        "work_item",
         "g-export-1",
-        payload={"title": "Export test goal", "importance": 0.8},
+        payload={"title": "Export test goal", "importance": 0.8, "work_type": "goal"},
         actor="verify",
     )
     source_kernel.emit_event(
@@ -72,16 +72,16 @@ def main() -> int:
         print("FAIL: event_log too short", file=sys.stderr)
         return 1
 
-    before = source_kernel.table_counts(("event_log","conversations","messages","goals","memories","notifications"))
+    before = source_kernel.table_counts(("event_log","conversations","messages","memories","notifications"))
 
     import_db = Database(db_path=str(import_path))
     import_kernel = Kernel(db=import_db)
 
     result = import_kernel.restore(snapshot, read_only=False)
-    after = import_kernel.table_counts(("event_log","conversations","messages","goals","memories","notifications"))
+    after = import_kernel.table_counts(("event_log","conversations","messages","memories","notifications"))
 
     failed = False
-    for key in ("event_log", "conversations", "messages", "goals", "memories", "notifications"):
+    for key in ("event_log", "conversations", "messages", "memories", "notifications"):
         if before.get(key) != after.get(key):
             print(
                 f"FAIL: count mismatch for {key!r}: before={before.get(key)} after={after.get(key)}",
@@ -89,12 +89,12 @@ def main() -> int:
             )
             failed = True
 
-    goals = import_kernel.query_state("goals", id="g-export-1")
+    goals = import_kernel.query_state("work_items", id="g-export-1")
     if not goals or goals[0].get("title") != "Export test goal":
         print("FAIL: goal projection not restored", file=sys.stderr)
         failed = True
 
-    msgs = import_db.get_recent_messages(conv["id"], limit=10)
+    msgs = import_kernel.query_state("messages", conversation_id=conv["id"], limit=10)
     if len(msgs) != 2 or msgs[0]["content"] != "Hello export":
         print("FAIL: messages not restored", file=sys.stderr)
         failed = True
