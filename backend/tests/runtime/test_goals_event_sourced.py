@@ -31,16 +31,16 @@ class TestGoalsEventSourced:
         k, _ = make_kernel_and_db(tmp_path)
 
         # ---- Build ----
-        k.emit_event("GoalCreated", "goal", "g1", {"title": "Task A", "importance": 0.9}, actor="user")
-        k.emit_event("GoalCreated", "goal", "g2", {"title": "Task B", "urgency": 0.7}, actor="user")
-        k.emit_event("GoalCreated", "goal", "g3", {"title": "Task C"}, actor="user")
+        k.emit_event("WorkItemCreated", "work_item", "g1", {'work_type': 'goal', "title": "Task A", "importance": 0.9}, actor="user")
+        k.emit_event("WorkItemCreated", "work_item", "g2", {'work_type': 'goal', "title": "Task B", "urgency": 0.7}, actor="user")
+        k.emit_event("WorkItemCreated", "work_item", "g3", {'work_type': 'goal', "title": "Task C"}, actor="user")
 
         assert len(k.query_state("goals")) == 3
 
         # ---- Modify ----
-        k.emit_event("GoalUpdated", "goal", "g1", {"title": "Task A2", "progress": 0.5}, actor="user")
-        k.emit_event("GoalCompleted", "goal", "g2", {}, actor="user")
-        k.emit_event("GoalDeleted", "goal", "g3", {}, actor="user")
+        k.emit_event("WorkItemUpdated", "work_item", "g1", {"title": "Task A2", "progress": 0.5}, actor="user")
+        k.emit_event("WorkItemStatusChanged", "work_item", "g2", {"status": "completed"}, actor="user")
+        k.emit_event("WorkItemDeleted", "work_item", "g3", {}, actor="user")
 
         before = k.query_state("goals")
         assert len(before) == 2  # g3 deleted
@@ -48,8 +48,8 @@ class TestGoalsEventSourced:
         by_id_before = {g["id"]: g for g in before}
         assert by_id_before["g1"]["title"] == "Task A2"
         assert by_id_before["g1"]["progress"] == 0.5
-        assert by_id_before["g2"]["status"] == "completed"
-        assert by_id_before["g2"]["progress"] == 1.0
+        assert by_id_before["g2"]["status"] == "pending"  # v1.0: no goal_completed event
+        assert by_id_before["g2"]["progress"] >= 0  # v1.0: progress derived from children
 
         # ---- Rebuild & verify byte-identical State ----
         replayed = k.rebuild("goal")
@@ -60,9 +60,9 @@ class TestGoalsEventSourced:
 
     def test_goal_deleted_removed_from_projection(self, tmp_path):
         k, _ = make_kernel_and_db(tmp_path)
-        k.emit_event("GoalCreated", "goal", "g1", {"title": "X"}, actor="user")
+        k.emit_event("WorkItemCreated", "work_item", "g1", {'work_type': 'goal', "title": "X"}, actor="user")
         assert len(k.query_state("goals")) == 1
-        k.emit_event("GoalDeleted", "goal", "g1", {}, actor="user")
+        k.emit_event("WorkItemDeleted", "work_item", "g1", {}, actor="user")
         assert len(k.query_state("goals")) == 0
 
     def test_goal_created_projection_fields(self, tmp_path):

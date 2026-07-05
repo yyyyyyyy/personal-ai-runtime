@@ -24,6 +24,7 @@ def test_governed_and_app_storage_disjoint():
     assert not overlap, f"Tables in both sets: {overlap}"
 
 
+# v1.0: goals table dropped in Phase 4, retained as legacy schema artifact.
 def test_all_business_tables_classified(tmp_path):
     db = Database(db_path=str(tmp_path / "registry.db"))
     Kernel(db=db)  # ensures event_log + memory migrations

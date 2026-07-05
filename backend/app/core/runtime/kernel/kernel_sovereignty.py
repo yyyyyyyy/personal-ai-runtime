@@ -454,8 +454,8 @@ class SovereigntyMixin:  # type: ignore[attr-defined]  # mixed into Kernel which
         for goal in snapshot.get("goals", []):
             gid = goal.get("id") or str(uuid.uuid4())
             self.emit_event(
-                "GoalCreated",
-                "goal",
+                "WorkItemCreated",
+                "work_item",
                 gid,
                 payload={
                     "title": goal.get("title", ""),

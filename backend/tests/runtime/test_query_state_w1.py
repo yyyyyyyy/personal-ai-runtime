@@ -15,18 +15,18 @@ def _kernel(tmp_path):
 class TestQueryStateW1:
     def test_tasks_by_id_and_parent(self, tmp_path):
         k = _kernel(tmp_path)
-        k.emit_event("GoalCreated", "goal", "g1", payload={"title": "Goal"})
+        k.emit_event("WorkItemCreated", "work_item", "g1", payload={'work_type': 'goal', "title": "Goal"})
         k.emit_event(
             "WorkItemCreated",
             "work_item",
             "t-root",
-            payload={"title": "Root", "parent_goal_id": "g1", "parent_work_id": None},
+            payload={'work_type': 'goal', "title": "Root", "parent_goal_id": "g1", "parent_work_id": None},
         )
         k.emit_event(
             "WorkItemCreated",
             "work_item",
             "t-child",
-            payload={"title": "Child", "parent_goal_id": "g1", "parent_work_id": "t-root", "priority": 5},
+            payload={'work_type': 'goal', "title": "Child", "parent_goal_id": "g1", "parent_work_id": "t-root", "priority": 5},
         )
 
         assert k.query_state("work_items", id="t-root")[0]["title"] == "Root"
@@ -40,9 +40,9 @@ class TestQueryStateW1:
 
     def test_tasks_status_and_limit(self, tmp_path):
         k = _kernel(tmp_path)
-        k.emit_event("GoalCreated", "goal", "t1", payload={"title": "A", "priority": 1})
-        k.emit_event("GoalCreated", "goal", "t2", payload={"title": "B", "priority": 2})
-        k.emit_event("WorkItemStatusChanged", "work_item", "t1", payload={"status": "running"}, actor="user")
+        k.emit_event("WorkItemCreated", "work_item", "t1", payload={'work_type': 'goal', "title": "A", "priority": 1})
+        k.emit_event("WorkItemCreated", "work_item", "t2", payload={'work_type': 'goal', "title": "B", "priority": 2})
+        k.emit_event("WorkItemStatusChanged", "work_item", "t1", payload={'work_type': 'goal', "status": "running"}, actor="user")
 
         running = k.query_state("work_items", status="running", limit=10, order="priority_desc_created_desc")
         assert len(running) == 1
@@ -54,19 +54,19 @@ class TestQueryStateW1:
             "ApprovalRequested",
             "approval",
             "a1",
-            payload={"action": "write_file", "risk": "high", "ctx": {}},
+            payload={'work_type': 'goal', "action": "write_file", "risk": "high", "ctx": {}},
         )
         k.emit_event(
             "ApprovalRequested",
             "approval",
             "a2",
-            payload={"action": "shell_exec", "risk": "high", "ctx": {}},
+            payload={'work_type': 'goal', "action": "shell_exec", "risk": "high", "ctx": {}},
         )
         k.emit_event(
             "ApprovalGranted",
             "approval",
             "a2",
-            payload={"action": "shell_exec", "reason": "ok"},
+            payload={'work_type': 'goal', "action": "shell_exec", "reason": "ok"},
         )
 
         pending = k.query_state("approvals", status="pending")
@@ -84,19 +84,19 @@ class TestQueryStateW1:
             "MemoryDerived",
             "memory",
             "m1",
-            payload={"content": "low", "confidence": 0.25, "category": "fact"},
+            payload={'work_type': 'goal', "content": "low", "confidence": 0.25, "category": "fact"},
         )
         k.emit_event(
             "MemoryDerived",
             "memory",
             "m2",
-            payload={"content": "mid", "confidence": 0.5, "category": "fact"},
+            payload={'work_type': 'goal', "content": "mid", "confidence": 0.5, "category": "fact"},
         )
         k.emit_event(
             "MemoryDerived",
             "memory",
             "m3",
-            payload={"content": "high", "confidence": 0.9, "category": "fact"},
+            payload={'work_type': 'goal', "content": "high", "confidence": 0.9, "category": "fact"},
         )
 
         candidates = k.query_state(

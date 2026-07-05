@@ -27,7 +27,7 @@ def kernel(tmp_path):
 def test_work_item_created_goal_populates_v1_columns(kernel):
     """WorkItemCreated with work_type='goal' populates progress/importance/..."""
     kernel.emit_event(
-        "GoalCreated", "goal", "g_v1_1",
+        "WorkItemCreated", "work_item", "g_v1_1",
         payload={
             "title": "Learn Rust",
             "work_type": "goal",
@@ -53,7 +53,7 @@ def test_work_item_created_goal_populates_v1_columns(kernel):
 def test_work_item_created_task_uses_defaults(kernel):
     """WorkItemCreated with work_type='task' gets schema defaults for v1 columns."""
     kernel.emit_event(
-        "GoalCreated", "goal", "t_v1_1",
+        "WorkItemCreated", "work_item", "t_v1_1",
         payload={"title": "Ship feature", "work_type": "task"},
         actor="test",
     )
@@ -72,7 +72,7 @@ def test_work_item_created_task_uses_defaults(kernel):
 def test_work_item_updated_changes_goal_fields(kernel):
     """WorkItemUpdated can update progress/importance/urgency/deadline."""
     kernel.emit_event(
-        "GoalCreated", "goal", "g_v1_2",
+        "WorkItemCreated", "work_item", "g_v1_2",
         payload={
             "title": "Write book",
             "work_type": "goal",
@@ -104,7 +104,7 @@ def test_work_item_updated_changes_goal_fields(kernel):
 def test_rebuild_preserves_goal_fields_byte_identical(kernel):
     """rebuild('work_item') must reproduce goal fields exactly."""
     kernel.emit_event(
-        "GoalCreated", "goal", "g_v1_3",
+        "WorkItemCreated", "work_item", "g_v1_3",
         payload={
             "title": "Run marathon",
             "work_type": "goal",
@@ -137,7 +137,7 @@ def test_legacy_work_item_created_without_goal_fields_still_works(kernel):
     falls back to schema defaults.
     """
     kernel.emit_event(
-        "GoalCreated", "goal", "legacy_1",
+        "WorkItemCreated", "work_item", "legacy_1",
         payload={"title": "Legacy task", "work_type": "task"},
         actor="test",
     )

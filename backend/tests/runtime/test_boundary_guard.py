@@ -41,7 +41,7 @@ class TestBoundaryGuard:
         fake_app.mkdir(parents=True)
         bad_file = fake_app / "evil_brief.py"
         bad_file.write_text(
-            'rows = conn.execute("SELECT * FROM goals WHERE status = \'active\'").fetchall()',
+            'rows = conn.execute("SELECT * FROM work_items WHERE status = \'active\'").fetchall()',
             encoding="utf-8",
         )
 
@@ -56,7 +56,7 @@ class TestBoundaryGuard:
             violations = scan_app_root(tmp_path / "app")
             _known, new = partition_violations(violations, KNOWN_VIOLATION_ALLOWLIST)
             assert len(new) == 1
-            assert new[0][3] == "goals"
+            assert new[0][3] == "work_items"
         finally:
             sys.path.pop(0)
 
@@ -81,7 +81,7 @@ class TestBoundaryGuard:
         fake_app = tmp_path / "app" / "api" / "evil"
         fake_app.mkdir(parents=True)
         bad_file = fake_app / "bad.py"
-        bad_file.write_text('conn.execute("INSERT INTO goals (id) VALUES (?)", ("x",))', encoding="utf-8")
+        bad_file.write_text('conn.execute("INSERT INTO work_items (id) VALUES (?)", ("x",))', encoding="utf-8")
 
         sys.path.insert(0, str(BACKEND))
         try:
@@ -89,7 +89,7 @@ class TestBoundaryGuard:
 
             violations = scan_app_root(tmp_path / "app")
             assert len(violations) == 1
-            assert violations[0][3] == "goals"
+            assert violations[0][3] == "work_items"
             assert violations[0][4] == "dml_write"
         finally:
             sys.path.pop(0)
@@ -99,7 +99,7 @@ class TestBoundaryGuard:
         fake_app.mkdir(parents=True)
         bad_file = fake_app / "leak.py"
         bad_file.write_text(
-            'rows = conn.execute("SELECT * FROM goals").fetchall()',
+            'rows = conn.execute("SELECT * FROM work_items").fetchall()',
             encoding="utf-8",
         )
 
@@ -109,7 +109,7 @@ class TestBoundaryGuard:
 
             violations = scan_app_root(tmp_path / "app")
             assert len(violations) == 1
-            assert violations[0][3] == "goals"
+            assert violations[0][3] == "work_items"
             assert violations[0][4] == "select"
         finally:
             sys.path.pop(0)
@@ -119,7 +119,7 @@ class TestBoundaryGuard:
         fake_app.mkdir(parents=True)
         ok_file = fake_app / "kernel.py"
         ok_file.write_text(
-            'row = conn.execute("SELECT * FROM goals WHERE id = ?", (gid,)).fetchone()',
+            'row = conn.execute("SELECT * FROM work_items WHERE id = ?", (gid,)).fetchone()',
             encoding="utf-8",
         )
 

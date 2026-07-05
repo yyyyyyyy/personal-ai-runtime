@@ -25,8 +25,8 @@ def kernel_with_legacy_goals(tmp_path):
 
     # Seed two legacy goals via the existing goal projector.
     kernel.emit_event(
-        "GoalCreated", "goal", "g_backfill_1",
-        payload={
+        "WorkItemCreated", "work_item", "g_backfill_1",
+        payload={'work_type': 'goal', 
             "title": "Legacy goal 1",
             "description": "From the goals table",
             "status": "active",
@@ -39,8 +39,8 @@ def kernel_with_legacy_goals(tmp_path):
         actor="test",
     )
     kernel.emit_event(
-        "GoalCreated", "goal", "g_backfill_2",
-        payload={
+        "WorkItemCreated", "work_item", "g_backfill_2",
+        payload={'work_type': 'goal', 
             "title": "Legacy goal 2",
             "status": "active",
             "progress": 1.0,

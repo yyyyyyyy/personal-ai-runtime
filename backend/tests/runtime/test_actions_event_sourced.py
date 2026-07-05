@@ -15,15 +15,15 @@ def kernel(tmp_path):
 class TestActionsEventSourced:
     def test_actions_crud_and_rebuild(self, kernel):
         k = kernel
-        k.emit_event("GoalCreated", "goal", "g1", {"title": "Test Goal"}, actor="user")
+        k.emit_event("WorkItemCreated", "work_item", "g1", {'work_type': 'goal', "title": "Test Goal"}, actor="user")
 
         k.emit_event(
-            "GoalCreated", "goal", "a1",
+            "WorkItemCreated", "work_item", "a1",
             {"parent_goal_id": "g1", "title": "Step 1", "status": "pending", "work_type": "action"},
             actor="user",
         )
         k.emit_event(
-            "GoalCreated", "goal", "a2",
+            "WorkItemCreated", "work_item", "a2",
             {"parent_goal_id": "g1", "title": "Step 2", "status": "pending", "work_type": "action"},
             actor="user",
         )

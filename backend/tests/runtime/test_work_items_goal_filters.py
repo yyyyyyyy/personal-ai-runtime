@@ -16,7 +16,7 @@ def kernel_with_goal_work_items(tmp_path):
     k = Kernel(db=Database(db_path=str(tmp_path / "work_items_goals.db")))
 
     # Active high-importance goal with deadline
-    k.emit_event("GoalCreated", "goal", "g_active_1", payload={
+    k.emit_event("WorkItemCreated", "work_item", "g_active_1", payload={
         "title": "Important active goal",
         "work_type": "goal", "status": "active",
         "importance": 0.9, "urgency": 0.3,
@@ -24,19 +24,19 @@ def kernel_with_goal_work_items(tmp_path):
         "last_activity_at": "2026-06-01T00:00:00Z",
     })
     # Active lower-importance goal, no deadline
-    k.emit_event("GoalCreated", "goal", "g_active_2", payload={
+    k.emit_event("WorkItemCreated", "work_item", "g_active_2", payload={
         "title": "Less urgent goal",
         "work_type": "goal", "status": "active",
         "importance": 0.5, "urgency": 0.5,
         "last_activity_at": "2026-07-04T00:00:00Z",
     })
     # Completed goal
-    k.emit_event("GoalCreated", "goal", "g_done_1", payload={
+    k.emit_event("WorkItemCreated", "work_item", "g_done_1", payload={
         "title": "Done", "work_type": "goal", "status": "completed",
         "importance": 0.5,
     })
     # A regular task (must be excluded when work_type='goal')
-    k.emit_event("GoalCreated", "goal", "t_task_1", payload={
+    k.emit_event("WorkItemCreated", "work_item", "t_task_1", payload={
         "title": "Plain task", "work_type": "task", "status": "pending",
     })
 

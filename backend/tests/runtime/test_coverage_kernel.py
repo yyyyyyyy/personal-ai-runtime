@@ -4,7 +4,7 @@
 def test_export_events_roundtrip(isolated_kernel):
     """Export events, clear DB, import — events should be preserved."""
     k, db = isolated_kernel
-    k.emit_event("GoalCreated", "goal", "goal_export", payload={
+    k.emit_event("WorkItemCreated", "work_item", "goal_export", payload={
         "title": "Export test",
     }, actor="verify")
 
@@ -20,7 +20,7 @@ def test_export_events_roundtrip(isolated_kernel):
 def test_rebuild_single_aggregate(isolated_kernel):
     """Rebuild specific aggregate type should work."""
     k, db = isolated_kernel
-    k.emit_event("GoalCreated", "goal", "goal_rebuild_test", payload={
+    k.emit_event("WorkItemCreated", "work_item", "goal_rebuild_test", payload={
         "title": "Rebuild test",
     }, actor="verify")
 
@@ -32,7 +32,7 @@ def test_rebuild_single_aggregate(isolated_kernel):
 def test_rebuild_all(isolated_kernel):
     """rebuild_all should return results for all aggregate types."""
     k, db = isolated_kernel
-    k.emit_event("GoalCreated", "goal", "goal_all", payload={
+    k.emit_event("WorkItemCreated", "work_item", "goal_all", payload={
         "title": "All rebuild test",
     }, actor="verify")
 
@@ -44,7 +44,7 @@ def test_rebuild_all(isolated_kernel):
 def test_query_state_simple(isolated_kernel):
     """query_state should return projection rows."""
     k, db = isolated_kernel
-    k.emit_event("GoalCreated", "goal", "goal_qs", payload={
+    k.emit_event("WorkItemCreated", "work_item", "goal_qs", payload={
         "title": "Query test",
     }, actor="verify")
 
@@ -56,7 +56,7 @@ def test_query_state_simple(isolated_kernel):
 def test_query_state_multiple_conditions(isolated_kernel):
     """query_state with multiple conditions."""
     k, db = isolated_kernel
-    k.emit_event("GoalCreated", "goal", "goal_qs2", payload={
+    k.emit_event("WorkItemCreated", "work_item", "goal_qs2", payload={
         "title": "Query2",
     }, actor="verify")
 
@@ -68,7 +68,7 @@ def test_query_state_multiple_conditions(isolated_kernel):
 def test_read_events_filter(isolated_kernel):
     """read_events with type filter returns matching events."""
     k, db = isolated_kernel
-    k.emit_event("GoalCreated", "goal", "goal_evt", payload={
+    k.emit_event("WorkItemCreated", "work_item", "goal_evt", payload={
         "title": "Event test",
     }, actor="verify")
 
@@ -81,10 +81,10 @@ def test_read_events_filter(isolated_kernel):
 def test_emit_event_with_caused_by(isolated_kernel):
     """emit_event with caused_by creates causal chain."""
     k, db = isolated_kernel
-    evt1 = k.emit_event("GoalCreated", "goal", "goal_cause", payload={
+    evt1 = k.emit_event("WorkItemCreated", "work_item", "goal_cause", payload={
         "title": "Cause chain",
     }, actor="verify")
-    evt2 = k.emit_event("GoalUpdated", "goal", "goal_cause", payload={
+    evt2 = k.emit_event("WorkItemUpdated", "work_item", "goal_cause", payload={
         "progress": 0.5,
     }, actor="verify", caused_by=evt1.id)
 

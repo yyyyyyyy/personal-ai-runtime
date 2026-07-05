@@ -73,7 +73,7 @@ class TestTaskAgent:
         task_id = f"task_{uuid.uuid4().hex}"
         agent_id = f"agent_{uuid.uuid4().hex}"
 
-        k.emit_event("GoalCreated", "goal", task_id, payload={"title": "Test ephemeral"}, actor="test", correlation_id=cid)
+        k.emit_event("WorkItemCreated", "work_item", task_id, payload={"title": "Test ephemeral"}, actor="test", correlation_id=cid)
         k.emit_event("WorkItemStatusChanged", "work_item", task_id, payload={"status": "running", "agent_id": agent_id, "spec": "brain"}, actor="kernel", correlation_id=cid)
         k.emit_event("AgentSpawned", "work_item", agent_id, payload={"spec": "brain", "task_ref": task_id}, actor="kernel", correlation_id=cid)
         k.emit_event("AgentTerminated", "work_item", agent_id, payload={"task_ref": task_id}, actor="kernel", correlation_id=cid)
@@ -90,7 +90,7 @@ class TestTaskAgent:
         task_id = f"task_{uuid.uuid4().hex}"
         agent_id = f"agent_{uuid.uuid4().hex}"
 
-        k.emit_event("GoalCreated", "goal", task_id, payload={"title": "Failing task"}, actor="test", correlation_id=cid)
+        k.emit_event("WorkItemCreated", "work_item", task_id, payload={"title": "Failing task"}, actor="test", correlation_id=cid)
         k.emit_event("WorkItemStatusChanged", "work_item", task_id, payload={"status": "running", "agent_id": agent_id, "spec": "planner"}, actor="kernel", correlation_id=cid)
         k.emit_event("AgentSpawned", "work_item", agent_id, payload={"spec": "planner", "task_ref": task_id}, actor="kernel", correlation_id=cid)
         k.emit_event("AgentTerminated", "work_item", agent_id,

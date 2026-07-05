@@ -19,19 +19,19 @@ class TestQueryStateW2:
             "GoalCreated",
             "goal",
             "g-stale",
-            payload={"title": "Stale", "status": "active"},
+            payload={'work_type': 'goal', "title": "Stale", "status": "active"},
         )
         k.emit_event(
             "GoalUpdated",
             "goal",
             "g-stale",
-            payload={"last_activity_at": "2020-01-01T00:00:00"},
+            payload={'work_type': 'goal', "last_activity_at": "2020-01-01T00:00:00"},
         )
         k.emit_event(
             "GoalCreated",
             "goal",
             "g-due",
-            payload={
+            payload={'work_type': 'goal', 
                 "title": "Due",
                 "status": "active",
                 "deadline": "2099-12-31T00:00:00",
@@ -46,7 +46,7 @@ class TestQueryStateW2:
 
     def test_actions_status_filter(self, tmp_path):
         k = _kernel(tmp_path)
-        k.emit_event("GoalCreated", "goal", "g1", payload={"title": "G"})
+        k.emit_event("WorkItemCreated", "work_item", "g1", payload={'work_type': 'goal', "title": "G"})
         k.emit_event(
             "WorkItemCreated",
             "work_item",
@@ -66,13 +66,13 @@ class TestQueryStateW2:
 
     def test_tasks_depends_on_filter(self, tmp_path):
         k = _kernel(tmp_path)
-        k.emit_event("GoalCreated", "goal", "g1", payload={"title": "G"})
-        k.emit_event("GoalCreated", "goal", "t1", payload={"title": "Dep"})
+        k.emit_event("WorkItemCreated", "work_item", "g1", payload={'work_type': 'goal', "title": "G"})
+        k.emit_event("WorkItemCreated", "work_item", "t1", payload={'work_type': 'goal', "title": "Dep"})
         k.emit_event(
             "WorkItemCreated",
             "work_item",
             "t2",
-            payload={"title": "Blocked", "dependencies_json": '["t1"]'},
+            payload={'work_type': 'goal', "title": "Blocked", "dependencies_json": '["t1"]'},
         )
 
         blocked = k.query_state("work_items", status="pending", depends_on_work="t1")
