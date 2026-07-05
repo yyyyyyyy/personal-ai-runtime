@@ -404,13 +404,13 @@ class TestContinueAfterToolResultCompile:
 
         brain = Brain()
 
-        brain.client = MagicMock()
+        brain._llm._client = MagicMock()
 
         response = MagicMock()
 
         response.choices = [MagicMock(message=MagicMock(content="审批后回复"))]
 
-        brain.client.chat.completions.create = AsyncMock(return_value=response)
+        brain._llm._client.chat.completions.create = AsyncMock(return_value=response)
 
 
 
