@@ -10,6 +10,85 @@ from app.core.runtime.kernel_instance import kernel
 
 router = APIRouter(prefix="/api/approvals", tags=["approvals"])
 
+# ── Flow classification helpers (v0.11.0: moved from capability_governance) ──
+# These are UI-presentation concerns — Chinese labels for the approval list.
+# They do NOT belong in the governance layer which should remain pure decision logic.
+
+_CORR_PREFIX_MAP: list[tuple[str, str]] = [
+    ("chat_", "对话"),
+    ("sched_", "定时任务"),
+    ("trigger_", "定时任务"),
+]
+_CORR_EXACT_MAP: dict[str, tuple[str, str]] = {
+    "approval-resolve-test": ("测试", "审批解析测试"),
+}
+
+
+def _classify_flow(corr_id: str, task_id: str | None, task_map: dict[str, str]) -> str:
+    if task_id and task_id in task_map:
+        return "任务"
+    for prefix, label in _CORR_PREFIX_MAP:
+        if corr_id.startswith(prefix):
+            return label
+    exact = _CORR_EXACT_MAP.get(corr_id)
+    if exact:
+        return exact[0]
+    return "系统" if corr_id else "未知"
+
+
+def _label_flow(corr_id: str, task_id: str | None, task_map: dict[str, str]) -> str:
+    if task_id and task_id in task_map:
+        return task_map[task_id]
+    for prefix, label in _CORR_PREFIX_MAP:
+        if corr_id.startswith(prefix):
+            return f"{label} ({corr_id})"
+    exact = _CORR_EXACT_MAP.get(corr_id)
+    if exact:
+        return exact[1]
+    return corr_id or ""
+
+
+def _list_pending_enriched(kernel) -> list[dict]:
+    """List pending approvals with flow context enriched from event_log.
+
+    Moved from capability_governance.list_pending_enriched (v0.11.0) —
+    this is a UI-presentation concern, not a governance decision.
+    """
+    pending = kernel.query_state("approvals", status="pending")
+    if not pending:
+        return []
+
+    approval_ids = [a["id"] for a in pending]
+    correlation_map: dict[str, str] = {}
+    for aid in approval_ids:
+        events = kernel.read_events(
+            aggregate_type="approval", aggregate_id=aid,
+            type="ApprovalRequested", limit=1,
+        )
+        if events:
+            correlation_map[aid] = events[0].correlation_id or ""
+
+    task_ids = {str(a["task_id"]) for a in pending if a.get("task_id")}
+    task_map: dict[str, str] = {}
+    for tid in task_ids:
+        try:
+            task_rows = kernel.query_state("work_items", id=tid)
+            if task_rows:
+                task_map[tid] = task_rows[0].get("title", "")
+        except Exception:
+            pass
+
+    enriched = []
+    for a in pending:
+        corr_id = correlation_map.get(a["id"], "")
+        enriched.append({
+            **a,
+            "correlation_id": corr_id,
+            "flow_type": _classify_flow(corr_id, a.get("task_id"), task_map),
+            "flow_label": _label_flow(corr_id, a.get("task_id"), task_map),
+        })
+    return enriched
+
 
 @router.get("/")
 async def list_approvals(limit: int = 50, pending_only: bool = False, enriched: bool = False):
@@ -21,7 +100,7 @@ async def list_approvals(limit: int = 50, pending_only: bool = False, enriched: 
       - correlation_id: event correlation identifier
     """
     if pending_only and enriched:
-        return capability_governance.list_pending_enriched(kernel)
+        return _list_pending_enriched(kernel)
     if pending_only:
         return capability_governance.list_pending(kernel)
     return capability_governance.list_all(kernel, limit=limit)
