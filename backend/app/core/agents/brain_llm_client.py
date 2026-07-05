@@ -177,7 +177,7 @@ class BrainLLMClient:
 
             for attempt in range(max_attempts):
                 try:
-                    response = await client.chat.completions.create(
+                    response = await client.chat.completions.create(  # type: ignore[call-overload]
                         model=provider.model,
                         messages=egress_messages,
                         tools=kernel.list_capability_definitions(),

@@ -83,7 +83,7 @@ def build_messages(
             satisfied_ids: set[str] = set()
             while j < len(tagged) and tagged[j]["role"] == "tool":
                 tid = tagged[j].get("tool_call_id")
-                if tid in required_ids:
+                if tid is not None and tid in required_ids:
                     satisfied_ids.add(tid)
                 j += 1
             if satisfied_ids == required_ids and required_ids:
