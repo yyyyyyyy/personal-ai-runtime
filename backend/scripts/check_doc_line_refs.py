@@ -19,6 +19,14 @@ from pathlib import Path
 _ROOT = Path(__file__).resolve().parent.parent.parent
 _DOCS = _ROOT / "docs"
 
+# Files exempt from the line-ref guard. Architecture review snapshots are
+# point-in-time evidence records whose value depends on citing exact line
+# numbers; rewriting them to function-name refs would destroy that precision.
+# Add only documents that are explicitly historical (not living docs).
+_ALLOWLIST: frozenset[str] = frozenset({
+    "docs/ARCHITECTURE_SURVIVAL_REVIEW.md",
+})
+
 # Match a markdown link whose label is a backtick-quoted path ending in
 # .py:NNN or .py:NNN-NNN. Examples that fail:
 #   [`kernel.py:42`](path)
@@ -38,6 +46,8 @@ def main() -> int:
 
     for md_file in sorted(_DOCS.rglob("*.md")):
         rel = md_file.relative_to(_ROOT)
+        if rel.as_posix() in _ALLOWLIST:
+            continue
         for lineno, line in enumerate(md_file.read_text(encoding="utf-8").splitlines(), start=1):
             for pat in (LINK_PATTERN, INLINE_PATTERN):
                 for m in pat.finditer(line):

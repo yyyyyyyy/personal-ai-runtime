@@ -36,7 +36,7 @@
 | [runtime-algebra.md](02-concepts/runtime-algebra.md) | ⭐ 五原语（Event/State/Capability/Work/Context）、三条判据、概念压缩契约 |
 | [event-sourcing.md](02-concepts/event-sourcing.md) | `event_log` → projectors → 投影表的数据流 |
 | [kernel-boundary.md](02-concepts/kernel-boundary.md) | GOVERNED vs APP_STORAGE 表分类与边界守卫机制 |
-| [capability-governance.md](02-concepts/capability-governance.md) | 4-gate 授权、taint 追踪、Principal、execution_scope |
+| [capability-governance.md](02-concepts/capability-governance.md) | 3-gate 授权、taint 追踪、Principal、execution_scope |
 | [context-pipeline.md](02-concepts/context-pipeline.md) | Fragment 注册 → Selector 选择 → Assembler 组装 |
 
 ### 03 · 子系统

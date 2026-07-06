@@ -37,33 +37,21 @@ frozenset({
 
 append-only。索引：`idx_event_log_aggregate`、`idx_event_log_correlation`。
 
-### `goals`
-
-```python
-frozenset({
-    "id", "title", "description", "status", "progress", "importance", "urgency",
-    "deadline", "parent_id", "created_at", "updated_at", "last_activity_at",
-})
-```
-
-`parent_id` 自引用外键（-goal 树）。
-
-### `work_items`（v0.5.0：统一 task + action；v1.0 Phase 1：吸收 goal 字段）
+### `work_items`（v0.5.0：统一 task + action；v1.0 Phase 4：吸收 goal）
 
 ```python
 frozenset({
     "id", "title", "description", "work_type", "parent_work_id",
     "parent_goal_id", "status", "priority", "dependencies_json",
     "executable_plan", "created_at", "updated_at", "completed_at",
-    # v1.0 Phase 1 (additive): goal-unification columns populated when
-    # work_type='goal'. Other work_types leave these at defaults.
+    # v1.0 goal-unification columns populated when work_type='goal'.
     "progress", "importance", "urgency", "deadline", "last_activity_at",
 })
 ```
 
-`work_type` 区分 `task` / `action` / `background` / `goal`（v1.0）。`parent_goal_id` 关联 `goals.id`（v1.0 阶段 3 将改为统一用 `parent_work_id`），`parent_work_id` 支持工作项嵌套。`dependencies_json` 是依赖 work_item id 数组，由 [`cron_registry._on_task_completed`](../../backend/app/core/runtime/cron_registry.py) 在依赖满足时自动激活。v0.5.0 起取代独立的 `actions` 与 `tasks` 表；v1.0 阶段 4 起将取代 `goals` 表。
+`work_type` 区分 `task` / `action` / `background` / `goal`（v1.0 Phase 4 起 goal 也并入本表）。`parent_work_id` 支持工作项嵌套；`parent_goal_id` 是 v1.0 迁移期保留的兼容列。`dependencies_json` 是依赖 work_item id 数组，由 [`cron_registry._on_task_completed`](../../backend/app/core/runtime/cron_registry.py) 在依赖满足时自动激活。
 
-> **v1.0 演进说明**：阶段 1（此版本）只新增列，不动现有读写路径；阶段 2 起 projector 双写；阶段 3 迁移所有读取者；阶段 4 删除 `goals` 表与 `Goal*` 事件类型。详见 [runtime-algebra.md §5.3](../02-concepts/runtime-algebra.md)。
+> **v1.0 演进说明**：阶段 4 已删除独立的 `goals` 表与 `Goal*` 事件类型，全部统一到 `work_items(work_type='goal')`。详见 [runtime-algebra.md §5.3](../02-concepts/runtime-algebra.md)。
 
 ### `memories`
 
@@ -207,6 +195,6 @@ frozenset({"id", "capability", "risk_level", "status", "created_at", "updated_at
 | [`scripts/verify_alembic.py`](../../backend/scripts/verify_alembic.py) | 20 张 `REQUIRED_TABLES` 存在 + `PRAGMA foreign_keys=1` |
 | [`scripts/check_projection_provenance.py`](../../backend/scripts/check_projection_provenance.py) | 每条 governed 投影行有对应 `event_log` 事件 |
 | [`scripts/verify_vector_consistency.py`](../../backend/scripts/verify_vector_consistency.py) | SQLite memories 集合 = Chroma `memories` collection 集合 |
-| [`scripts/verify_export_roundtrip.py`](../../backend/scripts/verify_export_roundtrip.py) | export → import 后 event_log/conversations/messages/goals/memories/notifications 计数一致 |
+| [`scripts/verify_export_roundtrip.py`](../../backend/scripts/verify_export_roundtrip.py) | export → import 后 event_log/conversations/messages/work_items/memories/notifications 计数一致 |
 
 详见 [05-engineering/testing.md](../05-engineering/testing.md)。

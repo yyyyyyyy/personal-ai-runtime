@@ -34,7 +34,7 @@ flowchart TB
 | `agents/` | agent 层单测：brain 遥测、computer_use/voice import 安全、token_counter、tool_dispatcher、tool_markup/postprocess |
 | `api/` | API 覆盖冒烟（`test_api_coverage.py`） |
 | `integration/` | FastAPI TestClient + Kernel：approval flow、auth、b2/b3 审计、dashboard、goals/knowledge/settings/system/timeline/trigger API、workflows（v0.2 skip） |
-| `product/` | 基于 Kernel 的产品层：dashboard、encrypted_sync、inbox_app、notifications |
+| `product/` | 基于 Kernel 的产品层：dashboard、encrypted_sync、inbox、notifications |
 | `runtime/` | kernel/执行/治理核心（~80 文件） |
 
 顶层还有：`test_context_policy.py`、`test_context_runtime_stage3.py`、`test_core_tier_fragments.py`、`test_pipeline_integration.py`、`test_prompt_artifact.py`、`test_policy_coverage.py`、`test_fragment_cleanup_phase5.py`、`test_fragment_read_boundary.py`、`test_mail_fragments.py`、`test_version.py`。
@@ -54,7 +54,7 @@ flowchart TB
 - **事件溯源与重建**：`test_event_sourcing.py`、`test_engine_rebuild.py`、`test_memory_belief.py`、`test_conversation_recorded.py`、`test_actions_event_sourced.py`、`test_goals_event_sourced.py`
 - **边界与归属守卫**：`test_boundary_guard.py`、`test_execution_ownership_guard.py`、`test_projection_provenance_guard.py`、`test_projection_schema_contract.py`
 - **执行模型（ADR-0007 Step 1–5）**：`test_execution_model.py`、`test_execution_events.py`、`test_execution_context.py`、`test_execution_recovery.py`、`test_execution_shadow_compare.py`、`test_execution_ownership.py`
-- **Agent bus / 实例 / 隔离 / 恢复 / 清理**：`test_agent_bus.py`、`test_agent_instance.py`、`test_agent_isolation.py`、`test_agent_recovery.py`、`test_agent_stale_cleanup.py`、`test_d1_concurrent_isolation.py`
+- **Agent bus / 隔离 / 恢复**：`test_agent_bus.py`、`test_agent_isolation.py`、`test_agent_recovery.py`、`test_d1_concurrent_isolation.py`
 - **Scheduler / timer / trigger**：`test_scheduler.py`、`test_scheduler_deadline.py`、`test_scheduler_extended.py`、`test_coverage_engines.py`、`test_trigger_engine_extended.py`
 - **能力治理与策略（T2/A3/C3）**：`test_capability_approval.py`、`test_capability_decision.py`、`test_capability_forbidden.py`、`test_c3_mcp_policy_eventsourcing.py`、`test_runtime_config.py`、`test_taint.py`、`test_sensitive_router.py`
 - **出口与连接器**：`test_egress.py`、`test_connector.py`、`test_browser_ssrf.py`、`test_fetch_ssrf.py`、`test_url_safety.py`、`test_web_search_html.py`
