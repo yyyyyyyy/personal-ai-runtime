@@ -132,14 +132,9 @@ cron 表达式解析 `_next_cron_fire(cron_expr, from_ts)`（[`runtime_loop.py`]
 
 ## Agent / 执行模型
 
-### Agent 定义与实例
+### 单 Agent 模型（v0.4.0+）
 
-| 文件 | 类 | 职责 |
-|---|---|---|
-| [`agent_definition.py`](../../backend/app/core/runtime/agent_definition.py) | `AgentDefinition` | 不可变定义（`agent_id`、`subscriptions`、`tools`、`version`、`max_instances`、`stale_timeout_seconds`）+ `SubscriptionRule` |
-| [`agent_instance.py`](../../backend/app/core/runtime/agent_instance.py) | `AgentInstance` | 单实例容器，actor 为 `agent:{instance_id}`；`dispatch(event)` 创建 WorkItem 入队 Scheduler |
-| [`agent_registry.py`](../../backend/app/core/runtime/agent_registry.py) | — | 从定义 spawn 实例，强制 `max_instances`，每个工具发 `GrantCreated` 事件，清理 stale 实例 |
-| [`agent_bootstrap.py`](../../backend/app/core/runtime/agent_bootstrap.py) | — | 确保单一持久 agent（singleton）订阅所有统一事件类型 |
+Runtime 在 v0.4.0 移除了多 Agent 抽象（`AgentDefinition`/`AgentInstance`/`AgentRegistry` 已删），改为单一持久 agent。`agent:primary` 字符串直接由 [`agent_bootstrap.py`](../../backend/app/core/runtime/agent_bootstrap.py) 内联使用，作为 `ensure_scheduler(kernel)` 内部的 actor 标识。所有事件路由都通过 Scheduler + `@subscribe` handler 注册机制（详见 [02-concepts/runtime-algebra.md](../02-concepts/runtime-algebra.md) §4.5）。
 
 ### MVP Agent
 
