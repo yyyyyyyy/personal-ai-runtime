@@ -514,6 +514,7 @@ class MCPHub:
                 "required": ["title"],
             },
             handler=goals_server.create_goal,
+            requires_confirmation=True,
         ))
 
         self.register_tool(ToolDef(
@@ -529,6 +530,7 @@ class MCPHub:
                 "required": ["goal_id", "progress"],
             },
             handler=goals_server.update_progress,
+            requires_confirmation=True,
         ))
 
         self.register_tool(ToolDef(
@@ -543,6 +545,7 @@ class MCPHub:
                 "required": ["goal_id"],
             },
             handler=goals_server.complete_goal,
+            requires_confirmation=True,
         ))
 
         self.register_tool(ToolDef(
