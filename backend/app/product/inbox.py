@@ -66,6 +66,7 @@ async def _classify_emails(emails: list[dict]) -> list[dict]:
         return []
 
     from app.core.agents.llm_failover import llm_router
+    from app.core.runtime.egress import prepare_llm_egress
 
     client, provider = llm_router.get_client()
     user_prompt = (
@@ -74,13 +75,22 @@ async def _classify_emails(emails: list[dict]) -> list[dict]:
         "请以 JSON 格式输出。"
     )
 
+    messages = [
+        {"role": "system", "content": CLASSIFY_SYSTEM_PROMPT},
+        {"role": "user", "content": user_prompt},
+    ]
+    # v0.3.0: route through the egress audit gate for parity with Brain paths
+    # (closes ARCHITECTURE_SURVIVAL_REVIEW Critical #19 — previously this LLM
+    # call bypassed prepare_llm_egress, so outbound content was not audited).
+    prepare_llm_egress(messages, purpose="inbox_classify", actor="inbox")
+
     try:
-        response = await client.chat.completions.create(  # type: ignore[call-overload]
+        response = await client.chat.completions.create(
             model=provider.model,
             messages=[
                 {"role": "system", "content": CLASSIFY_SYSTEM_PROMPT},
                 {"role": "user", "content": user_prompt},
-            ],
+            ],  # type: ignore[arg-type]
             temperature=0.2,
             max_tokens=settings.llm_max_tokens,
         )
