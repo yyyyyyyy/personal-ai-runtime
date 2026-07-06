@@ -314,7 +314,11 @@ class QueryStateMixin:  # type: ignore[attr-defined]  # mixed into Kernel which 
 
     def _query_inbox_emails(self, filters: dict[str, Any]) -> list[dict]:
         email_id = filters.get("id")
+        status = filters.get("status")
         status_not = filters.get("status_not")
+        category = filters.get("category")
+        digested = filters.get("digested")
+        notified = filters.get("notified")
         search = filters.get("search")
         limit = filters.get("limit", 20)
         order = filters.get("order", "date_desc")
@@ -323,6 +327,7 @@ class QueryStateMixin:  # type: ignore[attr-defined]  # mixed into Kernel which 
             "date_desc": "COALESCE(received_at, created_at) DESC",
             "date_asc": "COALESCE(received_at, created_at) ASC",
             "created_at_desc": "created_at DESC",
+            "importance_desc": "importance DESC, COALESCE(received_at, created_at) DESC",
         }
         order_sql = order_clauses.get(order, order_clauses["date_desc"])
 
@@ -335,9 +340,21 @@ class QueryStateMixin:  # type: ignore[attr-defined]  # mixed into Kernel which 
 
             clauses: list[str] = []
             params: list[Any] = []
+            if status is not None:
+                clauses.append("COALESCE(status, 'pending') = ?")
+                params.append(status)
             if status_not is not None:
                 clauses.append("status != ?")
                 params.append(status_not)
+            if category is not None:
+                clauses.append("category = ?")
+                params.append(category)
+            if digested is not None:
+                clauses.append("COALESCE(digested, 0) = ?")
+                params.append(1 if digested else 0)
+            if notified is not None:
+                clauses.append("COALESCE(notified, 0) = ?")
+                params.append(1 if notified else 0)
             if search:
                 clauses.append(
                     "(subject LIKE ? OR sender LIKE ? OR preview LIKE ?)"

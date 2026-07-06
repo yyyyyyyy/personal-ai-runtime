@@ -28,6 +28,7 @@ PROJECTION_TABLES = (
     "event_log",
     "timer_events",
     "policy_events",
+    "inbox_emails",  # v0.3.0: promoted to governed (projectors_inbox.py)
 )
 KERNEL_PREFIX = Path("core/runtime/kernel")
 HARNESS_PREFIX = Path("core/harness")

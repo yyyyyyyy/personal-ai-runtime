@@ -60,6 +60,13 @@ EVENT_BG_TASK_FAILED = "BackgroundTaskFailed"
 EVENT_INBOX_POLL_REQUESTED = "InboxPollRequested"
 EVENT_INBOX_POLL_COMPLETED = "InboxPollCompleted"
 EVENT_INBOX_EMAIL_RECORDED = "InboxEmailRecorded"
+# v0.3.0: turn inbox_emails into a governed projection derived solely from
+# events. Status / notified / digested transitions are now event-sourced so
+# verify_inbox_audit can guarantee the table is fully reconstructable from
+# event_log (closes Critical #1 from ARCHITECTURE_SURVIVAL_REVIEW.md).
+EVENT_INBOX_EMAIL_STATUS_CHANGED = "InboxEmailStatusChanged"
+EVENT_INBOX_EMAIL_NOTIFIED = "InboxEmailNotified"
+EVENT_INBOX_EMAIL_DIGESTED = "InboxEmailDigested"
 
 EVENT_CHAT_TEXT_DELTA = "ChatTextDelta"   # DELIBERATELY NOT EMITTED TO EVENT_LOG — pushed to SSE queue to avoid polluting Truth Layer
 EVENT_CHAT_DONE = "ChatDone"

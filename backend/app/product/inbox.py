@@ -1,6 +1,10 @@
 """Proactive Inbox App — poll, classify, notify, daily digest.
 
-App-layer interpretation only. Email fetch goes through kernel.invoke_capability.
+v0.3.0: writes only through Kernel.emit_event. The inbox_emails table is now
+a governed projection derived solely from InboxEmail* events (see
+projectors_inbox.py). This closes Critical #1 from ARCHITECTURE_SURVIVAL_REVIEW.md
+by eliminating the dual-write drift between the IMAP INSERT path and the
+InboxEmailRecorded audit event.
 """
 
 from __future__ import annotations
@@ -11,8 +15,8 @@ import re
 from datetime import UTC, datetime
 
 from app.config import settings
+from app.core.runtime.kernel import constants
 from app.core.runtime.kernel_instance import kernel
-from app.store.database import db
 
 logger = logging.getLogger(__name__)
 
@@ -34,8 +38,8 @@ CLASSIFY_SYSTEM_PROMPT = """你是一个邮件分类助手。将每封邮件分�
 }"""
 
 
-def _existing_message_ids(conn) -> set[str]:
-    rows = conn.execute("SELECT id FROM inbox_emails").fetchall()
+def _existing_message_ids() -> set[str]:
+    rows = kernel.query_state("inbox_emails", limit=5000)
     return {r["id"] for r in rows}
 
 
@@ -140,21 +144,23 @@ def _unread_ids_from_poll_payload(payload: dict) -> set[str]:
 
 
 def _sync_read_status(unread_ids: set[str]) -> int:
-    """Mark pending emails as read when they no longer appear in IMAP UNSEEN."""
+    """Mark pending emails as read when they no longer appear in IMAP UNSEEN.
+
+    v0.3.0: emits InboxEmailStatusChanged(status='read') instead of UPDATE.
+    """
     updated = 0
-    with db.get_db() as conn:
-        rows = conn.execute(
-            """SELECT id FROM inbox_emails
-               WHERE COALESCE(status, 'pending') = 'pending'"""
-        ).fetchall()
-        for row in rows:
-            email_id = row["id"]
-            if email_id not in unread_ids:
-                conn.execute(
-                    "UPDATE inbox_emails SET status = 'read' WHERE id = ?",
-                    (email_id,),
-                )
-                updated += 1
+    pending = kernel.query_state("inbox_emails", status="pending", limit=5000)
+    for row in pending:
+        email_id = row["id"]
+        if email_id not in unread_ids:
+            kernel.emit_event(
+                constants.EVENT_INBOX_EMAIL_STATUS_CHANGED,
+                constants.AGGREGATE_INBOX_EMAIL,
+                email_id,
+                payload={"status": "read"},
+                actor="inbox",
+            )
+            updated += 1
     return updated
 
 
@@ -163,6 +169,9 @@ async def apply_inbox_poll_payload(payload: dict, *, execution_id: str | None = 
 
     When *execution_id* is provided (background handler path), InboxEmailRecorded
     events link back to the owning Execution via caused_by.
+
+    v0.3.0: emits InboxEmailRecorded with the full payload; the projection is
+    written by projectors_inbox.py inside the Kernel transaction.
     """
     if payload.get("error"):
         raw_error = payload["error"]
@@ -173,8 +182,7 @@ async def apply_inbox_poll_payload(payload: dict, *, execution_id: str | None = 
     emails = payload.get("emails") or []
     unread_ids = _unread_ids_from_poll_payload(payload)
     synced_read = _sync_read_status(unread_ids)
-    with db.get_db() as conn:
-        known = _existing_message_ids(conn)
+    known = _existing_message_ids()
 
     new_emails = [e for e in emails if e.get("message_id") and e["message_id"] not in known]
     if not new_emails:
@@ -186,55 +194,43 @@ async def apply_inbox_poll_payload(payload: dict, *, execution_id: str | None = 
     notified = 0
     stored: list[dict] = []
 
-    with db.get_db() as conn:
-        for em in new_emails:
-            mid = em["message_id"]
-            meta = by_id.get(mid, {})
-            category = meta.get("category", "actionable")
-            if category not in ("important", "actionable", "ignorable"):
-                category = "actionable"
-            importance = float(meta.get("importance", 0.5))
-            reason = meta.get("reason", "")
+    for em in new_emails:
+        mid = em["message_id"]
+        meta = by_id.get(mid, {})
+        category = meta.get("category", "actionable")
+        if category not in ("important", "actionable", "ignorable"):
+            category = "actionable"
+        importance = float(meta.get("importance", 0.5))
+        reason = meta.get("reason", "")
 
-            conn.execute(
-                """INSERT INTO inbox_emails
-                   (id, sender, subject, preview, received_at, category, importance, reason,
-                    notified, digested, status, created_at)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, 0, 'pending', ?)""",
-                (
-                    mid,
-                    em.get("from", ""),
-                    em.get("subject", ""),
-                    em.get("preview", ""),
-                    em.get("date") or now,
-                    category,
-                    importance,
-                    reason,
-                    now,
-                ),
-            )
-            stored.append({
-                "id": mid,
-                "category": category,
-                "subject": em.get("subject", ""),
-                "importance": importance,
-                "sender": em.get("from", ""),
-            })
-
-    # B2 / C1: emit audit events to event_log (replaces legacy event_recorder)
-    for item in stored:
         kwargs: dict = dict(
             payload={
-                "sender": item.get("sender", ""),
-                "subject": item.get("subject", "")[:200],
-                "category": item["category"],
-                "importance": item.get("importance", 0.5),
+                "sender": em.get("from", ""),
+                "subject": em.get("subject", ""),
+                "preview": em.get("preview", ""),
+                "received_at": em.get("date") or now,
+                "category": category,
+                "importance": importance,
+                "reason": reason,
+                "created_at": now,
             },
             actor="inbox",
         )
         if execution_id:
             kwargs["caused_by"] = execution_id
-        kernel.emit_event("InboxEmailRecorded", "inbox_email", item["id"], **kwargs)
+        kernel.emit_event(
+            constants.EVENT_INBOX_EMAIL_RECORDED,
+            constants.AGGREGATE_INBOX_EMAIL,
+            mid,
+            **kwargs,
+        )
+        stored.append({
+            "id": mid,
+            "category": category,
+            "subject": em.get("subject", ""),
+            "importance": importance,
+            "sender": em.get("from", ""),
+        })
 
     from app.core.runtime.notification_bridge import push_notification
 
@@ -244,9 +240,13 @@ async def apply_inbox_poll_payload(payload: dict, *, execution_id: str | None = 
         title = f"重要邮件 · {item['subject'][:40]}"
         content = f"发件人相关邮件需关注（分类: important，置信度 {item['importance']:.2f}）"
         push_notification("inbox", title, content)
+        kernel.emit_event(
+            constants.EVENT_INBOX_EMAIL_NOTIFIED,
+            constants.AGGREGATE_INBOX_EMAIL,
+            item["id"],
+            actor="inbox",
+        )
         notified += 1
-        with db.get_db() as conn:
-            conn.execute("UPDATE inbox_emails SET notified = 1 WHERE id = ?", (item["id"],))
 
     return {"status": "ok", "new_count": len(stored), "notified": notified, "synced_read": synced_read}
 
@@ -254,14 +254,16 @@ async def apply_inbox_poll_payload(payload: dict, *, execution_id: str | None = 
 def mark_inbox_email_status(email_id: str, status: str) -> dict | None:
     if status not in ("pending", "read", "handled"):
         raise ValueError(f"Invalid status: {status}")
-    with db.get_db() as conn:
-        row = conn.execute("SELECT id FROM inbox_emails WHERE id = ?", (email_id,)).fetchone()
-        if not row:
-            return None
-        conn.execute(
-            "UPDATE inbox_emails SET status = ? WHERE id = ?",
-            (status, email_id),
-        )
+    rows = kernel.query_state("inbox_emails", id=email_id, limit=1)
+    if not rows:
+        return None
+    kernel.emit_event(
+        constants.EVENT_INBOX_EMAIL_STATUS_CHANGED,
+        constants.AGGREGATE_INBOX_EMAIL,
+        email_id,
+        payload={"status": status},
+        actor="user",
+    )
     return {"id": email_id, "status": status}
 
 
@@ -326,22 +328,17 @@ def generate_inbox_digest() -> dict | None:
     if existing:
         return existing
 
-    with db.get_db() as conn:
-        rows = conn.execute(
-            """SELECT category, sender, subject, reason, importance
-               FROM inbox_emails
-               WHERE COALESCE(digested, 0) = 0
-               ORDER BY importance DESC, created_at DESC
-               LIMIT 50"""
-        ).fetchall()
+    rows = kernel.query_state("inbox_emails", digested=0, limit=50, order="importance_desc")
 
     if not rows:
         return None
 
     grouped: dict[str, list] = {"important": [], "actionable": [], "ignorable": []}
     for row in rows:
-        cat = row["category"] if row["category"] in grouped else "actionable"
-        grouped[cat].append(dict(row))
+        cat = row.get("category") or "actionable"
+        if cat not in grouped:
+            cat = "actionable"
+        grouped[cat].append(row)
 
     lines = [
         "# 收件箱每日摘要",
@@ -360,8 +357,9 @@ def generate_inbox_digest() -> dict | None:
         lines.append(f"## {label} ({len(items)})")
         for item in items[:10]:
             lines.append(f"- {item.get('subject', '')} — {item.get('sender', '')}")
-            if item.get("reason"):
-                lines.append(f"  ({item['reason']})")
+            reason = item.get("reason")
+            if reason:
+                lines.append(f"  ({reason})")
         lines.append("")
 
     content = "\n".join(lines).strip()
@@ -370,8 +368,12 @@ def generate_inbox_digest() -> dict | None:
 
     notif = push_notification("inbox_digest", title, content)
 
-    with db.get_db() as conn:
-        conn.execute("UPDATE inbox_emails SET digested = 1 WHERE COALESCE(digested, 0) = 0")
+    kernel.emit_event(
+        constants.EVENT_INBOX_EMAIL_DIGESTED,
+        constants.AGGREGATE_INBOX_EMAIL,
+        f"digest_{now.strftime('%Y%m%d')}",
+        actor="inbox",
+    )
 
     return notif
 
@@ -381,34 +383,24 @@ def list_inbox_emails(
     limit: int = 50,
     status: str = "pending",
 ) -> list[dict]:
-    with db.get_db() as conn:
-        if status == "all":
-            if category:
-                rows = conn.execute(
-                    """SELECT * FROM inbox_emails WHERE category = ?
-                       ORDER BY created_at DESC LIMIT ?""",
-                    (category, limit),
-                ).fetchall()
-            else:
-                rows = conn.execute(
-                    "SELECT * FROM inbox_emails ORDER BY created_at DESC LIMIT ?",
-                    (limit,),
-                ).fetchall()
-        elif category:
-            rows = conn.execute(
-                """SELECT * FROM inbox_emails
-                   WHERE category = ? AND COALESCE(status, 'pending') = ?
-                   ORDER BY created_at DESC LIMIT ?""",
-                (category, status, limit),
-            ).fetchall()
+    """Read the inbox_emails projection via Kernel ABI.
+
+    v0.3.0: this is now a thin reader over kernel.query_state; no direct SQL.
+    """
+    if status == "all":
+        if category:
+            rows = kernel.query_state(
+                "inbox_emails", category=category, limit=limit, order="date_desc",
+            )
         else:
-            rows = conn.execute(
-                """SELECT * FROM inbox_emails
-                   WHERE COALESCE(status, 'pending') = ?
-                   ORDER BY created_at DESC LIMIT ?""",
-                (status, limit),
-            ).fetchall()
-    return [dict(r) for r in rows]
+            rows = kernel.query_state("inbox_emails", limit=limit, order="date_desc")
+    elif category:
+        rows = kernel.query_state(
+            "inbox_emails", category=category, status=status, limit=limit, order="date_desc",
+        )
+    else:
+        rows = kernel.query_state("inbox_emails", status=status, limit=limit, order="date_desc")
+    return rows
 
 
 def latest_digest() -> dict | None:

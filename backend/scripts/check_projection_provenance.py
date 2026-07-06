@@ -29,9 +29,11 @@ from app.core.runtime.kernel.constants import (  # noqa: E402
     AGGREGATE_APPROVAL,
     AGGREGATE_CONVERSATION,
     AGGREGATE_EXECUTION,
+    AGGREGATE_INBOX_EMAIL,
     AGGREGATE_MEMORY,
     AGGREGATE_WORK_ITEM,
     EVENT_EXECUTION_REQUESTED,
+    EVENT_INBOX_EMAIL_RECORDED,
 )
 
 Violation = tuple[str, str, str]  # (table, row_id, reason)
@@ -193,6 +195,22 @@ def check_provenance(conn: Any) -> list[Violation]:
                  f"no event_log row for aggregate_type={AGGREGATE_MEMORY!r}"),
             )
 
+    # v0.3.0: inbox_emails provenance — every row must trace to an
+    # InboxEmailRecorded event (governed projection from projectors_inbox.py).
+    for row in conn.execute("SELECT id FROM inbox_emails").fetchall():
+        inbox_id = row["id"]
+        found = conn.execute(
+            """SELECT 1 FROM event_log
+               WHERE aggregate_type = ? AND aggregate_id = ? AND type = ?
+               LIMIT 1""",
+            (AGGREGATE_INBOX_EMAIL, inbox_id, EVENT_INBOX_EMAIL_RECORDED),
+        ).fetchone()
+        if not found:
+            violations.append(
+                ("inbox_emails", inbox_id,
+                 f"no {EVENT_INBOX_EMAIL_RECORDED!r} event in event_log"),
+            )
+
     return violations
 
 
@@ -250,6 +268,15 @@ def bootstrap_sample_scenario(kernel: Any) -> None:
         AGGREGATE_MEMORY,
         "prov_mem_1",
         payload={"category": "fact", "content": "Provenance memory", "confidence": 0.8},
+        actor="verify",
+    )
+    # v0.3.0: inbox_emails provenance
+    kernel.emit_event(
+        EVENT_INBOX_EMAIL_RECORDED,
+        AGGREGATE_INBOX_EMAIL,
+        "prov_inbox_1",
+        payload={"sender": "verify@example.com", "subject": "Provenance inbox",
+                 "category": "actionable", "importance": 0.5},
         actor="verify",
     )
 
@@ -353,7 +380,7 @@ def main(argv: list[str] | None = None) -> int:
 
     print(
         "PROJECTION PROVENANCE OK — work_items, approvals, handler_executions, "
-        "conversations, messages traceable to event_log"
+        "conversations, messages, memories, inbox_emails traceable to event_log"
     )
     return 0
 

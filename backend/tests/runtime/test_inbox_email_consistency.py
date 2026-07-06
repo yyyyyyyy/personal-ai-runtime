@@ -1,7 +1,15 @@
-"""Tests for inbox_emails ↔ InboxEmailRecorded event consistency checks."""
+"""Tests for inbox_emails ↔ InboxEmailRecorded event consistency checks.
+
+v0.3.0: inbox_emails is now a governed projection derived solely from events
+via projectors_inbox.py. The "emit without row" drift scenario can no longer
+happen in normal operation — the projector runs in the same transaction as
+the event INSERT. These tests therefore focus on:
+  1. Happy-path: emit produces a matching projection row.
+  2. Drift detection still works when rows are inserted out-of-band (this
+     can happen during manual import, raw SQL recovery, etc.).
+"""
 
 import os
-import sqlite3
 import sys
 from pathlib import Path
 
@@ -34,17 +42,6 @@ def test_consistent_state_passes(fresh_db):
     db, db_path = fresh_db
     kernel = Kernel(db=db)
 
-    # Insert matching pair
-    now = "2026-07-05T00:00:00Z"
-    with db.get_db() as conn:
-        conn.execute(
-            """INSERT INTO inbox_emails
-               (id, sender, subject, preview, received_at, category, importance,
-                reason, notified, digested, status, created_at)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, 0, 'pending', ?)""",
-            ("m_consistent", "x@y.z", "ok", "preview",
-             now, "actionable", 0.5, "", now),
-        )
     kernel.emit_event(
         "InboxEmailRecorded", "inbox_email", "m_consistent",
         payload={"sender": "x@y.z", "subject": "ok"},
@@ -56,7 +53,12 @@ def test_consistent_state_passes(fresh_db):
 
 
 def test_inbox_row_without_event_detected(fresh_db):
-    """Row in inbox_emails with no matching event → violation."""
+    """Row in inbox_emails with no matching event → violation.
+
+    Covers the import / raw-SQL recovery path: even though the production
+    write path is now event-sourced, an out-of-band INSERT still has to be
+    caught by the audit.
+    """
     from scripts.verify_inbox_audit import (
         verify_inbox_emails_event_consistency,
     )
@@ -78,45 +80,103 @@ def test_inbox_row_without_event_detected(fresh_db):
         f"expected drift detection, got: {violations}"
 
 
-def test_event_without_row_under_threshold_no_violation(fresh_db):
-    """A few events without rows are tolerated (legacy/user-deleted emails)."""
-    from scripts.verify_inbox_audit import (
-        verify_inbox_emails_event_consistency,
-    )
-
-    db, db_path = fresh_db
+def test_emit_creates_projection_row(fresh_db):
+    """v0.3.0: emitting InboxEmailRecorded must materialize the projection."""
+    db, _ = fresh_db
     kernel = Kernel(db=db)
 
-    # Emit a few InboxEmailRecorded events with no inbox_emails rows
-    for i in range(5):
-        kernel.emit_event(
-            "InboxEmailRecorded", "inbox_email", f"m_legacy_{i}",
-            payload={"sender": "x@y.z", "subject": "legacy"},
-            actor="inbox",
-        )
-
-    violations = verify_inbox_emails_event_consistency(db_path)
-    # 5 < threshold of 20, no violations expected
-    assert violations == [], \
-        f"legacy events below threshold should not flag, got: {violations}"
-
-
-def test_many_events_without_row_flagged(fresh_db):
-    """> 20 events without rows indicate systemic drift and are flagged."""
-    from scripts.verify_inbox_audit import (
-        verify_inbox_emails_event_consistency,
+    kernel.emit_event(
+        "InboxEmailRecorded", "inbox_email", "m_projected",
+        payload={
+            "sender": "x@y.z",
+            "subject": "projection test",
+            "preview": "preview text",
+            "received_at": "2026-07-05T00:00:00Z",
+            "category": "important",
+            "importance": 0.9,
+            "reason": "test reason",
+        },
+        actor="inbox",
     )
 
-    db, db_path = fresh_db
+    rows = kernel.query_state("inbox_emails", id="m_projected")
+    assert len(rows) == 1
+    row = rows[0]
+    assert row["sender"] == "x@y.z"
+    assert row["subject"] == "projection test"
+    assert row["category"] == "important"
+    assert row["importance"] == 0.9
+    assert row["status"] == "pending"
+    assert row["notified"] == 0
+    assert row["digested"] == 0
+
+
+def test_status_changed_event_updates_projection(fresh_db):
+    """v0.3.0: InboxEmailStatusChanged transitions the projection."""
+    db, _ = fresh_db
     kernel = Kernel(db=db)
 
-    for i in range(25):
-        kernel.emit_event(
-            "InboxEmailRecorded", "inbox_email", f"m_mass_{i}",
-            payload={"sender": "x@y.z", "subject": "mass"},
-            actor="inbox",
-        )
+    kernel.emit_event(
+        "InboxEmailRecorded", "inbox_email", "m_status",
+        payload={"sender": "x@y.z", "subject": "s"},
+        actor="inbox",
+    )
+    kernel.emit_event(
+        "InboxEmailStatusChanged", "inbox_email", "m_status",
+        payload={"status": "read"},
+        actor="user",
+    )
 
-    violations = verify_inbox_emails_event_consistency(db_path)
-    assert len(violations) >= 1, "expected systemic drift to be flagged"
-    assert any("m_mass_" in v for v in violations)
+    rows = kernel.query_state("inbox_emails", id="m_status")
+    assert rows[0]["status"] == "read"
+
+
+def test_notified_and_digested_events_update_projection(fresh_db):
+    """v0.3.0: InboxEmailNotified / InboxEmailDigested flip the flags."""
+    db, _ = fresh_db
+    kernel = Kernel(db=db)
+
+    kernel.emit_event(
+        "InboxEmailRecorded", "inbox_email", "m_notify",
+        payload={"sender": "x@y.z", "subject": "s"},
+        actor="inbox",
+    )
+    kernel.emit_event(
+        "InboxEmailNotified", "inbox_email", "m_notify",
+        actor="inbox",
+    )
+    kernel.emit_event(
+        "InboxEmailDigested", "inbox_email", "digest_1",
+        actor="inbox",
+    )
+
+    rows = kernel.query_state("inbox_emails", id="m_notify")
+    assert rows[0]["notified"] == 1
+    assert rows[0]["digested"] == 1
+
+
+def test_inbox_email_rebuild_byte_identical(fresh_db):
+    """v0.3.0: rebuild('inbox_email') produces a byte-identical projection."""
+    db, _ = fresh_db
+    kernel = Kernel(db=db)
+
+    kernel.emit_event(
+        "InboxEmailRecorded", "inbox_email", "m_rebuild_a",
+        payload={"sender": "a@x", "subject": "a", "category": "important"},
+        actor="inbox",
+    )
+    kernel.emit_event(
+        "InboxEmailRecorded", "inbox_email", "m_rebuild_b",
+        payload={"sender": "b@x", "subject": "b"},
+        actor="inbox",
+    )
+    kernel.emit_event(
+        "InboxEmailStatusChanged", "inbox_email", "m_rebuild_a",
+        payload={"status": "handled"},
+        actor="user",
+    )
+
+    before = kernel.query_state("inbox_emails", limit=100)
+    kernel.rebuild("inbox_email")
+    after = kernel.query_state("inbox_emails", limit=100)
+    assert before == after

@@ -19,6 +19,9 @@ GOVERNED_TABLES: frozenset[str] = frozenset({
     "handler_executions",
     "timer_events",
     "policy_events",
+    # v0.3.0: promoted from APP_STORAGE — derived solely from InboxEmail* events
+    # via projectors_inbox.py so the table is fully rebuildable from event_log.
+    "inbox_emails",
 })
 
 # Application storage (direct read/write outside Kernel ABI is allowed).
@@ -48,9 +51,6 @@ APP_STORAGE_TABLES: frozenset[str] = frozenset({
     # User profile / app settings — local-only preferences. No audit value;
     # exporting event_log is sufficient for data sovereignty.
     "user_profile",
-    # Inbox emails — IMAP-fetched raw mail cache. The authoritative record
-    # is InboxEmailRecorded in event_log; this table holds the raw payload.
-    "inbox_emails",
     # App settings (UI preferences, LLM/Email connection config). Local-only
     # operational config; not a governed fact.
     "app_settings",
@@ -112,6 +112,10 @@ GOVERNED_SCHEMA: dict[str, frozenset[str]] = {
     }),
     "policy_events": frozenset({
         "id", "capability", "risk_level", "status", "created_at", "updated_at",
+    }),
+    "inbox_emails": frozenset({
+        "id", "sender", "subject", "preview", "received_at", "category",
+        "importance", "reason", "notified", "digested", "status", "created_at",
     }),
 }
 
