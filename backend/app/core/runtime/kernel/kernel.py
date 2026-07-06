@@ -149,10 +149,6 @@ class Kernel(QueryStateMixin, GovernanceMixin, SovereigntyMixin):
         from app.store.schema_init import ensure_schema
         ensure_schema(self._db)
 
-    async def cleanup_stale(self, max_age_seconds: int | None = None) -> list[str]:
-        """No-op stub — Agent lifecycle was removed in v0.4.0 (single-user mode)."""
-        return []
-
     # --- Truth layer ---------------------------------------------------------
 
     def emit_event(
@@ -729,14 +725,6 @@ class Kernel(QueryStateMixin, GovernanceMixin, SovereigntyMixin):
                 correlation_id=correlation_id,
             )
             return {"status": "error", "error": str(exc)}
-
-    # --- Task & Agent lifecycle -----------------------------------------------
-
-    def metrics(self) -> dict[str, int]:
-        """Return runtime health/counters for observability."""
-        return {
-            "registry_instances": 0,  # v0.4.0: Agent lifecycle removed (single-user)
-        }
 
     # --- WorkItem persistence (Execution Model) ---------------------------
     # Read paths live in work_item_repository.py (still Kernel Space).

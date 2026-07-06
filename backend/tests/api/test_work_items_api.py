@@ -28,10 +28,6 @@ def client(tmp_path, monkeypatch):
     monkeypatch.setattr("app.core.harness.mcp_lifecycle.start_mcp_mesh", _noop_start)
     monkeypatch.setattr("app.core.harness.mcp_lifecycle.stop_mcp_mesh", _noop_stop)
 
-    from app.store.database import Database
-
-    Database._instance = None
-
     import importlib
 
     import app.api.system

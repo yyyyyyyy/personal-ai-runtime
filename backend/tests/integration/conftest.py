@@ -33,10 +33,6 @@ def _make_client(tmp_path, monkeypatch, auth_token: str | None = None):
         _noop_stop_mcp_mesh,
     )
 
-    from app.store.database import Database
-
-    Database._instance = None
-
     import app.api.system
     import app.config
     import app.main

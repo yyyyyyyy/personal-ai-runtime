@@ -502,7 +502,6 @@ class SovereigntyMixin:  # type: ignore[attr-defined]  # mixed into Kernel which
         import app.store.database as database_module
         from app.store.database import Database
 
-        Database._instance = None  # type: ignore[attr-defined]
         database_module.db = Database()
 
         return {
