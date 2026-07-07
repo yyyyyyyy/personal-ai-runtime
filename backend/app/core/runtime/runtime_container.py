@@ -30,7 +30,6 @@ if TYPE_CHECKING:
     from app.core.runtime.runtime_config import RuntimeConfig
     from app.core.runtime.state_manager import StateManager
     from app.core.runtime.taint import TaintRegistry
-    from app.core.runtime.task_engine import TaskEngine
 
 
 class _LazyProxy:
@@ -237,11 +236,6 @@ class RuntimeContainer:
         return self._runtime_config
 
     # ── Legacy (not in inventory, backward compat only) ───────────────
-
-    @property
-    def task_engine(self) -> "TaskEngine":
-        from app.core.runtime.task_engine import task_engine
-        return task_engine
 
     @property
     def trigger_engine(self):

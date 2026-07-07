@@ -58,11 +58,11 @@ def _on_task_completed(event):
         if status not in ("completed", "failed"):
             return
 
-    from app.core.runtime.task_engine import task_engine
+    from app.core.runtime.task_engine import are_dependencies_met
 
     rows = kernel.query_state("work_items", status="pending", limit=100)
     for item in rows:
-        if task_engine.are_dependencies_met(item["id"]):
+        if are_dependencies_met(item["id"]):
             kernel.emit_event(
                 "WorkItemStatusChanged", "work_item", item["id"],
                 payload={"status": "running"}, actor="system",

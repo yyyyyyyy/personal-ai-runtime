@@ -1,10 +1,19 @@
 """Tasks API — manage work items via the unified WorkItem model.
 
 v0.5.0: uses WorkItemCreated/StatusChanged/Deleted events and work_items projection.
+v0.3.0: TaskEngine class/singleton removed; calls go to module-level functions.
 """
 from fastapi import APIRouter, HTTPException
 
-from app.core.runtime.task_engine import task_engine
+from app.core.runtime.task_engine import (
+    create_work_item,
+    delete_work_item,
+    get_sub_work_items,
+    get_work_item,
+    get_work_item_tree,
+    list_work_items,
+    update_work_item_status,
+)
 
 router = APIRouter(prefix="/api/tasks", tags=["tasks"])
 
@@ -16,7 +25,7 @@ async def create_task(body: dict):
     if not name:
         raise HTTPException(status_code=400, detail="Task name is required")
 
-    return task_engine.create_work_item(
+    return create_work_item(
         title=name,
         description=body.get("description", ""),
         work_type="task",
@@ -29,12 +38,12 @@ async def create_task(body: dict):
 
 @router.get("/")
 async def list_tasks(status: str | None = None, limit: int = 50):
-    return task_engine.list_work_items(status=status, work_type="task", limit=limit)
+    return list_work_items(status=status, work_type="task", limit=limit)
 
 
 @router.get("/{task_id}")
 async def get_task(task_id: str):
-    item = task_engine.get_work_item(task_id)
+    item = get_work_item(task_id)
     if not item:
         raise HTTPException(status_code=404, detail="Task not found")
     return item
@@ -42,17 +51,17 @@ async def get_task(task_id: str):
 
 @router.get("/{task_id}/subtasks")
 async def get_subtasks(task_id: str):
-    item = task_engine.get_work_item(task_id)
+    item = get_work_item(task_id)
     if not item:
         raise HTTPException(status_code=404, detail="Task not found")
-    return task_engine.get_sub_work_items(task_id)
+    return get_sub_work_items(task_id)
 
 
 @router.delete("/{task_id}")
 async def delete_task(task_id: str):
-    if not task_engine.get_work_item(task_id):
+    if not get_work_item(task_id):
         raise HTTPException(status_code=404, detail="Task not found")
-    task_engine.delete_work_item(task_id)
+    delete_work_item(task_id)
     return {"status": "ok"}
 
 
@@ -61,7 +70,7 @@ async def update_task_status(task_id: str, body: dict):
     new_status = body.get("status")
     if not new_status:
         raise HTTPException(status_code=400, detail="status is required")
-    item = task_engine.update_work_item_status(task_id, new_status)
+    item = update_work_item_status(task_id, new_status)
     if not item:
         raise HTTPException(status_code=404, detail="Task not found")
     return item
@@ -75,7 +84,7 @@ async def create_goal_task(goal_id: str, body: dict):
     title = (body.get("name") or body.get("title") or "").strip()
     if not title:
         raise HTTPException(status_code=400, detail="Task name is required")
-    return task_engine.create_work_item(
+    return create_work_item(
         title=title,
         description=body.get("description", ""),
         work_type=body.get("work_type", "task"),
@@ -88,4 +97,4 @@ async def create_goal_task(goal_id: str, body: dict):
 
 @router.get("/goal/{goal_id}")
 async def list_goal_tasks(goal_id: str):
-    return task_engine.get_work_item_tree(goal_id)
+    return get_work_item_tree(goal_id)

@@ -10,7 +10,15 @@ migration is incremental; Phase 4 will retire the legacy endpoints.
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
-from app.core.runtime.task_engine import task_engine
+from app.core.runtime.task_engine import (
+    create_work_item as _create_work_item,
+    delete_work_item as _delete_work_item,
+    get_sub_work_items as _get_sub_work_items,
+    get_work_item as _get_work_item,
+    list_work_items as _list_work_items,
+    update_work_item_fields as _update_work_item_fields,
+    update_work_item_status as _update_work_item_status,
+)
 
 router = APIRouter(prefix="/api/work-items", tags=["work-items"])
 
@@ -64,7 +72,7 @@ async def create_work_item(body: CreateWorkItemRequest):
             detail=f"work_type must be one of {sorted(VALID_WORK_TYPES)}",
         )
 
-    return task_engine.create_work_item(
+    return _create_work_item(
         title=body.title,
         description=body.description,
         work_type=body.work_type,
@@ -90,14 +98,14 @@ async def list_work_items(
     limit: int = 50,
 ):
     """List work items, optionally filtered by work_type / status / parent."""
-    return task_engine.list_work_items(
+    return _list_work_items(
         status=status, work_type=work_type, limit=limit,
     )
 
 
 @router.get("/{item_id}")
 async def get_work_item(item_id: str):
-    item = task_engine.get_work_item(item_id)
+    item = _get_work_item(item_id)
     if not item:
         raise HTTPException(status_code=404, detail="Work item not found")
     return item
@@ -110,9 +118,9 @@ async def get_children(item_id: str):
     For goal rows, this returns the actions/tasks nested under the goal.
     For full tree semantics, clients should recurse via this endpoint.
     """
-    if not task_engine.get_work_item(item_id):
+    if not _get_work_item(item_id):
         raise HTTPException(status_code=404, detail="Work item not found")
-    return task_engine.get_sub_work_items(item_id)
+    return _get_sub_work_items(item_id)
 
 
 @router.patch("/{item_id}")
@@ -127,7 +135,7 @@ async def update_work_item(item_id: str, body: UpdateWorkItemRequest):
     if not update_kwargs:
         raise HTTPException(status_code=400, detail="No fields to update")
 
-    item = task_engine.update_work_item_fields(item_id, **update_kwargs)
+    item = _update_work_item_fields(item_id, **update_kwargs)
     if not item:
         raise HTTPException(status_code=404, detail="Work item not found")
     return item
@@ -139,7 +147,7 @@ async def update_status(item_id: str, body: dict):
     new_status = body.get("status")
     if not new_status:
         raise HTTPException(status_code=400, detail="status is required")
-    item = task_engine.update_work_item_status(item_id, new_status)
+    item = _update_work_item_status(item_id, new_status)
     if not item:
         raise HTTPException(status_code=404, detail="Work item not found")
     return item
@@ -147,7 +155,7 @@ async def update_status(item_id: str, body: dict):
 
 @router.delete("/{item_id}")
 async def delete_work_item(item_id: str):
-    if not task_engine.get_work_item(item_id):
+    if not _get_work_item(item_id):
         raise HTTPException(status_code=404, detail="Work item not found")
-    task_engine.delete_work_item(item_id)
+    _delete_work_item(item_id)
     return {"status": "ok"}

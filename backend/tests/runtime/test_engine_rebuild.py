@@ -6,7 +6,10 @@ os.environ.setdefault("LLM_API_KEY", "test-key")
 
 from app.core.agents.memory_engine import MemoryEngine
 from app.core.runtime.kernel import Kernel
-from app.core.runtime.task_engine import TaskEngine
+from app.core.runtime.task_engine import (
+    create_task,
+    update_task_status,
+)
 from app.store.database import Database
 
 
@@ -45,13 +48,12 @@ class TestEngineRebuildConsistency:
         k, db = make_kernel(tmp_path)
         monkeypatch.setattr("app.core.runtime.task_engine.kernel", k)
 
-        engine = TaskEngine()
-        parent = engine.create_task(name="Parent", description="root")
-        child = engine.create_task(name="Child", parent_task_id=parent["id"])
-        engine.update_task_status(parent["id"], "running")
-        engine.update_task_status(child["id"], "running")
-        engine.update_task_status(child["id"], "blocked")
-        engine.update_task_status(parent["id"], "completed")
+        parent = create_task(name="Parent", description="root")
+        child = create_task(name="Child", parent_task_id=parent["id"])
+        update_task_status(parent["id"], "running")
+        update_task_status(child["id"], "running")
+        update_task_status(child["id"], "blocked")
+        update_task_status(parent["id"], "completed")
 
         before = snapshot_table(db, "work_items")
         assert before, "work_items table should have entries"
