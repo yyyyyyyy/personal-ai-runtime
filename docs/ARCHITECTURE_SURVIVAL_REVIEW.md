@@ -20,8 +20,8 @@
 | Critical #1 — tool_calls 双写漂移 | ✅ 关闭 | `5077850` |
 | Low — app_settings 审计盲区（save_prompt / knowledge_docs） | ✅ 关闭 | `00a8315` |
 | Critical #1 — llm_calls 双写漂移 | ⏸  **deferred v0.3.1**：需新增 LLMCallRecorded 事件，违反概念零和契约；无 dead event 可配平。待 (a) 找到可删事件或 (b) 将 ChatCompleted payload 扩展含遥测字段后重新评估 | — |
-| High #3 — Kernel 内部绕 ABI | ⏳ 待办（runtime_loop/scheduler 直访 kernel._db） | — |
-| Medium #13 — 游离单例 | ⏳ 进行中（阶段 3 trivial 批次） | — |
+| High #3 — Kernel 内部绕 ABI | ⏸  **deferred v0.3.1**：runtime_loop/scheduler 直访 kernel._db 待治理 | — |
+| Medium #13 — 游离单例 | ✅ **trivial 批次关闭**：sse_queues/memory_repairs/prompt_compiler/world_model/telemetry/identity/sensitive 7/11 纳入 reset。runtime_loop/db/vector_store 需跨 event-loop 两阶段 reset，deferred v0.3.1 | `94e7219` |
 
 ---
 
