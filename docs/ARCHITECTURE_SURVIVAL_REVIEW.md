@@ -7,6 +7,22 @@
 
 ---
 
+## v0.3.0 修复进度（2026-07-07）
+
+| 问题 | 状态 | Commit |
+|---|---|---|
+| Low #19 — inbox/goals LLM 未走 prepare_llm_egress | ✅ 关闭 | `acd15d1` |
+| Critical #2 — builtin_tools/goals.py 绕治理 | ✅ 关闭 | `ebde549` |
+| High #6 — CI flaky approval_resolve | 🟡 部分（xfail 替代 skip，scheduler loop 检测加固；`_pending_write_file` 临时 loop 根因待 client fixture 重构） | `b74ab83` |
+| Medium #11 — task_engine 包装层 | ✅ 关闭（TaskEngine 类/单例删除，改为 free functions） | `b007d61` |
+| Medium #11 — governance/execution_context.py dead code | ✅ 关闭 | `25146d3` |
+| Medium #11 — world_model 判定 | 🟢 修订：保留（缓存层有真实价值），待 reset 收编 | `本 commit` |
+| Critical #1 — APP_STORAGE 双写漂移 | ⏳ 待办（阶段 2） | — |
+| High #3 — Kernel 内部绕 ABI | ⏳ 待办 | — |
+| Medium #13 — 游离单例 | ⏳ 待办（阶段 3） | — |
+
+---
+
 ## 第一阶段：系统模型
 
 ### 1. 一句话描述
@@ -187,7 +203,7 @@ API router 不直接执行业务逻辑；它通过 `kernel.submit_command`（asy
 ### 12. 只是包装的模块（删除不影响功能）
 
 - `task_engine.py`（227 LOC）：所有方法 = `kernel.emit_event` + `kernel.query_state` 的薄包装
-- `world_model.py`（81 LOC）：纯 `query_state` 包装，模块级 `world_model = WorldModel()` 单例
+- `world_model.py`（81 LOC）：query_state 聚合 + **30 天滚动快照缓存**（`_cached_snapshot`），周 cron 刷新后碎片化请求命中缓存；非纯转发，缓存层有真实价值
 - `execution_events.py`（134 LOC）：5 个 emit 包装函数
 - `prompt_compiler.py`（77 LOC）：artifact + pipeline 拼接
 - `dashboard.py` router（25 LOC）：转发到 `product.personal_dashboard`
@@ -440,7 +456,7 @@ flowchart LR
 | 模块/概念 | 证据 | 理由 |
 |---|---|---|
 | `task_engine.py`（227 LOC） | L227 模块级单例；所有方法转发 Kernel | One Year Test 不通过；调用方应直接用 Kernel ABI |
-| `world_model.py`（81 LOC） | L81 单例；纯 query_state 包装 | 同上 |
+| `world_model.py`（81 LOC） | L81 单例；query_state 聚合 + 30 天快照缓存 | **保留**：缓存层有真实价值（避免每条 chat 重算昂贵聚合）；仅需纳入 container.reset() |
 | `agent_instance.py`（6 LOC 仅常量） | 全文 6 行 | 内联到使用点 |
 | `governance/execution_context.py`（223 LOC） | container 不引用 | dead code |
 | `grant_events` 表 | `projectors_governance.py:32-47` 仅 DDL 无 projector | dead schema |
@@ -496,7 +512,8 @@ flowchart LR
 
 ### 一定消失
 
-- `task_engine.py`、`world_model.py`、`agent_instance.py`、`governance/execution_context.py`
+- `task_engine.py`、`agent_instance.py`、`governance/execution_context.py`
+- ~~`world_model.py`~~ — **保留**：30 天聚合缓存有真实性能价值，非纯转发（判定修订于 v0.3.0）
 - `grant_events` 表、`triggers` 表
 - `BackgroundTask` 概念（合并到 Work）
 - `cleanup_stale` stub 调用
@@ -528,7 +545,7 @@ flowchart LR
 | 8 | Kernel mixin 类型脆弱（duck typing + mypy ignore） | **High** | 重构安全 | mixin 间隐式契约无类型保护；不能独立测试 | 任何 Kernel 重构 | `kernel_governance.py:1`、`kernel_query_state.py:1`、`kernel_sovereignty.py:1` 均 `# type: ignore` | 重构引入隐式 bug | 中（改为组合） | 否 |
 | 9 | emit_event 触发 4 类副作用 + 重入 emit | **Medium** | 调试 / 可预测 | 单 emit 触发 projector + dispatch + memory sync + future resolution；重入 emit `MemoryUpdated` | 任何 emit 调用 | `kernel.py:234-235`、L329 重入 | 生产问题难追溯 | 中 | 否 |
 | 10 | 文档漂移（digital_legacy.py 等已 dead reference） | **Medium** | 新人上手 | 文档引用不存在的文件/字段；字段名不一致 | 新人按文档操作 | `docs/01-overview:21`、`.env.example:19,64` | 上手成本高 | 低 | 是 |
-| 11 | task_engine / world_model / agent_instance 等纯包装层 | **Medium** | 认知负担 | 不创造价值，增加间接调用层级 | 任何 WorkItem 操作 | `task_engine.py:227`、`world_model.py:81`、`agent_instance.py:6` | 概念数膨胀 | 低 | 是 |
+| 11 | task_engine / agent_instance 等纯包装层；world_model 缓存层需纳入 reset | **Medium** | 认知负担 | task_engine 不创造价值；world_model 缓存若不 reset 会跨测试串数据 | 任何 WorkItem 操作 / 测试顺序依赖 | `task_engine.py`（v0.3.0 已重构为 free functions）、`agent_instance.py:6`（已删）、`world_model.py:81`（保留） | 概念数膨胀 / 测试泄漏 | 低 | 是（task_engine/agent_instance 已关闭；world_model 待 reset 收编） |
 | 12 | dead schema（grant_events / triggers 表） | **Medium** | schema 健康度 | 表存在但无写入，误导查询 | 任何 schema 审计 | `projectors_governance.py:32-47`、`schema_ddl.py` triggers | 表数虚高 | 低（迁移 + drop） | 是 |
 | 13 | 游离单例未纳入 container.reset()（~7 个） | **Medium** | 测试隔离 | reset() 只清一半；测试状态泄漏 | 任何 test 顺序依赖 | `runtime_loop.py:381`、`task_engine.py:227`、`world_model.py:81` 等 | flaky 测试 | 低 | 是 |
 | 14 | `_dispatch` 内硬编码 BackgroundTaskFailed 特殊路径 | **Medium** | 扩展性 | 开放封闭违反；每新增"失败也算完成"需改 Kernel | 新增 Work 类型 | `kernel.py:553-569` | Kernel 持续膨胀 | 低（数据驱动） | 否 |
@@ -551,7 +568,7 @@ flowchart LR
 
 3. **main.py 膨胀（问题 #7）**：477 LOC 在 FastAPI 项目中可能属可控范围；AuthMiddleware + RequestIDMiddleware 是标准 ASGI 模式。**判定**：仍然认为应拆，但严重等级可能是 Medium 而非 High。
 
-4. **task_engine / world_model 应删（问题 #11）**：可能未来计划让其承担更多职责（如缓存、批量）。但当前代码证据是纯转发，无额外职责。**判定**：维持 Medium。
+4. **task_engine 应删 / world_model 应删（问题 #11）**：~~可能未来计划让其承担更多职责（如缓存、批量）~~ **修订（v0.3.0）**：task_engine 已重构为 free functions（删除 TaskEngine 类与单例）；world_model 经复查确认持有 `_cached_snapshot` 缓存层（周 cron 刷新、碎片化请求命中），**非纯转发**，应保留但纳入 container.reset()。**判定**：task_engine 已关闭，world_model 改为保留+收编。
 
 5. **Kernel mixin 脆弱（问题 #8）**：mypy `# type: ignore` 已抑制告警；运行时无问题。但工程审美与重构安全性维度仍然成立。
 
