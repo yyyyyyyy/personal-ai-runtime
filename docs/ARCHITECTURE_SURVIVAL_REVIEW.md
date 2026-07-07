@@ -13,13 +13,15 @@
 |---|---|---|
 | Low #19 — inbox/goals LLM 未走 prepare_llm_egress | ✅ 关闭 | `acd15d1` |
 | Critical #2 — builtin_tools/goals.py 绕治理 | ✅ 关闭 | `ebde549` |
-| High #6 — CI flaky approval_resolve | 🟡 部分（xfail 替代 skip，scheduler loop 检测加固；`_pending_write_file` 临时 loop 根因待 client fixture 重构） | `b74ab83` |
-| Medium #11 — task_engine 包装层 | ✅ 关闭（TaskEngine 类/单例删除，改为 free functions） | `b007d61` |
+| High #6 — CI flaky approval_resolve | 🟡 部分（xfail + scheduler loop 检测加固） | `b74ab83` |
+| Medium #11 — task_engine 包装层 | ✅ 关闭（TaskEngine 类/单例删除） | `b007d61` |
 | Medium #11 — governance/execution_context.py dead code | ✅ 关闭 | `25146d3` |
-| Medium #11 — world_model 判定 | 🟢 修订：保留（缓存层有真实价值），待 reset 收编 | `本 commit` |
-| Critical #1 — APP_STORAGE 双写漂移 | ⏳ 待办（阶段 2） | — |
-| High #3 — Kernel 内部绕 ABI | ⏳ 待办 | — |
-| Medium #13 — 游离单例 | ⏳ 待办（阶段 3） | — |
+| Medium #11 — world_model 判定 | 🟢 修订：保留（缓存层有价值） | `87b2a32` |
+| Critical #1 — tool_calls 双写漂移 | ✅ 关闭 | `5077850` |
+| Low — app_settings 审计盲区（save_prompt / knowledge_docs） | ✅ 关闭 | `00a8315` |
+| Critical #1 — llm_calls 双写漂移 | ⏸  **deferred v0.3.1**：需新增 LLMCallRecorded 事件，违反概念零和契约；无 dead event 可配平。待 (a) 找到可删事件或 (b) 将 ChatCompleted payload 扩展含遥测字段后重新评估 | — |
+| High #3 — Kernel 内部绕 ABI | ⏳ 待办（runtime_loop/scheduler 直访 kernel._db） | — |
+| Medium #13 — 游离单例 | ⏳ 进行中（阶段 3 trivial 批次） | — |
 
 ---
 
