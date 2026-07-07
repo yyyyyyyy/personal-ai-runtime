@@ -305,14 +305,15 @@ Only return the JSON array, no other text."""
             {"role": "user", "content": prompt},
         ]
         # v0.3.0: route through the egress audit gate for parity with Brain paths.
-        prepare_llm_egress(messages, purpose="goal_breakdown", actor="api")
+        # prepare_llm_egress emits EgressApproved and returns (messages, audit_meta);
+        # we reuse the returned messages so the LLM call matches what was audited.
+        audited_messages, _audit = prepare_llm_egress(
+            messages, purpose="goal_breakdown", actor="api",
+        )
 
         response = await client.chat.completions.create(
             model=provider.model,
-            messages=[
-                {"role": "system", "content": "You are a helpful assistant that breaks down goals into actionable steps. Always respond with valid JSON arrays only."},
-                {"role": "user", "content": prompt},
-            ],  # type: ignore[arg-type]
+            messages=audited_messages,  # type: ignore[arg-type]
             temperature=0.7,
             max_tokens=500,
         )

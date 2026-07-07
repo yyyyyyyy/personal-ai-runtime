@@ -79,18 +79,17 @@ async def _classify_emails(emails: list[dict]) -> list[dict]:
         {"role": "system", "content": CLASSIFY_SYSTEM_PROMPT},
         {"role": "user", "content": user_prompt},
     ]
-    # v0.3.0: route through the egress audit gate for parity with Brain paths
-    # (closes ARCHITECTURE_SURVIVAL_REVIEW Critical #19 — previously this LLM
-    # call bypassed prepare_llm_egress, so outbound content was not audited).
-    prepare_llm_egress(messages, purpose="inbox_classify", actor="inbox")
+    # v0.3.0: route through the egress audit gate for parity with Brain paths.
+    # prepare_llm_egress emits EgressApproved and returns (messages, audit_meta);
+    # we reuse the returned messages so the LLM call matches what was audited.
+    audited_messages, _audit = prepare_llm_egress(
+        messages, purpose="inbox_classify", actor="inbox",
+    )
 
     try:
         response = await client.chat.completions.create(
             model=provider.model,
-            messages=[
-                {"role": "system", "content": CLASSIFY_SYSTEM_PROMPT},
-                {"role": "user", "content": user_prompt},
-            ],  # type: ignore[arg-type]
+            messages=audited_messages,  # type: ignore[arg-type]
             temperature=0.2,
             max_tokens=settings.llm_max_tokens,
         )

@@ -28,3 +28,73 @@ def test_egress_emits_audit_event(tmp_path):
         assert len(events) == 1
     finally:
         ki.kernel = saved
+
+
+def test_prepare_llm_egress_returns_messages_and_audit(tmp_path):
+    """Regression: callers in inbox.py / api/goals.py must consume the tuple.
+
+    A prior commit invoked prepare_llm_egress as a void function and redeclared
+    the messages list separately, which meant the audited payload could drift
+    from the payload actually sent to the LLM. This test pins the contract:
+    the first tuple element equals the input messages (audit-only, no
+    mutation), and the second carries classification metadata.
+    """
+    import app.core.runtime.kernel_instance as ki
+
+    saved = ki.kernel
+    try:
+        db = Database(db_path=str(tmp_path / "egress.db"))
+        k = Kernel(db=db)
+        ki.kernel = k
+
+        original = [
+            {"role": "system", "content": "classifier"},
+            {"role": "user", "content": "email body"},
+        ]
+        returned_messages, audit = prepare_llm_egress(
+            original, purpose="inbox_classify", actor="inbox",
+        )
+
+        # Audit-only contract: messages pass through unchanged.
+        assert returned_messages is original
+        assert returned_messages == original
+        # Audit metadata carries purpose, actor-agnostic fields.
+        assert audit["purpose"] == "inbox_classify"
+        assert "classification" in audit
+        assert audit["classification"]["message_count"] == 2
+
+        events = k.read_events(type="EgressApproved")
+        assert len(events) == 1
+        ev = events[0]
+        assert ev.payload["purpose"] == "inbox_classify"
+        # actor is an emit_event parameter, recorded on the event row itself.
+        assert ev.actor == "inbox"
+    finally:
+        ki.kernel = saved
+
+
+def test_prepare_llm_egress_goal_breakdown_audit(tmp_path):
+    """Covers the api/goals.py goal_breakdown path (Low #19 closure)."""
+    import app.core.runtime.kernel_instance as ki
+
+    saved = ki.kernel
+    try:
+        db = Database(db_path=str(tmp_path / "egress.db"))
+        k = Kernel(db=db)
+        ki.kernel = k
+
+        messages = [
+            {"role": "system", "content": "You break goals into steps."},
+            {"role": "user", "content": "Goal: ship v0.3.0"},
+        ]
+        returned_messages, audit = prepare_llm_egress(
+            messages, purpose="goal_breakdown", actor="api",
+        )
+
+        assert returned_messages is messages
+        assert audit["purpose"] == "goal_breakdown"
+        events = k.read_events(type="EgressApproved")
+        assert len(events) == 1
+        assert events[0].actor == "api"
+    finally:
+        ki.kernel = saved
