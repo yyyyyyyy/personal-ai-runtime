@@ -19,7 +19,11 @@ Architecture:
         ↓
     CapabilityContext (frozen, read-only snapshot)
         ↓
-    Governance Policy.evaluate(request, execution_context, capability_context)
+    Governance Policy.evaluate(request)
+
+NOTE: This module is currently dormant — no production caller wires the
+snapshot into ContextPolicy.evaluate. Retained as the design home for
+capability-aware governance; remove if still unused after v0.4.0.
 """
 
 from __future__ import annotations

@@ -123,7 +123,7 @@ def count_dead_code_files() -> int:
 # the table in docs/02-concepts/runtime-algebra.md §4.6.
 
 BASELINE = {
-    "runtime_files": 56,               # +1 (projectors_inbox.py, closes ARCHITECTURE_SURVIVAL_REVIEW Critical #1a)
+    "runtime_files": 55,               # -1 (governance/execution_context.py deleted, closes Survival Medium #11)
     "event_types": 55,                 # +3 (InboxEmailStatusChanged/Notified/Digested — replace direct UPDATEs)
     "query_state_selectors": 12,       # +1 (goals alias → work_items, v1.0 Phase 4)
     "fragments": 10,                   # register.py

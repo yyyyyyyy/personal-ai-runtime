@@ -1,9 +1,9 @@
 """GovernanceContextFragment — inject runtime governance state into the prompt.
 
 Shows the LLM a compact view of the current runtime state so it can reason
-about pending approvals, recent tool activity, and stagnant goals. Activates
-the previously-dormant ExecutionContextProvider / CapabilityContextProvider
-(FACT-36) by surfacing their snapshots as a Priority-tier fragment.
+about pending approvals, recent tool activity, and stagnant goals. Reads
+the governed projections via read_ports and surfaces them as a Priority-tier
+fragment.
 """
 
 from __future__ import annotations

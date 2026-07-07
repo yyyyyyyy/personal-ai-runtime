@@ -2,16 +2,9 @@
 
     CompileRequest → ContextPolicy → CompilePlan → ContextAssembler → System Prompt
 
-    Execution-Aware Pipeline:
-    Pipeline builds a GovernanceExecutionContext snapshot before each
-    policy evaluation. The snapshot includes recent fragment history,
-    tool activity, and event log data. This snapshot is passed to the
-    policy (read-only) and never read by Fragments or Assembler.
-
-    Capability-Aware Pipeline:
-    Pipeline also builds a CapabilityContext snapshot and passes it
-    to the policy. The snapshot describes available system capabilities,
-    runtime mode, and granted permissions.
+    The pipeline owns fragment registration and plan execution. Policy
+    evaluation is delegated to ContextPolicy implementations (see
+    context_policy.py); the pipeline itself is policy-agnostic.
 
     Citation Tracking:
     Pipeline tracks sources (memories, knowledge docs) used during
@@ -89,10 +82,9 @@ def _store_sources(conversation_id: str, sources: list[dict]) -> None:
 class ContextPipeline:
     """Registers fragments and executes context policy plans.
 
-    Maintains a rolling history of recently injected fragment IDs and
-    optionally builds a GovernanceExecutionContext for runtime-aware
-    policy decisions. Also builds a CapabilityContext for capability-aware
-    policy decisions.
+    Maintains a rolling history of recently injected fragment IDs for
+    deduplication. Policy evaluation itself is delegated to the
+    ContextPolicy implementation.
 
     Fragment registration failures are surfaced via ``health_check()`` so
     startup health can report degradation rather than silently degrade chat

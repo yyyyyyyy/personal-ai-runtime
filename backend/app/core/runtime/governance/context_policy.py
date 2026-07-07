@@ -92,17 +92,10 @@ class CompilePlan:
 class ContextPolicy(Protocol):
     """Evaluates a compile request and returns a plan.
 
-    Accepts optional execution_context and capability_context.
-    Backward-compatible — DefaultContextPolicy ignores both.
+    Policy owns selection decisions. Pipeline executes the plan.
     """
 
-    def evaluate(
-        self,
-        request: CompileRequest,
-        *,
-        execution_context: object | None = None,
-        capability_context: object | None = None,
-    ) -> CompilePlan: ...
+    def evaluate(self, request: CompileRequest) -> CompilePlan: ...
 
 
 class DefaultContextPolicy:
