@@ -26,6 +26,9 @@ GOVERNED_TABLES: frozenset[str] = frozenset({
     # via projectors_telemetry.py. Every row maps 1:1 to a CapabilityInvoked,
     # CapabilityFailed, or CapabilityDenied event in event_log.
     "tool_calls",
+    # v0.3.0: promoted from APP_STORAGE — derived solely from LLMCallRecorded
+    # events via projectors_telemetry.py.
+    "llm_calls",
 })
 
 # Application storage (direct read/write outside Kernel ABI is allowed).
@@ -40,9 +43,6 @@ GOVERNED_TABLES: frozenset[str] = frozenset({
 APP_STORAGE_TABLES: frozenset[str] = frozenset({
     # Human-readable activity log; derived from event_log via projection.
     "activity_log",
-    # LLM call telemetry (latency, tokens, cost). Observational metric, not a
-    # governed fact. Reconstructable from llm_egress audit + event stream.
-    "llm_calls",
     # Background task queue state; lifecycle is governed by BackgroundTask*
     # events in event_log. This table is a worker-scratch view.
     "background_tasks",
@@ -121,6 +121,10 @@ GOVERNED_SCHEMA: dict[str, frozenset[str]] = {
     }),
     "tool_calls": frozenset({
         "id", "tool_name", "success", "latency_ms", "error_message", "created_at",
+    }),
+    "llm_calls": frozenset({
+        "id", "provider", "model", "prompt_tokens", "completion_tokens",
+        "latency_ms", "cost", "success", "error_message", "created_at",
     }),
 }
 

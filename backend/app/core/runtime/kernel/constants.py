@@ -74,6 +74,11 @@ EVENT_CHAT_DONE = "ChatDone"
 # ── Application audit ──────────────────────────────────────────
 
 EVENT_APP_CONFIG_CHANGED = "AppConfigChanged"
+# v0.3.0: telemetry LLM calls are now event-sourced. brain_telemetry emits
+# this event instead of INSERTing directly into the llm_calls APP_STORAGE
+# table. The projector (projectors_telemetry.py) derives the table row,
+# closing the dual-write drift (Critical #1).
+EVENT_LLM_CALL_RECORDED = "LLMCallRecorded"
 
 # ── Execution aggregate (ADR-0007) ──────────────────────────────────────────
 

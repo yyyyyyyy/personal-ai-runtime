@@ -51,8 +51,6 @@ def _shadow_compare(kernel, item) -> list[str]:
     """Verify WorkItem.to_row() matches what the projector wrote to handler_executions."""
     import json
 
-    from app.store.database import db
-
     def _normalize(row: dict) -> dict:
         out = {k: row.get(k) for k in _SHADOW_FIELDS if k in row}
         pj = out.get("policy_json")
@@ -64,8 +62,7 @@ def _shadow_compare(kernel, item) -> list[str]:
         return out
 
     persist = item.to_row()
-    # v0.3.0: use the public db singleton — handler_executions is APP_STORAGE.
-    with db.get_db() as conn:
+    with kernel._db.get_db() as conn:
         row = conn.execute(
             "SELECT * FROM handler_executions WHERE id = ?", (item.id,),
         ).fetchone()

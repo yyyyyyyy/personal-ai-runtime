@@ -16,7 +16,6 @@ import logging
 
 from app.config import settings
 from app.core.runtime.kernel_instance import kernel
-from app.store.database import db  # v0.3.0: APP_STORAGE access via public singleton
 
 logger = logging.getLogger(__name__)
 
@@ -38,10 +37,17 @@ class RuntimeLoop:
         self._running = False
         self._loop_task: asyncio.Task | None = None
         self._tick_count = 0
+        self._dirty = False  # v0.3.0: set by reset() when event loop changes
 
     # ── lifecycle ──────────────────────────────────────────────────────
 
     async def start(self) -> None:
+        # v0.3.0: when reset() marked us dirty (previous event loop closed),
+        # clean up the zombie task so create_task won't fail on a dead loop.
+        if self._dirty:
+            self._loop_task = None
+            self._running = False
+            self._dirty = False
         if self._running:
             return
         self._running = True
@@ -63,6 +69,16 @@ class RuntimeLoop:
             finally:
                 self._loop_task = None
         logger.info("RuntimeLoop stopped")
+
+    def mark_dirty(self) -> None:
+        """Mark the loop as needing cleanup on next start() (synchronous).
+
+        Call this from ``RuntimeContainer.reset()`` when the event loop has
+        changed. The actual zombie-task cleanup is deferred to the next
+        ``start()`` call (which must be async), so ``reset`` stays
+        synchronous.
+        """
+        self._dirty = True
 
     # ── main loop ──────────────────────────────────────────────────────
 
@@ -228,9 +244,7 @@ class RuntimeLoop:
         max_retries = 5
         batch_size = 10
         now_iso = datetime.now(UTC).isoformat()
-        # v0.3.0: use the public db singleton instead of kernel._db.
-        # memory_index_repairs is APP_STORAGE (non-governed) — direct
-        # access is allowed per the boundary contract.
+        db = kernel._db
 
         with db.get_db() as conn:
             rows = conn.execute(
@@ -377,3 +391,17 @@ class RuntimeLoop:
 
 
 runtime_loop = RuntimeLoop()
+
+
+def reset_runtime_loop() -> None:
+    """Mark the runtime_loop singleton as dirty (test isolation).
+
+    The loop holds ``_loop_task: asyncio.Task`` bound to whichever event
+    loop was active at ``start()`` time. When the event loop changes
+    (e.g. between TestClient requests), ``start()`` would see
+    ``_running=True`` and short-circuit, leaving no tick in the new
+    loop. ``mark_dirty()`` is synchronous (no await needed), so it can
+    be called from ``RuntimeContainer.reset()``; the actual cleanup
+    happens lazily on the next ``start()`` call.
+    """
+    runtime_loop.mark_dirty()

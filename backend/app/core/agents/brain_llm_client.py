@@ -20,7 +20,8 @@ from app.core.agents.tool_markup import strip_tool_markup
 from app.core.runtime.egress.egress_gate import prepare_llm_egress
 from app.core.runtime.kernel_instance import kernel
 from app.core.runtime.runtime_config import runtime_config
-from app.core.telemetry.telemetry import LLMCallRecord, telemetry
+# v0.3.0: telemetry writes go through kernel.emit_event (LLMCallRecorded)
+# instead of telemetry.record_llm_call direct INSERT.
 
 if TYPE_CHECKING:
     from app.core.agents.conversation import ConversationManager
@@ -198,23 +199,33 @@ class BrainLLMClient:
                         await asyncio.sleep(wait)
                         continue
                     errors.append(f"{provider.name}({type(e).__name__}: {e})")
-                    telemetry.record_llm_call(LLMCallRecord(
-                        provider=provider.name,
-                        model=provider.model,
-                        latency_ms=(time.time() - llm_start) * 1000,
-                        success=False,
-                        error_message=str(e),
-                    ))
+                    kernel.emit_event(
+                        "LLMCallRecorded", "llm_call",
+                        f"llm_{time.monotonic_ns()}",
+                        payload={
+                            "provider": provider.name,
+                            "model": provider.model,
+                            "latency_ms": round((time.time() - llm_start) * 1000, 2),
+                            "success": False,
+                            "error_message": str(e),
+                        },
+                        actor="brain",
+                    )
                     break
                 except Exception as e:
                     errors.append(f"{provider.name}({type(e).__name__}: {e})")
-                    telemetry.record_llm_call(LLMCallRecord(
-                        provider=provider.name,
-                        model=provider.model,
-                        latency_ms=(time.time() - llm_start) * 1000,
-                        success=False,
-                        error_message=str(e),
-                    ))
+                    kernel.emit_event(
+                        "LLMCallRecorded", "llm_call",
+                        f"llm_{time.monotonic_ns()}",
+                        payload={
+                            "provider": provider.name,
+                            "model": provider.model,
+                            "latency_ms": round((time.time() - llm_start) * 1000, 2),
+                            "success": False,
+                            "error_message": str(e),
+                        },
+                        actor="brain",
+                    )
                     break
         if len(candidates) > 1:
             raise RuntimeError(f"All LLM providers failed: {'; '.join(errors)}")

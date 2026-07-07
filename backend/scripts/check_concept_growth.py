@@ -124,10 +124,10 @@ def count_dead_code_files() -> int:
 
 BASELINE = {
     "runtime_files": 55,               # -1 (governance/execution_context.py deleted, closes Survival Medium #11)
-    "event_types": 55,                 # +3 (InboxEmailStatusChanged/Notified/Digested — replace direct UPDATEs)
+    "event_types": 56,                 # +1 (LLMCallRecorded — closes Critical #1 llm_calls dual-write)
     "query_state_selectors": 12,       # +1 (goals alias → work_items, v1.0 Phase 4)
     "fragments": 10,                   # register.py
-    "governed_tables": 13,             # +1 (tool_calls promoted from APP_STORAGE, closes Survival Critical #1)
+    "governed_tables": 14,             # +1 (llm_calls promoted from APP_STORAGE, closes Survival Critical #1)
     "projector_files": 9,              # +1 (projectors_telemetry.py)
     "god_object_max_loc": 1910,        # +17 (kernel_query_state inbox filters extended)
     "dead_code_files": 0,              # 已知死代码文件数

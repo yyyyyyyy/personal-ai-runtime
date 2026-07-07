@@ -88,20 +88,35 @@ class Telemetry:
 
     def get_llm_summary(self, days: int = 7) -> dict:
         """Get cost/token/latency summary for recent LLM calls."""
-        with db.get_db() as conn:
-            row = conn.execute(
-                """SELECT
-                    COUNT(*) as total_calls,
-                    SUM(prompt_tokens) as total_prompt_tokens,
-                    SUM(completion_tokens) as total_completion_tokens,
-                    SUM(cost) as total_cost,
-                    AVG(latency_ms) as avg_latency_ms,
-                    SUM(CASE WHEN success = 0 THEN 1 ELSE 0 END) as failed_calls
-                   FROM llm_calls
-                   WHERE created_at >= datetime('now', ?)""",
-                (f"-{days} days",),
-            ).fetchone()
-        return dict(row) if row else {}
+        rows = kernel.query_state("llm_calls", limit=5000)
+        cutoff = datetime.now(UTC) - timedelta(days=days)
+        total = failed = 0
+        total_prompt = total_completion = total_cost = 0
+        latencies: list[float] = []
+        for r in rows:
+            created = r.get("created_at")
+            if not created:
+                continue
+            dt = _parse_utc_datetime(str(created))
+            if dt is None or dt < cutoff:
+                continue
+            total += 1
+            total_prompt += r.get("prompt_tokens", 0) or 0
+            total_completion += r.get("completion_tokens", 0) or 0
+            total_cost += r.get("cost", 0) or 0
+            lat = r.get("latency_ms")
+            if lat is not None:
+                latencies.append(float(lat))
+            if not r.get("success", 1):
+                failed += 1
+        return {
+            "total_calls": total,
+            "total_prompt_tokens": total_prompt,
+            "total_completion_tokens": total_completion,
+            "total_cost": total_cost,
+            "avg_latency_ms": sum(latencies) / len(latencies) if latencies else 0,
+            "failed_calls": failed,
+        }
 
     def get_llm_summary_by_model(self, days: int = 7) -> list[dict]:
         """Get token/cost breakdown grouped by provider and model."""
@@ -187,27 +202,24 @@ class Telemetry:
             len(kernel.query_state("work_items", status=status, limit=5000))
             for status in ("pending", "running", "blocked")
         )
-        with db.get_db() as conn:
-            llm_fail_rate = conn.execute(
-                """SELECT
-                    CASE WHEN COUNT(*) > 0
-                    THEN CAST(SUM(CASE WHEN success = 0 THEN 1 ELSE 0 END) AS REAL) / COUNT(*)
-                    ELSE 0 END as rate
-                   FROM llm_calls
-                   WHERE created_at >= datetime('now', '-1 days')"""
-            ).fetchone()["rate"]
-            tool_fail_rate = conn.execute(
-                """SELECT
-                    CASE WHEN COUNT(*) > 0
-                    THEN CAST(SUM(CASE WHEN success = 0 THEN 1 ELSE 0 END) AS REAL) / COUNT(*)
-                    ELSE 0 END as rate
-                   FROM tool_calls
-                   WHERE created_at >= datetime('now', '-1 days')"""
-            ).fetchone()["rate"]
+        cutoff_24h = (datetime.now(UTC) - timedelta(days=1)).isoformat()
+        llm_rows = kernel.query_state("llm_calls", limit=5000)
+        tool_rows = kernel.query_state("tool_calls", limit=5000)
+        llm_count = llm_fail = tool_count = tool_fail = 0
+        for r in llm_rows:
+            if r.get("created_at", "") >= cutoff_24h:
+                llm_count += 1
+                if not r.get("success", 1):
+                    llm_fail += 1
+        for r in tool_rows:
+            if r.get("created_at", "") >= cutoff_24h:
+                tool_count += 1
+                if not r.get("success", 1):
+                    tool_fail += 1
         return {
             "task_queue_length": queue_len,
-            "llm_failure_rate_24h": round(llm_fail_rate, 4),
-            "tool_failure_rate_24h": round(tool_fail_rate, 4),
+            "llm_failure_rate_24h": round(llm_fail / llm_count, 4) if llm_count else 0,
+            "tool_failure_rate_24h": round(tool_fail / tool_count, 4) if tool_count else 0,
         }
 
 

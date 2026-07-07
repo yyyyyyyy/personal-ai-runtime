@@ -309,6 +309,8 @@ class RuntimeContainer:
             reset_identity_resolver()
             from app.core.runtime.sensitive_router import reset_sensitive_router
             reset_sensitive_router()
+            from app.core.runtime.runtime_loop import reset_runtime_loop
+            reset_runtime_loop()
 
 
 runtime = RuntimeContainer()
