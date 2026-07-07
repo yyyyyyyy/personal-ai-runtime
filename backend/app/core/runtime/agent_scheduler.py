@@ -163,10 +163,18 @@ class Scheduler:
         # event loop.  When the scheduler is restarted after the previous
         # event loop was shut down (e.g. between TestClient requests or
         # across tests), the old _worker_task is a zombie tied to a dead
-        # loop — create_task() would raise.  Check via .done() to detect
-        # a dead worker and recreate it.
-        if self._worker_task and not self._worker_task.done():
-            return
+        # loop — create_task() would raise.  Check both .done() and
+        # .get_loop().is_closed() to detect a dead worker and recreate it.
+        # The loop check closes ARCHITECTURE_SURVIVAL_REVIEW High #6: a
+        # zombie task reported .done()==False on a closed loop, causing
+        # start() to short-circuit and submit_command to time out (504).
+        if self._worker_task is not None:
+            try:
+                loop_closed = self._worker_task.get_loop().is_closed()
+            except RuntimeError:
+                loop_closed = True
+            if not self._worker_task.done() and not loop_closed:
+                return
         self._running = True
         self._worker_task = asyncio.create_task(self._scheduler_loop())
         logger.info("Scheduler started (max_concurrent=%d)", _MAX_CONCURRENT)

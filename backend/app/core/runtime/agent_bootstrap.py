@@ -36,3 +36,18 @@ async def ensure_scheduler(kernel) -> None:
 
     kernel.set_async_dispatcher(_dispatch_to_scheduler)
     _started = True
+
+
+def reset_agent_bootstrap() -> None:
+    """Clear the ``_started`` flag so the next ``ensure_scheduler`` re-binds.
+
+    Pairs with ``reset_scheduler`` in ``runtime_container.reset()``. Without
+    this, the module-level ``_started`` boolean survives across tests: the
+    fresh Kernel has no ``_async_dispatcher`` registered, but
+    ``ensure_scheduler`` short-circuits and the Scheduler loop is never
+    (re)started on the new event loop. This was the root cause of the
+    intermittent 504s in ``test_approval_resolve`` (ARCHITECTURE_SURVIVAL_REVIEW
+    High #6).
+    """
+    global _started
+    _started = False

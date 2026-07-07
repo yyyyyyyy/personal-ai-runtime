@@ -286,6 +286,11 @@ class RuntimeContainer:
             reset_external_tools()
             from app.core.runtime.agent_scheduler import reset_scheduler
             reset_scheduler()
+            # agent_bootstrap._started must be cleared alongside the scheduler
+            # singleton, otherwise ensure_scheduler short-circuits on the next
+            # test and the dispatcher is never rebound to the fresh Kernel.
+            from app.core.runtime.agent_bootstrap import reset_agent_bootstrap
+            reset_agent_bootstrap()
             from app.core.runtime.reaction_registry import reset_reactions
             reset_reactions()
             from app.core.runtime.handler_registry import reset_handlers

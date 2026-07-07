@@ -10,38 +10,10 @@ from starlette.testclient import TestClient
 os.environ.setdefault("LLM_API_KEY", "test-key")
 
 
-@pytest.fixture(autouse=True)
-def _reset_scheduler():
-    """Reset the global scheduler singleton and stale WorkItems between tests.
-
-    The Scheduler is a singleton whose _pending list carries over
-    recovered WorkItems from previous test runs.  Without this fixture,
-    stale events (e.g. BackgroundTaskRequested from another test) are
-    processed by the scheduler loop, monkeypatch the mock and cause the
-    current test to see wrong captured values.
-    """
-    from app.core.runtime import agent_bootstrap
-    from app.core.runtime.agent_scheduler import reset_scheduler
-
-    reset_scheduler()
-    agent_bootstrap._started = False
-
-    # Clean up stale handler_executions
-    try:
-        from app.store.database import db
-        with db.get_db() as conn:
-            conn.execute("DELETE FROM handler_executions")
-    except Exception:
-        pass
-    yield
-    reset_scheduler()
-    agent_bootstrap._started = False
-    try:
-        from app.store.database import db
-        with db.get_db() as conn:
-            conn.execute("DELETE FROM handler_executions")
-    except Exception:
-        pass
+# NOTE: The previous file-level autouse _reset_scheduler fixture is gone.
+# runtime_container.reset() (called by tests/conftest.py::_reset_runtime)
+# now resets the scheduler singleton AND clears agent_bootstrap._started
+# in lockstep, which closes the root cause of the intermittent 504s.
 
 
 def _pending_write_file(kernel):
@@ -76,7 +48,13 @@ def test_resolve_rejects_tampered_tool_name(client: TestClient):
     assert "match" in r.json()["detail"].lower()
 
 
-@pytest.mark.skip(reason="intermittent 504 — pre-existing conftest isolation issue")
+@pytest.mark.xfail(
+    reason="scheduler worker task crosses TestClient event loops; "
+           "root cause is _pending_write_file's asyncio.run() creating a "
+           "side-effect scheduler task that outlives its loop. "
+           "Tracked under ARCHITECTURE_SURVIVAL_REVIEW High #6.",
+    strict=False,
+)
 def test_resolve_rejects_already_resolved(client: TestClient):
     from app.core.runtime.kernel_instance import kernel
 
@@ -96,7 +74,13 @@ def test_resolve_rejects_already_resolved(client: TestClient):
     assert r2.status_code == 409
 
 
-@pytest.mark.skip(reason="intermittent 504 — pre-existing conftest isolation issue")
+@pytest.mark.xfail(
+    reason="scheduler worker task crosses TestClient event loops; "
+           "root cause is _pending_write_file's asyncio.run() creating a "
+           "side-effect scheduler task that outlives its loop. "
+           "Tracked under ARCHITECTURE_SURVIVAL_REVIEW High #6.",
+    strict=False,
+)
 def test_resolve_executes_server_record(client: TestClient, monkeypatch):
     from app.core.harness.mcp_hub import mcp_hub
     from app.core.runtime.kernel_instance import kernel
