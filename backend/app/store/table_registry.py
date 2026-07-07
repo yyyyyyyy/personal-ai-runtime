@@ -114,8 +114,9 @@ GOVERNED_SCHEMA: dict[str, frozenset[str]] = {
         "id", "capability", "risk_level", "status", "created_at", "updated_at",
     }),
     "inbox_emails": frozenset({
-        "id", "sender", "subject", "preview", "received_at", "category",
-        "importance", "reason", "notified", "digested", "status", "created_at",
+        "id", "server_id", "sender", "subject", "date", "preview",
+        "full_text", "status", "category", "importance", "reason",
+        "notified", "digested", "created_at", "received_at",
     }),
 }
 

@@ -49,6 +49,8 @@ def clear_external_ingestion_tools() -> None:
 _EXTERNAL_WRITE_DYNAMIC: set[str] = set()
 
 # Registered MCP tools in capability_policy.json "needs_user" — mutate host or exfiltrate.
+# Must stay in sync with capability_policy.json's "needs_user" list; the test
+# test_write_class_tools_match_capability_policy pins this contract.
 WRITE_CLASS_TOOLS = frozenset({
     "apply_patch",
     "write_file",
@@ -59,6 +61,9 @@ WRITE_CLASS_TOOLS = frozenset({
     "computer_click",
     "computer_type",
     "computer_key",
+    "create_goal",
+    "update_goal_progress",
+    "complete_goal",
 })
 
 

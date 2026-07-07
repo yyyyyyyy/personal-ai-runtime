@@ -16,7 +16,12 @@ from app.core.harness.builtin_tools.email import email_server
 from app.core.harness.builtin_tools.fetch import fetch_server
 from app.core.harness.builtin_tools.filesystem import filesystem_server
 from app.core.harness.builtin_tools.git import git_server
-from app.core.harness.builtin_tools.goals import goals_server
+from app.core.harness.builtin_tools.goals import (
+    _writer_complete_goal,
+    _writer_create_goal,
+    _writer_update_goal_progress,
+    goals_server,
+)
 from app.core.harness.builtin_tools.shell import shell_server
 from app.core.harness.builtin_tools.telegram_bot import telegram_bot_server
 from app.core.harness.builtin_tools.web_search import web_search_server
@@ -513,7 +518,7 @@ class MCPHub:
                 },
                 "required": ["title"],
             },
-            handler=goals_server.create_goal,
+            handler=_writer_create_goal,
             requires_confirmation=True,
         ))
 
@@ -529,7 +534,7 @@ class MCPHub:
                 },
                 "required": ["goal_id", "progress"],
             },
-            handler=goals_server.update_progress,
+            handler=_writer_update_goal_progress,
             requires_confirmation=True,
         ))
 
@@ -544,7 +549,7 @@ class MCPHub:
                 },
                 "required": ["goal_id"],
             },
-            handler=goals_server.complete_goal,
+            handler=_writer_complete_goal,
             requires_confirmation=True,
         ))
 
