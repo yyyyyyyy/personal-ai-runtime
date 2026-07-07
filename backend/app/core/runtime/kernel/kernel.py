@@ -692,14 +692,22 @@ class Kernel(QueryStateMixin, GovernanceMixin, SovereigntyMixin):
             return {"status": "pending", "approval_id": decision.approval_id}
 
         # Decision is "allow" — execute the tool
+        import time as _time
+        _t0 = _time.perf_counter()
         try:
             result_str = await mcp_hub.invoke_tool(name, args)
+            _latency_ms = (_time.perf_counter() - _t0) * 1000
 
             self.emit_event(
                 type="CapabilityInvoked",
                 aggregate_type="capability",
                 aggregate_id=f"cap_{name}",
-                payload={"name": name, "args_summary": str(args)[:200], "result_summary": str(result_str)[:200]},
+                payload={
+                    "name": name,
+                    "args_summary": str(args)[:200],
+                    "result_summary": str(result_str)[:200],
+                    "latency_ms": round(_latency_ms, 2),
+                },
                 actor=principal.actor,
                 caused_by=capability_caused_by,
                 correlation_id=correlation_id,
@@ -715,11 +723,16 @@ class Kernel(QueryStateMixin, GovernanceMixin, SovereigntyMixin):
                     )
             return {"status": "success", "result": result_str}
         except Exception as exc:
+            _latency_ms = (_time.perf_counter() - _t0) * 1000
             self.emit_event(
                 type="CapabilityFailed",
                 aggregate_type="capability",
                 aggregate_id=f"cap_{name}",
-                payload={"name": name, "error": str(exc)},
+                payload={
+                    "name": name,
+                    "error": str(exc),
+                    "latency_ms": round(_latency_ms, 2),
+                },
                 actor=principal.actor,
                 caused_by=capability_caused_by,
                 correlation_id=correlation_id,

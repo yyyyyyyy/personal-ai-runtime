@@ -127,8 +127,8 @@ BASELINE = {
     "event_types": 55,                 # +3 (InboxEmailStatusChanged/Notified/Digested — replace direct UPDATEs)
     "query_state_selectors": 12,       # +1 (goals alias → work_items, v1.0 Phase 4)
     "fragments": 10,                   # register.py
-    "governed_tables": 12,             # +1 (inbox_emails promoted from APP_STORAGE)
-    "projector_files": 8,              # +1 (projectors_inbox.py)
+    "governed_tables": 13,             # +1 (tool_calls promoted from APP_STORAGE, closes Survival Critical #1)
+    "projector_files": 9,              # +1 (projectors_telemetry.py)
     "god_object_max_loc": 1910,        # +17 (kernel_query_state inbox filters extended)
     "dead_code_files": 0,              # 已知死代码文件数
 }

@@ -26,7 +26,6 @@ from app.core.harness.builtin_tools.shell import shell_server
 from app.core.harness.builtin_tools.telegram_bot import telegram_bot_server
 from app.core.harness.builtin_tools.web_search import web_search_server
 from app.core.runtime.runtime_container import _LazyProxy, runtime
-from app.core.telemetry.telemetry import ToolCallRecord, telemetry
 
 
 @dataclass
@@ -762,24 +761,15 @@ class MCPHub:
             else:
                 result = cast(str, tool.handler(**arguments))
 
-            latency = (time.time() - start_time) * 1000
-            telemetry.record_tool_call(ToolCallRecord(
-                tool_name=name,
-                success=True,
-                latency_ms=latency,
-            ))
+            # v0.3.0: tool_calls is now a governed projection. Capability*
+            # events emitted by kernel.invoke_capability flow through
+            # projectors_telemetry.py, which owns the INSERT. Recording
+            # here was a dual-write that could drift (Critical #1).
 
             if isinstance(result, str) and len(result) > 8000:
                 result = result[:8000] + "\n... [output truncated]"
             return result
         except Exception as e:
-            latency = (time.time() - start_time) * 1000
-            telemetry.record_tool_call(ToolCallRecord(
-                tool_name=name,
-                success=False,
-                latency_ms=latency,
-                error_message=str(e),
-            ))
             return json.dumps({"error": str(e)})
 
 

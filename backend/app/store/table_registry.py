@@ -22,6 +22,10 @@ GOVERNED_TABLES: frozenset[str] = frozenset({
     # v0.3.0: promoted from APP_STORAGE — derived solely from InboxEmail* events
     # via projectors_inbox.py so the table is fully rebuildable from event_log.
     "inbox_emails",
+    # v0.3.0: promoted from APP_STORAGE — derived solely from Capability* events
+    # via projectors_telemetry.py. Every row maps 1:1 to a CapabilityInvoked,
+    # CapabilityFailed, or CapabilityDenied event in event_log.
+    "tool_calls",
 })
 
 # Application storage (direct read/write outside Kernel ABI is allowed).
@@ -39,9 +43,6 @@ APP_STORAGE_TABLES: frozenset[str] = frozenset({
     # LLM call telemetry (latency, tokens, cost). Observational metric, not a
     # governed fact. Reconstructable from llm_egress audit + event stream.
     "llm_calls",
-    # Tool call telemetry — observational; the authoritative capability
-    # invocation record is the CapabilityInvoked/CapabilityFailed event.
-    "tool_calls",
     # Background task queue state; lifecycle is governed by BackgroundTask*
     # events in event_log. This table is a worker-scratch view.
     "background_tasks",
@@ -117,6 +118,9 @@ GOVERNED_SCHEMA: dict[str, frozenset[str]] = {
         "id", "server_id", "sender", "subject", "date", "preview",
         "full_text", "status", "category", "importance", "reason",
         "notified", "digested", "created_at", "received_at",
+    }),
+    "tool_calls": frozenset({
+        "id", "tool_name", "success", "latency_ms", "error_message", "created_at",
     }),
 }
 
