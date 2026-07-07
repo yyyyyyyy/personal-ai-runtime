@@ -16,6 +16,7 @@ import logging
 
 from app.config import settings
 from app.core.runtime.kernel_instance import kernel
+from app.store.database import db  # v0.3.0: APP_STORAGE access via public singleton
 
 logger = logging.getLogger(__name__)
 
@@ -227,7 +228,9 @@ class RuntimeLoop:
         max_retries = 5
         batch_size = 10
         now_iso = datetime.now(UTC).isoformat()
-        db = kernel._db
+        # v0.3.0: use the public db singleton instead of kernel._db.
+        # memory_index_repairs is APP_STORAGE (non-governed) — direct
+        # access is allowed per the boundary contract.
 
         with db.get_db() as conn:
             rows = conn.execute(
