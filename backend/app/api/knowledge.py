@@ -63,6 +63,20 @@ def _save_documents(docs: dict[str, dict]) -> None:
                  updated_at = excluded.updated_at""",
             (KNOWLEDGE_CATEGORY, json.dumps(docs, ensure_ascii=False), now),
         )
+    # v0.3.0: emit audit event so knowledge-doc updates are visible in the
+    # event stream. Metadata only — document content stays in app_settings.
+    from app.core.runtime.kernel_instance import kernel
+    kernel.emit_event(
+        "AppConfigChanged",
+        "app_config",
+        KNOWLEDGE_CATEGORY,
+        payload={
+            "category": KNOWLEDGE_CATEGORY,
+            "doc_count": len(docs),
+            "updated_at": now,
+        },
+        actor="user",
+    )
 
 
 def _chunk_text(text: str, chunk_size: int = 1000, overlap: int = 100) -> list[str]:

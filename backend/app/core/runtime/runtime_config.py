@@ -443,6 +443,17 @@ class RuntimeConfig:
                          updated_at = excluded.updated_at""",
                     (category, json.dumps({"content": content, "key": key}, ensure_ascii=False), now),
                 )
+            # v0.3.0: emit audit event so config changes are visible in the
+            # event stream. The payload is metadata only — prompt content
+            # stays in app_settings (it may contain sensitive content).
+            from app.core.runtime.kernel_instance import kernel
+            kernel.emit_event(
+                "AppConfigChanged",
+                "app_config",
+                category,
+                payload={"category": category, "updated_at": now},
+                actor="user",
+            )
             # Invalidate cache to reload prompts
             invalidate_runtime_config_cache()
         except Exception:
