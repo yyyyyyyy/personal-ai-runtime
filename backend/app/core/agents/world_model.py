@@ -79,3 +79,8 @@ class WorldModel:
 
 
 world_model = WorldModel()
+
+
+def reset_world_model() -> None:
+    """Clear the world model cache so the next read rebuilds (test isolation)."""
+    world_model._cached_snapshot = None

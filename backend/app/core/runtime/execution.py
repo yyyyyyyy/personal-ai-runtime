@@ -66,6 +66,11 @@ class IdentityResolver:
 identity_resolver = IdentityResolver()
 
 
+def reset_identity_resolver() -> None:
+    """No-op — IdentityResolver is stateless (frozenset + string ops)."""
+    pass
+
+
 # ── Execution Scope (ContextVar binding) ─────────────────────────────────────
 
 _current_execution_id: contextvars.ContextVar[str | None] = contextvars.ContextVar(

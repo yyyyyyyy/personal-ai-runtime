@@ -40,3 +40,8 @@ async def push(correlation_id: str, payload: dict) -> None:
         q.put_nowait(payload)
     except asyncio.QueueFull:
         logger.warning("SSE queue full for %s, dropping delta", correlation_id)
+
+
+def reset_sse_queues() -> None:
+    """Clear the in-memory SSE queue registry (test isolation)."""
+    _registry.clear()

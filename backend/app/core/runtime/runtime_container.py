@@ -291,6 +291,24 @@ class RuntimeContainer:
             reset_handlers()
             from app.context_runtime import reset_fragment_registry
             reset_fragment_registry()
+            # v0.3.0 trivial singleton resets — closes Survival Medium #13 for
+            # the low-hanging fruit.  These modules hold either no mutable state
+            # (identity_resolver, sensitive_router) or state that is safe to
+            # reset synchronously (caches, queues, telemetry instance).
+            from app.core.runtime.sse_queue_registry import reset_sse_queues
+            reset_sse_queues()
+            from app.core.runtime.kernel.kernel import clear_pending_memory_index_repairs
+            clear_pending_memory_index_repairs()
+            from app.chat.prompt_compiler import reset_prompt_compiler
+            reset_prompt_compiler()
+            from app.core.agents.world_model import reset_world_model
+            reset_world_model()
+            from app.core.telemetry.telemetry import reset_telemetry
+            reset_telemetry()
+            from app.core.runtime.execution import reset_identity_resolver
+            reset_identity_resolver()
+            from app.core.runtime.sensitive_router import reset_sensitive_router
+            reset_sensitive_router()
 
 
 runtime = RuntimeContainer()

@@ -33,3 +33,8 @@ class SensitiveRouter:
 
 
 sensitive_router = SensitiveRouter()
+
+
+def reset_sensitive_router() -> None:
+    """No-op — SensitiveRouter is stateless (pattern matching only)."""
+    pass

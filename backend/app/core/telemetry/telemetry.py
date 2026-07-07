@@ -212,3 +212,9 @@ class Telemetry:
 
 
 telemetry = Telemetry()
+
+
+def reset_telemetry() -> None:
+    """Rebuild the telemetry singleton (test isolation)."""
+    global telemetry
+    telemetry = Telemetry()

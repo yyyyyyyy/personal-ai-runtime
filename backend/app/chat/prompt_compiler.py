@@ -75,3 +75,9 @@ class PromptCompiler:
 
 
 prompt_compiler = PromptCompiler()
+
+
+def reset_prompt_compiler() -> None:
+    """Rebuild the prompt_compiler singleton (test isolation)."""
+    global prompt_compiler
+    prompt_compiler = PromptCompiler()
