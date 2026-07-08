@@ -1,10 +1,13 @@
 #!/usr/bin/env python
-"""Goal rebuild verification — validate parent_id and Execution chain.
+"""Goal rebuild verification — validate parent-child relationships in work_items.
+
+v1.0: goals table dropped; goal rows live in work_items (work_type='goal').
+Children reference the parent goal via parent_goal_id.
 
 Verifies:
 1. All goal rows exist after rebuild
-2. parent_id references are valid (parent exists in goals + event_log)
-3. Goal + action provenance chain is intact
+2. parent_goal_id references are valid (parent exists + event_log)
+3. Goal parent-child chain is intact
 """
 
 import os
@@ -33,10 +36,12 @@ def main():
     k = Kernel(db=db)
 
     k.emit_event("WorkItemCreated", "work_item", "goal_parent", payload={
-        "title": "Parent Goal", "importance": 0.9,
+        "title": "Parent Goal", "importance": 0.9, "work_type": "goal",
+        "status": "active",
     }, actor="verify")
     k.emit_event("WorkItemCreated", "work_item", "goal_child", payload={
-        "title": "Child Goal", "parent_id": "goal_parent", "importance": 0.5,
+        "title": "Child Goal", "parent_goal_id": "goal_parent",
+        "importance": 0.5, "work_type": "goal", "status": "active",
     }, actor="verify")
     k.emit_event("WorkItemUpdated", "work_item", "goal_child", payload={
         "progress": 0.3,
@@ -45,7 +50,8 @@ def main():
     with db.get_db() as conn:
         conn.execute("PRAGMA foreign_keys = OFF")
         rows = conn.execute(
-            "SELECT id, title, parent_id, progress FROM goals ORDER BY id"
+            "SELECT id, title, parent_goal_id, progress "
+            "FROM work_items WHERE work_type = 'goal' ORDER BY id"
         ).fetchall()
 
         if len(rows) < 2:
@@ -56,16 +62,18 @@ def main():
         parent = [r for r in rows if r["id"] == "goal_parent"][0]
 
         assert parent is not None, "Parent goal not found"
-        assert child["parent_id"] == "goal_parent", \
-            f"Child parent_id mismatch: {child['parent_id']}"
+        assert child["parent_goal_id"] == "goal_parent", \
+            f"Child parent_goal_id mismatch: {child['parent_goal_id']}"
         assert child["progress"] is not None, "Progress not updated"
 
         found = conn.execute(
-            "SELECT 1 FROM event_log WHERE aggregate_type='goal' AND aggregate_id=? LIMIT 1",
-            (child["parent_id"],),
+            "SELECT 1 FROM event_log "
+            "WHERE aggregate_type='work_item' AND aggregate_id=? LIMIT 1",
+            (child["parent_goal_id"],),
         ).fetchone()
         if not found:
-            print(f"FAIL: parent {child['parent_id']!r} not in event_log", file=sys.stderr)
+            print(f"FAIL: parent {child['parent_goal_id']!r} not in event_log",
+                  file=sys.stderr)
             sys.exit(1)
 
     # Rebuild and verify intact
@@ -74,10 +82,11 @@ def main():
     with db.get_db() as conn:
         conn.execute("PRAGMA foreign_keys = OFF")
         rows = conn.execute(
-            "SELECT id FROM goals ORDER BY id"
+            "SELECT id FROM work_items WHERE work_type = 'goal' ORDER BY id"
         ).fetchall()
         if len(rows) < 2:
-            print(f"FAIL: after rebuild, expected >=2 goals, got {len(rows)}", file=sys.stderr)
+            print(f"FAIL: after rebuild, expected >=2 goals, got {len(rows)}",
+                  file=sys.stderr)
             sys.exit(1)
 
     try:
@@ -86,7 +95,7 @@ def main():
         pass
 
     print("GOAL REBUILD VERIFICATION PASSED — "
-          "goals with parent_id traceable to event_log")
+          "goals with parent_goal_id traceable to event_log")
     return 0
 
 
