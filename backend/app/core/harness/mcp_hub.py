@@ -5,7 +5,6 @@ enhanced filesystem tools backed by dedicated server modules.
 """
 
 import json
-import time
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, cast
@@ -754,7 +753,6 @@ class MCPHub:
         if not tool:
             return json.dumps({"error": f"Unknown tool: {name}"})
 
-        start_time = time.time()
         try:
             if tool.is_async:
                 result = await cast(Awaitable[str], tool.handler(**arguments))

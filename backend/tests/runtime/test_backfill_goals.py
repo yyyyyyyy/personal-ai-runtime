@@ -122,9 +122,9 @@ def test_backfill_dry_run_does_not_emit(kernel_with_legacy_goals):
 
 def test_backfill_empty_goals_table_no_op(tmp_path):
     """Backfill on a DB with no goals is a clean no-op."""
-    from scripts.backfill_goals_to_work_items import backfill
     from app.core.runtime.kernel import Kernel
     from app.store.database import Database
+    from scripts.backfill_goals_to_work_items import backfill
 
     db_path = str(tmp_path / "empty.db")
     db = Database(db_path=db_path)

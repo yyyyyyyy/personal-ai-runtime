@@ -9,6 +9,7 @@ from pathlib import Path
 import pytest
 
 from app.context_runtime import FragmentRegistry
+from app.core.runtime.execution import Principal
 from app.core.runtime.governance.context_policy import (
     CompilePlan,
     CompileRequest,
@@ -16,7 +17,6 @@ from app.core.runtime.governance.context_policy import (
 )
 from app.core.runtime.governance.fragment_selector import FragmentSelector
 from app.core.runtime.governance.query_analyzer import AnalysisResult, QueryAnalyzer
-from app.core.runtime.execution import Principal
 from app.fragments.register import register_all_fragments
 
 _PIPELINE_PATH = (

@@ -4,7 +4,6 @@ import os
 
 os.environ.setdefault("LLM_API_KEY", "test-key")
 
-import pytest
 
 
 def test_health_check_ok_after_normal_construction():
@@ -21,8 +20,8 @@ def test_health_check_ok_after_normal_construction():
 
 def test_health_check_failed_when_registration_raises(monkeypatch):
     """When register_all_fragments raises, health_check reports failed."""
-    from app.core.runtime.governance.context_pipeline import ContextPipeline
     import app.fragments.register as reg_mod
+    from app.core.runtime.governance.context_pipeline import ContextPipeline
 
     def _boom(registry):
         raise RuntimeError("simulated DB unavailable")
@@ -37,8 +36,8 @@ def test_health_check_failed_when_registration_raises(monkeypatch):
 
 def test_health_check_records_count_even_on_failure(monkeypatch):
     """Even on registration failure, registered_count reflects partial state."""
-    from app.core.runtime.governance.context_pipeline import ContextPipeline
     import app.fragments.register as reg_mod
+    from app.core.runtime.governance.context_pipeline import ContextPipeline
 
     def _partial(registry):
         # Register one fragment before failing so we can verify the count.

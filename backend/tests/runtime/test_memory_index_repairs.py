@@ -12,13 +12,12 @@ import os
 
 os.environ.setdefault("LLM_API_KEY", "test-key")
 
-import pytest
 
 
 def _fresh_kernel(tmp_path, *, memory_index=None):
     """Build an isolated Kernel against tmp_path with optional memory_index."""
-    from app.store.database import Database
     from app.core.runtime.kernel import Kernel
+    from app.store.database import Database
 
     db = Database(db_path=str(tmp_path / "repairs.db"))
     return Kernel(db=db, memory_index=memory_index)
@@ -96,8 +95,8 @@ def test_repair_row_survives_kernel_restart(tmp_path):
     """The durable row must survive when the in-memory deque is destroyed."""
     db_path = str(tmp_path / "repairs.db")
 
-    from app.store.database import Database
     from app.core.runtime.kernel import Kernel
+    from app.store.database import Database
 
     db1 = Database(db_path=db_path)
     k1 = Kernel(db=db1, memory_index=_BrokenIndex())

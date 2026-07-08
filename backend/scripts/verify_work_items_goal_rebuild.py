@@ -26,7 +26,6 @@ os.environ.setdefault("LLM_API_KEY", "test-key")
 from app.core.runtime.kernel import Kernel
 from app.store.database import Database
 
-
 SCENARIO: list[tuple] = [
     # Create a parent goal
     ("WorkItemCreated", "work_item", "wg_1", {

@@ -13,8 +13,7 @@ import pytest
 
 os.environ.setdefault("LLM_API_KEY", "test-key")
 
-from app.core.runtime.kernel import Kernel
-from app.core.runtime.kernel import constants
+from app.core.runtime.kernel import Kernel, constants
 from app.product.inbox import apply_inbox_poll_payload, generate_inbox_digest, poll_inbox
 from app.store.database import Database
 

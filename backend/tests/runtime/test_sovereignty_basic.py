@@ -50,7 +50,7 @@ def test_export_chat_rows_and_bootstrap(kernel):
         "MessageAppended",
         "conversation",
         "c1",
-        payload={'work_type': 'goal', 
+        payload={'work_type': 'goal',
             "message_id": "m1",
             "role": "user",
             "content": "hi",

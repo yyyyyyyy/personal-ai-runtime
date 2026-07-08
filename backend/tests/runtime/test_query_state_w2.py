@@ -31,7 +31,7 @@ class TestQueryStateW2:
             "WorkItemCreated",
             "work_item",
             "g-due",
-            payload={'work_type': 'goal', 
+            payload={'work_type': 'goal',
                 "title": "Due",
                 "status": "active",
                 "deadline": "2099-12-31T00:00:00",

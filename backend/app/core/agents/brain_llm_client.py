@@ -20,6 +20,7 @@ from app.core.agents.tool_markup import strip_tool_markup
 from app.core.runtime.egress.egress_gate import prepare_llm_egress
 from app.core.runtime.kernel_instance import kernel
 from app.core.runtime.runtime_config import runtime_config
+
 # v0.3.0: telemetry writes go through kernel.emit_event (LLMCallRecorded)
 # instead of telemetry.record_llm_call direct INSERT.
 

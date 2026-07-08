@@ -5,7 +5,6 @@ v0.11.0: _next_cron_fire format tests removed — they assert ISO timestamp
 details and break on any refactor. Runtime behaviour is covered by
 test_scheduler.py and test_runtime_config.py.
 """
-from app.core.runtime.runtime_loop import RuntimeLoop
 
 
 class TestTimerEngineCron:
@@ -13,7 +12,6 @@ class TestTimerEngineCron:
         """Verify timer events can be created via cron_registry init."""
         k, db = isolated_kernel
         import app.core.runtime.cron_registry as cr
-
         from app.core.runtime.cron_registry import _init_timers
 
         old_kernel = cr.kernel

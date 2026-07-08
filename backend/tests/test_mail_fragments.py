@@ -52,7 +52,7 @@ class TestFragmentRegistry:
         assert registry.get("nonexistent") is None
 
     def test_fragment_registry_list_ids(self):
-        from app.fragments.mail import RecentEmailsFragment, EmailSearchFragment
+        from app.fragments.mail import EmailSearchFragment, RecentEmailsFragment
 
         registry = FragmentRegistry()
         registry.register(RecentEmailsFragment())
@@ -75,7 +75,7 @@ class TestFragmentRegistry:
 
 class TestRuntimeGovernanceGuarantees:
     def test_fragment_does_not_hold_kernel_reference(self):
-        from app.fragments.mail import RecentEmailsFragment, EmailSearchFragment
+        from app.fragments.mail import EmailSearchFragment, RecentEmailsFragment
 
         for f in [RecentEmailsFragment(), EmailSearchFragment()]:
             assert not hasattr(f, "_kernel")

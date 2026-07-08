@@ -21,7 +21,6 @@ entirely and rendering ``requires_confirmation=True`` a no-op.
 import json
 import uuid
 
-
 # ─── Capability handlers (called by mcp_hub after gate allows) ──────────────
 # These own the emit_event side effects. Registered as tool handlers below.
 

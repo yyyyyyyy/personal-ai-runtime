@@ -16,7 +16,6 @@ a paired CapabilityInvoked will fail.
 """
 import json
 import os
-from pathlib import Path
 
 os.environ.setdefault("LLM_API_KEY", "test-key")
 
