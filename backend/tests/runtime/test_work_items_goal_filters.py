@@ -10,25 +10,31 @@ import pytest
 @pytest.fixture
 def kernel_with_goal_work_items(tmp_path):
     """Seed work_items with goal rows for filter testing."""
+    from datetime import datetime, timedelta, UTC
+
     from app.core.runtime.kernel import Kernel
     from app.store.database import Database
 
     k = Kernel(db=Database(db_path=str(tmp_path / "work_items_goals.db")))
 
-    # Active high-importance goal with deadline
+    now = datetime.now(UTC)
+    old  = (now - timedelta(days=10)).strftime("%Y-%m-%dT%H:%M:%SZ")
+    recent = (now - timedelta(days=1)).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+    # Active high-importance goal with deadline (old, should match older_than_days=3)
     k.emit_event("WorkItemCreated", "work_item", "g_active_1", payload={
         "title": "Important active goal",
         "work_type": "goal", "status": "active",
         "importance": 0.9, "urgency": 0.3,
         "deadline": "2026-12-01T00:00:00Z",
-        "last_activity_at": "2026-06-01T00:00:00Z",
+        "last_activity_at": old,
     })
-    # Active lower-importance goal, no deadline
+    # Active lower-importance goal, no deadline (recent, should NOT match)
     k.emit_event("WorkItemCreated", "work_item", "g_active_2", payload={
         "title": "Less urgent goal",
         "work_type": "goal", "status": "active",
         "importance": 0.5, "urgency": 0.5,
-        "last_activity_at": "2026-07-04T00:00:00Z",
+        "last_activity_at": recent,
     })
     # Completed goal
     k.emit_event("WorkItemCreated", "work_item", "g_done_1", payload={
@@ -109,7 +115,7 @@ def test_last_activity_asc_order(kernel_with_goal_work_items):
         "work_items", work_type="goal", status="active",
         order="last_activity_asc", limit=10,
     )
-    # g_active_1 (Jun 1) before g_active_2 (Jul 4)
+    # g_active_1 (10 days ago) before g_active_2 (1 day ago)
     assert rows[0]["id"] == "g_active_1"
 
 
