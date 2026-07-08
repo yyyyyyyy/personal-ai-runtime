@@ -2,7 +2,7 @@ import { useState, useCallback } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import remarkBreaks from "remark-breaks";
-import { Copy, Check, Brain, Mail, Target } from "lucide-react";
+import { Copy, Check, Brain, Mail, Target, FileText } from "lucide-react";
 import ToolCallDisplay from "./ToolCallDisplay";
 import { CodeBlock } from "./CodeBlock";
 import { stripToolMarkup } from "../../utils/stripToolMarkup";
@@ -87,16 +87,19 @@ function SourceBadge({ source }: { source: SourceCitation }) {
     memory: <Brain size={10} />,
     email: <Mail size={10} />,
     goal: <Target size={10} />,
+    document: <FileText size={10} />,
   };
   const colorMap = {
     memory: "bg-purple-900/30 text-purple-300 border-purple-700/50",
     email: "bg-amber-900/30 text-amber-300 border-amber-700/50",
     goal: "bg-green-900/30 text-green-300 border-green-700/50",
+    document: "bg-blue-900/30 text-blue-300 border-blue-700/50",
   };
   const labelMap = {
     memory: "记忆",
     email: "邮件",
     goal: "目标",
+    document: "文档",
   };
 
   return (
@@ -211,12 +214,14 @@ export default function MessageItem({ message }: Props) {
           </div>
         )}
 
-        {/* Source citations — "I Remember" markers */}
+        {/* Source citations — memory + document references */}
         {isAssistant && message.sources && message.sources.length > 0 && !message.isStreaming && (
           <div className="mt-3 pt-2 border-t border-gray-700/50">
             <div className="flex items-center gap-1.5 text-xs text-purple-400 font-medium mb-2">
               <Brain size={12} />
-              <span>我记得</span>
+              <span>
+                {message.sources.some((s) => s.type === "document") ? "参考来源" : "我记得"}
+              </span>
             </div>
             <div className="flex flex-wrap gap-1.5">
               {message.sources.map((source, idx) => (

@@ -28,3 +28,21 @@ export async function getMemoryStats(): Promise<MemoryStats> {
 export async function getHealth(): Promise<HealthSnapshot> {
   return request<HealthSnapshot>(`${API_BASE}/telemetry/health`);
 }
+
+export interface GovernanceSummary {
+  window_days: number;
+  tools_invoked: number;
+  tools_denied: number;
+  tools_deferred: number;
+  approvals_requested: number;
+  approvals_approved: number;
+  approvals_rejected: number;
+  approvals_expired: number;
+  taint_elevated: number;
+  by_tool: Record<string, number>;
+  denied_tools: Record<string, number>;
+}
+
+export async function getGovernanceSummary(days = 7): Promise<GovernanceSummary> {
+  return request<GovernanceSummary>(`${API_BASE}/telemetry/governance?days=${days}`);
+}

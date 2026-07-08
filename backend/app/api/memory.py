@@ -31,7 +31,7 @@ async def list_memories_grouped(limit: int = 100):
 
 @router.post("/memories")
 async def create_memory(body: CreateMemoryRequest):
-    """Create a new memory manually."""
+    """Create a new memory manually. **@public** SDK surface — external agents may call this to store a fact."""
     content = body.content
     category = body.category or "fact"
 
@@ -44,10 +44,41 @@ async def create_memory(body: CreateMemoryRequest):
 
 @router.get("/memories/search")
 async def search_memories(q: str, n: int = 5):
-    """Search memories semantically."""
+    """Search memories semantically. **@public** SDK surface — external agents may call this to recall what the user knows."""
     if not q:
         raise HTTPException(status_code=400, detail="Query parameter 'q' is required")
     return memory_engine.search_relevant_memories(q, n_results=n)
+
+
+@router.get("/memories/{memory_id}/provenance")
+async def get_memory_provenance(memory_id: str):
+    """Return the full event chain for a memory — the explainability backbone.
+
+    Surfaces every Memory* event (Derived/Updated/Decayed/Deleted) plus
+    claim-status transitions, so the frontend can render:
+      "conversation → MemoryExtractor → derived (conf 0.85)
+       → decayed to 0.6 after 30d → ratified to 0.95"
+
+    This is the EVENT primitive's product payoff: unlike opaque memory stores,
+    every belief is fully reconstructable from its event history.
+    """
+    if not _get_memory(memory_id):
+        raise HTTPException(status_code=404, detail="Memory not found")
+
+    events = kernel.read_events(
+        aggregate_type="memory", aggregate_id=memory_id, order="asc"
+    )
+    chain = []
+    for evt in events:
+        chain.append({
+            "seq": evt.seq,
+            "type": evt.type,
+            "ts": evt.ts,
+            "actor": evt.actor,
+            "payload": evt.payload,
+            "correlation_id": evt.correlation_id,
+        })
+    return {"memory_id": memory_id, "events": chain}
 
 
 @router.delete("/memories/{memory_id}")

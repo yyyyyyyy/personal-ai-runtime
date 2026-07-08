@@ -22,20 +22,34 @@ class MemoryEngine:
         source: str | None = None,
         actor: str = "user",
         confidence: float = 0.5,
+        source_document_id: str | None = None,
+        source_document_name: str | None = None,
     ) -> str:
-        """Store a memory via Kernel event; Chroma index syncs in Kernel Space."""
+        """Store a memory via Kernel event; Chroma index syncs in Kernel Space.
+
+        When the memory was derived from a knowledge-base document (e.g. the
+        user discussed an uploaded PDF and the extractor captured a fact from
+        that discussion), pass source_document_id / source_document_name to
+        record the provenance link. The frontend can then show "derived from:
+        <doc>" and jump to the document.
+        """
         memory_id = str(uuid.uuid4())
+        payload: dict[str, object] = {
+            "category": category,
+            "content": content,
+            "source": source or "",
+            "confidence": confidence,
+        }
+        if source_document_id:
+            payload["source_document_id"] = source_document_id
+        if source_document_name:
+            payload["source_document_name"] = source_document_name
 
         kernel.emit_event(
             type="MemoryDerived",
             aggregate_type="memory",
             aggregate_id=memory_id,
-            payload={
-                "category": category,
-                "content": content,
-                "source": source or "",
-                "confidence": confidence,
-            },
+            payload=payload,
             actor=actor,
         )
         return memory_id

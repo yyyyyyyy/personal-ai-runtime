@@ -176,7 +176,7 @@ class TestPromptCompilerArtifactAssembly:
         from app.core.runtime.governance.context_pipeline import ContextPipeline
 
         monkeypatch.setattr(
-            "app.core.runtime.read_ports.retrieve_memory_with_sources",
+            "app.core.runtime.read_ports.retrieve_unified_with_sources",
             lambda msg, **kwargs: ("", []),
         )
         monkeypatch.setattr(

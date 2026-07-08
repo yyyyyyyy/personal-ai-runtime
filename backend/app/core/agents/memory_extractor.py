@@ -76,12 +76,19 @@ class MemoryExtractor:
         self,
         conversation_text: str,
         source: str = "conversation",
+        *,
+        source_document_id: str | None = None,
+        source_document_name: str | None = None,
     ) -> list[str]:
         """Extract facts and store each as a MemoryDerived belief. Returns stored facts.
 
         Deduplication: before storing a fact, a semantic recall is performed.
         If an existing memory is highly similar, the fact is skipped to avoid
         polluting the memory store with near-duplicates.
+
+        When source_document_id is provided, every extracted memory is linked
+        back to that document, establishing the Memory ↔ Knowledge provenance
+        chain used by the "derived from" UI.
         """
         if not conversation_text.strip():
             return []
@@ -100,6 +107,8 @@ class MemoryExtractor:
                 category="fact",
                 source=source,
                 actor="extractor",
+                source_document_id=source_document_id,
+                source_document_name=source_document_name,
             )
             stored.append(fact)
         return stored
@@ -130,7 +139,14 @@ class MemoryExtractor:
                 return True
         return False
 
-    def schedule(self, conversation_text: str, source: str = "conversation") -> None:
+    def schedule(
+        self,
+        conversation_text: str,
+        source: str = "conversation",
+        *,
+        source_document_id: str | None = None,
+        source_document_name: str | None = None,
+    ) -> None:
         """Schedule extraction without blocking the caller (fire-and-forget).
 
         The created task is registered in ``self._pending_tasks`` and removed
@@ -140,7 +156,12 @@ class MemoryExtractor:
 
         async def _run() -> None:
             try:
-                await self.extract_and_store(conversation_text, source=source)
+                await self.extract_and_store(
+                    conversation_text,
+                    source=source,
+                    source_document_id=source_document_id,
+                    source_document_name=source_document_name,
+                )
             except Exception:
                 logger.exception("Memory extraction failed")
 

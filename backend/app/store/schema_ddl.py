@@ -67,6 +67,8 @@ CREATE TABLE IF NOT EXISTS memories (
     status TEXT DEFAULT 'active',
     origin TEXT DEFAULT 'claim',
     claim_status TEXT,
+    source_document_id TEXT,
+    source_document_name TEXT,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 """

@@ -10,6 +10,7 @@ import {
   getToolSummary,
   getMemoryStats,
   getHealth,
+  getGovernanceSummary,
 } from "./telemetry";
 import type {
   CostSummary,
@@ -19,6 +20,7 @@ import type {
   HealthSnapshot,
 } from "./types";
 import type { DashboardData } from "./types";
+import type { GovernanceSummary } from "./telemetry";
 
 export interface TrustReportData {
   system: SystemInfo;
@@ -28,11 +30,12 @@ export interface TrustReportData {
   tools: ToolSummaryItem[];
   memory: MemoryStats;
   health: HealthSnapshot;
+  governance: GovernanceSummary;
   dashboard: DashboardData | null;
 }
 
 export async function getTrustReport(): Promise<TrustReportData> {
-  const [system, approvals, cost, costByModel, tools, memory, health, dashboard] =
+  const [system, approvals, cost, costByModel, tools, memory, health, governance, dashboard] =
     await Promise.all([
       fetchSystemInfo(),
       listEnrichedPendingApprovals(),
@@ -41,8 +44,9 @@ export async function getTrustReport(): Promise<TrustReportData> {
       getToolSummary(7),
       getMemoryStats(),
       getHealth(),
+      getGovernanceSummary(7).catch(() => null),
       getDashboard().catch(() => null),
     ]);
 
-  return { system, approvals, cost, costByModel, tools, memory, health, dashboard };
+  return { system, approvals, cost, costByModel, tools, memory, health, governance: governance!, dashboard };
 }

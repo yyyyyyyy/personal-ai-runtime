@@ -14,6 +14,7 @@ from pathlib import Path
 from fastapi import APIRouter, File, HTTPException, Query, UploadFile
 
 from app.store.database import db
+from app.store.text_chunker import ChunkConfig, chunk_text
 from app.store.vector import vector_store
 
 logger = logging.getLogger(__name__)
@@ -21,7 +22,7 @@ router = APIRouter(prefix="/api/knowledge", tags=["knowledge"])
 
 KNOWLEDGE_CATEGORY = "knowledge_docs"
 MAX_FILE_SIZE = 10 * 1024 * 1024
-ALLOWED_EXTENSIONS = {".pdf", ".md", ".txt", ".markdown", ".json", ".csv"}
+ALLOWED_EXTENSIONS = {".pdf", ".md", ".txt", ".markdown", ".json", ".csv", ".docx"}
 
 _MAX_FILENAME_LENGTH = 200
 _FILENAME_CONTROL_RE = re.compile(r"[\x00-\x1f\x7f]")
@@ -79,18 +80,6 @@ def _save_documents(docs: dict[str, dict]) -> None:
     )
 
 
-def _chunk_text(text: str, chunk_size: int = 1000, overlap: int = 100) -> list[str]:
-    chunks = []
-    start = 0
-    while start < len(text):
-        end = min(start + chunk_size, len(text))
-        chunk = text[start:end].strip()
-        if chunk:
-            chunks.append(chunk)
-        start += chunk_size - overlap
-    return chunks
-
-
 def _extract_text(file_path: Path, filename: str) -> str:
     ext = Path(filename).suffix.lower()
     if ext in (".txt", ".md", ".markdown", ".csv"):
@@ -100,17 +89,27 @@ def _extract_text(file_path: Path, filename: str) -> str:
         return json.dumps(data, ensure_ascii=False, indent=2)
     elif ext == ".pdf":
         try:
-            import PyPDF2
-            reader = PyPDF2.PdfReader(str(file_path))
-            text = ""
-            for page in reader.pages:
-                text += page.extract_text() or ""
-            return text
-        except ImportError:
+            from pypdf import PdfReader
+        except ImportError as e:
             raise HTTPException(
                 status_code=500,
-                detail="PDF support requires PyPDF2. Install with: pip install PyPDF2",
-            )
+                detail="PDF support requires pypdf. Install with: pip install pypdf",
+            ) from e
+        reader = PdfReader(str(file_path))
+        text = ""
+        for page in reader.pages:
+            text += page.extract_text() or ""
+        return text
+    elif ext == ".docx":
+        try:
+            from docx import Document
+        except ImportError as e:
+            raise HTTPException(
+                status_code=500,
+                detail="DOCX support requires python-docx. Install with: pip install python-docx",
+            ) from e
+        doc = Document(str(file_path))
+        return "\n".join(p.text for p in doc.paragraphs if p.text.strip())
     else:
         raise HTTPException(status_code=400, detail=f"不支持的文件格式: {ext}")
 
@@ -144,7 +143,7 @@ async def upload_document(file: UploadFile = File(...)):
     if not text.strip():
         raise HTTPException(status_code=400, detail="文件内容为空")
 
-    chunks = _chunk_text(text)
+    chunks = chunk_text(text, ChunkConfig())
     doc_id = str(uuid.uuid4())
     chunk_ids = []
 
@@ -203,5 +202,6 @@ async def search_knowledge(
     query: str = Query(..., description="搜索查询"),
     n_results: int = Query(5, ge=1, le=20),
 ):
+    """Search knowledge documents semantically. **@public** SDK surface — external agents may call this to recall from the user's document library."""
     results = vector_store.search_knowledge(query, n_results=n_results)
     return {"results": results, "query": query, "total": len(results)}

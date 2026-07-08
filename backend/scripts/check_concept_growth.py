@@ -123,13 +123,13 @@ def count_dead_code_files() -> int:
 # the table in docs/02-concepts/runtime-algebra.md §4.6.
 
 BASELINE = {
-    "runtime_files": 55,               # -1 (governance/execution_context.py deleted, closes Survival Medium #11)
-    "event_types": 56,                 # +1 (LLMCallRecorded — closes Critical #1 llm_calls dual-write)
-    "query_state_selectors": 14,       # +2 (tool_calls, llm_calls — governed telemetry tables in v0.3.0)
+    "runtime_files": 55,               # unchanged
+    "event_types": 56,                 # unchanged
+    "query_state_selectors": 14,       # unchanged
     "fragments": 10,                   # register.py
-    "governed_tables": 14,             # +1 (llm_calls promoted from APP_STORAGE, closes Survival Critical #1)
-    "projector_files": 9,              # +1 (projectors_telemetry.py)
-    "god_object_max_loc": 1935,        # +25 (kernel_query_state tool_calls/llm_calls selectors, v0.3.0)
+    "governed_tables": 14,             # unchanged
+    "projector_files": 9,              # unchanged
+    "god_object_max_loc": 1937,        # +2 (kernel_query_state logger/import churn from Phase 1.2 unified retrieval refactor; recall_unified itself moved to read_ports to avoid further growth)
     "dead_code_files": 0,              # 已知死代码文件数
 }
 

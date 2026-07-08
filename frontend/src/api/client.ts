@@ -81,8 +81,15 @@ export {
   rejectMemory,
   contestMemory,
   getMemoryGraph,
+  getMemoryProvenance,
 } from "./memory";
-export type { MemoryGraphNode, MemoryGraphEdge, MemoryGraph } from "./memory";
+export type {
+  MemoryGraphNode,
+  MemoryGraphEdge,
+  MemoryGraph,
+  MemoryProvenance,
+  MemoryProvenanceEvent,
+} from "./memory";
 
 // Telemetry
 export {

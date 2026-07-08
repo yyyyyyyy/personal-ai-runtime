@@ -68,4 +68,30 @@ describe("Electron main process", () => {
   it("sets login item settings for auto-start", () => {
     expect(source).toContain("setLoginItemSettings");
   });
+
+  it("registers a privileged app:// scheme for production", () => {
+    expect(source).toContain("registerSchemesAsPrivileged");
+    expect(source).toContain("scheme: \"app\"");
+  });
+
+  it("has a registerAppProtocol function for serving frontend-dist", () => {
+    expect(source).toContain("function registerAppProtocol");
+    expect(source).toContain("protocol.handle");
+  });
+
+  it("installs an API proxy for /api and /ws in production", () => {
+    expect(source).toContain("function installApiProxy");
+    expect(source).toContain("webRequest.onBeforeRequest");
+  });
+
+  it("resolves web URL differently for packaged vs dev", () => {
+    expect(source).toContain("isPackaged");
+    expect(source).toContain("function resolveWebUrl");
+    expect(source).toContain("app://./index.html");
+  });
+
+  it("resolves backend dir from extraResources when packaged", () => {
+    expect(source).toContain("function resolveBackendDir");
+    expect(source).toContain("process.resourcesPath");
+  });
 });

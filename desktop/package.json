@@ -5,7 +5,8 @@
   "main": "main.js",
   "scripts": {
     "start": "electron .",
-    "build": "electron-builder",
+    "prebuild": "node prebuild.js",
+    "build": "npm run prebuild && electron-builder",
     "test": "vitest run --config vitest.config.js",
     "postinstall": "python3 generate_icon.py"
   },
@@ -28,7 +29,8 @@
       "main.js",
       "preload.js",
       "icon.png",
-      "generate_icon.py"
+      "generate_icon.py",
+      "frontend-dist/**/*"
     ],
     "extraResources": [
       {

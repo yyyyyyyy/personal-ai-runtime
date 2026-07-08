@@ -28,12 +28,15 @@ class BackgroundContextFragment(ContextFragment):
         parts: list[str] = []
         sources: list[dict] = []
 
-        # Memory recall
+        # Unified recall: memories + knowledge documents in one pass.
+        # This lets a single chat answer cite both personal memories and
+        # uploaded documents, instead of only memories (previously knowledge
+        # was only injected via the scenario-tier KnowledgeContextFragment).
         if ctx.user_message:
-            mem, mem_sources = read_ports.retrieve_memory_with_sources(ctx.user_message)
-            if mem:
-                parts.append(mem)
-                sources.extend(mem_sources)
+            ctx_str, ctx_sources = read_ports.retrieve_unified_with_sources(ctx.user_message)
+            if ctx_str:
+                parts.append(ctx_str)
+                sources.extend(ctx_sources)
 
         # World snapshot
         world = read_ports.query_world_context()

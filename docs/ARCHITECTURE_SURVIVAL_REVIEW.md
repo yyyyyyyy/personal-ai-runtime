@@ -25,6 +25,41 @@
 
 ---
 
+## 产品优先级重分级（2026-07-08，Memory-First 路线）
+
+> Survival Review 原按"架构纯洁性死亡风险"排序。Memory-First 产品化路线（Phase 1-2 完成后）重新按**是否阻碍产品价值交付**排序剩余 deferred 债务。
+
+### 原则
+
+- **阻碍产品价值**的债务优先级升到 P0/P1
+- **纯架构纯洁性**但产品无感的降级为 P3（允许存在）
+- 标准从"违反不变量"改为"用户/维护者是否因此受挫"
+
+### 重分级结果
+
+| 原 # | 标题 | 原严重 | 产品优先级 | 判定依据 |
+|---|---|---|---|---|
+| #1 (partial) | llm_calls 双写漂移 | Critical (deferred) | **P3 允许存在** | Phase 1-2 产品功能（记忆/知识/对话）完全不依赖 llm_calls 的重建一致性；Telemetry 仪表盘容忍 ±1% 误差。仅当遥测计费功能上线时才升 P1 |
+| #3 | Kernel 内部绕 ABI (runtime_loop/scheduler 直访 kernel._db) | High (deferred) | **P2 按需修** | 不阻碍任何用户可见功能；仅在重构 projector/runtime_loop 时有回归风险。下次触碰这两个模块时一并修，不单独排期 |
+| #5 | 无统一生命周期管理 | High | **P1 下个里程碑** | desktop 长期运行（产品化核心场景）直接受影响——僵尸进程/资源 leak 会导致"用着用着崩"。Phase 1.1 让 desktop 可离线分发后，此项从"理论风险"变"实际风险" |
+| #6 (partial) | CI flaky | High (partial) | **P0 持续投入** | CI 是所有重构的安全网；Phase 1-2 新增了 30+ 测试，flaky 会侵蚀信心。保持 xfail 不扩散 |
+| #8 | Kernel mixin 类型脆弱 | High | **P3 允许存在** | mypy ignore 已抑制；运行时无问题。纯工程审美，产品无感 |
+| #12 | dead schema (grant_events/triggers 表) | Medium | **P2 顺手清** | 不阻碍功能，但 table count 影响 concept_growth 契约的"诚实度"。下次 schema 迁移时一并 drop |
+| #17 | frontend 测试覆盖比 0.15 | Low | **P1 随功能补** | Phase 2 新增了 QuickCapture、TrustReport governance 板块、Memories provenance 等交互，但未补测试。每个新前端功能应附带测试，目标 6 个月内覆盖比回到 0.30 |
+| #18 | RuntimeLoop 变 God Object | Low | **P3 观察中** | 当前 6 子任务可控；观察是否持续膨胀。若超过 10 子任务才重构 |
+| #20 | WebSocket 无心跳 | Low | **P2 低价修** | desktop 通知依赖 WS，Phase 1.1 后 desktop 是主分发渠道，WS 稳定性影响通知可靠性。成本低，可顺手加 ping/pong |
+
+### 结论
+
+- **P0**：CI 稳定性（持续）
+- **P1**（下个里程碑）：生命周期管理 #5、前端测试覆盖 #17
+- **P2**（按需）：Kernel ABI #3、dead schema #12、WS 心跳 #20
+- **P3**（允许存在）：llm_calls 双写 #1、mixin 类型 #8、RuntimeLoop #18
+
+**核心判断转变**：原 Survival Review 的"两年后会进入能跑不能改状态"判断，在产品化路线下被重新框定为——**只要产品价值持续交付且 CI 保持绿色，架构纯洁性债务可以与产品共存**。不再追求"关闭所有 Critical"，而是追求"每个债务都有明确的产品影响评估"。
+
+---
+
 ## 第一阶段：系统模型
 
 ### 1. 一句话描述

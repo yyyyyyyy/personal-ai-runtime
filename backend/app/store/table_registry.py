@@ -78,7 +78,7 @@ GOVERNED_SCHEMA: dict[str, frozenset[str]] = {
     "memories": frozenset({
         "id", "category", "content", "source", "embedding_id", "created_at",
         "confidence", "derived_from_event", "decayed_at", "status", "origin",
-        "claim_status",
+        "claim_status", "source_document_id", "source_document_name",
     }),
     "approvals": frozenset({
         "id", "task_id", "action", "params", "proposed_by", "status",

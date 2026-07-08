@@ -23,6 +23,19 @@ const BASE: TrustReportData = {
   tools: [],
   memory: { total_memories: 0, categories: {}, recent_7d: 0 },
   health: { task_queue_length: 0, llm_failure_rate_24h: 0, tool_failure_rate_24h: 0 },
+  governance: {
+    window_days: 7,
+    tools_invoked: 0,
+    tools_denied: 0,
+    tools_deferred: 0,
+    approvals_requested: 0,
+    approvals_approved: 0,
+    approvals_rejected: 0,
+    approvals_expired: 0,
+    taint_elevated: 0,
+    by_tool: {},
+    denied_tools: {},
+  },
   dashboard: null,
 };
 

@@ -11,28 +11,121 @@
  * - Loads the web app in a frameless window
  */
 
-const { app, BrowserWindow, Tray, Menu, globalShortcut, Notification, dialog, nativeImage } = require("electron");
+const { app, BrowserWindow, Tray, Menu, globalShortcut, Notification, dialog, nativeImage, protocol, session } = require("electron");
 const { spawn } = require("child_process");
 const fs = require("fs");
 const path = require("path");
+const net = require("net");
+
+// Declare the app:// scheme as privileged BEFORE app is ready.
+// This must happen synchronously at module load time so the renderer can use
+// fetch, cookies, service workers, and relative URLs under app://
+protocol.registerSchemesAsPrivileged([
+  {
+    scheme: "app",
+    privileges: {
+      standard: true,
+      secure: true,
+      supportFetchAPI: true,
+      stream: true,
+      bypassCSP: false,
+      codeCache: true,
+    },
+  },
+]);
 
 // ── Configuration ────────────────────────────────────────────────────
 
-const WEB_URL = process.env.WEB_URL || "http://localhost:5173";
+const WEB_URL = process.env.WEB_URL || "";
 const BACKEND_URL = process.env.BACKEND_URL || "http://localhost:8000";
 const BACKEND_PORT = new URL(BACKEND_URL).port || "8000";
 const AUTH_TOKEN = process.env.AUTH_TOKEN || "";
+
+// Production: app.isPackaged is true for electron-builder output.
+// In production we load the bundled frontend-dist/index.html via a custom
+// `app://` protocol (registered in registerAppProtocol) and proxy /api + /ws
+// to the local backend via session.webRequest. In dev we use the Vite dev
+// server (http://localhost:5173) which already proxies /api and /ws.
+const isPackaged = app.isPackaged;
+
+// Resolve the frontend entry: app:// protocol in production, dev server otherwise.
+// WEB_URL env var always wins (lets dev override).
+function resolveWebUrl() {
+  if (WEB_URL) return WEB_URL;
+  if (isPackaged) {
+    const distDir = path.join(__dirname, "frontend-dist");
+    if (fs.existsSync(path.join(distDir, "index.html"))) {
+      return "app://./index.html";
+    }
+    console.warn("[desktop] Packaged but frontend-dist/index.html missing, falling back to dev URL.");
+  }
+  return "http://localhost:5173";
+}
+
+// Resolve backend working directory.
+function resolveBackendDir() {
+  if (isPackaged) {
+    return path.join(process.resourcesPath, "backend");
+  }
+  return path.join(__dirname, "..", "backend");
+}
 
 function readAppVersion() {
   try {
     const versionPath = path.join(__dirname, "..", "VERSION");
     return fs.readFileSync(versionPath, "utf8").trim();
   } catch {
-    return "0.9.0";
+    return "0.2.0";
   }
 }
 
 const APP_VERSION = readAppVersion();
+const RESOLVED_WEB_URL = resolveWebUrl();
+const RESOLVED_BACKEND_DIR = resolveBackendDir();
+
+// ── Custom protocol + request proxying (production only) ─────────────
+//
+// In production the renderer loads `app://./index.html`. The `app://` scheme
+// serves files from frontend-dist/. API calls to `/api/*` and WebSocket
+// upgrades to `/ws` are rewritten to the local backend via webRequest so the
+// frontend's relative API_BASE ("/api") works unchanged.
+
+let _appProtocolRegistered = false;
+
+function registerAppProtocol() {
+  if (_appProtocolRegistered || !isPackaged) return;
+
+  const distRoot = path.join(__dirname, "frontend-dist");
+  protocol.handle("app", (request) => {
+    const url = new URL(request.url);
+    // url.hostname is "." for app://./path ; url.pathname is the file path.
+    let relPath = decodeURIComponent(url.pathname);
+    if (relPath.startsWith("/")) relPath = relPath.slice(1);
+    let filePath = path.join(distRoot, relPath);
+    // SPA fallback: non-existent paths serve index.html (except /assets/*)
+    if (!fs.existsSync(filePath) || fs.statSync(filePath).isDirectory()) {
+      filePath = path.join(distRoot, "index.html");
+    }
+    return net.fetch(`file://${filePath}`);
+  });
+  _appProtocolRegistered = true;
+}
+
+function installApiProxy() {
+  if (!isPackaged) return;
+  const backendOrigin = `http://127.0.0.1:${BACKEND_PORT}`;
+  const ses = session.defaultSession;
+
+  ses.webRequest.onBeforeRequest({ urls: ["http://localhost/api/*", "http://127.0.0.1/api/*"] }, (details, callback) => {
+    callback({ redirectURL: `${backendOrigin}${details.url.slice(details.url.indexOf("/api"))}` });
+  });
+
+  // /ws upgrade redirect
+  ses.webRequest.onBeforeRequest({ urls: ["ws://localhost/ws*", "ws://127.0.0.1/ws*"] }, (details, callback) => {
+    const wsOrigin = `ws://127.0.0.1:${BACKEND_PORT}`;
+    callback({ redirectURL: `${wsOrigin}${details.url.slice(details.url.indexOf("/ws"))}` });
+  });
+}
 
 // ── Backend Process Management ───────────────────────────────────────
 
@@ -43,8 +136,7 @@ function startBackend() {
   if (backendProcess || backendStarting) return;
 
   backendStarting = true;
-  const repoRoot = path.join(__dirname, "..");
-  const backendDir = path.join(repoRoot, "backend");
+  const backendDir = RESOLVED_BACKEND_DIR;
 
   // Check if backend is already running
   const net = require("net");
@@ -153,7 +245,7 @@ function createMainWindow() {
   }
 
   mainWindow = new BrowserWindow(winOpts);
-  mainWindow.loadURL(WEB_URL);
+  mainWindow.loadURL(RESOLVED_WEB_URL);
 
   mainWindow.on("ready-to-show", () => {
     mainWindow.show();
@@ -191,7 +283,7 @@ function createMiniWindow() {
     },
   });
 
-  miniWindow.loadURL(WEB_URL);
+  miniWindow.loadURL(RESOLVED_WEB_URL);
 
   miniWindow.on("blur", () => {
     if (miniWindow) {
@@ -224,7 +316,7 @@ function createTray() {
     tray.setContextMenu(Menu.buildFromTemplate(createTrayMenuItems()));
   });
 }
-... 3 lines not shown ...
+
 function createTrayMenuItems() {
   const autoLaunchEnabled = app.getLoginItemSettings().openAtLogin;
   return [
@@ -287,7 +379,6 @@ function createTrayMenuItems() {
     },
   ];
 }
-}
 
 function registerGlobalShortcuts() {
   globalShortcut.register("Alt+Space", () => {
@@ -331,6 +422,10 @@ function showNotification(title, body) {
 // ── App Lifecycle ────────────────────────────────────────────────────
 
 app.whenReady().then(async () => {
+  // Register custom protocol + API proxy before any window is created.
+  registerAppProtocol();
+  installApiProxy();
+
   // First-run: ask for auto-launch consent (was previously forced).
   try {
     const settings = app.getLoginItemSettings();

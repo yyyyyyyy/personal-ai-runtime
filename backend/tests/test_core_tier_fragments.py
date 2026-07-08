@@ -64,9 +64,9 @@ class TestCoreTierCompile:
         from app.context_runtime import FragmentRegistry
         from app.core.runtime.governance.context_pipeline import ContextPipeline
 
-        # Patch read_ports.retrieve_memory_with_sources for citation-aware BackgroundContextFragment
+        # Patch read_ports.retrieve_unified_with_sources for citation-aware BackgroundContextFragment
         monkeypatch.setattr(
-            "app.core.runtime.read_ports.retrieve_memory_with_sources",
+            "app.core.runtime.read_ports.retrieve_unified_with_sources",
             lambda msg, **kwargs: ("## Relevant Memories\n- recalled fact", [{"id": "mem1", "type": "memory", "title": "recalled fact"}]),
         )
         monkeypatch.setattr(
@@ -111,7 +111,7 @@ class TestCoreTierCompile:
             return "## Relevant Memories\n- item", [{"id": "mem1", "type": "memory", "title": "item"}]
 
         monkeypatch.setattr(
-            "app.core.runtime.read_ports.retrieve_memory_with_sources",
+            "app.core.runtime.read_ports.retrieve_unified_with_sources",
             _retrieve_with_sources,
         )
         monkeypatch.setattr(
@@ -143,7 +143,7 @@ class TestCoreTierCompile:
         from app.core.runtime.governance.context_pipeline import ContextPipeline
 
         monkeypatch.setattr(
-            "app.core.runtime.read_ports.retrieve_memory_with_sources",
+            "app.core.runtime.read_ports.retrieve_unified_with_sources",
             lambda msg, **kwargs: ("## Relevant Memories\n- resume memory", [{"id": "mem1", "type": "memory", "title": "resume memory"}]),
         )
         monkeypatch.setattr(
@@ -190,7 +190,7 @@ class TestEmptyFragmentBehavior:
             lambda **kwargs: [],
         )
         monkeypatch.setattr(
-            "app.core.runtime.read_ports.retrieve_memory_with_sources",
+            "app.core.runtime.read_ports.retrieve_unified_with_sources",
             lambda msg, **kwargs: ("", []),
         )
         monkeypatch.setattr(

@@ -27,6 +27,7 @@ backend/backend/
 node_modules/
 frontend/dist/
 desktop/dist/
+desktop/frontend-dist/
 *.tsbuildinfo
 frontend/test-results/
 frontend/playwright-report/

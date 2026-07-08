@@ -7,14 +7,17 @@ import {
   ratifyMemory,
   rejectMemory,
   getMemoryGraph,
+  getMemoryProvenance,
   ApiError,
   type MemoryRow,
   type MemoryGraph,
+  type MemoryProvenance,
+  type MemoryProvenanceEvent,
 } from "../api/client";
 import { useErrorStore } from "../stores/errorStore";
 import { useQuickChat } from "../hooks/useQuickChat";
 import Dialog from "../components/ui/Dialog";
-import { Network, List, Check, X, Edit3 } from "lucide-react";
+import { Network, List, Check, X, Edit3, FileText, History } from "lucide-react";
 
 function timeAgoShort(dateStr: string): string {
   const d = new Date(dateStr);
@@ -40,6 +43,9 @@ export default function MemoriesPage() {
   const [editTarget, setEditTarget] = useState<MemoryRow | null>(null);
   const [editContent, setEditContent] = useState("");
   const [editCategory, setEditCategory] = useState("");
+  const [provenanceTarget, setProvenanceTarget] = useState<MemoryRow | null>(null);
+  const [provenanceData, setProvenanceData] = useState<MemoryProvenance | null>(null);
+  const [provenanceLoading, setProvenanceLoading] = useState(false);
   const addError = useErrorStore((s) => s.addError);
   const quickChat = useQuickChat();
 
@@ -140,6 +146,57 @@ export default function MemoriesPage() {
 
   const handleContinueChat = (m: MemoryRow) => {
     quickChat({ title: "记忆讨论", prompt: `基于以下记忆继续讨论：\n${m.content}` });
+  };
+
+  const handleShowProvenance = async (m: MemoryRow) => {
+    setProvenanceTarget(m);
+    setProvenanceData(null);
+    setProvenanceLoading(true);
+    try {
+      const data = await getMemoryProvenance(m.id);
+      setProvenanceData(data);
+    } catch (err) {
+      const msg = err instanceof ApiError ? err.message : "加载来源链失败";
+      addError(msg, "记忆");
+      setProvenanceTarget(null);
+    } finally {
+      setProvenanceLoading(false);
+    }
+  };
+
+  const eventTypeLabel = (t: string): string => {
+    const map: Record<string, string> = {
+      MemoryDerived: "生成",
+      MemoryUpdated: "更新",
+      MemoryDecayed: "衰减",
+      MemoryDeleted: "删除",
+      MemoryRevoked: "撤销",
+    };
+    return map[t] || t;
+  };
+
+  const eventDescription = (e: MemoryProvenanceEvent): string => {
+    const p = e.payload as Record<string, unknown>;
+    const conf = p.confidence;
+    const content = typeof p.content === "string" ? p.content : "";
+    switch (e.type) {
+      case "MemoryDerived":
+        return `由 ${e.actor} 抽取${typeof conf === "number" ? `，置信度 ${conf.toFixed(2)}` : ""}`;
+      case "MemoryUpdated":
+        if (content) {
+          const snippet = content.length > 60 ? content.slice(0, 60) + "…" : content;
+          return `内容由 ${e.actor} 更新为「${snippet}」`;
+        }
+        return `内容被 ${e.actor} 更新`;
+      case "MemoryDecayed":
+        return typeof conf === "number" ? `置信度衰减至 ${conf.toFixed(2)}` : "置信度衰减";
+      case "MemoryDeleted":
+        return `被 ${e.actor} 删除`;
+      case "MemoryRevoked":
+        return `被 ${e.actor} 撤销`;
+      default:
+        return `${e.actor}`;
+    }
   };
 
   const loadGraph = async () => {
@@ -255,6 +312,16 @@ export default function MemoriesPage() {
                           className="bg-gray-900 border border-gray-800 rounded-lg p-3 text-sm group"
                         >
                           <p className="text-gray-300">{m.content}</p>
+                          {m.source_document_name && (
+                            <a
+                              href={`#/knowledge`}
+                              className="inline-flex items-center gap-1 mt-1.5 text-xs text-blue-400 hover:text-blue-300"
+                              title={m.source_document_id || ""}
+                            >
+                              <FileText size={10} />
+                              <span>源自：《{m.source_document_name}》</span>
+                            </a>
+                          )}
                           <div className="flex items-center gap-2 mt-2 flex-wrap">
                             {m.created_at && (
                               <span className="text-xs text-gray-600">
@@ -319,6 +386,13 @@ export default function MemoriesPage() {
                               继续聊
                             </button>
                             <button
+                              onClick={() => handleShowProvenance(m)}
+                              className="text-xs text-purple-500 hover:text-purple-400 opacity-0 group-hover:opacity-100 transition-opacity"
+                            >
+                              <History size={11} className="inline mr-0.5" />
+                              来源
+                            </button>
+                            <button
                               onClick={() => handleDelete(m)}
                               className="text-xs text-red-500 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity"
                             >
@@ -371,6 +445,9 @@ export default function MemoriesPage() {
             onClick={(e) => e.stopPropagation()}
           >
             <h3 className="text-lg font-semibold text-white">编辑记忆</h3>
+            <p className="text-xs text-gray-500">
+              更新会保留旧版本——可在"来源"查看完整版本演进
+            </p>
             <div className="space-y-3">
               <div>
                 <label className="text-xs text-gray-400 mb-1 block">内容</label>
@@ -404,6 +481,56 @@ export default function MemoriesPage() {
                 className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 rounded-lg text-sm"
               >
                 保存
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {provenanceTarget && (
+        <div
+          className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
+          onClick={() => setProvenanceTarget(null)}
+        >
+          <div
+            className="bg-gray-800 border border-gray-700 rounded-xl p-6 w-[32rem] max-w-[90vw] max-h-[80vh] overflow-y-auto space-y-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center gap-2">
+              <History size={16} className="text-purple-400" />
+              <h3 className="text-lg font-semibold text-white">记忆来源链</h3>
+            </div>
+            <p className="text-sm text-gray-400 italic">
+              {provenanceTarget.content}
+            </p>
+            {provenanceLoading ? (
+              <p className="text-sm text-gray-500">加载中...</p>
+            ) : provenanceData && provenanceData.events.length > 0 ? (
+              <ol className="space-y-3 border-l border-gray-700 pl-4">
+                {provenanceData.events.map((e) => (
+                  <li key={e.seq} className="relative">
+                    <span className="absolute -left-[1.4rem] top-1 w-2 h-2 rounded-full bg-purple-500" />
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-xs font-medium text-purple-300 bg-purple-900/30 px-1.5 py-0.5 rounded">
+                        {eventTypeLabel(e.type)}
+                      </span>
+                      <span className="text-xs text-gray-500">{timeAgoShort(e.ts)}</span>
+                    </div>
+                    <p className="text-sm text-gray-300 mt-0.5">
+                      {eventDescription(e)}
+                    </p>
+                  </li>
+                ))}
+              </ol>
+            ) : (
+              <p className="text-sm text-gray-500">无事件记录</p>
+            )}
+            <div className="flex justify-end">
+              <button
+                onClick={() => setProvenanceTarget(null)}
+                className="px-3 py-1.5 bg-gray-700 hover:bg-gray-600 rounded-lg text-sm"
+              >
+                关闭
               </button>
             </div>
           </div>

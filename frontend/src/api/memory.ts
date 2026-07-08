@@ -55,6 +55,24 @@ export async function contestMemory(
   return request(`${API_BASE}/memory/memories/${memoryId}/contest`, { method: "POST" });
 }
 
+export interface MemoryProvenanceEvent {
+  seq: number;
+  type: string;
+  ts: string;
+  actor: string;
+  payload: Record<string, unknown>;
+  correlation_id: string | null;
+}
+
+export interface MemoryProvenance {
+  memory_id: string;
+  events: MemoryProvenanceEvent[];
+}
+
+export async function getMemoryProvenance(memoryId: string): Promise<MemoryProvenance> {
+  return request<MemoryProvenance>(`${API_BASE}/memory/memories/${memoryId}/provenance`);
+}
+
 export interface MemoryGraphNode {
   id: string;
   content: string;

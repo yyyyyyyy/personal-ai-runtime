@@ -38,7 +38,7 @@ export interface Message {
 /** Citation source reference */
 export interface SourceCitation {
   id: string;
-  type: "memory" | "email" | "goal";
+  type: "memory" | "email" | "goal" | "document";
   title: string;
 }
 
@@ -123,6 +123,8 @@ export interface MemoryRow {
   claim_status?: string | null;
   confidence?: number;
   source?: string;
+  source_document_id?: string | null;
+  source_document_name?: string | null;
   created_at?: string;
 }
 

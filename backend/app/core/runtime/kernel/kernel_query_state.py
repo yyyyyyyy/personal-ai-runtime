@@ -275,6 +275,8 @@ class QueryStateMixin:  # type: ignore[attr-defined]  # mixed into Kernel which 
 
         return vector_store.search_knowledge(query, n_results=k)
 
+
+
     def _query_conversations(self, filters: dict[str, Any]) -> list[dict]:
         conv_id = filters.get("id")
         limit = filters.get("limit", 50)

@@ -17,6 +17,7 @@ import NotificationBell from "./components/layout/NotificationBell";
 import NotificationDetailModal from "./components/notifications/NotificationDetailModal";
 import OnboardingWizard from "./components/onboarding/OnboardingWizard";
 import ErrorBoundary from "./components/ui/ErrorBoundary";
+import QuickCaptureDialog from "./components/quickcapture/QuickCaptureDialog";
 import { useNotifications } from "./hooks/useNotifications";
 import { useWsInvalidationBridge } from "./hooks/useWsInvalidationBridge";
 
@@ -221,6 +222,8 @@ export default function Layout() {
           setToastDetail(null);
         }}
       />
+
+      <QuickCaptureDialog />
     </div>
   );
 }

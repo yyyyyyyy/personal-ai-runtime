@@ -27,5 +27,18 @@ class KnowledgeContextFragment(ContextFragment):
 
         knowledge = await build_knowledge_context(user_message)
         if knowledge:
-            return FragmentResult(content=knowledge)
+            # Carry document citations so the frontend can show them.
+            sources: list[dict] = []
+            try:
+                from app.core.runtime import read_ports
+                for r in read_ports.search_knowledge(user_message, n_results=TOP_K):
+                    meta = r.get("metadata") or {}
+                    sources.append({
+                        "id": r.get("id", ""),
+                        "type": "document",
+                        "title": meta.get("source_file", "document"),
+                    })
+            except Exception:
+                pass
+            return FragmentResult(content=knowledge, sources=sources)
         return FragmentResult(content="")

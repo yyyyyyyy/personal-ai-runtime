@@ -83,8 +83,9 @@ def _on_memory_derived(event: Event, conn) -> None:
     conn.execute(
         """INSERT OR REPLACE INTO memories
            (id, category, content, source, embedding_id, confidence,
-            derived_from_event, created_at, origin, claim_status)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            derived_from_event, created_at, origin, claim_status,
+            source_document_id, source_document_name)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
         (
             event.aggregate_id,
             p.get("category", "general"),
@@ -96,6 +97,8 @@ def _on_memory_derived(event: Event, conn) -> None:
             event.ts,
             origin,
             claim_status,
+            p.get("source_document_id"),
+            p.get("source_document_name"),
         ),
     )
 

@@ -257,6 +257,62 @@ export default function TrustReportPage() {
             </div>
           )}
         </section>
+
+        {/* 治理活动统计 (7天) */}
+        {data?.governance && (() => {
+          const g = data.governance;
+          const topTools = Object.entries(g.by_tool || {})
+            .sort((a, b) => b[1] - a[1])
+            .slice(0, 6);
+          const deniedTools = Object.entries(g.denied_tools || {});
+          return (
+            <section>
+              <h2 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+                <Shield size={20} className="text-purple-400" />
+                治理活动（近 {g.window_days} 天）
+              </h2>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+                <Kv icon={Activity} label="工具调用" value={`${g.tools_invoked}`} color="text-cyan-400" />
+                <Kv icon={AlertTriangle} label="被拦截" value={`${g.tools_denied}`} color="text-red-400" sub="高风险写操作" />
+                <Kv icon={Shield} label="提交审批" value={`${g.tools_deferred}`} color="text-amber-400" sub={`${g.approvals_approved} 通过 / ${g.approvals_rejected} 拒绝`} />
+                <Kv icon={AlertCircle} label="Taint 升级" value={`${g.taint_elevated}`} color="text-orange-400" sub="外部内容污染链" />
+              </div>
+              {(topTools.length > 0 || deniedTools.length > 0) && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {topTools.length > 0 && (
+                    <div className="bg-gray-800/50 border border-gray-700/50 rounded-xl p-4">
+                      <h3 className="text-sm font-medium text-white mb-3">最常用工具</h3>
+                      <div className="space-y-1.5">
+                        {topTools.map(([name, count]) => (
+                          <div key={name} className="flex items-center justify-between text-xs">
+                            <span className="text-gray-400 truncate">{name}</span>
+                            <span className="text-gray-300">{count}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {deniedTools.length > 0 && (
+                    <div className="bg-gray-800/50 border border-red-900/30 rounded-xl p-4">
+                      <h3 className="text-sm font-medium text-red-400 mb-3">被拦截工具</h3>
+                      <div className="space-y-1.5">
+                        {deniedTools.map(([name, count]) => (
+                          <div key={name} className="flex items-center justify-between text-xs">
+                            <span className="text-gray-400 truncate">{name}</span>
+                            <span className="text-red-300">{count} 次拦截</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+              {g.tools_invoked === 0 && (
+                <p className="text-sm text-gray-500">近期无工具调用记录</p>
+              )}
+            </section>
+          );
+        })()}
       </div>
     </div>
   );

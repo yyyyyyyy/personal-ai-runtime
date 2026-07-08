@@ -321,19 +321,19 @@ Reaction 不再是一个"概念"，而是 `subscribe + invoke + produce` 的组�
 | AgentRegistry | `agent_registry.py` | **已瘦身** → stub with `cleanup_stale()` no-op |
 | Principal | `principal.py` | **保留** — Capability 的身份维度 |
 
-### 4.6 概念总数基线（2026-07-07）
+### 4.6 概念总数基线（2026-07-08）
 
 | 指标 | 当前值 | 目标值 (1 年后) |
 |---|---|---|
-| `core/runtime/` 文件数 | 54 | ≤ 45 |
-| `constants.py` 事件类型数 | 55 | ≤ 50 |
-| `query_state` selector 分支数 | 12 | ≤ 10 |
+| `core/runtime/` 文件数 | 55 | ≤ 45 |
+| `constants.py` 事件类型数 | 56 | ≤ 50 |
+| `query_state` selector 分支数 | 14 | ≤ 10 |
 | Fragment 注册数 | 10 | ≤ 10 |
-| Governed 投影表数 | 13 | ≤ 11 |
+| Governed 投影表数 | 14 | ≤ 11 |
 | Projector 文件数 | 9 | ≤ 7 |
 | 游离单例（不在 container 内） | ~7 (v0.3.0 收编中) | 0 |
 | Dead code 文件数 | 0 | 0 |
-| God Object 最大 LOC（Kernel/Brain/MCPHub） | 1897 | ≤ 1500 |
+| God Object 最大 LOC（Kernel/Brain/MCPHub） | 1937 | ≤ 1500 |
 
 `check_concept_growth.py` 在 CI 中强制以上基线（[`backend/scripts/check_concept_growth.py`](../../backend/scripts/check_concept_growth.py)）。
 
