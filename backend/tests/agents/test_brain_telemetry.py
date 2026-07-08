@@ -1,5 +1,9 @@
-"""Tests for brain_telemetry.record_llm_call — usage precedence."""
+"""Tests for brain_telemetry.record_llm_call — usage precedence, event-sourced.
 
+v0.3.0: record_llm_call now emits LLMCallRecorded events via the Kernel
+instead of calling telemetry.record_llm_call(LLMCallRecord(...)). The tests
+verify the event payload rather than a Telemetry singleton side effect.
+"""
 from __future__ import annotations
 
 import os
@@ -22,9 +26,7 @@ def test_telemetry_prefers_provider_usage():
     """When usage is provided, tiktoken is NOT consulted."""
     usage = SimpleNamespace(prompt_tokens=42, completion_tokens=7)
     provider = _FakeProvider()
-    with patch(
-        "app.core.agents.brain_telemetry.telemetry"
-    ) as mock_telemetry:
+    with patch("app.core.agents.brain_telemetry.kernel") as mock_kernel:
         tokens = record_llm_call(
             messages=[{"role": "user", "content": "hello"}],
             assistant_content="hi",
@@ -36,17 +38,18 @@ def test_telemetry_prefers_provider_usage():
             usage=usage,
         )
     assert tokens == 42
-    record = mock_telemetry.record_llm_call.call_args.args[0]
-    assert record.prompt_tokens == 42
-    assert record.completion_tokens == 7
+    # Verify emit_event was called with an LLMCallRecorded event
+    mock_kernel.emit_event.assert_called_once()
+    call_args = mock_kernel.emit_event.call_args
+    assert call_args.args[0] == "LLMCallRecorded"
+    assert call_args.kwargs["payload"]["prompt_tokens"] == 42
+    assert call_args.kwargs["payload"]["completion_tokens"] == 7
 
 
 def test_telemetry_falls_back_to_tiktoken_without_usage():
     """When usage is None, tiktoken estimate is used."""
     provider = _FakeProvider()
-    with patch(
-        "app.core.agents.brain_telemetry.telemetry"
-    ) as mock_telemetry:
+    with patch("app.core.agents.brain_telemetry.kernel") as mock_kernel:
         tokens = record_llm_call(
             messages=[{"role": "user", "content": "hello world"}],
             assistant_content="hi there",
@@ -58,5 +61,7 @@ def test_telemetry_falls_back_to_tiktoken_without_usage():
             usage=None,
         )
     assert tokens > 0
-    record = mock_telemetry.record_llm_call.call_args.args[0]
-    assert record.prompt_tokens == tokens
+    mock_kernel.emit_event.assert_called_once()
+    call_args = mock_kernel.emit_event.call_args
+    assert call_args.args[0] == "LLMCallRecorded"
+    assert call_args.kwargs["payload"]["prompt_tokens"] == tokens

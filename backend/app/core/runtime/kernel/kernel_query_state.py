@@ -41,6 +41,11 @@ class QueryStateMixin:  # type: ignore[attr-defined]  # mixed into Kernel which 
             return self._query_background_tasks(filters)
         if selector == "user_profile":
             return self._query_user_profile(filters)
+        # v0.3.0: governed telemetry tables — derived from Capability* / LLMCallRecorded events
+        if selector == "tool_calls":
+            return self._query_tool_calls(filters)
+        if selector == "llm_calls":
+            return self._query_llm_calls(filters)
         raise ValueError(f"Unknown state selector: {selector!r}")
 
     def _query_work_items(self, filters: dict[str, Any]) -> list[dict]:
@@ -462,4 +467,24 @@ class QueryStateMixin:  # type: ignore[attr-defined]  # mixed into Kernel which 
                 ).fetchone()
                 return [dict(row)] if row else []
             rows = conn.execute("SELECT * FROM user_profile ORDER BY category").fetchall()
+        return [dict(r) for r in rows]
+
+    # ── v0.3.0: governed telemetry tables ───────────────────────────────
+
+    def _query_tool_calls(self, filters: dict[str, Any]) -> list[dict]:
+        limit = filters.get("limit", 5000)
+        with self._db.get_db() as conn:
+            rows = conn.execute(
+                "SELECT * FROM tool_calls ORDER BY created_at DESC LIMIT ?",
+                (int(limit),),
+            ).fetchall()
+        return [dict(r) for r in rows]
+
+    def _query_llm_calls(self, filters: dict[str, Any]) -> list[dict]:
+        limit = filters.get("limit", 5000)
+        with self._db.get_db() as conn:
+            rows = conn.execute(
+                "SELECT * FROM llm_calls ORDER BY created_at DESC LIMIT ?",
+                (int(limit),),
+            ).fetchall()
         return [dict(r) for r in rows]
