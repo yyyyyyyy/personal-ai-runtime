@@ -40,7 +40,7 @@ def main() -> int:
     k = Kernel(db=db)
 
     k.emit_event("WorkItemCreated", "work_item", "g1", payload={"title": "First"}, actor="verify")
-    k.save_projection_snapshot("goal")
+    k.save_projection_snapshot("work_item")
 
     k.emit_event("WorkItemCreated", "work_item", "g2", payload={"title": "Second"}, actor="verify")
     k.emit_event("WorkItemUpdated", "work_item", "g1", payload={"progress": 0.5}, actor="verify")
@@ -56,17 +56,17 @@ def main() -> int:
         print(f"FAIL: expected 2 incremental events, got {replayed}", file=sys.stderr)
         return 1
 
-    seq_before_export = read_checkpoint_seq(db, "goal")
+    seq_before_export = read_checkpoint_seq(db, "work_item")
     if seq_before_export is None:
-        print("FAIL: goal checkpoint missing before export test", file=sys.stderr)
+        print("FAIL: work_item checkpoint missing before export test", file=sys.stderr)
         return 1
 
     k.emit_event("WorkItemUpdated", "work_item", "g2", payload={"progress": 0.25}, actor="verify")
     k.snapshot()
 
-    seq_after_export = read_checkpoint_seq(db, "goal")
+    seq_after_export = read_checkpoint_seq(db, "work_item")
     if seq_after_export is None:
-        print("FAIL: goal checkpoint missing after export", file=sys.stderr)
+        print("FAIL: work_item checkpoint missing after export", file=sys.stderr)
         return 1
     if seq_after_export <= seq_before_export:
         print(
