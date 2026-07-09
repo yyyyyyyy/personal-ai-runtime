@@ -95,11 +95,17 @@ jobs:
       - name: Verify API routes load
         run: |
           cd backend
+          rm -rf data/  # clear any DB left by pytest
           python -c "
-          import os
+          import os, traceback
           os.environ['LLM_API_KEY'] = 'test-key'
-          import app.main as main_module
-          app = main_module.app
+          os.environ.setdefault('MCP_EXTERNAL_ENABLED', 'false')
+          try:
+              import app.main as main_module
+              app = main_module.app
+          except Exception:
+              traceback.print_exc()
+              raise SystemExit(1)
           routes = [r.path for r in app.routes if hasattr(r, 'path')]
           endpoints = [
               '/api/chat/conversations',
