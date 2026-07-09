@@ -53,10 +53,16 @@ def _widget_data_sovereignty() -> dict:
     """
     try:
         table_counts = kernel.table_counts(
-            ("conversations", "messages", "goals", "memories", "event_log")
+            ("conversations", "messages", "memories", "event_log")
         )
     except Exception:
         table_counts = {}
+    # goals table dropped in v06; count from work_items instead.
+    try:
+        goal_total_rows = kernel.query_state("work_items", work_type="goal", limit=10000)
+        goal_total = len(goal_total_rows)
+    except Exception:
+        goal_total = 0
 
     # Count self-report vs claim memories
     try:
@@ -92,7 +98,7 @@ def _widget_data_sovereignty() -> dict:
         "total_memories": table_counts.get("memories", 0),
         "memories_self_report": self_report_count,
         "memories_claim": claim_count,
-        "total_goals": table_counts.get("goals", 0),
+        "total_goals": goal_total,
         "goals_active": len(goals_active),
         "goals_completed": len(goals_completed),
         "total_conversations": table_counts.get("conversations", 0),

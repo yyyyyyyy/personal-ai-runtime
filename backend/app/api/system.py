@@ -89,8 +89,12 @@ async def system_info():
     from app.core.runtime.kernel_instance import kernel
 
     counts = kernel.table_counts(
-        ("conversations", "messages", "event_log", "goals", "memories")
+        ("conversations", "messages", "event_log", "memories")
     )
+
+    # goals table was dropped in v06; goal count comes from work_items now.
+    goal_rows = kernel.query_state("work_items", work_type="goal", limit=10000)
+    goal_count = len(goal_rows)
 
     # Count legacy app events (aggregate_type='event') via kernel
     legacy_event_count = kernel.count_events("event")
@@ -98,7 +102,7 @@ async def system_info():
     return {
         "conversations": counts["conversations"],
         "messages": counts["messages"],
-        "goals": counts["goals"],
+        "goals": goal_count,
         "event_log": counts["event_log"],
         "events": legacy_event_count,
         "memories": counts["memories"],

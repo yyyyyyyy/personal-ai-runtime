@@ -76,5 +76,5 @@ def test_ensure_schema_alembic_path_includes_projection_tables(tmp_path, monkeyp
                 "SELECT name FROM sqlite_master WHERE type='table'"
             ).fetchall()
         }
-    assert "goals" in tables
+    assert "work_items" in tables
     assert {"timer_events", "policy_events", "grant_events"} <= tables

@@ -134,12 +134,20 @@ class SovereigntyMixin:  # type: ignore[attr-defined]  # mixed into Kernel which
         return len(rows)
 
     def table_counts(self, tables: tuple[str, ...]) -> dict[str, int]:
-        """Kernel-space row counts for sovereignty verification."""
+        """Kernel-space row counts for sovereignty verification.
+
+        Tolerates dropped tables (e.g. goals was dropped in v06) by returning 0
+        instead of raising — callers that still reference legacy table names
+        get a sensible default during the migration window.
+        """
         out: dict[str, int] = {}
         with self._db.get_db() as conn:
             for table in tables:
-                row = conn.execute(f"SELECT COUNT(*) AS c FROM {table}").fetchone()
-                out[table] = int(row["c"])
+                try:
+                    row = conn.execute(f"SELECT COUNT(*) AS c FROM {table}").fetchone()
+                    out[table] = int(row["c"])
+                except Exception:
+                    out[table] = 0
         return out
 
     def count_events(self, aggregate_type: str) -> int:
@@ -374,7 +382,7 @@ class SovereigntyMixin:  # type: ignore[attr-defined]  # mixed into Kernel which
                 "event_log": len(event_log),
                 "conversations": len(conversations),
                 "messages": len(messages),
-                "goals": self.table_counts(("goals",)).get("goals", 0),
+                "goals": len(self.query_state("work_items", work_type="goal", limit=10000)),
                 "memories": self.table_counts(("memories",)).get("memories", 0),
                 "notifications": self.table_counts(("notifications",)).get(
                     "notifications", 0
