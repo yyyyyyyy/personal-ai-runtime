@@ -99,9 +99,10 @@ def run_self_test() -> list[str]:
 
     from app.core.runtime.kernel import Kernel
     from app.store.database import Database
+    from app.store.vector import vector_store
 
     db = Database(db_path=str(db_path))
-    kernel = Kernel(db=db)
+    kernel = Kernel(db=db, memory_index=vector_store)
 
     for mid, content in (("m1", "alpha memory"), ("m2", "beta memory")):
         kernel.emit_event(

@@ -58,6 +58,22 @@ class VectorStore:
         )
         return mid
 
+    def index_memory(
+        self, content: str, metadata: dict | None = None, memory_id: str | None = None
+    ) -> str:
+        """MemoryIndexPort implementation — idempotent index per memory_id.
+
+        Delegates to add_memory but first removes any existing entry for the
+        same memory_id so re-indexing (e.g. on MemoryUpdated) doesn't create
+        duplicate embeddings.
+        """
+        if memory_id:
+            try:
+                self.memory_collection.delete(ids=[memory_id])
+            except Exception:
+                pass  # not present yet — fine
+        return self.add_memory(content, metadata=metadata, memory_id=memory_id)
+
     def search_memories(self, query: str, n_results: int = 5) -> list[dict]:
         """Semantic search for related memories."""
         results = self.memory_collection.query(
