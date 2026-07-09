@@ -333,7 +333,7 @@ Reaction 不再是一个"概念"，而是 `subscribe + invoke + produce` 的组�
 | Projector 文件数 | 9 | ≤ 7 |
 | 游离单例（不在 container 内） | ~7 (v0.3.0 收编中) | 0 |
 | Dead code 文件数 | 0 | 0 |
-| God Object 最大 LOC（Kernel/Brain/MCPHub） | 1937 | ≤ 1500 |
+| God Object 最大 LOC（Kernel/Brain/MCPHub） | 1945 | ≤ 1500 |
 
 `check_concept_growth.py` 在 CI 中强制以上基线（[`backend/scripts/check_concept_growth.py`](../../backend/scripts/check_concept_growth.py)）。
 

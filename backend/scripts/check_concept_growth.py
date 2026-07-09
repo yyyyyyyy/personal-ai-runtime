@@ -129,7 +129,7 @@ BASELINE = {
     "fragments": 10,                   # register.py
     "governed_tables": 14,             # unchanged
     "projector_files": 9,              # unchanged
-    "god_object_max_loc": 1937,        # +2 (kernel_query_state logger/import churn from Phase 1.2 unified retrieval refactor; recall_unified itself moved to read_ports to avoid further growth)
+    "god_object_max_loc": 1945,        # +8 (kernel_sovereignty table_counts tolerates dropped goals table after v06 consolidation)
     "dead_code_files": 0,              # 已知死代码文件数
 }
 
