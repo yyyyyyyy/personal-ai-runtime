@@ -89,8 +89,6 @@ def upgrade() -> None:
         sa.Column("status", sa.Text(), server_default="active"),
         sa.Column("origin", sa.Text(), server_default="claim"),
         sa.Column("claim_status", sa.Text()),
-        sa.Column("source_document_id", sa.Text()),
-        sa.Column("source_document_name", sa.Text()),
         sa.Column("created_at", sa.DateTime(), server_default=sa.text("CURRENT_TIMESTAMP")),
     )
 
@@ -307,8 +305,26 @@ def upgrade() -> None:
     op.create_index("idx_handler_executions_status", "handler_executions", ["status"])
     op.create_index("idx_handler_executions_instance", "handler_executions", ["instance_id"])
 
+    op.create_table(
+        "work_items",
+        sa.Column("id", sa.Text(), primary_key=True),
+        sa.Column("title", sa.Text(), nullable=False),
+        sa.Column("description", sa.Text()),
+        sa.Column("work_type", sa.Text(), server_default="task"),
+        sa.Column("parent_work_id", sa.Text()),
+        sa.Column("parent_goal_id", sa.Text()),
+        sa.Column("status", sa.Text(), server_default="pending"),
+        sa.Column("priority", sa.Integer(), server_default="0"),
+        sa.Column("dependencies_json", sa.Text()),
+        sa.Column("executable_plan", sa.Text()),
+        sa.Column("created_at", sa.DateTime(), server_default=sa.text("CURRENT_TIMESTAMP")),
+        sa.Column("updated_at", sa.DateTime(), server_default=sa.text("CURRENT_TIMESTAMP")),
+        sa.Column("completed_at", sa.DateTime()),
+    )
+
 
 def downgrade() -> None:
+    op.drop_table("work_items")
     op.drop_index("idx_handler_executions_instance", table_name="handler_executions")
     op.drop_index("idx_handler_executions_status", table_name="handler_executions")
     op.drop_table("handler_executions")
