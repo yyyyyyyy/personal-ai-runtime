@@ -89,6 +89,8 @@ def upgrade() -> None:
         sa.Column("status", sa.Text(), server_default="active"),
         sa.Column("origin", sa.Text(), server_default="claim"),
         sa.Column("claim_status", sa.Text()),
+        sa.Column("source_document_id", sa.Text()),
+        sa.Column("source_document_name", sa.Text()),
         sa.Column("created_at", sa.DateTime(), server_default=sa.text("CURRENT_TIMESTAMP")),
     )
 

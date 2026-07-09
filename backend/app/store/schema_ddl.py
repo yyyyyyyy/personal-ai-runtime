@@ -337,4 +337,6 @@ MEMORIES_LEGACY_DDL = [
     "ALTER TABLE memories ADD COLUMN status TEXT DEFAULT 'active'",
     "ALTER TABLE memories ADD COLUMN origin TEXT DEFAULT 'claim'",
     "ALTER TABLE memories ADD COLUMN claim_status TEXT",
+    "ALTER TABLE memories ADD COLUMN source_document_id TEXT",
+    "ALTER TABLE memories ADD COLUMN source_document_name TEXT",
 ]
