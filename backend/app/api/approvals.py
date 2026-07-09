@@ -8,7 +8,7 @@ from app.config import settings
 from app.core.runtime.capability_governance import capability_governance
 from app.core.runtime.kernel_instance import kernel
 
-router = APIRouter(prefix="/api/approvals", tags=["approvals"])
+router = APIRouter(tags=["approvals"])
 
 # ── Flow classification helpers (v0.11.0: moved from capability_governance) ──
 # These are UI-presentation concerns — Chinese labels for the approval list.

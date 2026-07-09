@@ -32,7 +32,7 @@ from app.core.runtime.task_engine import (
     update_work_item_status as _update_work_item_status,
 )
 
-router = APIRouter(prefix="/api/work-items", tags=["work-items"])
+router = APIRouter(tags=["work-items"])
 
 
 VALID_WORK_TYPES = frozenset({"task", "action", "background", "goal"})

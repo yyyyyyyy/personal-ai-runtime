@@ -15,7 +15,7 @@ from app.core.runtime.kernel.constants import (
 )
 from app.core.runtime.kernel_instance import kernel
 
-router = APIRouter(prefix="/api/tasks/background", tags=["background_tasks"])
+router = APIRouter(tags=["background_tasks"])
 
 
 def _create_bg_task(user_request: str, plan: dict | None = None) -> dict:

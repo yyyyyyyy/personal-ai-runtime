@@ -1,7 +1,6 @@
-import { useCallback, useEffect, useRef, useState } from "react";
-import { ChevronDown, ChevronRight, Clock, Loader2 } from "lucide-react";
+import { useCallback, useEffect, useState } from "react";
+import { Clock, Loader2 } from "lucide-react";
 import { API_BASE, request } from "../api/core";
-import type { Notification } from "../api/types";
 
 interface TimelineEvent {
   id: string;

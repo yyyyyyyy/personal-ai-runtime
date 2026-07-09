@@ -13,13 +13,7 @@ import {
   RefreshCw,
   ChevronRight,
 } from "lucide-react";
-import {
-  getPortrait,
-  type PortraitData,
-  type HabitItem,
-  type ProfileItem,
-  type GoalSummary,
-} from "../api/portrait";
+import { getPortrait, type PortraitData } from "../api/portrait";
 
 const CATEGORY_META: Record<string, { label: string; icon: typeof User; description: string }> = {
   preferences: { label: "偏好", icon: Heart, description: "你的喜好与倾向" },

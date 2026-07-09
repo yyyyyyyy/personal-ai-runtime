@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { type ToolSummaryItem, markNotificationRead, type Notification } from "../api/client";
 import { useDashboard } from "../hooks/useDashboard";
@@ -31,18 +31,8 @@ export default function DashboardPage() {
   const [showDiagnostics, setShowDiagnostics] = useState(false);
   const navigate = useNavigate();
 
-  const {
-    cost,
-    costByModel,
-    tools,
-    memory,
-    health,
-    notifications,
-    dashboard,
-    loading,
-    error,
-    refresh,
-  } = useDashboard();
+  const { cost, tools, memory, health, notifications, dashboard, loading, error, refresh } =
+    useDashboard();
   const { liveNotifications } = useNotifications();
 
   if (loading) {

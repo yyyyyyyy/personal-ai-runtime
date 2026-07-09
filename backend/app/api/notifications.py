@@ -9,7 +9,7 @@ from app.core.runtime.kernel.constants import (
 )
 from app.core.runtime.kernel_instance import kernel
 
-router = APIRouter(prefix="/api/notifications", tags=["notifications"])
+router = APIRouter(tags=["notifications"])
 
 
 @router.get("/")

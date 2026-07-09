@@ -9,7 +9,7 @@ from fastapi import APIRouter
 
 from app.product.personal_dashboard import generate_dashboard
 
-router = APIRouter(prefix="/api/dashboard", tags=["dashboard"])
+router = APIRouter(tags=["dashboard"])
 
 
 @router.get("")

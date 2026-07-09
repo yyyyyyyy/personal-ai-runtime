@@ -47,7 +47,7 @@ export default function ContextPanel({ lastUserMessage, toolResults = [], open, 
         })
         .slice(0, 3);
       setGoals(active);
-    } catch (err) {
+    } catch {
       addError("加载目标失败", "上下文");
     }
 

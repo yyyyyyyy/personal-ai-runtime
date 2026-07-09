@@ -29,15 +29,26 @@ export interface DisplayMessage {
 function parseToolCalls(raw: string): DisplayMessage["toolCalls"] {
   const parsed = JSON.parse(raw);
   const list = Array.isArray(parsed) ? parsed : [];
-  return list.map((tc: any, idx: number) => ({
-    index: tc.index ?? idx,
-    id: tc.id ?? "",
-    function_name: tc.function?.name ?? tc.function_name ?? "",
-    arguments:
-      typeof tc.function?.arguments === "string"
-        ? tc.function.arguments
-        : JSON.stringify(tc.function?.arguments ?? tc.arguments ?? {}),
-  }));
+  return list.map(
+    (
+      tc: {
+        index?: number;
+        id?: string;
+        function?: { name?: string; arguments?: string | Record<string, unknown> };
+        function_name?: string;
+        arguments?: string | Record<string, unknown>;
+      },
+      idx: number,
+    ) => ({
+      index: tc.index ?? idx,
+      id: tc.id ?? "",
+      function_name: tc.function?.name ?? tc.function_name ?? "",
+      arguments:
+        typeof tc.function?.arguments === "string"
+          ? tc.function.arguments
+          : JSON.stringify(tc.function?.arguments ?? tc.arguments ?? {}),
+    }),
+  );
 }
 
 function inboxSummaryFromResults(results: ToolResult[]): string | null {

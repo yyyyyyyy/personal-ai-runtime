@@ -18,7 +18,7 @@ from app.store.text_chunker import ChunkConfig, chunk_text
 from app.store.vector import vector_store
 
 logger = logging.getLogger(__name__)
-router = APIRouter(prefix="/api/knowledge", tags=["knowledge"])
+router = APIRouter(tags=["knowledge"])
 
 KNOWLEDGE_CATEGORY = "knowledge_docs"
 MAX_FILE_SIZE = 10 * 1024 * 1024

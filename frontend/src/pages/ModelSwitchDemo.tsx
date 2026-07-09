@@ -3,7 +3,6 @@ import { Zap, Brain, ArrowRight, RefreshCw, Check } from "lucide-react";
 import { API_BASE, request } from "../api/core";
 import type { MemoryRow } from "../api/client";
 import { listMemoriesGrouped } from "../api/client";
-import { ApiError } from "../api/client";
 
 interface DemoState {
   model: string;

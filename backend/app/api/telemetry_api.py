@@ -7,7 +7,7 @@ from fastapi import APIRouter, Query
 from app.core.runtime.kernel_instance import kernel
 from app.core.telemetry.telemetry import telemetry
 
-router = APIRouter(prefix="/api/telemetry", tags=["telemetry"])
+router = APIRouter(tags=["telemetry"])
 
 
 @router.get("/cost/summary")

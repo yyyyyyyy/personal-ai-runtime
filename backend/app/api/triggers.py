@@ -13,7 +13,7 @@ from app.core.runtime.reaction_registry import (
     get_reaction_registry,
 )
 
-router = APIRouter(prefix="/api/triggers", tags=["triggers"])
+router = APIRouter(tags=["triggers"])
 
 
 @router.post("/")

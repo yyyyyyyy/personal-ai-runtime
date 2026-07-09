@@ -76,7 +76,6 @@ export default function ChatView({ conversationId }: Props) {
     setMessages,
     isLoading,
     streamingContent,
-    loadMessages,
     handleSend: sendMessageBase,
     lastUserMessage,
     allToolResults,

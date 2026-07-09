@@ -16,7 +16,7 @@ from app.core.harness.mcp_config import (
 )
 from app.core.runtime import read_ports
 
-router = APIRouter(prefix="/api/connectors", tags=["connectors"])
+router = APIRouter(tags=["connectors"])
 logger = logging.getLogger(__name__)
 
 

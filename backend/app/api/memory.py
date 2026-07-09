@@ -7,7 +7,7 @@ from app.core.agents.memory_engine import memory_engine
 from app.core.agents.user_profile import user_profile
 from app.core.runtime.kernel_instance import kernel
 
-router = APIRouter(prefix="/api/memory", tags=["memory"])
+router = APIRouter(tags=["memory"])
 
 
 def _get_memory(memory_id: str) -> dict | None:

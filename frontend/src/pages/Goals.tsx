@@ -16,7 +16,6 @@ import { useErrorStore } from "../stores/errorStore";
 import { useQuickChat } from "../hooks/useQuickChat";
 import Badge from "../components/ui/Badge";
 import Button from "../components/ui/Button";
-import Card from "../components/ui/Card";
 import Dialog from "../components/ui/Dialog";
 import EmptyState from "../components/ui/EmptyState";
 import { Input } from "../components/ui/Input";

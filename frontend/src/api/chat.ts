@@ -65,7 +65,7 @@ export async function sendMessage(
 
   const decoder = new TextDecoder();
   let buffer = "";
-  let lastByteTime = Date.now();
+  let lastByteTime: number;
   const SSE_IDLE_TIMEOUT_MS = 30_000;
 
   while (true) {

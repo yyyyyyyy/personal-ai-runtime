@@ -15,7 +15,7 @@ from app.api.models import CreateActionRequest, CreateGoalRequest
 from app.core.runtime.event_formatting import goal_events
 from app.core.runtime.kernel_instance import kernel
 
-router = APIRouter(prefix="/api/goals", tags=["goals"])
+router = APIRouter(tags=["goals"])
 
 VALID_GOAL_STATUSES = frozenset({"active", "completed", "paused"})
 

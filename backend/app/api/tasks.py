@@ -15,7 +15,7 @@ from app.core.runtime.task_engine import (
     update_work_item_status,
 )
 
-router = APIRouter(prefix="/api/tasks", tags=["tasks"])
+router = APIRouter(tags=["tasks"])
 
 
 @router.post("/")

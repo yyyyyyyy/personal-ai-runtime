@@ -11,7 +11,7 @@ from app.product.inbox import (
     poll_inbox,
 )
 
-router = APIRouter(prefix="/api/inbox", tags=["inbox"])
+router = APIRouter(tags=["inbox"])
 
 
 class UpdateInboxStatusRequest(BaseModel):

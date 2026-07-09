@@ -16,7 +16,7 @@ from app.core.runtime.kernel_instance import kernel
 from app.core.startup_health import sanitize_startup_for_public
 from app.version import VERSION
 
-router = APIRouter(prefix="/api/system", tags=["system"])
+router = APIRouter(tags=["system"])
 
 
 def _request_has_valid_auth(request: Request) -> bool:

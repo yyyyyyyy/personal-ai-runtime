@@ -12,7 +12,7 @@ from app.core.agents.conversation import ConversationAPI, ConversationManager
 from app.core.agents.tool_markup import strip_tool_markup
 from app.core.runtime.kernel_instance import kernel
 
-router = APIRouter(prefix="/api/chat", tags=["chat"])
+router = APIRouter(tags=["chat"])
 
 
 @router.post("/conversations")

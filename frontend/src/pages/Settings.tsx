@@ -20,7 +20,6 @@ import {
   type LlmSettingsResponse,
   type LlmProviderConfig,
   type EmailSettingsResponse,
-  type PromptConfig,
 } from "../api/client";
 import { useErrorStore } from "../stores/errorStore";
 import Card from "../components/ui/Card";
@@ -34,13 +33,6 @@ const STATUS_LABELS: Record<string, string> = {
   lazy: "懒加载",
   disconnected: "未连接",
   unavailable: "不可用",
-};
-
-const STATUS_TONE: Record<string, "success" | "warning" | "danger" | "default"> = {
-  connected: "success",
-  lazy: "warning",
-  disconnected: "default",
-  unavailable: "danger",
 };
 
 const MASKED_SECRET = "••••••••";

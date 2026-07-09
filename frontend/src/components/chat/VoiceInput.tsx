@@ -1,5 +1,5 @@
-import { useState, useRef, useCallback, useEffect } from "react";
-import { Mic, MicOff, Volume2, Loader2 } from "lucide-react";
+import { useState, useRef, useCallback } from "react";
+import { Mic, MicOff } from "lucide-react";
 
 declare global {
   interface Window {

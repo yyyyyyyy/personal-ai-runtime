@@ -4,7 +4,7 @@ from fastapi import APIRouter, Query
 
 from app.core.runtime.kernel_instance import kernel
 
-router = APIRouter(prefix="/api/timeline", tags=["timeline"])
+router = APIRouter(tags=["timeline"])
 
 # Event type → human-readable label mapping
 EVENT_LABELS: dict[str, str] = {
