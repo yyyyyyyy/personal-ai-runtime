@@ -93,23 +93,13 @@ jobs:
           "
 
       - name: Verify API routes load
-        env:
-          DATA_DIR: ${{ runner.temp }}/verify-api
-          VECTOR_DIR: ${{ runner.temp }}/verify-api-vectors
-          SQLITE_PATH: ${{ runner.temp }}/verify-api/verify.db
-          MCP_EXTERNAL_ENABLED: "false"
         run: |
-          mkdir -p ${{ runner.temp }}/verify-api
           cd backend
           python -c "
-          import os, traceback
-          os.environ.setdefault('LLM_API_KEY', 'test-key')
-          try:
-              import app.main as main_module
-              app = main_module.app
-          except Exception:
-              traceback.print_exc()
-              raise SystemExit('import app.main failed')
+          import os
+          os.environ['LLM_API_KEY'] = 'test-key'
+          import app.main as main_module
+          app = main_module.app
           routes = [r.path for r in app.routes if hasattr(r, 'path')]
           endpoints = [
               '/api/chat/conversations',
