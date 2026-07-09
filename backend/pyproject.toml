@@ -8,7 +8,7 @@ name = "personal-ai-runtime-backend"
 requires-python = ">=3.12"
 # Canonical pinned set: requirements.txt (used by make install / CI).
 dependencies = [
-    "fastapi==0.115.6",
+    "fastapi==0.139.0",
     "uvicorn[standard]==0.49.0",
     "openai==1.58.1",
     "pydantic==2.10.4",
