@@ -97,39 +97,11 @@ jobs:
           cd backend
           rm -rf data/
           python -c "
-          import os, sys, traceback
+          import os
           os.environ['LLM_API_KEY'] = 'test-key'
-          os.environ.setdefault('MCP_EXTERNAL_ENABLED', 'false')
-
-          # Step-by-step import to find the failure point
-          steps = []
-          try:
-              from app.api import chat
-              steps.append('import chat: OK')
-          except Exception as e:
-              steps.append(f'import chat: FAIL {e}')
-              traceback.print_exc()
-
-          try:
-              from app.api import knowledge
-              steps.append('import knowledge: OK')
-          except Exception as e:
-              steps.append(f'import knowledge: FAIL {e}')
-
-          try:
-              import app.main as main_module
-              steps.append('import app.main: OK')
-          except Exception as e:
-              steps.append(f'import app.main: FAIL {e}')
-              traceback.print_exc()
-              sys.exit(1)
-
+          import app.main as main_module
           app = main_module.app
           routes = [r.path for r in app.routes if hasattr(r, 'path')]
-          print(f'DEBUG: {len(routes)} routes', flush=True)
-          for s in steps:
-              print(f'STEP: {s}', flush=True)
-
           endpoints = [
               '/api/chat/conversations',
               '/api/chat/approvals/',
