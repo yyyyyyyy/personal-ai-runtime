@@ -107,6 +107,9 @@ jobs:
               traceback.print_exc()
               raise SystemExit(1)
           routes = [r.path for r in app.routes if hasattr(r, 'path')]
+          print(f'DEBUG: {len(routes)} routes registered', flush=True)
+          if len(routes) < 50:
+              print(f'DEBUG routes: {routes}', flush=True)
           endpoints = [
               '/api/chat/conversations',
               '/api/chat/approvals/',
