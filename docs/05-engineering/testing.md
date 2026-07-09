@@ -33,7 +33,7 @@ flowchart TB
 |---|---|
 | `agents/` | agent 层单测：brain 遥测、computer_use/voice import 安全、token_counter、tool_dispatcher、tool_markup/postprocess |
 | `api/` | API 覆盖冒烟（`test_api_coverage.py`） |
-| `integration/` | FastAPI TestClient + Kernel：approval flow、auth、b2/b3 审计、dashboard、goals/knowledge/settings/system/timeline/trigger API、workflows（v0.2 skip） |
+| `integration/` | FastAPI TestClient + Kernel：approval flow、auth、b2/b3 审计、dashboard、goals/knowledge/settings/system/timeline/trigger API |
 | `product/` | 基于 Kernel 的产品层：dashboard、encrypted_sync、inbox、notifications |
 | `runtime/` | kernel/执行/治理核心（~80 文件） |
 
@@ -55,7 +55,7 @@ flowchart TB
 - **边界与归属守卫**：`test_boundary_guard.py`、`test_execution_ownership_guard.py`、`test_projection_provenance_guard.py`、`test_projection_schema_contract.py`
 - **执行模型（ADR-0007 Step 1–5）**：`test_execution_model.py`、`test_execution_events.py`、`test_execution_context.py`、`test_execution_recovery.py`、`test_execution_shadow_compare.py`、`test_execution_ownership.py`
 - **Agent bus / 隔离 / 恢复**：`test_agent_bus.py`、`test_agent_isolation.py`、`test_agent_recovery.py`、`test_d1_concurrent_isolation.py`
-- **Scheduler / timer / trigger**：`test_scheduler.py`、`test_scheduler_deadline.py`、`test_scheduler_extended.py`、`test_coverage_engines.py`、`test_trigger_engine_extended.py`
+- **Scheduler / timer / reaction**：`test_scheduler.py`、`test_scheduler_deadline.py`、`test_scheduler_extended.py`、`test_coverage_engines.py`
 - **能力治理与策略（T2/A3/C3）**：`test_capability_approval.py`、`test_capability_decision.py`、`test_capability_forbidden.py`、`test_c3_mcp_policy_eventsourcing.py`、`test_runtime_config.py`、`test_taint.py`、`test_sensitive_router.py`
 - **出口与连接器**：`test_egress.py`、`test_connector.py`、`test_browser_ssrf.py`、`test_fetch_ssrf.py`、`test_url_safety.py`、`test_web_search_html.py`
 - **MCP / filesystem / shell / email server**：`test_filesystem_server.py`、`test_shell_server.py`、`test_email_server.py`、`test_mcp_config.py`、`test_mcp_mesh.py`
@@ -125,7 +125,7 @@ CI 报告用 `--cov-report=term-missing` 让缺失部分可见，开发者按需
 | 脚本 | 验证 |
 |---|---|
 | [`verify_vector_consistency.py`](../../backend/scripts/verify_vector_consistency.py) | 自测：发 2 个 MemoryDerived，比对 SQLite `memories` id 集合 vs Chroma `memories` collection；可选 `--db`/`--vector-dir`/`--check-default` 对账真实数据目录 |
-| [`verify_alembic.py`](../../backend/scripts/verify_alembic.py) | 开 db 单例，查 `sqlite_master`，验证 20 张 `REQUIRED_TABLES` 存在 + `PRAGMA foreign_keys=1` |
+| [`verify_alembic.py`](../../backend/scripts/verify_alembic.py) | 开 db 单例，查 `sqlite_master`，验证 19 张 `REQUIRED_TABLES` 存在 + `PRAGMA foreign_keys=1` |
 
 ### 演示
 
@@ -179,6 +179,6 @@ vitest，**不需要 Electron 已安装**。读 `main.js` 源码，字符串 `to
 [`backend/pyproject.toml`](../../backend/pyproject.toml) 的 `[tool.coverage.run]`：
 
 - `source = ["app/api", "app/product"]`
-- `omit`：`app/experimental/*`、`app/core/runtime/memory_decay.py`、`runtime_container.py`、`runtime_loop.py`、`capability_governance.py`、`capability_policy.py`、`app/api/workflows.py`（v0.2.0 注销的死代码）
+- `omit`：`app/experimental/*`、`app/core/runtime/memory_decay.py`、`runtime_container.py`、`runtime_loop.py`、`capability_governance.py`、`capability_policy.py`
 
 CI 两个 `--fail-under` 门：`app/core/runtime/*` ≥84%、`app/api/*` ≥50%。

@@ -1,14 +1,13 @@
-"""Governance projectors — Policy + Grant event-sourced projections.
+"""Governance projectors — Policy event-sourced projections.
 
-policy_events and grant_events are projections of Policy/Grant aggregate event
-streams. Each is fully reconstructible from the Event Log.
-
-This replaces capability_policy.json as the Governance Runtime Root of Trust.
+policy_events is a projection of Policy aggregate event streams, fully
+reconstructible from the Event Log. Grant projections were removed in v0.9.0
+(Gate 2 eliminated; no Grant* projectors remain).
 """
 
 from __future__ import annotations
 
-from .constants import AGGREGATE_GRANT, AGGREGATE_POLICY
+from .constants import AGGREGATE_POLICY
 from .event import Event
 from .projectors_registry import _OWNED_TABLES, projector
 
@@ -27,23 +26,6 @@ CREATE INDEX IF NOT EXISTS idx_policy_events_capability
     ON policy_events (capability);
 CREATE INDEX IF NOT EXISTS idx_policy_events_status
     ON policy_events (status);
-"""
-
-_OWNED_TABLES[AGGREGATE_GRANT] = ["grant_events"]
-
-GRANT_DDL = """
-CREATE TABLE IF NOT EXISTS grant_events (
-    id               TEXT PRIMARY KEY,
-    principal_id     TEXT NOT NULL,
-    capability       TEXT NOT NULL,
-    status           TEXT NOT NULL DEFAULT 'active',  -- active | revoked
-    created_at       TEXT NOT NULL,
-    revoked_at       TEXT NOT NULL DEFAULT ''
-);
-CREATE INDEX IF NOT EXISTS idx_grant_events_principal
-    ON grant_events (principal_id);
-CREATE INDEX IF NOT EXISTS idx_grant_events_capability
-    ON grant_events (principal_id, capability);
 """
 
 

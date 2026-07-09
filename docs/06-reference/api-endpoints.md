@@ -37,28 +37,28 @@
 
 | 方法 | 路径 | 行 | 请求 | 响应 | 副作用 |
 |---|---|---|---|---|---|
-| POST | `/` | `44-77` | `CreateGoalRequest{title, description="", importance=0.5, urgency=0.5, parent_id?, deadline?}` | goal dict | emit `GoalCreated` |
+| POST | `/` | `49-77` | `CreateGoalRequest{title, description="", importance=0.5, urgency=0.5, parent_id?, deadline?}` | goal dict | emit `WorkItemCreated` (work_type=goal) |
 | GET | `/` | `80-86` | query `status?`, `limit=50` | list | 无 |
 | GET | `/{goal_id}` | `89-98` | path | goal + actions + events | 无 |
-| PUT/PATCH | `/{goal_id}` | `101-137` | body dict（title/description/status/progress/importance/urgency/deadline/parent_id） | goal dict / 404 | emit `GoalUpdated` 或 `GoalCompleted` |
-| DELETE | `/{goal_id}` | `140-159` | path | `{"status":"ok"}` / 404 | 每 action emit `ActionDeleted`，再 emit `GoalDeleted` |
-| POST | `/{goal_id}/actions` | `164-193` | `CreateActionRequest{title, goal_id=""}` | action dict | emit `ActionCreated` + `GoalTouched` |
-| PUT | `/{goal_id}/actions/{action_id}` | `196-230` | body dict（status, title） | `{"status":"ok"}` / 404 | emit `ActionUpdated` + `GoalTouched`；completed 时联动 progress + 通知 + memory |
-| DELETE | `/{goal_id}/actions/{action_id}` | `233-247` | path | `{"status":"ok"}` / 404 | emit `ActionDeleted` |
+| PUT/PATCH | `/{goal_id}` | `102-144` | body dict（title/description/status/progress/importance/urgency/deadline/parent_id） | goal dict / 404 | emit `WorkItemUpdated` 或 `WorkItemStatusChanged` |
+| DELETE | `/{goal_id}` | `147-167` | path | `{"status":"ok"}` / 404 | emit `WorkItemDeleted`（含子 action） |
+| POST | `/{goal_id}/actions` | `172-208` | `CreateActionRequest{title, goal_id=""}` | action dict | emit `WorkItemCreated` (work_type=action) |
+| PUT | `/{goal_id}/actions/{action_id}` | `211-251` | body dict（status, title） | `{"status":"ok"}` / 404 | emit `WorkItemUpdated`；completed 时联动通知 + memory |
+| DELETE | `/{goal_id}/actions/{action_id}` | `254-267` | path | `{"status":"ok"}` / 404 | emit `WorkItemDeleted` |
 | POST | `/{goal_id}/decompose` | `257-338` | path | `{"steps": list[str]}` | **LLM 调用**：拆解目标 3-10 步 |
 
 ## tasks — `/api/tasks`（[`api/tasks.py`](../../backend/app/api/tasks.py)）
 
 | 方法 | 路径 | 行 | 请求 | 响应 | 副作用 |
 |---|---|---|---|---|---|
-| POST | `/` | `12-26` | `CreateTaskRequest{name="", title="", description="", goal_id="", parent_goal_id?, parent_task_id?, priority=0, dependencies?}` | task dict | task_engine 创建 |
-| GET | `/` | `29-31` | query `status?`, `limit=50` | list | 无 |
-| GET | `/{task_id}` | `34-39` | path | task / 404 | 无 |
-| GET | `/{task_id}/subtasks` | `42-46` | path | list / 404 | 无 |
-| DELETE | `/{task_id}` | `49-61` | path | `{"status":"ok"}` / 404 | emit `TaskDeleted` |
-| GET | `/goals/{goal_id}/tree` | `64-68` | path | tree / 404 | 无 |
-| PATCH | `/{task_id}/status` | `80-93` | `UpdateTaskStatusRequest{status, result=""}`（别名映射 in_progress→running 等） | task / 404 / 400 | task_engine 更新 |
-| GET | `/{task_id}/dependencies-met` | `96-101` | path | `{"met": bool}` / 404 | 无 |
+| POST | `/` | `21-36` | body dict（name/title, description, parent_goal_id, parent_task_id, priority, dependencies） | work_item dict | `task_engine.create_work_item` → `WorkItemCreated` |
+| GET | `/` | `39-41` | query `status?`, `limit=50` | list | 无 |
+| GET | `/{task_id}` | `44-49` | path | task / 404 | 无 |
+| GET | `/{task_id}/subtasks` | `52-57` | path | list / 404 | 无 |
+| DELETE | `/{task_id}` | `60-65` | path | `{"status":"ok"}` / 404 | emit `WorkItemDeleted` |
+| PATCH | `/{task_id}/status` | `68-76` | body `{status}` | task / 404 / 400 | `task_engine.update_work_item_status` |
+| POST | `/goal/{goal_id}` | `81-95` | body dict | work_item dict | `create_work_item` under goal |
+| GET | `/goal/{goal_id}` | `98-100` | path | tree | 无 |
 
 ## background_tasks — `/api/tasks/background`（[`api/background_tasks.py`](../../backend/app/api/background_tasks.py)）
 
@@ -91,10 +91,9 @@
 
 | 方法 | 路径 | 行 | 请求 | 响应 | 副作用 |
 |---|---|---|---|---|---|
-| POST | `/` | `11-22` | `CreateTriggerRequest{name, trigger_type="", condition={}, action_type="suggestion", action_config?}` | trigger dict / 400 | trigger_engine 创建 |
-| GET | `/` | `25-27` | — | list | 无 |
-| DELETE | `/{trigger_id}` | `30-36` | path | `{"status":"ok"}` / 404 | 删除 |
-| POST | `/evaluate` | `39-42` | — | `{"suggestions":[...]}` | `trigger_engine.evaluate_all()` |
+| POST | `/` | `19-42` | `CreateTriggerRequest{name, trigger_type, condition, action_config?}` | reaction dict / 400 | `ReactionRegistry.register`（内存，v0.6.0） |
+| GET | `/` | `45-48` | — | list | 无 |
+| DELETE | `/{trigger_id}` | `51-57` | path | `{"status":"ok"}` / 404 | 从 ReactionRegistry 删除 |
 
 ## notifications — `/api/notifications`（[`api/notifications.py`](../../backend/app/api/notifications.py)）
 
@@ -192,7 +191,3 @@
 | 路径 | 行 | 用途 |
 |---|---|---|
 | `WS /ws` | [`main.py`](../../backend/app/main.py) | 实时通知推送。客户端发 `ping` 得 `pong`；`broadcast_notification` 向所有连接广播 JSON。鉴权 `Sec-WebSocket-Protocol: auth.<token>` |
-
-## 未挂载的 workflows router
-
-> `backend/app/api/workflows.py` 定义了 `GET/POST/PUT/DELETE /api/workflows[/{id}]`、`/export`、`/_palette`、`/templates`、`/from-template/{id}`，但 `main.py` **未 include_router**。当前运行实例不可达。

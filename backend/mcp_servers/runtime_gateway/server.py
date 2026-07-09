@@ -9,8 +9,8 @@ Tools exposed:
   - recall: unified semantic search across memories + knowledge documents
   - store_memory: persist a fact into long-term memory (event-sourced)
 
-The server talks to the local backend over HTTP (@public endpoints defined in
-docs/02-concepts/sdk-boundary.md). It does NOT import the runtime directly —
+The server talks to the local backend over HTTP (@public memory/knowledge endpoints).
+It does NOT import the runtime directly —
 that's the whole point: external agents should depend on the HTTP contract,
 not Python internals.
 

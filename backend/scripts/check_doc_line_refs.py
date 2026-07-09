@@ -23,9 +23,7 @@ _DOCS = _ROOT / "docs"
 # point-in-time evidence records whose value depends on citing exact line
 # numbers; rewriting them to function-name refs would destroy that precision.
 # Add only documents that are explicitly historical (not living docs).
-_ALLOWLIST: frozenset[str] = frozenset({
-    "docs/ARCHITECTURE_SURVIVAL_REVIEW.md",
-})
+_ALLOWLIST: frozenset[str] = frozenset()
 
 # Match a markdown link whose label is a backtick-quoted path ending in
 # .py:NNN or .py:NNN-NNN. Examples that fail:

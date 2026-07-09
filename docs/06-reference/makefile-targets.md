@@ -57,7 +57,7 @@
 | `egress-verify` | [`verify_egress.py`](../../backend/scripts/verify_egress.py) | LLM 出口审计 |
 | `vector-consistency-verify` | [`verify_vector_consistency.py`](../../backend/scripts/verify_vector_consistency.py) | SQLite memories vs Chroma 对账 |
 | `connector-verify` | [`verify_connector.py`](../../backend/scripts/verify_connector.py) | 日历连接器审计 |
-| `alembic-verify` | [`verify_alembic.py`](../../backend/scripts/verify_alembic.py) | 20 张必需表存在 + PRAGMA foreign_keys |
+| `alembic-verify` | [`verify_alembic.py`](../../backend/scripts/verify_alembic.py) | 19 张必需表存在 + PRAGMA foreign_keys |
 
 ## 容器
 

@@ -26,7 +26,7 @@ def test_apply_raw_ddl_creates_core_tables(tmp_path):
                 "SELECT name FROM sqlite_master WHERE type='table'"
             ).fetchall()
         }
-    assert "goals" in tables
+    assert "work_items" in tables
     assert "event_log" in tables
 
 
@@ -44,7 +44,9 @@ def test_ensure_schema_idempotent(tmp_path):
     ensure_schema(Database(db_path=db_path))
     ensure_schema(Database(db_path=db_path))
     with Database(db_path=db_path).get_db() as conn:
-        assert conn.execute("SELECT COUNT(*) FROM goals").fetchone()[0] == 0
+        assert conn.execute(
+            "SELECT COUNT(*) FROM work_items WHERE work_type = 'goal'"
+        ).fetchone()[0] == 0
 
 
 def test_apply_projection_ddl_creates_timer_and_governance_tables(tmp_path):
@@ -58,7 +60,7 @@ def test_apply_projection_ddl_creates_timer_and_governance_tables(tmp_path):
                 "SELECT name FROM sqlite_master WHERE type='table'"
             ).fetchall()
         }
-    assert {"timer_events", "policy_events", "grant_events"} <= tables
+    assert {"timer_events", "policy_events"} <= tables
 
 
 def test_ensure_schema_alembic_path_includes_projection_tables(tmp_path, monkeypatch):
@@ -77,4 +79,4 @@ def test_ensure_schema_alembic_path_includes_projection_tables(tmp_path, monkeyp
             ).fetchall()
         }
     assert "work_items" in tables
-    assert {"timer_events", "policy_events", "grant_events"} <= tables
+    assert {"timer_events", "policy_events"} <= tables

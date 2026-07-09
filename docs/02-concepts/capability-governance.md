@@ -116,7 +116,8 @@ v0.9.0 起不再有 `agent` principal 类型——Scheduler 是受信任的 Runt
 治理本身是事件溯源的根：
 
 - `policy_events` 表 — 每个能力的风险等级与状态变更历史，由 [`projectors_governance.py`](../../backend/app/core/runtime/kernel/projectors_governance.py) 从 `PolicyCreated/Updated/Revoked` 事件投影。`risk_for` 读取此投影（带缓存）。
-- `grant_events` 表 — **v0.9.0 起 legacy**：曾是 grant 聚合的投影，v0.7.0 删除 projector，v0.9.0 删除 Gate 2 后再无 production 读路径。表保留在 schema 中以兼容历史 DB，但无写入也无读取。
+
+Grant 投影（`grant_events` 表）已于 v0.9.0 删除——Gate 2 消除后无 production 读路径。
 
 ## 出口审计
 

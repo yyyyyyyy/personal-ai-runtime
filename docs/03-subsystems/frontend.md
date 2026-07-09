@@ -32,8 +32,6 @@
 | `/timeline` | `pages/Timeline.tsx` | 人生事件时间线 |
 | `/knowledge` | `pages/Knowledge.tsx` | RAG 文档上传与搜索 |
 
-> `pages/WorkflowList.tsx`、`pages/WorkflowEditor.tsx`、`pages/SceneTemplates.tsx`、`pages/IntegrationsHub.tsx` 存在并调用后端 `/api/workflows`、`/api/workflows/_palette`、`/api/workflows/templates`、`/api/connectors/`，但**未在 router 注册**，侧栏也不链接。代码库中证据不足：无法确认是否通过隐藏路径可达。
-
 ## 认证
 
 [`frontend/src/auth.ts`](../../frontend/src/auth.ts)：

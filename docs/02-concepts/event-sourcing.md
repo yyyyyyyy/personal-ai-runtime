@@ -12,8 +12,8 @@
 |---|---|
 | `seq` | 日志分配的递增序号（主键之一） |
 | `id` | 事件 UUID |
-| `type` | 事件类型字符串（如 `GoalCreated`、`MessageAppended`），常量集中定义于 [`kernel/constants.py`](../../backend/app/core/runtime/kernel/constants.py) |
-| `aggregate_type` | 聚合根类型（`goal`、`conversation`、`memory`、`execution` 等） |
+| `type` | 事件类型字符串（如 `WorkItemCreated`、`MessageAppended`），常量集中定义于 [`kernel/constants.py`](../../backend/app/core/runtime/kernel/constants.py) |
+| `aggregate_type` | 聚合根类型（`work_item`、`conversation`、`memory`、`execution` 等） |
 | `aggregate_id` | 聚合实例 id |
 | `actor` | 触发者（`user`、`system`、`agent:{instance_id}`、`scheduler`、`connector:*` 等） |
 | `payload` | JSON 业务数据 |
@@ -49,15 +49,15 @@ Kernel 提供两类读 API：
 
 - **拉取式** `read_events(...)`（[`kernel.py`](../../backend/app/core/runtime/kernel/kernel.py)）— 支持按类型、聚合、时间、actor 等过滤的事件日志读取。
 - **订阅式** `subscribe_events(handler, type, aggregate_type)`（[`kernel.py`](../../backend/app/core/runtime/kernel/kernel.py)）— 注册回调，返回反订阅函数。
-- **状态查询** `query_state(selector, **filters)`（[`kernel_query_state.py`](../../backend/app/core/runtime/kernel_query_state.py)）— 从投影表读取当前状态。支持的选择器：`goals`、`work_items`、`approvals`、`memories`、`notifications`、`timer_events`、`policy_events`、`messages`、`conversations`、`inbox_emails`、`background_tasks`、`triggers`、`user_profile`。
+- **状态查询** `query_state(selector, **filters)`（[`kernel_query_state.py`](../../backend/app/core/runtime/kernel_query_state.py)）— 从投影表读取当前状态。支持的选择器：`goals`（`work_items` 别名）、`work_items`、`approvals`、`memories`、`notifications`、`timer_events`、`policy_events`、`messages`、`conversations`、`inbox_emails`、`background_tasks`、`user_profile`、`tool_calls`、`llm_calls`。
 
 ## 投影器
 
 投影器把不可变事件转换为可变状态（物化视图）。注册通过装饰器：
 
 ```python
-@projector("GoalCreated")
-def project_goal_created(event, conn):
+@projector("WorkItemCreated")
+def project_work_item_created(event, conn):
     ...
 ```
 
@@ -65,15 +65,15 @@ def project_goal_created(event, conn):
 
 | 文件 | 投影内容 |
 |---|---|
-| `projectors_core.py` | Goal / Task / Action 等 |
+| `projectors_work_items.py` | WorkItem（含 goal/task/action） |
 | `projectors_chat.py` | Conversation / Message |
 | `projectors_aux.py` | Memory（写入 `embedding_id`） |
 | `projectors_background.py` | `background_tasks` |
-| `projectors_execution.py` | `handler_executions`（ExecutionRequested/Started/Retried/Paused/Resumed/Completed/Failed/Cancelled） |
-| `projectors_governance.py` | `policy_events` + `grant_events`（治理事件溯源根） |
+| `projectors_execution.py` | `handler_executions` |
+| `projectors_governance.py` | `policy_events` |
 | `projectors_timer.py` | timer |
-| `projectors_trigger.py` | trigger |
-| `projectors_user.py` | user |
+| `projectors_inbox.py` | inbox_emails |
+| `projectors_telemetry.py` | tool_calls / llm_calls |
 
 新增投影器须同时在 `projectors_registry._OWNED_TABLES` 注册所属表，`kernel.rebuild()` 才能正确清空并重建。
 
@@ -96,7 +96,7 @@ State 是 Event Log 的纯投影，可随时清空并从日志重放重建。Ker
 
 - **同步投影**：投影在 `emit_event` 事务内同步完成，而非异步 fan-out。优势是一致性；代价是 emit 延迟包含投影开销。
 - **AgentBus 在事件日志之上**：AgentBus 不是独立消息代理，而是订阅 `event_log` 事件的内存 fan-out 层（[`backend/app/core/runtime/agent_bus.py`](../../backend/app/core/runtime/agent_bus.py)）。订阅规则支持 `event_type` / `aggregate_type` / `source_agent` / `correlation_match`，用 `fnmatch` 模式匹配。
-- **混合存储**：并非所有表都是 governed 投影。`llm_calls`、`tool_calls`、`activity_log`、`app_settings` 等是 APP_STORAGE，可直访（见 [kernel-boundary.md](kernel-boundary.md)）。
+- **混合存储**：并非所有表都是 governed 投影。`activity_log`、`app_settings`、`memory_index_repairs` 等是 APP_STORAGE，可直访（见 [kernel-boundary.md](kernel-boundary.md)）。
 
 ## 相关验证脚本
 
@@ -105,7 +105,7 @@ State 是 Event Log 的纯投影，可随时清空并从日志重放重建。Ker
 | [`scripts/verify_rebuild.py`](../../backend/scripts/verify_rebuild.py) | 全量重建后投影状态字节一致 |
 | [`scripts/verify_snapshot_rebuild.py`](../../backend/scripts/verify_snapshot_rebuild.py) | 增量重建 + checkpoint 不回退 |
 | [`scripts/verify_conversation_rebuild.py`](../../backend/scripts/verify_conversation_rebuild.py) | 对话消息可重建且 `source_event_id` 可溯源 |
-| [`scripts/verify_goal_rebuild.py`](../../backend/scripts/verify_goal_rebuild.py) | 目标 `parent_id`/`progress` 重建后保留 |
+| [`scripts/verify_goal_rebuild.py`](../../backend/scripts/verify_goal_rebuild.py) | work_items(goal) 的 `parent_goal_id`/`progress` 重建后保留 |
 | [`scripts/verify_memory_lifecycle.py`](../../backend/scripts/verify_memory_lifecycle.py) | 记忆 Derived/Updated/Deleted 全生命周期可重建 |
 | [`scripts/verify_export_roundtrip.py`](../../backend/scripts/verify_export_roundtrip.py) | export → import 数据无损 |
 

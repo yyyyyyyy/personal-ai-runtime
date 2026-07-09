@@ -128,7 +128,7 @@ sequenceDiagram
 | LLM 出口审计 | `verify_egress.py` | 验证 `prepare_llm_egress` 发出 `EgressApproved` 事件 |
 | 向量一致性 | `verify_vector_consistency.py` | SQLite 记忆集合与 ChromaDB collection 集合对账 |
 | 收件箱双写一致性 | `verify_inbox_audit.py` | 验证 `inbox_emails` 表与 `InboxEmailRecorded` 事件 1:1 对应 |
-| Schema 完整性 | `verify_alembic.py` + 测试 | 20 张必需表存在 + PRAGMA 校验 |
+| Schema 完整性 | `verify_alembic.py` + 测试 | 19 张必需表存在 + PRAGMA 校验 |
 
 这些不变量是文档后续章节的基础，详见 [05-engineering/testing.md](../05-engineering/testing.md)。
 

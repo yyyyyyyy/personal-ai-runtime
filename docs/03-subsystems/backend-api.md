@@ -8,15 +8,13 @@
 
 ### 路由挂载
 
-16 个 router 在 [`main.py`](../../backend/app/main.py) 挂载：
+17 个 router 在 [`main.py`](../../backend/app/main.py) 挂载：
 
 ```
 chat, dashboard, system, settings_api, memory, goals, notifications,
 tasks, telemetry_api, approvals, background_tasks, triggers, inbox,
-connectors, timeline, knowledge
+connectors, timeline, knowledge, work_items
 ```
-
-> `backend/app/api/workflows.py` 定义了完整 router，但 `main.py` **未 include_router**。该 router 在当前运行实例中不可达。代码库中证据不足：未见注释或 git 记录解释原因。
 
 ### 中间件（外到内）
 
@@ -35,10 +33,9 @@ connectors, timeline, knowledge
 3. `init_scheduler()` — 注册 cron + 任务依赖订阅
 4. `capability_governance.seed_from_json(kernel)` — 从 [`capability_policy.json`](../../backend/capability_policy.json) 播种 `PolicyCreated`
 5. `await runtime_loop.start()` — 统一循环
-6. `trigger_engine.seed_builtin_triggers()`
-7. `await start_mcp_mesh()` — 连接 stdio MCP servers
-8. `enrich_with_mcp_status(...)`
-9. 若裸奔运行，启动 600s 周期安全告警协程
+6. `await start_mcp_mesh()` — 连接 stdio MCP servers
+7. `enrich_with_mcp_status(...)`
+8. 若裸奔运行，启动 600s 周期安全告警协程
 
 **Shutdown**：
 
@@ -101,10 +98,10 @@ connectors, timeline, knowledge
 
 | 文件 | 职责 |
 |---|---|
-| [`database.py`](../../backend/app/store/database.py) | `Database` 单例，SQLite + WAL + `synchronous=NORMAL`；线程局部连接缓存；`get_db()` contextmanager 自动 commit/rollback；只读便捷方法 `get_conversation`/`list_conversations`/`get_message`/`get_recent_messages`；`wal_checkpoint`；`log_activity` |
+| [`database.py`](../../backend/app/store/database.py) | `Database` 单例，SQLite + WAL + `synchronous=NORMAL`；线程局部连接缓存；`get_db()` contextmanager 自动 commit/rollback；`wal_checkpoint`；`log_activity` |
 | [`schema_init.py`](../../backend/app/store/schema_init.py) | `ensure_schema(db)`：生产路径跑 Alembic，测试/自定义路径跑原始 DDL |
 | [`alembic_runner.py`](../../backend/app/store/alembic_runner.py) | `run_migrations()` 用 `backend/alembic.ini`，`command.upgrade(cfg, "head")`，幂等 |
-| [`schema_ddl.py`](../../backend/app/store/schema_ddl.py) | 完整 DDL。`APP_STORAGE_DDL`（17 张应用表）+ Kernel space DDL（`event_log` + append-only 触发器、`projection_checkpoints`、`handler_executions`、`timer_events`、`policy_events`、`grant_events`） |
+| [`schema_ddl.py`](../../backend/app/store/schema_ddl.py) | raw DDL fallback：应用表 + kernel 表 + 投影表（`event_log`、`projection_checkpoints`、`handler_executions`、`timer_events`、`policy_events`） |
 | [`table_registry.py`](../../backend/app/store/table_registry.py) | 表分类（GOVERNED vs APP_STORAGE）+ `GOVERNED_SCHEMA` 契约。详见 [02-concepts/kernel-boundary.md](../02-concepts/kernel-boundary.md) |
 | [`vector.py`](../../backend/app/store/vector.py) | `VectorStore` 单例，ChromaDB `PersistentClient(path=settings.vector_dir)`，关闭 telemetry 并 monkey-patch `posthog.capture`。两个 collection：`memories`、`knowledge` |
 
@@ -125,7 +122,6 @@ connectors, timeline, knowledge
 绝大多数 router 通过 Kernel ABI。例外（直访 `db.get_db()` 或文件，但都在 APP_STORAGE 范围）：
 
 - [`knowledge.py`](../../backend/app/api/knowledge.py) — 文件 + ChromaDB + `app_settings`
-- `workflows.py`（未挂载）
 - [`connectors.py`](../../backend/app/api/connectors.py) 的 install/uninstall — 写 [`mcp_config.json`](../../backend/mcp_config.json)
 - [`inbox.py`](../../backend/app/api/inbox.py) 内部 `product/inbox.py` — 直访 `inbox_emails`（APP_STORAGE）
 

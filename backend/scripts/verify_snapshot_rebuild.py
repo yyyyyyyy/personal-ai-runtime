@@ -19,7 +19,12 @@ from app.store.database import Database
 
 def snapshot_work_items(db: Database) -> list[dict]:
     with db.get_db() as conn:
-        return [dict(r) for r in conn.execute("SELECT * FROM goals ORDER BY id").fetchall()]
+        return [
+            dict(r)
+            for r in conn.execute(
+                "SELECT * FROM work_items WHERE work_type = 'goal' ORDER BY id"
+            ).fetchall()
+        ]
 
 
 def read_checkpoint_seq(db: Database, aggregate_type: str) -> int | None:
@@ -39,10 +44,10 @@ def main() -> int:
     db = Database(db_path=str(db_path))
     k = Kernel(db=db)
 
-    k.emit_event("WorkItemCreated", "work_item", "g1", payload={"title": "First"}, actor="verify")
+    k.emit_event("WorkItemCreated", "work_item", "g1", payload={"title": "First", "work_type": "goal"}, actor="verify")
     k.save_projection_snapshot("work_item")
 
-    k.emit_event("WorkItemCreated", "work_item", "g2", payload={"title": "Second"}, actor="verify")
+    k.emit_event("WorkItemCreated", "work_item", "g2", payload={"title": "Second", "work_type": "goal"}, actor="verify")
     k.emit_event("WorkItemUpdated", "work_item", "g1", payload={"progress": 0.5}, actor="verify")
 
     before = snapshot_work_items(db)
@@ -50,7 +55,7 @@ def main() -> int:
     after = snapshot_work_items(db)
 
     if before != after:
-        print("FAIL: goals differ after incremental rebuild", file=sys.stderr)
+        print("FAIL: work_items differ after incremental rebuild", file=sys.stderr)
         return 1
     if replayed != 2:
         print(f"FAIL: expected 2 incremental events, got {replayed}", file=sys.stderr)

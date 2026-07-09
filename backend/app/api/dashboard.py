@@ -17,7 +17,7 @@ async def get_dashboard():
     """Return a personal dashboard built entirely from Kernel ABI.
 
     Runtime consistency proof:
-      - query_state for goals, timer_events, policy_events, grant_events
+      - query_state for goals (work_items alias), timer_events, policy_events
       - read_events for recent system events
       - recall_memory for semantic belief recall
       - Zero SQL / storage / filesystem access outside Kernel

@@ -46,19 +46,12 @@ APP_STORAGE_TABLES: frozenset[str] = frozenset({
     # Background task queue state; lifecycle is governed by BackgroundTask*
     # events in event_log. This table is a worker-scratch view.
     "background_tasks",
-    # Trigger definitions (conditional suggestions). App config, not a
-    # governed fact; the user edits these freely via the UI.
-    "triggers",
     # User profile / app settings — local-only preferences. No audit value;
     # exporting event_log is sufficient for data sovereignty.
     "user_profile",
     # App settings (UI preferences, LLM/Email connection config). Local-only
     # operational config; not a governed fact.
     "app_settings",
-    # Legacy events table and email settings (configuration, not governed).
-    "events",
-    "email_settings",
-    "grant_events",  # v0.9.0 legacy: projectors deleted v0.7.0, Gate 2 reader deleted v0.9.0; retained for historical migration only
     # Pending ChromaDB index repairs for memory events whose embedding sync
     # failed. The authoritative record is the MemoryDerived/Updated event in
     # event_log; this queue tracks outstanding reconciliation work and is

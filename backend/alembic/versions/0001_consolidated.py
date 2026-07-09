@@ -8,7 +8,9 @@ since there is no production data to preserve. The final schema state reflects:
 - memories table includes source_document columns (v07)
 - messages table includes sources column (v02)
 - notifications table includes dedup columns (v03)
-- timer_events, policy_events, grant_events, memory_index_repairs tables (v02, v04)
+- timer_events, policy_events, memory_index_repairs tables (v02, v04)
+- dead tables removed: patterns, tasks, schedules, triggers, grant_events,
+  events, email_settings (zero runtime references)
 """
 
 from typing import Sequence, Union
@@ -86,39 +88,11 @@ def upgrade() -> None:
     )
 
     op.create_table(
-        "schedules",
-        sa.Column("id", sa.Text(), primary_key=True),
-        sa.Column("name", sa.Text(), nullable=False),
-        sa.Column("cron_expr", sa.Text(), nullable=False),
-        sa.Column("task_type", sa.Text(), nullable=False),
-        sa.Column("trigger_type", sa.Text(), server_default="cron"),
-        sa.Column("trigger_config", sa.Text()),
-        sa.Column("config", sa.Text()),
-        sa.Column("enabled", sa.Integer(), server_default="1"),
-        sa.Column("last_run_at", sa.DateTime()),
-        sa.Column("created_at", sa.DateTime(), server_default=sa.text("CURRENT_TIMESTAMP")),
-    )
-
-    op.create_table(
         "activity_log",
         sa.Column("id", sa.Integer(), primary_key=True, autoincrement=True),
         sa.Column("type", sa.Text(), nullable=False),
         sa.Column("payload", sa.Text()),
         sa.Column("timestamp", sa.DateTime(), server_default=sa.text("CURRENT_TIMESTAMP")),
-    )
-
-    op.create_table(
-        "tasks",
-        sa.Column("id", sa.Text(), primary_key=True),
-        sa.Column("name", sa.Text(), nullable=False),
-        sa.Column("description", sa.Text()),
-        sa.Column("parent_goal_id", sa.Text()),
-        sa.Column("parent_task_id", sa.Text(), sa.ForeignKey("tasks.id")),
-        sa.Column("status", sa.Text(), server_default="pending"),
-        sa.Column("priority", sa.Integer(), server_default="0"),
-        sa.Column("dependencies_json", sa.Text()),
-        sa.Column("created_at", sa.DateTime(), server_default=sa.text("CURRENT_TIMESTAMP")),
-        sa.Column("updated_at", sa.DateTime(), server_default=sa.text("CURRENT_TIMESTAMP")),
     )
 
     op.create_table(
@@ -171,19 +145,6 @@ def upgrade() -> None:
     )
 
     op.create_table(
-        "triggers",
-        sa.Column("id", sa.Text(), primary_key=True),
-        sa.Column("name", sa.Text(), nullable=False),
-        sa.Column("trigger_type", sa.Text(), nullable=False),
-        sa.Column("condition_json", sa.Text(), nullable=False),
-        sa.Column("action_type", sa.Text(), nullable=False),
-        sa.Column("action_config", sa.Text()),
-        sa.Column("enabled", sa.Integer(), server_default="1"),
-        sa.Column("last_fired_at", sa.DateTime()),
-        sa.Column("created_at", sa.DateTime(), server_default=sa.text("CURRENT_TIMESTAMP")),
-    )
-
-    op.create_table(
         "user_profile",
         sa.Column("id", sa.Text(), primary_key=True),
         sa.Column("category", sa.Text(), nullable=False),
@@ -194,30 +155,22 @@ def upgrade() -> None:
     )
 
     op.create_table(
-        "patterns",
-        sa.Column("id", sa.Text(), primary_key=True),
-        sa.Column("pattern_type", sa.Text(), nullable=False),
-        sa.Column("metric", sa.Text(), nullable=False),
-        sa.Column("window_days", sa.Integer(), nullable=False),
-        sa.Column("statistics", sa.Text(), nullable=False),
-        sa.Column("evidence_chain", sa.Text(), nullable=False),
-        sa.Column("created_at", sa.Text(), nullable=False),
-    )
-
-    op.create_table(
         "inbox_emails",
         sa.Column("id", sa.Text(), primary_key=True),
+        sa.Column("server_id", sa.Text()),
         sa.Column("sender", sa.Text()),
         sa.Column("subject", sa.Text()),
+        sa.Column("date", sa.Text()),
         sa.Column("preview", sa.Text()),
-        sa.Column("received_at", sa.DateTime()),
+        sa.Column("full_text", sa.Text()),
+        sa.Column("status", sa.Text(), server_default="unread"),
         sa.Column("category", sa.Text()),
         sa.Column("importance", sa.Float(), server_default="0.5"),
         sa.Column("reason", sa.Text()),
         sa.Column("notified", sa.Integer(), server_default="0"),
         sa.Column("digested", sa.Integer(), server_default="0"),
-        sa.Column("status", sa.Text(), server_default="pending"),
         sa.Column("created_at", sa.DateTime(), server_default=sa.text("CURRENT_TIMESTAMP")),
+        sa.Column("received_at", sa.DateTime()),
     )
 
     op.create_table(
@@ -339,18 +292,6 @@ def upgrade() -> None:
     op.create_index("idx_policy_events_status", "policy_events", ["status"])
 
     op.create_table(
-        "grant_events",
-        sa.Column("id", sa.Text(), primary_key=True),
-        sa.Column("principal_id", sa.Text(), nullable=False),
-        sa.Column("capability", sa.Text(), nullable=False),
-        sa.Column("status", sa.Text(), nullable=False, server_default="active"),
-        sa.Column("created_at", sa.Text(), nullable=False),
-        sa.Column("revoked_at", sa.Text(), nullable=False, server_default=""),
-    )
-    op.create_index("idx_grant_events_principal", "grant_events", ["principal_id"])
-    op.create_index("idx_grant_events_capability", "grant_events", ["principal_id", "capability"])
-
-    op.create_table(
         "memory_index_repairs",
         sa.Column("id", sa.Integer(), primary_key=True, autoincrement=True),
         sa.Column("aggregate_id", sa.Text(), nullable=False),
@@ -371,9 +312,6 @@ def upgrade() -> None:
 def downgrade() -> None:
     op.drop_index("idx_memory_repairs_status", table_name="memory_index_repairs")
     op.drop_table("memory_index_repairs")
-    op.drop_index("idx_grant_events_capability", table_name="grant_events")
-    op.drop_index("idx_grant_events_principal", table_name="grant_events")
-    op.drop_table("grant_events")
     op.drop_index("idx_policy_events_status", table_name="policy_events")
     op.drop_index("idx_policy_events_capability", table_name="policy_events")
     op.drop_table("policy_events")
@@ -391,16 +329,12 @@ def downgrade() -> None:
     op.drop_table("event_log")
     op.drop_table("app_settings")
     op.drop_table("inbox_emails")
-    op.drop_table("patterns")
     op.drop_table("user_profile")
-    op.drop_table("triggers")
     op.drop_table("background_tasks")
     op.drop_table("approvals")
     op.drop_table("tool_calls")
     op.drop_table("llm_calls")
-    op.drop_table("tasks")
     op.drop_table("activity_log")
-    op.drop_table("schedules")
     op.drop_index("ix_notifications_related_type", table_name="notifications")
     op.drop_table("notifications")
     op.drop_table("memories")

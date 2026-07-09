@@ -186,9 +186,9 @@ Handlers（[`mvp/`](../../backend/app/core/agents/mvp/)）：
 | [`runtime_config.py`](../../backend/app/core/runtime/runtime_config.py) | LLM/Email 设置持久化于 SQLite `app_settings`；env 播种默认；UI 编辑持久化 DB；遗留 `runtime_config.json` 自动迁移。`PROVIDER_TYPES`、`PROVIDER_PRESETS`、`effective_api_key`、`get_llm_config(masked)`、`update_llm_config`、`get_email_config`、`get_generation_params`、`get_prompt`/`save_prompt` |
 | [`conversation_recorder.py`](../../backend/app/core/runtime/conversation_recorder.py) | 追加 `ConversationRecorded` 事件（用户↔助手回合的不可变 Experience 表示） |
 | [`timer_engine.py`](../../backend/app/core/runtime/timer_engine.py) | Cron 调度注册（扫描已迁移到 RuntimeLoop）：`ensure_schedules`/`create_schedule`/`list_schedules`/`delete_schedule` |
-| [`trigger_engine.py`](../../backend/app/core/runtime/trigger_engine.py) | 条件触发器（`staleness` 目标停滞 N 天、`threshold` 窗口内事件计数）。`evaluate_and_notify` 经 `notification_bridge.push_notification` 推送 |
+| [`reaction_registry.py`](../../backend/app/core/runtime/reaction_registry.py) | v0.6.0 声明式触发器（替代已删除的 `trigger_engine`） |
 | [`background_worker.py`](../../backend/app/core/runtime/background_worker.py) | 后台任务生命周期公开 API（轮询在 RuntimeLoop） |
-| [`task_engine.py`](../../backend/app/core/runtime/task_engine.py) | 统一任务模型（Goal → Project → Task → Execution）CRUD |
+| [`task_engine.py`](../../backend/app/core/runtime/task_engine.py) | WorkItem CRUD 模块函数（`work_type=task`，底层 emit `WorkItem*` 事件） |
 | [`notification_channel.py`](../../backend/app/core/runtime/notification_channel.py) | 可插拔通道：`DesktopChannel`（WS 广播）、`WebhookChannel`（HTTP POST）、`NtfyChannel`（ntfy.sh）。`NotificationRouter.notify()` 扇出 |
 | [`notification_bridge.py`](../../backend/app/core/runtime/notification_bridge.py) | 同步→异步桥；`push_notification` 持久化+广播，`broadcast_event` 纯传输 |
 | [`telemetry/telemetry.py`](../../backend/app/core/telemetry/telemetry.py) | 记录每次 LLM 调用（`LLMCallRecord`）与工具调用（`ToolCallRecord`）到 `llm_calls`/`tool_calls` 表 |
@@ -198,4 +198,3 @@ Handlers（[`mvp/`](../../backend/app/core/agents/mvp/)）：
 | [`rate_limit.py`](../../backend/app/core/rate_limit.py) | 内存令牌桶（按端点前缀）：`/api/chat` 30/60s、`/api/settings/llm/test` 5/60s、`/api/settings/email/test` 5/60s、`/api/inbox/poll` 10/60s、`/api/system/export` 3/60s |
 | [`logging_config.py`](../../backend/app/core/logging_config.py) | structlog + stdlib；`_request_id_processor` 把 `request_id_var` 附到每行日志 |
 | [`connectors/calendar_capture.py`](../../backend/app/core/connectors/calendar_capture.py) | 只读连接器，把日历事件摄入为 `ObservationRecorded` |
-| [`legacy_event_adapter.py`](../../backend/app/core/runtime/legacy_event_adapter.py) | **已弃用**。把 event_log 映射到遗留 `events` 表形态。计划 v0.3.0+ 移除 |

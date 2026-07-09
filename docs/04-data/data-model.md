@@ -15,12 +15,12 @@ SQLite 启用 WAL + `synchronous=NORMAL`（[`backend/app/store/database.py`](../
 
 ## 表分类总览
 
-全部 24 张表必须归入 GOVERNED 或 APP_STORAGE（[`backend/app/store/table_registry.py`](../../backend/app/store/table_registry.py)）。
+全部 19 张表必须归入 GOVERNED 或 APP_STORAGE（[`backend/app/store/table_registry.py`](../../backend/app/store/table_registry.py)）。
 
 | 类别 | 表数 | 写入权 |
 |---|---|---|
-| GOVERNED_TABLES | 12 | 仅 Kernel（事件溯源投影） |
-| APP_STORAGE_TABLES | 12 | 任意模块直访 |
+| GOVERNED_TABLES | 14 | 仅 Kernel（事件溯源投影） |
+| APP_STORAGE_TABLES | 5 | 任意模块直访 |
 
 ## GOVERNED 表（事件溯源投影）
 
@@ -37,21 +37,20 @@ frozenset({
 
 append-only。索引：`idx_event_log_aggregate`、`idx_event_log_correlation`。
 
-### `work_items`（v0.5.0：统一 task + action；v1.0 Phase 4：吸收 goal）
+### `work_items`（v0.5.0：统一 task + action；v1.0：吸收 goal）
 
 ```python
 frozenset({
     "id", "title", "description", "work_type", "parent_work_id",
     "parent_goal_id", "status", "priority", "dependencies_json",
     "executable_plan", "created_at", "updated_at", "completed_at",
-    # v1.0 goal-unification columns populated when work_type='goal'.
     "progress", "importance", "urgency", "deadline", "last_activity_at",
 })
 ```
 
-`work_type` 区分 `task` / `action` / `background` / `goal`（v1.0 Phase 4 起 goal 也并入本表）。`parent_work_id` 支持工作项嵌套；`parent_goal_id` 是 v1.0 迁移期保留的兼容列。`dependencies_json` 是依赖 work_item id 数组，由 [`cron_registry._on_task_completed`](../../backend/app/core/runtime/cron_registry.py) 在依赖满足时自动激活。
+`work_type` 区分 `task` / `action` / `background` / `goal`。`query_state("goals", ...)` 是 `work_items WHERE work_type='goal'` 的别名（[`kernel_query_state.py`](../../backend/app/core/runtime/kernel/kernel_query_state.py)）。
 
-> **v1.0 演进说明**：阶段 4 已删除独立的 `goals` 表与 `Goal*` 事件类型，全部统一到 `work_items(work_type='goal')`。详见 [runtime-algebra.md §5.3](../02-concepts/runtime-algebra.md)。
+> **v1.0 演进说明**：独立的 `goals` 物理表与 `Goal*` 事件类型已删除，全部统一到 `work_items(work_type='goal')`。详见 [runtime-algebra.md §5.3](../02-concepts/runtime-algebra.md)。
 
 ### `memories`
 
@@ -59,11 +58,11 @@ frozenset({
 frozenset({
     "id", "category", "content", "source", "embedding_id", "created_at",
     "confidence", "derived_from_event", "decayed_at", "status", "origin",
-    "claim_status",
+    "claim_status", "source_document_id", "source_document_name",
 })
 ```
 
-`category` 取值 `{fact, preference, habit, belief, insight, work, personal}`（[`backend/app/api/models.py`](../../backend/app/api/models.py)）。`embedding_id` 在 `emit_event` 中**预计算**，使投影器在同一 SQL 事务写入。`claim_status` 支持 `ratified`/`rejected`/`contested`。
+`category` 取值 `{fact, preference, habit, belief, insight, work, personal}`（[`backend/app/api/models.py`](../../backend/app/api/models.py)）。
 
 ### `approvals`
 
@@ -89,8 +88,6 @@ frozenset({
 })
 ```
 
-`messages.source_event_id` 指向产生该消息的 `event_log` 行（投影溯源守卫验证）。`sources` 列由 `v02_projection_tables` 迁移添加（ALTER TABLE，SQLite 无法原地降级删除）。
-
 ### `notifications`
 
 ```python
@@ -100,7 +97,17 @@ frozenset({
 })
 ```
 
-`related_id`/`related_type`/`notification_type` 由 `v03_notification_dedup` 迁移添加，配合 `ix_notifications_related_type` 索引使停滞目标的去重查询真正去重。
+### `inbox_emails`
+
+```python
+frozenset({
+    "id", "server_id", "sender", "subject", "date", "preview",
+    "full_text", "status", "category", "importance", "reason",
+    "notified", "digested", "created_at", "received_at",
+})
+```
+
+由 [`projectors_inbox.py`](../../backend/app/core/runtime/kernel/projectors_inbox.py) 从 `InboxEmailRecorded` 事件投影。
 
 ### `projection_checkpoints`
 
@@ -137,24 +144,19 @@ frozenset({
 frozenset({"id", "capability", "risk_level", "status", "created_at", "updated_at"})
 ```
 
-`grant_events` 表曾是 grant 聚合的投影，v0.7.0 起 projector 被删除、表归入 APP_STORAGE（详见下文）。
+### `tool_calls` / `llm_calls`
+
+v0.3.0 起从 APP_STORAGE 提升为 governed 投影，分别由 `CapabilityInvoked/Failed/Denied` 与 `LLMCallRecorded` 事件驱动。
 
 ## APP_STORAGE 表（可直访）
 
 | 表 | 用途 | 为何不事件溯源 |
 |---|---|---|
-| `events` | 旧版事件表，已被 `event_log` 取代 | 保留迁移用 |
 | `activity_log` | 人类可读活动日志 | event_log 投影派生 |
-| `llm_calls` | LLM 调用遥测（延迟、token、成本） | 可从 llm_egress 审计 + 事件流重建 |
-| `tool_calls` | 工具调用遥测 | 权威记录是 `CapabilityInvoked`/`CapabilityFailed` 事件 |
 | `background_tasks` | 后台任务队列状态 | worker scratch view，生命周期由 `BackgroundTask*` 事件治理 |
-| `triggers` | 触发器定义 | 应用配置，用户 UI 自由编辑 |
 | `user_profile` | 本地偏好 | 无审计价值，导出 event_log 足够主权 |
-| `inbox_emails` | IMAP 原始邮件缓存 | 权威记录是 `InboxEmailRecorded` 事件 |
 | `app_settings` | UI 偏好、LLM/Email 连接配置 | 本地运营配置 |
-| `email_settings` | IMAP/SMTP 连接配置 | 本地运营配置 |
-| `grant_events` | 历史 grant 投影（v0.9.0 legacy） | **完全 legacy**：[`projectors_governance.py`](../../backend/app/core/runtime/kernel/projectors_governance.py) v0.7.0 删除 projector，[`capability_governance.py`](../../backend/app/core/runtime/capability_governance.py) v0.9.0 删除 Gate 2 后再无 production 读路径。表保留以兼容历史 DB，无写入也无读取。 |
-| `memory_index_repairs` | 失败的 ChromaDB 索引同步修复队列（v0.8.0） | 由 [`RuntimeLoop._drain_memory_index_repairs`](../../backend/app/core/runtime/runtime_loop.py) 每 ~10s 重试，retry_count ≥ 5 标记 `failed_permanent` 并发 `MemoryIndexRepairFailed` 事件。权威记录是 `MemoryDerived/Updated/Deleted` 事件。 |
+| `memory_index_repairs` | ChromaDB 索引修复队列 | 权威记录是 `MemoryDerived/Updated` 事件；由 RuntimeLoop 重试 |
 
 ## ChromaDB Collections
 
@@ -165,34 +167,30 @@ frozenset({"id", "capability", "risk_level", "status", "created_at", "updated_at
 | `memories` | 记忆向量 | Kernel（`_sync_memory_index`） |
 | `knowledge` | 知识库文档块向量 | `knowledge` API（上传时分块向量化） |
 
-方法：`add_memory`/`search_memories`/`search_knowledge`/`add_knowledge_chunk`/`delete_memory`/`delete_knowledge_chunks`。ChromaDB 关闭 telemetry 并 monkey-patch `posthog.capture`（[`vector.py`](../../backend/app/store/vector.py)）。
-
 ## Alembic 迁移
 
 迁移文件在 [`backend/alembic/versions/`](../../backend/alembic/versions/)：
 
 | Revision | down_revision | 内容 |
 |---|---|---|
-| `initial`（`initial_schema.py`） | — | 基线：一次性创建所有应用表 + kernel 表（含 `event_log` append-only 触发器）+ `projection_checkpoints` + `handler_executions` |
-| `v02_projection_tables` | `initial` | 创建 `timer_events`/`policy_events`/`grant_events`；ALTER 加 `messages.sources` 列 |
-| `v03_notification_dedup` | `v02_projection_tables` | ALTER 加 `notifications.related_id`/`related_type`/`notification_type`；创建 `ix_notifications_related_type` 索引（参考 `FACT-37`） |
-| `v04_memory_index_repairs` | `v03_notification_dedup` | 创建 `memory_index_repairs` 表 + `idx_memory_repairs_status` 索引（v0.8.0：durable ChromaDB 修复队列） |
-| `v05_work_items_goal_columns` | `v04_memory_index_repairs` | ALTER 加 `work_items.progress/importance/urgency/deadline/last_activity_at`（v1.0 Phase 1：goal 字段并入 work_items，additive） |
+| `0001_consolidated` | — | 单一 baseline：全部应用表 + kernel 表 + 投影表 + append-only 触发器 |
 
-`run_migrations()`（[`backend/app/store/alembic_runner.py`](../../backend/app/store/alembic_runner.py)）用 `backend/alembic.ini`，`command.upgrade(cfg, "head")`，幂等。`env.py` import `app.config.settings` 构造 `sqlite:///{settings.sqlite_path}`，并 `setdefault("LLM_API_KEY", "alembic-migration-key")` 避免 Settings 校验失败。
+历史增量迁移（initial + v02–v07）已合并进 `0001_consolidated.py`，fresh install 只需一次 `alembic upgrade head`。
+
+`run_migrations()`（[`backend/app/store/alembic_runner.py`](../../backend/app/store/alembic_runner.py)）用 `backend/alembic.ini`，`command.upgrade(cfg, "head")`，幂等。
 
 ## Schema 初始化策略
 
-[`backend/app/store/schema_init.py`](../../backend/app/store/schema_init.py) 的 `ensure_schema(db)`（[`schema_init.py`](../../backend/app/store/schema_init.py)）：
+[`backend/app/store/schema_init.py`](../../backend/app/store/schema_init.py) 的 `ensure_schema(db)`：
 
-- 若 `db_path == settings.sqlite_path`（生产路径）→ 跑 Alembic migrations（失败回退原始 DDL）。
-- 否则（测试/自定义路径）→ 跑 `apply_raw_ddl`（[`schema_init.py`](../../backend/app/store/schema_init.py)）。
+- 若 `db_path == settings.sqlite_path`（生产路径）→ 跑 Alembic migrations（失败回退 raw DDL）。
+- 否则（测试/自定义路径）→ 跑 `apply_raw_ddl`。
 
 ## 一致性验证
 
 | 脚本 | 验证 |
 |---|---|
-| [`scripts/verify_alembic.py`](../../backend/scripts/verify_alembic.py) | 20 张 `REQUIRED_TABLES` 存在 + `PRAGMA foreign_keys=1` |
+| [`scripts/verify_alembic.py`](../../backend/scripts/verify_alembic.py) | 19 张必需表存在 + `PRAGMA foreign_keys=1` |
 | [`scripts/check_projection_provenance.py`](../../backend/scripts/check_projection_provenance.py) | 每条 governed 投影行有对应 `event_log` 事件 |
 | [`scripts/verify_vector_consistency.py`](../../backend/scripts/verify_vector_consistency.py) | SQLite memories 集合 = Chroma `memories` collection 集合 |
 | [`scripts/verify_export_roundtrip.py`](../../backend/scripts/verify_export_roundtrip.py) | export → import 后 event_log/conversations/messages/work_items/memories/notifications 计数一致 |

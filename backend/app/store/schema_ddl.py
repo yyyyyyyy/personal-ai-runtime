@@ -1,21 +1,6 @@
 """Raw SQL DDL for non-Alembic database initialization (tests and fallback)."""
 
 APP_STORAGE_DDL = """
-CREATE TABLE IF NOT EXISTS goals (
-    id TEXT PRIMARY KEY,
-    title TEXT NOT NULL,
-    description TEXT,
-    status TEXT DEFAULT 'active',
-    progress REAL DEFAULT 0,
-    importance REAL DEFAULT 0.5,
-    urgency REAL DEFAULT 0.5,
-    deadline TEXT,
-    parent_id TEXT,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    last_activity_at DATETIME DEFAULT CURRENT_TIMESTAMP
-);
-
 CREATE TABLE IF NOT EXISTS conversations (
     id TEXT PRIMARY KEY,
     title TEXT,
@@ -73,9 +58,7 @@ CREATE TABLE IF NOT EXISTS memories (
 );
 """
 
-# v0.5.0: unified work_items table supersedes tasks + actions.
-# Must be executed in ALL paths (raw DDL + Alembic) because Alembic
-# migrations don't include this table yet.
+# v0.5.0: unified work_items table supersedes tasks + actions + goals.
 WORK_ITEMS_SCHEMA = """
 CREATE TABLE IF NOT EXISTS work_items (
     id TEXT PRIMARY KEY,
@@ -91,8 +74,6 @@ CREATE TABLE IF NOT EXISTS work_items (
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     completed_at DATETIME,
-    -- v1.0 Goal→Work unification: goal-specific fields (Phase 1, additive).
-    -- Existing rows get sane defaults; goal rows (work_type='goal') populate them.
     progress REAL DEFAULT 0,
     importance REAL DEFAULT 0.5,
     urgency REAL DEFAULT 0.5,
@@ -147,18 +128,6 @@ CREATE TABLE IF NOT EXISTS background_tasks (
     completed_at DATETIME
 );
 
-CREATE TABLE IF NOT EXISTS triggers (
-    id TEXT PRIMARY KEY,
-    name TEXT NOT NULL,
-    trigger_type TEXT NOT NULL,
-    condition_json TEXT NOT NULL,
-    action_type TEXT NOT NULL,
-    action_config TEXT,
-    enabled INTEGER DEFAULT 1,
-    last_fired_at DATETIME,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-);
-
 CREATE TABLE IF NOT EXISTS user_profile (
     id TEXT PRIMARY KEY,
     category TEXT NOT NULL,
@@ -190,21 +159,6 @@ CREATE TABLE IF NOT EXISTS inbox_emails (
     digested INTEGER DEFAULT 0,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     received_at DATETIME
-);
-CREATE TABLE IF NOT EXISTS events (
-    id TEXT PRIMARY KEY,
-    type TEXT,
-    payload TEXT,
-    timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
-    goal_id TEXT,
-    summary TEXT
-);
-CREATE TABLE IF NOT EXISTS email_settings (
-    provider TEXT DEFAULT 'gmail',
-    user TEXT,
-    password TEXT,
-    imap_host TEXT,
-    smtp_host TEXT
 );
 """
 
@@ -297,21 +251,6 @@ CREATE INDEX IF NOT EXISTS idx_policy_events_capability
     ON policy_events (capability);
 CREATE INDEX IF NOT EXISTS idx_policy_events_status
     ON policy_events (status);
-"""
-
-GRANT_EVENTS_SCHEMA = """
-CREATE TABLE IF NOT EXISTS grant_events (
-    id               TEXT PRIMARY KEY,
-    principal_id     TEXT NOT NULL,
-    capability       TEXT NOT NULL,
-    status           TEXT NOT NULL DEFAULT 'active',
-    created_at       TEXT NOT NULL,
-    revoked_at       TEXT NOT NULL DEFAULT ''
-);
-CREATE INDEX IF NOT EXISTS idx_grant_events_principal
-    ON grant_events (principal_id);
-CREATE INDEX IF NOT EXISTS idx_grant_events_capability
-    ON grant_events (principal_id, capability);
 """
 
 MEMORY_INDEX_REPAIRS_SCHEMA = """

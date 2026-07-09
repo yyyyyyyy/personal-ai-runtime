@@ -38,11 +38,6 @@ def test_generate_dashboard_with_seeded_data(tmp_path, monkeypatch):
                  payload={"capability": "read_file", "risk_level": "low"},
                  actor="test")
 
-    # Seed: grant
-    k.emit_event("GrantCreated", "grant", "gr1",
-                 payload={"principal_id": "agent1", "capability": "web_search"},
-                 actor="test")
-
     from app.product.personal_dashboard import generate_dashboard
     dashboard = generate_dashboard()
 

@@ -19,15 +19,22 @@ def _table_columns(conn, table: str) -> set[str]:
     return {r[1] for r in rows}
 
 
+def _assert_governed_columns(conn) -> None:
+    for table, expected_cols in GOVERNED_SCHEMA.items():
+        actual = _table_columns(conn, table)
+        assert actual == set(expected_cols), (
+            f"{table}: expected {sorted(expected_cols)}, got {sorted(actual)}"
+        )
+
+
 def test_governed_and_app_storage_disjoint():
     overlap = GOVERNED_TABLES & APP_STORAGE_TABLES
     assert not overlap, f"Tables in both sets: {overlap}"
 
 
-# v1.0: goals table dropped in Phase 4, retained as legacy schema artifact.
 def test_all_business_tables_classified(tmp_path):
     db = Database(db_path=str(tmp_path / "registry.db"))
-    Kernel(db=db)  # ensures event_log + memory migrations
+    Kernel(db=db)
 
     with db.get_db() as conn:
         actual = {
@@ -37,9 +44,7 @@ def test_all_business_tables_classified(tmp_path):
             ).fetchall()
         }
 
-    # v1.0: goals table retained in schema for migration only
-    _LEGACY = {"goals"}
-    unclassified = actual - ALL_CLASSIFIED_TABLES - _LEGACY
+    unclassified = actual - ALL_CLASSIFIED_TABLES
     assert not unclassified, f"Unclassified tables: {unclassified}"
 
 
@@ -48,8 +53,18 @@ def test_governed_projection_columns_match_contract(tmp_path):
     Kernel(db=db)
 
     with db.get_db() as conn:
-        for table, expected_cols in GOVERNED_SCHEMA.items():
-            actual = _table_columns(conn, table)
-            assert actual == set(expected_cols), (
-                f"{table}: expected {sorted(expected_cols)}, got {sorted(actual)}"
-            )
+        _assert_governed_columns(conn)
+
+
+def test_governed_projection_columns_match_contract_alembic_path(tmp_path, monkeypatch):
+    """Alembic production path must satisfy the same column contract as raw DDL."""
+    prod_path = str(tmp_path / "prod_schema.db")
+    monkeypatch.setattr("app.config.settings.sqlite_path", prod_path)
+    monkeypatch.setattr("app.store.schema_init.settings.sqlite_path", prod_path)
+
+    from app.store.schema_init import ensure_schema
+
+    ensure_schema(Database(db_path=prod_path))
+
+    with Database(db_path=prod_path).get_db() as conn:
+        _assert_governed_columns(conn)
