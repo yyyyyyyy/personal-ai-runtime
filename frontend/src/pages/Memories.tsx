@@ -445,9 +445,7 @@ export default function MemoriesPage() {
             onClick={(e) => e.stopPropagation()}
           >
             <h3 className="text-lg font-semibold text-white">编辑记忆</h3>
-            <p className="text-xs text-gray-500">
-              更新会保留旧版本——可在"来源"查看完整版本演进
-            </p>
+            <p className="text-xs text-gray-500">更新会保留旧版本——可在"来源"查看完整版本演进</p>
             <div className="space-y-3">
               <div>
                 <label className="text-xs text-gray-400 mb-1 block">内容</label>
@@ -500,9 +498,7 @@ export default function MemoriesPage() {
               <History size={16} className="text-purple-400" />
               <h3 className="text-lg font-semibold text-white">记忆来源链</h3>
             </div>
-            <p className="text-sm text-gray-400 italic">
-              {provenanceTarget.content}
-            </p>
+            <p className="text-sm text-gray-400 italic">{provenanceTarget.content}</p>
             {provenanceLoading ? (
               <p className="text-sm text-gray-500">加载中...</p>
             ) : provenanceData && provenanceData.events.length > 0 ? (
@@ -516,9 +512,7 @@ export default function MemoriesPage() {
                       </span>
                       <span className="text-xs text-gray-500">{timeAgoShort(e.ts)}</span>
                     </div>
-                    <p className="text-sm text-gray-300 mt-0.5">
-                      {eventDescription(e)}
-                    </p>
+                    <p className="text-sm text-gray-300 mt-0.5">{eventDescription(e)}</p>
                   </li>
                 ))}
               </ol>

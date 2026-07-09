@@ -1,6 +1,5 @@
 /** Trust Report API — aggregates trust-related data for Phase 1 Trust Moat. */
 
-import { API_BASE, request } from "./core";
 import type { EnrichedApproval, SystemInfo } from "./types";
 import { listEnrichedPendingApprovals } from "./approvals";
 import { fetchSystemInfo, getDashboard } from "./system";
@@ -48,5 +47,15 @@ export async function getTrustReport(): Promise<TrustReportData> {
       getDashboard().catch(() => null),
     ]);
 
-  return { system, approvals, cost, costByModel, tools, memory, health, governance: governance!, dashboard };
+  return {
+    system,
+    approvals,
+    cost,
+    costByModel,
+    tools,
+    memory,
+    health,
+    governance: governance!,
+    dashboard,
+  };
 }

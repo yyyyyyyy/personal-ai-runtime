@@ -31,7 +31,7 @@ class KnowledgeContextFragment(ContextFragment):
             sources: list[dict] = []
             try:
                 from app.core.runtime import read_ports
-                for r in read_ports.search_knowledge(user_message, n_results=TOP_K):
+                for r in read_ports.search_knowledge(user_message, n_results=3):
                     meta = r.get("metadata") or {}
                     sources.append({
                         "id": r.get("id", ""),
