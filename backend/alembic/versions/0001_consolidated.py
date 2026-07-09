@@ -1,6 +1,14 @@
-"""Initial schema — all application and kernel tables.
+"""Consolidated schema — single baseline for fresh installs.
 
-Single consolidated baseline for fresh installs.
+All historical migrations (initial + v02-v07) are merged into this one file
+since there is no production data to preserve. The final schema state reflects:
+- goals/actions/events tables removed (v06 dropped goals; actions/events were
+  FK-dependent on goals and are unused since v1.0 WorkItem unification)
+- work_items table includes goal-specific columns (v05)
+- memories table includes source_document columns (v07)
+- messages table includes sources column (v02)
+- notifications table includes dedup columns (v03)
+- timer_events, policy_events, grant_events, memory_index_repairs tables (v02, v04)
 """
 
 from typing import Sequence, Union
@@ -9,14 +17,14 @@ import sqlalchemy as sa
 
 from alembic import op
 
-revision: str = "initial"
+revision: str = "0001_consolidated"
 down_revision: Union[str, None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    # --- Application tables ---
+    # ── Application tables ─────────────────────────────────────────────────
 
     op.create_table(
         "conversations",
@@ -36,44 +44,8 @@ def upgrade() -> None:
         sa.Column("tool_calls", sa.Text()),
         sa.Column("tool_call_id", sa.Text()),
         sa.Column("source_event_id", sa.Text(), server_default=""),
+        sa.Column("sources", sa.Text()),
         sa.Column("created_at", sa.DateTime(), server_default=sa.text("CURRENT_TIMESTAMP")),
-    )
-
-    op.create_table(
-        "goals",
-        sa.Column("id", sa.Text(), primary_key=True),
-        sa.Column("title", sa.Text(), nullable=False),
-        sa.Column("description", sa.Text()),
-        sa.Column("status", sa.Text(), server_default="active"),
-        sa.Column("progress", sa.Float(), server_default="0.0"),
-        sa.Column("importance", sa.Float(), server_default="0.5"),
-        sa.Column("urgency", sa.Float(), server_default="0.5"),
-        sa.Column("deadline", sa.DateTime()),
-        sa.Column("parent_id", sa.Text(), sa.ForeignKey("goals.id")),
-        sa.Column("created_at", sa.DateTime(), server_default=sa.text("CURRENT_TIMESTAMP")),
-        sa.Column("updated_at", sa.DateTime(), server_default=sa.text("CURRENT_TIMESTAMP")),
-        sa.Column("last_activity_at", sa.DateTime()),
-    )
-
-    op.create_table(
-        "actions",
-        sa.Column("id", sa.Text(), primary_key=True),
-        sa.Column("goal_id", sa.Text(), sa.ForeignKey("goals.id"), nullable=False),
-        sa.Column("title", sa.Text(), nullable=False),
-        sa.Column("status", sa.Text(), server_default="pending"),
-        sa.Column("executable_plan", sa.Text()),
-        sa.Column("created_at", sa.DateTime(), server_default=sa.text("CURRENT_TIMESTAMP")),
-        sa.Column("completed_at", sa.DateTime()),
-    )
-
-    op.create_table(
-        "events",
-        sa.Column("id", sa.Text(), primary_key=True),
-        sa.Column("type", sa.Text(), nullable=False),
-        sa.Column("summary", sa.Text(), nullable=False),
-        sa.Column("goal_id", sa.Text(), sa.ForeignKey("goals.id")),
-        sa.Column("payload", sa.Text()),
-        sa.Column("timestamp", sa.DateTime(), server_default=sa.text("CURRENT_TIMESTAMP")),
     )
 
     op.create_table(
@@ -89,6 +61,8 @@ def upgrade() -> None:
         sa.Column("status", sa.Text(), server_default="active"),
         sa.Column("origin", sa.Text(), server_default="claim"),
         sa.Column("claim_status", sa.Text()),
+        sa.Column("source_document_id", sa.Text()),
+        sa.Column("source_document_name", sa.Text()),
         sa.Column("created_at", sa.DateTime(), server_default=sa.text("CURRENT_TIMESTAMP")),
     )
 
@@ -99,7 +73,16 @@ def upgrade() -> None:
         sa.Column("title", sa.Text(), nullable=False),
         sa.Column("content", sa.Text(), nullable=False),
         sa.Column("read", sa.Integer(), server_default="0"),
+        sa.Column("related_id", sa.Text()),
+        sa.Column("related_type", sa.Text()),
+        sa.Column("notification_type", sa.Text()),
         sa.Column("created_at", sa.DateTime(), server_default=sa.text("CURRENT_TIMESTAMP")),
+    )
+    op.create_index(
+        "ix_notifications_related_type",
+        "notifications",
+        ["related_id", "notification_type"],
+        unique=False,
     )
 
     op.create_table(
@@ -129,7 +112,7 @@ def upgrade() -> None:
         sa.Column("id", sa.Text(), primary_key=True),
         sa.Column("name", sa.Text(), nullable=False),
         sa.Column("description", sa.Text()),
-        sa.Column("parent_goal_id", sa.Text(), sa.ForeignKey("goals.id")),
+        sa.Column("parent_goal_id", sa.Text()),
         sa.Column("parent_task_id", sa.Text(), sa.ForeignKey("tasks.id")),
         sa.Column("status", sa.Text(), server_default="pending"),
         sa.Column("priority", sa.Integer(), server_default="0"),
@@ -244,7 +227,7 @@ def upgrade() -> None:
         sa.Column("updated_at", sa.DateTime(), server_default=sa.text("CURRENT_TIMESTAMP")),
     )
 
-    # --- Kernel tables ---
+    # ── Kernel tables ──────────────────────────────────────────────────────
 
     op.create_table(
         "event_log",
@@ -273,7 +256,7 @@ def upgrade() -> None:
             BEGIN SELECT RAISE(ABORT, 'event_log is append-only: DELETE forbidden'); END
     """)
 
-    # --- Runtime tables (Phase 4: Execution Model) ---
+    # ── Runtime tables ─────────────────────────────────────────────────────
 
     op.create_table(
         "projection_checkpoints",
@@ -320,10 +303,82 @@ def upgrade() -> None:
         sa.Column("created_at", sa.DateTime(), server_default=sa.text("CURRENT_TIMESTAMP")),
         sa.Column("updated_at", sa.DateTime(), server_default=sa.text("CURRENT_TIMESTAMP")),
         sa.Column("completed_at", sa.DateTime()),
+        sa.Column("progress", sa.Float(), server_default="0"),
+        sa.Column("importance", sa.Float(), server_default="0.5"),
+        sa.Column("urgency", sa.Float(), server_default="0.5"),
+        sa.Column("deadline", sa.Text()),
+        sa.Column("last_activity_at", sa.DateTime()),
+    )
+
+    # ── Governance projection tables ───────────────────────────────────────
+
+    op.create_table(
+        "timer_events",
+        sa.Column("id", sa.Text(), primary_key=True),
+        sa.Column("handler_name", sa.Text(), nullable=False),
+        sa.Column("schedule_type", sa.Text(), nullable=False, server_default="cron"),
+        sa.Column("cron_expr", sa.Text(), nullable=False, server_default=""),
+        sa.Column("delay_seconds", sa.Float(), nullable=False, server_default="0"),
+        sa.Column("fire_at", sa.Text(), nullable=False, server_default=""),
+        sa.Column("status", sa.Text(), nullable=False, server_default="active"),
+        sa.Column("created_at", sa.Text(), nullable=False),
+        sa.Column("fired_at", sa.Text(), nullable=False, server_default=""),
+    )
+    op.create_index("idx_timer_events_status", "timer_events", ["status", "fire_at"])
+
+    op.create_table(
+        "policy_events",
+        sa.Column("id", sa.Text(), primary_key=True),
+        sa.Column("capability", sa.Text(), nullable=False),
+        sa.Column("risk_level", sa.Text(), nullable=False, server_default="low"),
+        sa.Column("status", sa.Text(), nullable=False, server_default="active"),
+        sa.Column("created_at", sa.Text(), nullable=False),
+        sa.Column("updated_at", sa.Text(), nullable=False),
+    )
+    op.create_index("idx_policy_events_capability", "policy_events", ["capability"])
+    op.create_index("idx_policy_events_status", "policy_events", ["status"])
+
+    op.create_table(
+        "grant_events",
+        sa.Column("id", sa.Text(), primary_key=True),
+        sa.Column("principal_id", sa.Text(), nullable=False),
+        sa.Column("capability", sa.Text(), nullable=False),
+        sa.Column("status", sa.Text(), nullable=False, server_default="active"),
+        sa.Column("created_at", sa.Text(), nullable=False),
+        sa.Column("revoked_at", sa.Text(), nullable=False, server_default=""),
+    )
+    op.create_index("idx_grant_events_principal", "grant_events", ["principal_id"])
+    op.create_index("idx_grant_events_capability", "grant_events", ["principal_id", "capability"])
+
+    op.create_table(
+        "memory_index_repairs",
+        sa.Column("id", sa.Integer(), primary_key=True, autoincrement=True),
+        sa.Column("aggregate_id", sa.Text(), nullable=False),
+        sa.Column("event_type", sa.Text(), nullable=False),
+        sa.Column("event_seq", sa.Integer(), nullable=False),
+        sa.Column("error", sa.Text(), nullable=True),
+        sa.Column("retry_count", sa.Integer(), nullable=False, server_default="0"),
+        sa.Column("status", sa.Text(), nullable=False, server_default="pending"),
+        sa.Column("created_at", sa.Text(), nullable=False),
+        sa.Column("last_retry_at", sa.Text(), nullable=True),
+    )
+    op.create_index(
+        "idx_memory_repairs_status", "memory_index_repairs", ["status", "retry_count"],
+        unique=False,
     )
 
 
 def downgrade() -> None:
+    op.drop_index("idx_memory_repairs_status", table_name="memory_index_repairs")
+    op.drop_table("memory_index_repairs")
+    op.drop_index("idx_grant_events_capability", table_name="grant_events")
+    op.drop_index("idx_grant_events_principal", table_name="grant_events")
+    op.drop_table("grant_events")
+    op.drop_index("idx_policy_events_status", table_name="policy_events")
+    op.drop_index("idx_policy_events_capability", table_name="policy_events")
+    op.drop_table("policy_events")
+    op.drop_index("idx_timer_events_status", table_name="timer_events")
+    op.drop_table("timer_events")
     op.drop_table("work_items")
     op.drop_index("idx_handler_executions_instance", table_name="handler_executions")
     op.drop_index("idx_handler_executions_status", table_name="handler_executions")
@@ -346,10 +401,8 @@ def downgrade() -> None:
     op.drop_table("tasks")
     op.drop_table("activity_log")
     op.drop_table("schedules")
+    op.drop_index("ix_notifications_related_type", table_name="notifications")
     op.drop_table("notifications")
     op.drop_table("memories")
-    op.drop_table("events")
-    op.drop_table("actions")
-    op.drop_table("goals")
     op.drop_table("messages")
     op.drop_table("conversations")
