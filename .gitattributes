@@ -1,0 +1,15 @@
+# 统一使用 LF 换行符，避免跨平台 CRLF/LF 混乱
+* text=auto eol=lf
+
+# 明确二进制文件不做转换
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.webp binary
+*.ico binary
+*.svg binary
+*.pdf binary
+*.zip binary
+*.gz binary
+*.lock binary
