@@ -21,7 +21,6 @@ import logging
 
 from app.config import settings
 from app.core.runtime.kernel_instance import kernel
-
 from app.core.runtime.runtime_container import _LazyProxy, runtime
 
 logger = logging.getLogger(__name__)

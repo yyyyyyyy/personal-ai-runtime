@@ -74,8 +74,7 @@ export async function getMemoryIndexRepairs(
 }
 
 export async function retryMemoryIndexRepair(repairId: number): Promise<{ ok: boolean }> {
-  return request<{ ok: boolean }>(
-    `${API_BASE}/telemetry/memory-index-repairs/${repairId}/retry`,
-    { method: "POST" },
-  );
+  return request<{ ok: boolean }>(`${API_BASE}/telemetry/memory-index-repairs/${repairId}/retry`, {
+    method: "POST",
+  });
 }

@@ -74,7 +74,7 @@ class PromptCompiler:
         return f"{artifact}{_ARTIFACT_CONTEXT_SEPARATOR}{context}"
 
 
-from app.core.runtime.runtime_container import _LazyProxy, runtime
+from app.core.runtime.runtime_container import _LazyProxy, runtime  # noqa: E402
 
 prompt_compiler = _LazyProxy(lambda: runtime.prompt_compiler)
 

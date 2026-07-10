@@ -36,23 +36,33 @@ export interface TrustReportData {
 }
 
 export async function getTrustReport(): Promise<TrustReportData> {
-  const [system, approvals, cost, costByModel, tools, memory, health, governance, dashboard, memoryIndexRepairs] =
-    await Promise.all([
-      fetchSystemInfo(),
-      listEnrichedPendingApprovals(),
-      getCostSummary(7),
-      getCostByModel(7),
-      getToolSummary(7),
-      getMemoryStats(),
-      getHealth(),
-      getGovernanceSummary(7).catch(() => null),
-      getDashboard().catch(() => null),
-      getMemoryIndexRepairs("all").catch(() => ({
-        pending: 0,
-        failed_permanent: 0,
-        items: [],
-      })),
-    ]);
+  const [
+    system,
+    approvals,
+    cost,
+    costByModel,
+    tools,
+    memory,
+    health,
+    governance,
+    dashboard,
+    memoryIndexRepairs,
+  ] = await Promise.all([
+    fetchSystemInfo(),
+    listEnrichedPendingApprovals(),
+    getCostSummary(7),
+    getCostByModel(7),
+    getToolSummary(7),
+    getMemoryStats(),
+    getHealth(),
+    getGovernanceSummary(7).catch(() => null),
+    getDashboard().catch(() => null),
+    getMemoryIndexRepairs("all").catch(() => ({
+      pending: 0,
+      failed_permanent: 0,
+      items: [],
+    })),
+  ]);
 
   return {
     system,

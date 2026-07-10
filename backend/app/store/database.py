@@ -116,6 +116,6 @@ class Database:
             )
 
 
-from app.core.runtime.runtime_container import _LazyProxy, runtime
+from app.core.runtime.runtime_container import _LazyProxy, runtime  # noqa: E402
 
 db = _LazyProxy(lambda: runtime.db)

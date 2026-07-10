@@ -291,7 +291,7 @@ class Telemetry:
         return {"ok": True, "id": repair_id, "status": "pending"}
 
 
-from app.core.runtime.runtime_container import _LazyProxy, runtime
+from app.core.runtime.runtime_container import _LazyProxy, runtime  # noqa: E402
 
 telemetry = _LazyProxy(lambda: runtime.telemetry)
 

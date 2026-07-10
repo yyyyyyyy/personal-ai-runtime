@@ -78,7 +78,7 @@ class WorldModel:
         return "\n".join(lines)
 
 
-from app.core.runtime.runtime_container import _LazyProxy, runtime
+from app.core.runtime.runtime_container import _LazyProxy, runtime  # noqa: E402
 
 world_model = _LazyProxy(lambda: runtime.world_model)
 
