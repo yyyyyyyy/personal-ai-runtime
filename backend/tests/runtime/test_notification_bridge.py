@@ -35,8 +35,13 @@ def test_push_notification_without_event_loop(tmp_path, monkeypatch):
     db_path = str(tmp_path / "notif_sync.db")
     Database(db_path=db_path)
 
+    def _fake_run(coro, *args, **kwargs):
+        # asyncio.run is mocked, so the coroutine passed in would never be
+        # awaited — close it explicitly to avoid "coroutine was never awaited".
+        coro.close()
+
     with patch("app.core.runtime.notification_bridge.asyncio.get_running_loop", side_effect=RuntimeError):
-        with patch("app.core.runtime.notification_bridge.asyncio.run") as run_mock:
+        with patch("app.core.runtime.notification_bridge.asyncio.run", side_effect=_fake_run) as run_mock:
             from app.core.runtime.notification_bridge import push_notification
 
             notif = push_notification("alert", "Sync", "Content")
