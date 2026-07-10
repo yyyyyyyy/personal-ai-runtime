@@ -1,6 +1,6 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
-import { render, screen } from "@testing-library/react";
-import { MemoryRouter } from "react-router-dom";
+import { screen } from "@testing-library/react";
+import { renderWithRouter } from "../test-utils";
 import InboxPage from "./Inbox";
 
 vi.mock("../api/client", () => ({
@@ -19,7 +19,7 @@ vi.mock("../api/client", () => ({
 }));
 
 vi.mock("../stores/errorStore", () => ({
-  useErrorStore: (selector: (s: { addError: () => void }) => unknown) =>
+  useErrorStore: (selector: (s: { addError: ReturnType<typeof vi.fn> }) => unknown) =>
     selector({ addError: vi.fn() }),
 }));
 
@@ -38,11 +38,7 @@ describe("InboxPage", () => {
   });
 
   it("renders inbox title and poll button", async () => {
-    render(
-      <MemoryRouter>
-        <InboxPage />
-      </MemoryRouter>,
-    );
+    renderWithRouter(<InboxPage />);
     expect(screen.getByText("收件箱")).toBeInTheDocument();
     expect(screen.getByText("立即轮询")).toBeInTheDocument();
     expect(await screen.findByText("今日摘要")).toBeInTheDocument();

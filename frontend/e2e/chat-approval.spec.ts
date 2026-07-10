@@ -1,124 +1,7 @@
 import { test, expect, type Page } from "@playwright/test";
-import { MockApiRouter } from "./helpers";
+import { MockApiRouter, buildCommonMocks, installMocks, E2E_CONV_ID } from "./helpers";
 
-const CONV_ID = "e2e-conv-1";
-
-function buildCommonMocks(): MockApiRouter {
-  const llmSettings = {
-    config: {
-      providers: [],
-      default_provider: "deepseek",
-      temperature: 0.7,
-      max_tokens: 4096,
-    },
-  };
-  const emailSettings = {
-    config: { user: "", password: "", imap_host: "", smtp_host: "" },
-  };
-
-  return new MockApiRouter()
-    .json("/api/system/health", {
-      status: "ok",
-      service: "personal-ai",
-      auth_required: false,
-    })
-    .json("/api/system/info", { conversations: 1, goals: 3, memories: 25, messages: 42 })
-    .json("/api/system/llm-providers", { providers: [], default: "deepseek-chat" })
-    .json("/api/system/mcp-status", { enabled: false, servers: [], total_tools: 0 })
-    .json("/api/settings/llm", llmSettings)
-    .json("/api/settings/email", emailSettings)
-    .json("/api/inbox", [])
-    .json("/api/goals", [
-      {
-        id: "goal-1", title: "学习 Rust", description: "通过实践项目学习 Rust",
-        status: "active", priority: "high", progress: 0.3,
-        created_at: "2026-06-01T00:00:00Z", updated_at: "2026-06-15T00:00:00Z",
-        last_activity_at: "2026-06-15T00:00:00Z",
-      },
-      {
-        id: "goal-2", title: "完成项目文档", description: "编写架构文档",
-        status: "active", priority: "medium", progress: 0.8,
-        created_at: "2026-06-10T00:00:00Z", updated_at: "2026-06-18T00:00:00Z",
-        last_activity_at: "2026-06-18T00:00:00Z",
-      },
-    ])
-    .handler(`/api/chat/conversations/${CONV_ID}/messages`, async (route) => {
-      if (route.request().method() === "GET") {
-        await route.fulfill({ json: [] });
-        return;
-      }
-      await route.continue();
-    })
-    .handler("/api/chat/conversations", async (route) => {
-      if (route.request().method() === "GET") {
-        await route.fulfill({
-          json: [
-            { id: CONV_ID, title: "测试对话", summary: null,
-              created_at: "2026-06-10T00:00:00Z", updated_at: "2026-06-10T00:00:00Z" },
-          ],
-        });
-        return;
-      }
-      await route.continue();
-    })
-    .json("/api/approvals", [])
-    .json("/api/notifications", [])
-    .json("/api/memory/memories/grouped", {
-      memories: [
-        { id: "mem-1", content: "用户喜欢喝咖啡", category: "偏好", created_at: "2026-06-10T00:00:00Z" },
-        { id: "mem-2", content: "用户正在学习 Rust", category: "学习", created_at: "2026-06-12T00:00:00Z" },
-      ],
-    })
-    .json("/api/memory/memories/search", [])
-    .json("/api/dashboard", {
-      generated_at: "2026-06-28T10:00:00Z",
-      data_sovereignty: {
-        total_events: 1250, total_memories: 121, memories_self_report: 45,
-        memories_claim: 75, total_goals: 8, goals_active: 5, goals_completed: 3,
-        total_conversations: 42, total_messages: 1250,
-        data_location: "本地存储", last_belief_reflection: null, export_supported: true,
-      },
-      active_goals: { count: 5, top: [] },
-      recent_events: { count: 0, total_in_window: 0, items: [] },
-      recent_memories: { count: 0, items: [] },
-      timer_status: { active_timers: 0, items: [] },
-      governance_status: { active_policies: 10, active_grants: 5 },
-    })
-    .json("/api/timeline/events", {
-      items: [
-        { id: "evt-1", seq: 1, type: "GoalCreated", description: "创建了目标「学习 Rust」", actor: "user", ts: "2026-06-28T08:00:00Z", payload_snippet: { title: "学习 Rust" } },
-        { id: "evt-2", seq: 2, type: "MemoryDerived", description: "AI 记住了新信息: 用户喜欢跑步", actor: "system", ts: "2026-06-28T09:00:00Z", payload_snippet: { content: "用户喜欢跑步" } },
-      ],
-      total: 2, page: 1, page_size: 30, has_more: false,
-      icons: { GoalCreated: "target", MemoryDerived: "brain" },
-    })
-    .json("/api/telemetry/cost/summary", {
-      total_prompt_tokens: 5000, total_completion_tokens: 3000,
-      total_cost: 0.05, avg_latency_ms: 1200, total_calls: 42, failed_calls: 2,
-    })
-    .json("/api/telemetry/cost/by-model", [
-      { provider: "deepseek", model: "deepseek-chat", total_calls: 30,
-        prompt_tokens: 4000, completion_tokens: 2000, total_tokens: 6000,
-        cost: 0.04, avg_latency_ms: 1100, failed_calls: 1 },
-    ])
-    .json("/api/telemetry/tool-summary", [
-      { tool_name: "web_search", total_calls: 15, failed_calls: 1, avg_latency_ms: 800 },
-      { tool_name: "read_file", total_calls: 10, failed_calls: 0, avg_latency_ms: 200 },
-    ])
-    .json("/api/telemetry/memory/stats", {
-      total_memories: 120, recent_7d: 8,
-      categories: { habit: 30, work: 25, personal: 20 },
-    })
-    .json("/api/telemetry/health", {
-      task_queue_length: 3, llm_failure_rate_24h: 0.01, tool_failure_rate_24h: 0.02,
-    });
-}
-
-async function installMocks(page: Page, extra?: (router: MockApiRouter) => void) {
-  const router = buildCommonMocks();
-  extra?.(router);
-  await router.install(page);
-}
+const CONV_ID = E2E_CONV_ID;
 
 test.describe("Navigation and pages", () => {
   test.beforeEach(async ({ page }) => {
@@ -191,7 +74,11 @@ test.describe("Chat approval flow", () => {
         const sse =
           'data: {"type":"confirmation_required","tool_name":"write_file","tool_args":{"path":"/tmp/e2e.txt","content":"hello"},"approval_id":"ap-e2e-1","tool_call_id":"tc-e2e-1"}\n\n' +
           'data: {"type":"done"}\n\n';
-        await route.fulfill({ status: 200, headers: { "Content-Type": "text/event-stream" }, body: sse });
+        await route.fulfill({
+          status: 200,
+          headers: { "Content-Type": "text/event-stream" },
+          body: sse,
+        });
       });
       router.handler("/api/chat/approvals/ap-e2e-1/resolve", async (route) => {
         await route.fulfill({ json: { status: "approved", result: '{"ok":true}' } });
@@ -216,7 +103,11 @@ test.describe("Chat approval flow", () => {
         const sse =
           'data: {"type":"confirmation_required","tool_name":"write_file","tool_args":{"path":"/tmp/e2e.txt","content":"hello"},"approval_id":"ap-e2e-2","tool_call_id":"tc-e2e-2"}\n\n' +
           'data: {"type":"done"}\n\n';
-        await route.fulfill({ status: 200, headers: { "Content-Type": "text/event-stream" }, body: sse });
+        await route.fulfill({
+          status: 200,
+          headers: { "Content-Type": "text/event-stream" },
+          body: sse,
+        });
       });
       router.handler("/api/chat/approvals/ap-e2e-2/resolve", async (route) => {
         await route.fulfill({ json: { status: "denied" } });
@@ -248,8 +139,12 @@ test.describe("Error handling", () => {
       .json("/api/memory/memories/search", [])
       .json("/api/notifications", [])
       .json("/api/inbox", [])
-      .json("/api/settings/llm", { config: { providers: [], default_provider: "deepseek", temperature: 0.7, max_tokens: 4096 } })
-      .json("/api/settings/email", { config: { user: "", password: "", imap_host: "", smtp_host: "" } })
+      .json("/api/settings/llm", {
+        config: { providers: [], default_provider: "deepseek", temperature: 0.7, max_tokens: 4096 },
+      })
+      .json("/api/settings/email", {
+        config: { user: "", password: "", imap_host: "", smtp_host: "" },
+      })
       .json("/api/approvals", [])
       .json("/api/system/llm-providers", { providers: [], default: "deepseek-chat" })
       .json("/api/system/mcp-status", { enabled: false, servers: [], total_tools: 0 })
@@ -288,25 +183,37 @@ test.describe("New pages (v0.1.0)", () => {
     router.json("/api/timeline/events", {
       items: [
         {
-          id: "evt-1", seq: 1, type: "GoalCreated",
-          description: '创建了目标「学习 Rust」',
-          actor: "user", ts: "2026-06-28T08:00:00Z",
+          id: "evt-1",
+          seq: 1,
+          type: "GoalCreated",
+          description: "创建了目标「学习 Rust」",
+          actor: "user",
+          ts: "2026-06-28T08:00:00Z",
           payload_snippet: { title: "学习 Rust" },
         },
         {
-          id: "evt-2", seq: 2, type: "MemoryDerived",
+          id: "evt-2",
+          seq: 2,
+          type: "MemoryDerived",
           description: "AI 记住了新信息: 用户喜欢跑步",
-          actor: "system", ts: "2026-06-28T09:00:00Z",
+          actor: "system",
+          ts: "2026-06-28T09:00:00Z",
           payload_snippet: { content: "用户喜欢跑步" },
         },
         {
-          id: "evt-3", seq: 3, type: "BeliefFormed",
+          id: "evt-3",
+          seq: 3,
+          type: "BeliefFormed",
           description: "AI 生成了新认知: 用户是早起型人",
-          actor: "system", ts: "2026-06-27T21:30:00Z",
+          actor: "system",
+          ts: "2026-06-27T21:30:00Z",
           payload_snippet: { content: "用户是早起型人" },
         },
       ],
-      total: 3, page: 1, page_size: 30, has_more: false,
+      total: 3,
+      page: 1,
+      page_size: 30,
+      has_more: false,
       icons: { GoalCreated: "target", MemoryDerived: "brain", BeliefFormed: "lightbulb" },
     });
     await router.install(page);
@@ -334,12 +241,18 @@ test.describe("New pages (v0.1.0)", () => {
     router.json("/api/knowledge/documents", {
       documents: [
         {
-          id: "doc-1", filename: "架构设计.md", size: 2048,
-          chunks: 3, uploaded_at: "2026-06-28T10:00:00Z",
+          id: "doc-1",
+          filename: "架构设计.md",
+          size: 2048,
+          chunks: 3,
+          uploaded_at: "2026-06-28T10:00:00Z",
         },
         {
-          id: "doc-2", filename: "API 文档.pdf", size: 15000,
-          chunks: 12, uploaded_at: "2026-06-27T15:00:00Z",
+          id: "doc-2",
+          filename: "API 文档.pdf",
+          size: 15000,
+          chunks: 12,
+          uploaded_at: "2026-06-27T15:00:00Z",
         },
       ],
       total: 2,

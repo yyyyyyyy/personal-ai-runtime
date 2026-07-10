@@ -1,6 +1,6 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
-import { MemoryRouter } from "react-router-dom";
+import { screen, fireEvent, waitFor } from "@testing-library/react";
+import { renderWithRouter } from "../test-utils";
 import PortraitPage from "./Portrait";
 
 vi.mock("../api/portrait", () => ({
@@ -13,11 +13,7 @@ import type { PortraitData } from "../api/portrait";
 const mockGetPortrait = vi.mocked(getPortrait);
 
 function renderPortrait() {
-  return render(
-    <MemoryRouter>
-      <PortraitPage />
-    </MemoryRouter>,
-  );
+  return renderWithRouter(<PortraitPage />);
 }
 
 function mockPortraitData(data: PortraitData) {
