@@ -121,9 +121,11 @@ def test_chroma_failure_leaves_no_orphan(kernel):
 def test_no_precompute_before_transaction(kernel):
     """Regression: embedding must NOT be computed before the SQLite INSERT.
 
-    If pre-compute existed, a failing projector (simulated) after embedding
-    would leave an orphan in ChromaDB. With post-commit indexing, the
-    transaction rolls back and _sync_memory_index is never reached.
+    Uses a MemoryDerived event (which WOULD be indexed post-commit) but
+    crashes the projector so the transaction rolls back. With post-commit
+    indexing, _sync_memory_index is never reached, so index_calls must
+    stay constant. Under the old pre-compute path this would have left
+    an orphan vector.
     """
     idx = _RecordingIndex()
     kernel._memory_index = idx
@@ -131,39 +133,36 @@ def test_no_precompute_before_transaction(kernel):
     import app.core.runtime.kernel.projectors as pmod
 
     original = pmod.apply
-    call_count = {"n": 0}
 
-    def failing_apply(event, conn):
-        call_count["n"] += 1
-        # Let MemoryDerived project, then fail on a subsequent event.
-        if event.type == "MemoryDecayed":
-            raise RuntimeError("simulated projector crash")
+    def always_fail_memory_derived(event, conn):
+        if event.type == "MemoryDerived":
+            raise RuntimeError("simulated projector crash before commit")
         original(event, conn)
 
-    pmod.apply = failing_apply
+    pmod.apply = always_fail_memory_derived
     try:
-        # First memory succeeds.
-        kernel.emit_event(
-            "MemoryDerived", "memory", "m-ok",
-            {"category": "fact", "content": "OK", "confidence": 0.5},
-            actor="test",
-        )
-        assert "m-ok" in idx.store
+        index_calls_before = idx.index_calls
 
-        # This event will crash in projection → transaction rollback.
-        # _sync_memory_index must NOT be called, so no Chroma write.
+        # This event crashes in projection → transaction rollback.
         with pytest.raises(RuntimeError, match="projector crash"):
             kernel.emit_event(
-                "MemoryDecayed", "memory", "m-ok",
-                {"confidence": 0.1},
+                "MemoryDerived", "memory", "m-rollback",
+                {"category": "fact", "content": "Should not be indexed", "confidence": 0.5},
                 actor="test",
             )
 
-        # m-ok is still in Chroma (its own event committed fine).
-        assert "m-ok" in idx.store
-        # No phantom entry from the rolled-back MemoryDecayed.
-        # (MemoryDecayed doesn't index anyway, but the point stands:
-        # the failed event produced no Chroma side-effect.)
+        # DECISIVE assertion: no Chroma write happened for the rolled-back event.
+        assert idx.index_calls == index_calls_before, (
+            "rolled-back event must not produce a Chroma index call"
+        )
+        assert "m-rollback" not in idx.store, (
+            "rolled-back event must not leave an orphan vector"
+        )
+        # No repair entry either — the event never committed.
+        pending = get_pending_memory_index_repairs()
+        assert not any(p.get("aggregate_id") == "m-rollback" for p in pending), (
+            "no repair entry for an event that never committed"
+        )
     finally:
         pmod.apply = original
         clear_pending_memory_index_repairs()

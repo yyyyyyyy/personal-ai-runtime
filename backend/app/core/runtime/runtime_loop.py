@@ -45,6 +45,9 @@ class RuntimeLoop:
         self._loop_task: asyncio.Task | None = None
         self._tick_count = 0
         self._dirty = False  # v0.3.0: set by reset() when event loop changes
+        # Fire-and-forget background tasks. Held to prevent GC and to allow
+        # graceful cancellation on stop(). See _spawn_background_task.
+        self._bg_tasks: set[asyncio.Task] = set()
 
     # ── lifecycle ──────────────────────────────────────────────────────
 
@@ -416,10 +419,27 @@ class RuntimeLoop:
                         actor="background",
                         timeout=settings.submit_command_timeout_background_task,
                     )
+                except asyncio.CancelledError:
+                    # Task was cancelled (e.g. on shutdown). Re-raise so the
+                    # caller (create_task machinery) sees the cancellation;
+                    # the background_tasks row stays in 'running' and will be
+                    # recovered by Scheduler._recover() on next startup.
+                    raise
                 except Exception:
                     logger.exception("Background task %s failed", t_id)
 
-            asyncio.create_task(_dispatch_bg(task_id, plan_json))
+            self._spawn_background_task(_dispatch_bg(task_id, plan_json))
+
+    def _spawn_background_task(self, coro: "asyncio.coroutines") -> None:
+        """Create a tracked fire-and-forget task.
+
+        The task reference is held in _bg_tasks to prevent the GC from
+        collecting it mid-flight (a known asyncio footgun when create_task
+        results are discarded). On completion the entry is discarded.
+        """
+        task = asyncio.create_task(coro)
+        self._bg_tasks.add(task)
+        task.add_done_callback(self._bg_tasks.discard)
 
 
 runtime_loop = _LazyProxy(lambda: runtime.runtime_loop)

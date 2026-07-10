@@ -78,7 +78,7 @@ def prepare_llm_egress(
 ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     """Deprecated alias for :func:`audit_llm_egress`.
 
-    Kept for call-site compatibility. Will be removed once all callers migrate.
+    Kept for call-site compatibility. Scheduled for removal in v0.4.0.
     """
     warnings.warn(
         "prepare_llm_egress is deprecated; use audit_llm_egress instead",
@@ -103,7 +103,7 @@ def prepare_llm_egress_sync(
     purpose: str,
     actor: str = "kernel",
 ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
-    """Deprecated alias for :func:`audit_llm_egress_sync`."""
+    """Deprecated alias for :func:`audit_llm_egress_sync`. Removed in v0.4.0."""
     warnings.warn(
         "prepare_llm_egress_sync is deprecated; use audit_llm_egress_sync instead",
         DeprecationWarning,

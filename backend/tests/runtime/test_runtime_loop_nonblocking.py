@@ -170,3 +170,34 @@ def test_maintenance_does_not_raise_on_drain_failure(kernel, monkeypatch):
         await loop._maintenance()
 
     asyncio.run(run())
+
+
+def test_spawn_background_task_holds_reference_and_cleans_up(kernel):
+    """Fire-and-forget tasks must be tracked to prevent GC mid-flight.
+
+    Regression for the create_task footgun: if the Task reference is
+    discarded immediately, CPython may garbage-collect it before it
+    completes, silently dropping the work.
+    """
+    from app.core.runtime import runtime_loop as rl_mod
+
+    loop = rl_mod.RuntimeLoop()
+
+    completed = {"done": False}
+
+    async def sample_work():
+        await asyncio.sleep(0.05)
+        completed["done"] = True
+
+    async def run():
+        # Spawn the task.
+        loop._spawn_background_task(sample_work())
+        # Reference must be held in _bg_tasks.
+        assert len(loop._bg_tasks) == 1, "task must be tracked"
+        # Wait for completion.
+        await asyncio.sleep(0.2)
+        # After completion, the done_callback should have removed it.
+        assert len(loop._bg_tasks) == 0, "completed task must be cleaned up"
+        assert completed["done"], "task must have run to completion"
+
+    asyncio.run(run())
