@@ -81,6 +81,12 @@ def test_runtime_container_new_properties():
     assert c.memory_extractor is not None
     assert c.state_manager is not None
     assert c.runtime_config is not None
+    assert c.db is not None
+    assert c.vector_store is not None
+    assert c.runtime_loop is not None
+    assert c.world_model is not None
+    assert c.prompt_compiler is not None
+    assert c.telemetry is not None
 
     inv = c.inventory()
     names = {e["name"] for e in inv}
@@ -88,6 +94,8 @@ def test_runtime_container_new_properties():
         "kernel", "capability_governance", "taint_registry",
         "context_pipeline", "fragment_registry", "mcp_hub", "llm_router",
         "memory_engine", "memory_extractor", "state_manager", "runtime_config",
+        "db", "vector_store", "runtime_loop", "world_model", "prompt_compiler",
+        "telemetry",
     }
     assert expected <= names, f"Missing: {expected - names}"
 

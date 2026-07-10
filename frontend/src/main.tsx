@@ -27,8 +27,10 @@ createRoot(document.getElementById("root")!).render(
   </StrictMode>,
 );
 
-// Register Service Worker (production only)
-if ("serviceWorker" in navigator && import.meta.env.PROD) {
+// Register Service Worker (production web only — not in Electron desktop)
+const isDesktopBuild =
+  import.meta.env.VITE_DESKTOP === "1" || import.meta.env.VITE_DESKTOP === true;
+if ("serviceWorker" in navigator && import.meta.env.PROD && !isDesktopBuild) {
   window.addEventListener("load", () => {
     navigator.serviceWorker.register("/sw.js").catch(() => {
       // registration failed – app still works normally

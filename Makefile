@@ -54,7 +54,7 @@ AGENTS_MYPY := app/core/agents/brain.py app/core/agents/conversation.py app/core
 typecheck:
 	cd $(BACKEND_DIR) && mypy app/ scripts/ --ignore-missing-imports
 
-ci-local: lint typecheck test-backend test-frontend test-e2e boundary execution-ownership projection-provenance conversation-rebuild export-roundtrip-verify architecture-check
+ci-local: lint typecheck test-backend test-frontend test-e2e boundary version-sync execution-ownership projection-provenance conversation-rebuild export-roundtrip-verify architecture-check
 	@echo "ci-local checks passed"
 
 desktop:
@@ -65,6 +65,9 @@ desktop-build:
 
 boundary:
 	cd $(BACKEND_DIR) && python3 scripts/check_boundary.py
+
+version-sync:
+	cd $(BACKEND_DIR) && python3 scripts/check_version_sync.py
 
 boundary-inventory:
 	cd $(BACKEND_DIR) && python3 scripts/check_boundary.py --inventory

@@ -3,10 +3,16 @@ import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import TrustReportPage from "./TrustReport";
 
-vi.mock("../api/trustReport", () => ({ getTrustReport: vi.fn() }));
-
 import { getTrustReport, type TrustReportData } from "../api/trustReport";
+import { retryMemoryIndexRepair } from "../api/telemetry";
+
+vi.mock("../api/trustReport", () => ({ getTrustReport: vi.fn() }));
+vi.mock("../api/telemetry", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../api/telemetry")>();
+  return { ...actual, retryMemoryIndexRepair: vi.fn() };
+});
 const mockGetReport = vi.mocked(getTrustReport);
+const mockRetryRepair = vi.mocked(retryMemoryIndexRepair);
 
 const BASE: TrustReportData = {
   system: { conversations: 1, messages: 10, goals: 0, memories: 0, event_log: 1 },
@@ -37,6 +43,7 @@ const BASE: TrustReportData = {
     denied_tools: {},
   },
   dashboard: null,
+  memoryIndexRepairs: { pending: 0, failed_permanent: 0, items: [] },
 };
 
 function renderPage() {
@@ -146,5 +153,36 @@ describe("TrustReportPage", () => {
       expect(screen.getByText("write_file")).toBeInTheDocument();
       expect(screen.getByText("send_email")).toBeInTheDocument();
     });
+  });
+
+  it("shows memory index repair alert and retry", async () => {
+    mockGetReport.mockResolvedValue({
+      ...BASE,
+      memoryIndexRepairs: {
+        pending: 0,
+        failed_permanent: 1,
+        items: [
+          {
+            id: 7,
+            aggregate_id: "mem-abc",
+            event_type: "MemoryUpdated",
+            event_seq: 2,
+            error: "chroma unavailable",
+            retry_count: 5,
+            status: "failed_permanent",
+            created_at: "2026-01-01T00:00:00Z",
+            last_retry_at: "2026-01-01T00:10:00Z",
+          },
+        ],
+      },
+    });
+    mockRetryRepair.mockResolvedValue({ ok: true });
+    renderPage();
+    await waitFor(() => {
+      expect(screen.getByText("记忆索引修复失败")).toBeInTheDocument();
+      expect(screen.getByText("mem-abc")).toBeInTheDocument();
+    });
+    fireEvent.click(screen.getByRole("button", { name: "重试索引" }));
+    await waitFor(() => expect(mockRetryRepair).toHaveBeenCalledWith(7));
   });
 });

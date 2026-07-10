@@ -116,7 +116,7 @@ CI 报告用 `--cov-report=term-missing` 让缺失部分可见，开发者按需
 
 | 脚本 | 验证 |
 |---|---|
-| [`verify_egress.py`](../../backend/scripts/verify_egress.py) | 装 Kernel 单例，调 `prepare_llm_egress` 含 identity 关键词 payload，验证分类为 `identity_surface`、`identity_surface_detected`、消息原样返回、`EgressApproved` 事件已发；benign payload 分类为 `general` |
+| [`verify_egress.py`](../../backend/scripts/verify_egress.py) | 装 Kernel 单例，调 `audit_llm_egress` 含 identity 关键词 payload，验证分类为 `identity_surface`、`identity_surface_detected`、消息原样返回、`EgressAudited` 事件已发；benign payload 分类为 `general` |
 | [`verify_inbox_audit.py`](../../backend/scripts/verify_inbox_audit.py) | 发 `InboxEmailRecorded`（`caused_by="evt_trigger_001"`），验证事件在 event_log 且 `caused_by` 链保留 |
 | [`verify_connector.py`](../../backend/scripts/verify_connector.py) | 写最小 `.ics`，swap CalendarServer 单例，调 `capture_calendar_observations`，验证 `ObservationRecorded` 事件存在且 actor 以 `connector:` 开头 |
 

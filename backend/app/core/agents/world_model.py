@@ -78,9 +78,11 @@ class WorldModel:
         return "\n".join(lines)
 
 
-world_model = WorldModel()
+from app.core.runtime.runtime_container import _LazyProxy, runtime
+
+world_model = _LazyProxy(lambda: runtime.world_model)
 
 
 def reset_world_model() -> None:
     """Clear the world model cache so the next read rebuilds (test isolation)."""
-    world_model._cached_snapshot = None
+    runtime._world_model = None

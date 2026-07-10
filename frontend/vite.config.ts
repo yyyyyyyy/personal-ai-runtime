@@ -7,10 +7,12 @@ import tailwindcss from "@tailwindcss/vite";
 const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const API_HOST = process.env.VITE_API_HOST || "localhost";
 const API_PORT = process.env.VITE_API_PORT || "8000";
+const isDesktopBuild = process.env.VITE_DESKTOP === "1";
 
 export default defineConfig({
   // Read VITE_* from repo-root .env (same file as backend AUTH_TOKEN)
   envDir: rootDir,
+  base: isDesktopBuild ? "./" : "/",
   plugins: [react(), tailwindcss()],
   server: {
     port: 5173,

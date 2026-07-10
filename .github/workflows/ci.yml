@@ -132,6 +132,11 @@ jobs:
           print(f'OK: {len(endpoints)} core API modules loaded')
           "
 
+      - name: Version sync guard (single source of truth)
+        run: |
+          cd backend
+          python scripts/check_version_sync.py
+
       - name: Verify Event Log rebuild (Runtime invariant)
         run: |
           cd backend

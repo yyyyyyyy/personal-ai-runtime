@@ -368,7 +368,7 @@ app = FastAPI(
 **Architecture:** Event Sourcing with append-only Event Log as single source of truth.
 All data stored locally (SQLite + ChromaDB), never leaves your machine.
 
-See [USER_GUIDE.md](https://github.com/yyyyyyyy/personal-ai-runtime/blob/main/docs/USER_GUIDE.md)
+See [docs/README.md](https://github.com/yyyyyyyy/personal-ai-runtime/blob/main/docs/README.md)
 for setup and usage instructions.""",
     version=VERSION,
     lifespan=lifespan,

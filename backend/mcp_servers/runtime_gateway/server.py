@@ -34,6 +34,14 @@ from __future__ import annotations
 import json
 import os
 import sys
+from pathlib import Path
+
+BACKEND_ROOT = Path(__file__).resolve().parents[2]
+if str(BACKEND_ROOT) not in sys.path:
+    sys.path.insert(0, str(BACKEND_ROOT))
+
+from app.version import VERSION
+import sys
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
@@ -150,7 +158,7 @@ def _handle(request: dict) -> dict:
         return {"jsonrpc": "2.0", "id": req_id, "result": {
             "protocolVersion": "2024-11-05",
             "capabilities": {"tools": {}},
-            "serverInfo": {"name": "personal-ai-runtime", "version": "0.1.0"},
+            "serverInfo": {"name": "personal-ai-runtime", "version": VERSION},
         }}
 
     if method == "tools/list":

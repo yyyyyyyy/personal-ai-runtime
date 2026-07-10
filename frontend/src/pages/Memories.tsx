@@ -171,6 +171,7 @@ export default function MemoriesPage() {
       MemoryDecayed: "衰减",
       MemoryDeleted: "删除",
       MemoryRevoked: "撤销",
+      MemoryIndexRepairFailed: "索引修复失败",
     };
     return map[t] || t;
   };
@@ -194,6 +195,12 @@ export default function MemoriesPage() {
         return `被 ${e.actor} 删除`;
       case "MemoryRevoked":
         return `被 ${e.actor} 撤销`;
+      case "MemoryIndexRepairFailed": {
+        const err = typeof p.error === "string" ? p.error : "";
+        return err
+          ? `向量索引修复失败：${err.length > 80 ? err.slice(0, 80) + "…" : err}`
+          : "向量索引修复失败，记忆可能无法语义召回";
+      }
       default:
         return `${e.actor}`;
     }

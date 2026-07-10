@@ -224,7 +224,7 @@ export function useChatMessages(
 
       let tempContent = "";
       let tempToolCalls: DisplayMessage["toolCalls"] = [];
-      let tempToolResults: DisplayMessage["toolResults"] = [];
+      let tempToolResults: ToolResult[] = [];
       let tempSources: SourceCitation[] = [];
       let awaitingApproval = false;
 
@@ -275,9 +275,28 @@ export function useChatMessages(
             ),
           );
         } else if (event.type === "done") {
-          const finalContent = awaitingApproval
-            ? stripToolMarkup(tempContent)
-            : stripToolMarkup(tempContent) || "抱歉，未能生成回复，请再试一次。";
+          let finalContent = stripToolMarkup(tempContent);
+          if (!awaitingApproval && !finalContent && tempToolResults.length > 0) {
+            const hasInbox = tempToolResults.some((r) => r.tool_name === "check_inbox");
+            if (hasInbox) {
+              try {
+                const r = tempToolResults.find((x) => x.tool_name === "check_inbox");
+                const data = JSON.parse(r!.content);
+                const count = data.count ?? data.emails?.length ?? 0;
+                if (count > 0) {
+                  finalContent = `已加载最近 ${count} 封邮件，详见上方列表。需要我帮您查看某封详情或处理待办吗？`;
+                }
+              } catch {
+                // ignore
+              }
+            }
+            if (!finalContent) {
+              finalContent = inboxSummaryFromResults(tempToolResults) ?? "";
+            }
+          }
+          if (!awaitingApproval && !finalContent) {
+            finalContent = "抱歉，未能生成回复，请再试一次。";
+          }
           setMessages((prev) =>
             prev.map((m) =>
               m.id === assistantMsg.id ? { ...m, isStreaming: false, content: finalContent } : m,

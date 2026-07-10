@@ -43,9 +43,9 @@ def create_png(width: int, height: int) -> bytes:
 
 def main():
     icon_path = Path(__file__).parent / "icon.png"
-    png = create_png(32, 32)
+    png = create_png(256, 256)
     icon_path.write_bytes(png)
-    print(f"Icon saved to {icon_path}")
+    print(f"Icon saved to {icon_path} (256x256)")
 
 
 if __name__ == "__main__":

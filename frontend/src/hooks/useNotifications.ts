@@ -30,7 +30,11 @@ function isValidNotification(data: unknown): data is WSNotificationPayload {
 }
 
 function buildWsUrl(): string {
-  if (typeof window !== "undefined") {
+  const isDesktop =
+    import.meta.env.VITE_DESKTOP === "1" ||
+    import.meta.env.VITE_DESKTOP === true ||
+    (typeof window !== "undefined" && window.location.protocol === "app:");
+  if (typeof window !== "undefined" && !isDesktop) {
     const proto = window.location.protocol === "https:" ? "wss:" : "ws:";
     return `${proto}//${window.location.host}/ws`;
   }

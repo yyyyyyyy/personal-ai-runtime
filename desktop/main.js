@@ -11,10 +11,11 @@
  * - Loads the web app in a frameless window
  */
 
-const { app, BrowserWindow, Tray, Menu, globalShortcut, Notification, dialog, nativeImage, protocol, session } = require("electron");
-const { spawn } = require("child_process");
+const { app, BrowserWindow, Tray, Menu, globalShortcut, Notification, dialog, nativeImage, protocol, session, net: electronNet } = require("electron");
+const { spawn, spawnSync } = require("child_process");
 const fs = require("fs");
 const path = require("path");
+const { pathToFileURL } = require("url");
 const net = require("net");
 
 // Declare the app:// scheme as privileged BEFORE app is ready.
@@ -55,7 +56,8 @@ function resolveWebUrl() {
   if (isPackaged) {
     const distDir = path.join(__dirname, "frontend-dist");
     if (fs.existsSync(path.join(distDir, "index.html"))) {
-      return "app://./index.html";
+      // Use app://./ so location.pathname is "/" and React Router matches.
+      return "app://./";
     }
     console.warn("[desktop] Packaged but frontend-dist/index.html missing, falling back to dev URL.");
   }
@@ -68,6 +70,69 @@ function resolveBackendDir() {
     return path.join(process.resourcesPath, "backend");
   }
   return path.join(__dirname, "..", "backend");
+}
+
+function resolveBundledPythonExe() {
+  if (!isPackaged) return null;
+  const candidate = path.join(process.resourcesPath, "python", "python.exe");
+  return fs.existsSync(candidate) ? candidate : null;
+}
+
+function resolvePythonCommand() {
+  const bundled = resolveBundledPythonExe();
+  if (bundled) {
+    return { executable: bundled, args: [] };
+  }
+  if (process.platform === "win32") {
+    const pyLauncher = spawnSync("py", ["-3.12", "--version"], { stdio: "ignore" });
+    if (pyLauncher.status === 0) {
+      return { executable: "py", args: ["-3.12"] };
+    }
+    const python = spawnSync("python", ["--version"], { stdio: "ignore" });
+    if (python.status === 0) {
+      return { executable: "python", args: [] };
+    }
+  }
+  const python3 = spawnSync("python3", ["--version"], { stdio: "ignore" });
+  if (python3.status === 0) {
+    return { executable: "python3", args: [] };
+  }
+  const python = spawnSync("python", ["--version"], { stdio: "ignore" });
+  if (python.status === 0) {
+    return { executable: "python", args: [] };
+  }
+  return { executable: process.platform === "win32" ? "py" : "python3", args: process.platform === "win32" ? ["-3.12"] : [] };
+}
+
+function resolveDesktopDataEnv() {
+  const dataDir = path.join(app.getPath("userData"), "data");
+  const vectorDir = path.join(dataDir, "vectors");
+  fs.mkdirSync(vectorDir, { recursive: true });
+  return {
+    DATA_DIR: dataDir,
+    VECTOR_DIR: vectorDir,
+    SQLITE_PATH: path.join(dataDir, "personal_ai.db"),
+  };
+}
+
+function verifyPythonDependencies(pythonCmd, backendDir, extraEnv) {
+  const env = { ...process.env, ...extraEnv, BACKEND_DIR: backendDir };
+  const escapedDir = backendDir.replace(/\\/g, "\\\\");
+  const importProbe = `import sys; sys.path.insert(0, r'${escapedDir}'); import uvicorn, chromadb, app.main`;
+  const probe = spawnSync(pythonCmd.executable, [...pythonCmd.args, "-c", importProbe], {
+    cwd: backendDir,
+    env,
+    stdio: "ignore",
+  });
+  return probe.status === 0;
+}
+
+function showPythonSetupError() {
+  const detail =
+    process.platform === "win32"
+      ? "未找到可用的 Python 3.12 或依赖未安装。\n请运行 install.bat，或从 README 查看安装说明。"
+      : "Python 3.12+ with backend requirements is required.\nRun: bash install.sh";
+  dialog.showErrorBox("Personal AI Runtime — 后端启动失败", detail);
 }
 
 function readAppVersion() {
@@ -96,41 +161,117 @@ function registerAppProtocol() {
   if (_appProtocolRegistered || !isPackaged) return;
 
   const distRoot = path.join(__dirname, "frontend-dist");
+  const backendOrigin = `http://127.0.0.1:${BACKEND_PORT}`;
+
   protocol.handle("app", (request) => {
     const url = new URL(request.url);
     // url.hostname is "." for app://./path ; url.pathname is the file path.
     let relPath = decodeURIComponent(url.pathname);
     if (relPath.startsWith("/")) relPath = relPath.slice(1);
-    let filePath = path.join(distRoot, relPath);
-    // SPA fallback: non-existent paths serve index.html (except /assets/*)
-    if (!fs.existsSync(filePath) || fs.statSync(filePath).isDirectory()) {
-      filePath = path.join(distRoot, "index.html");
+
+    // Fallback proxy when webRequest redirect does not apply.
+    if (relPath === "api" || relPath.startsWith("api/")) {
+      const target = `${backendOrigin}/${relPath}${url.search}`;
+      return electronNet.fetch(target, {
+        method: request.method,
+        headers: request.headers,
+        body: request.method !== "GET" && request.method !== "HEAD" ? request.body : undefined,
+      });
     }
-    return net.fetch(`file://${filePath}`);
+
+    const filePath = resolveFrontendFile(distRoot, relPath);
+    return electronNet.fetch(pathToFileURL(filePath).href);
   });
   _appProtocolRegistered = true;
+}
+
+function resolveFrontendFile(distRoot, relPath) {
+  if (!relPath || relPath === ".") {
+    return path.join(distRoot, "index.html");
+  }
+  const candidate = path.join(distRoot, relPath);
+  if (fs.existsSync(candidate) && !fs.statSync(candidate).isDirectory()) {
+    return candidate;
+  }
+  // SPA client routes (e.g. /chat/abc) fall back to index.html; static assets 404.
+  if (relPath.startsWith("assets/")) {
+    return candidate;
+  }
+  return path.join(distRoot, "index.html");
 }
 
 function installApiProxy() {
   if (!isPackaged) return;
   const backendOrigin = `http://127.0.0.1:${BACKEND_PORT}`;
+  const wsOrigin = `ws://127.0.0.1:${BACKEND_PORT}`;
   const ses = session.defaultSession;
 
-  ses.webRequest.onBeforeRequest({ urls: ["http://localhost/api/*", "http://127.0.0.1/api/*"] }, (details, callback) => {
-    callback({ redirectURL: `${backendOrigin}${details.url.slice(details.url.indexOf("/api"))}` });
-  });
+  const redirectApi = (details, callback) => {
+    const apiIndex = details.url.indexOf("/api");
+    if (apiIndex === -1) {
+      callback({});
+      return;
+    }
+    callback({ redirectURL: `${backendOrigin}${details.url.slice(apiIndex)}` });
+  };
 
-  // /ws upgrade redirect
-  ses.webRequest.onBeforeRequest({ urls: ["ws://localhost/ws*", "ws://127.0.0.1/ws*"] }, (details, callback) => {
-    const wsOrigin = `ws://127.0.0.1:${BACKEND_PORT}`;
-    callback({ redirectURL: `${wsOrigin}${details.url.slice(details.url.indexOf("/ws"))}` });
-  });
+  ses.webRequest.onBeforeRequest(
+    {
+      urls: [
+        "http://localhost/api/*",
+        "http://127.0.0.1/api/*",
+        "app://*/api/*",
+        "app://./api/*",
+      ],
+    },
+    redirectApi,
+  );
+
+  const redirectWs = (details, callback) => {
+    const wsIndex = details.url.indexOf("/ws");
+    if (wsIndex === -1) {
+      callback({});
+      return;
+    }
+    callback({ redirectURL: `${wsOrigin}${details.url.slice(wsIndex)}` });
+  };
+
+  ses.webRequest.onBeforeRequest(
+    {
+      urls: [
+        "ws://localhost/ws*",
+        "ws://127.0.0.1/ws*",
+        "ws://./ws*",
+        "ws://*/ws*",
+      ],
+    },
+    redirectWs,
+  );
 }
 
 // ── Backend Process Management ───────────────────────────────────────
 
 let backendProcess = null;
 let backendStarting = false;
+
+function resolveBackendLauncher() {
+  return path.join(__dirname, "run-backend.py");
+}
+
+async function waitForBackendReady(maxWaitMs = 90000) {
+  const healthUrl = `http://127.0.0.1:${BACKEND_PORT}/api/system/health`;
+  const started = Date.now();
+  while (Date.now() - started < maxWaitMs) {
+    try {
+      const res = await electronNet.fetch(healthUrl);
+      if (res.ok) return true;
+    } catch {
+      // Backend still booting.
+    }
+    await new Promise((resolve) => setTimeout(resolve, 500));
+  }
+  return false;
+}
 
 function startBackend() {
   if (backendProcess || backendStarting) return;
@@ -151,9 +292,34 @@ function startBackend() {
     client.destroy();
     console.log("Starting backend...");
 
-    backendProcess = spawn("python3", ["-m", "uvicorn", "app.main:app", "--host", "127.0.0.1", "--port", BACKEND_PORT], {
+    const pythonCmd = resolvePythonCommand();
+    const dataEnv = resolveDesktopDataEnv();
+    const spawnEnv = {
+      ...process.env,
+      ...dataEnv,
+      BACKEND_DIR: backendDir,
+      BACKEND_HOST: "127.0.0.1",
+      BACKEND_PORT: String(BACKEND_PORT),
+    };
+
+    if (!verifyPythonDependencies(pythonCmd, backendDir, dataEnv)) {
+      console.error("Python dependencies missing for", pythonCmd.executable);
+      showPythonSetupError();
+      backendStarting = false;
+      return;
+    }
+
+    const launcherPath = resolveBackendLauncher();
+    if (!fs.existsSync(launcherPath)) {
+      console.error("Backend launcher missing:", launcherPath);
+      showPythonSetupError();
+      backendStarting = false;
+      return;
+    }
+
+    backendProcess = spawn(pythonCmd.executable, [...pythonCmd.args, launcherPath], {
       cwd: backendDir,
-      env: { ...process.env },
+      env: spawnEnv,
       stdio: ["ignore", "pipe", "pipe"],
     });
 
@@ -172,7 +338,9 @@ function startBackend() {
 
     backendProcess.on("error", (err) => {
       console.error("Backend start error:", err.message);
+      showPythonSetupError();
       backendProcess = null;
+      backendStarting = false;
     });
 
     backendStarting = false;
@@ -447,8 +615,18 @@ app.whenReady().then(async () => {
     // login item settings not supported on this platform — skip silently
   }
 
-  // Auto-start backend
+  // Auto-start backend and wait until health responds (migrations can take a while).
   startBackend();
+  const backendReady = await waitForBackendReady();
+  if (!backendReady) {
+    dialog.showMessageBox({
+      type: "warning",
+      title: "Personal AI Runtime",
+      message: "后端启动较慢或失败",
+      detail:
+        "应用界面已打开，但暂时无法连接后端。请稍后在托盘菜单选择「重启后端」，或查看 README 中的安装说明。",
+    });
+  }
 
   createMainWindow();
   createTray();

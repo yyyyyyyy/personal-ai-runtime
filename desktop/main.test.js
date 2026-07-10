@@ -87,11 +87,27 @@ describe("Electron main process", () => {
   it("resolves web URL differently for packaged vs dev", () => {
     expect(source).toContain("isPackaged");
     expect(source).toContain("function resolveWebUrl");
-    expect(source).toContain("app://./index.html");
+    expect(source).toContain("app://./");
   });
 
   it("resolves backend dir from extraResources when packaged", () => {
     expect(source).toContain("function resolveBackendDir");
     expect(source).toContain("process.resourcesPath");
+  });
+
+  it("resolves python command for platform and bundled runtime", () => {
+    expect(source).toContain("function resolvePythonCommand");
+    expect(source).toContain("resolveBundledPythonExe");
+  });
+
+  it("uses a backend launcher for embeddable Python sys.path", () => {
+    expect(source).toContain("run-backend.py");
+    expect(source).toContain("BACKEND_DIR");
+    expect(source).toContain("waitForBackendReady");
+  });
+
+  it("redirects desktop data to userData", () => {
+    expect(source).toContain("function resolveDesktopDataEnv");
+    expect(source).toContain("DATA_DIR");
   });
 });

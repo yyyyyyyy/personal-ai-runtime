@@ -28,6 +28,8 @@ node_modules/
 frontend/dist/
 desktop/dist/
 desktop/frontend-dist/
+desktop/bundled-python/
+desktop/.cache/
 *.tsbuildinfo
 frontend/test-results/
 frontend/playwright-report/

@@ -1,0 +1,28 @@
+# Changelog
+
+All notable changes to Personal AI Runtime are documented here.
+
+Format follows [Keep a Changelog](https://keepachangelog.com/). Version numbers match [`backend/app/version.py`](backend/app/version.py).
+
+## [0.2.0]
+
+### Added
+
+- Event-sourced Kernel with governed projection tables and rebuild verification
+- Streaming chat with tool loops, approval flow, and SSE delivery
+- Memory extraction, semantic search (ChromaDB), portrait, and claim workflow
+- Goals unified under `work_items`; inbox (Gmail), knowledge base RAG
+- 4-gate capability governance, taint tracking, LLM egress audit
+- Data sovereignty: export/import (plain + encrypted), destroy, snapshot/restore
+- MCP harness: 26+ builtin tools + external MCP registry
+- React frontend (Chat, Goals, Memories, Inbox, TrustReport, Dashboard, Settings, …)
+- Electron desktop shell with tray and global shortcuts
+- CI invariant matrix: boundary, rebuild, vector consistency, concept growth guards
+
+### Changed
+
+- Documentation consolidated under `docs/` with reading paths and subsystem guides
+
+### Fixed
+
+- Various projector and provenance fixes tracked in architecture survival review

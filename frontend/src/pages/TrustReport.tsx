@@ -15,6 +15,7 @@ import {
   Download,
 } from "lucide-react";
 import { getTrustReport, type TrustReportData } from "../api/trustReport";
+import { retryMemoryIndexRepair } from "../api/telemetry";
 
 const FLOW_LABELS: Record<string, { label: string; color: string }> = {
   对话: { label: "对话", color: "text-blue-400" },
@@ -28,6 +29,7 @@ export default function TrustReportPage() {
   const [data, setData] = useState<TrustReportData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [retryingId, setRetryingId] = useState<number | null>(null);
 
   const fetchReport = async () => {
     setLoading(true);
@@ -44,6 +46,18 @@ export default function TrustReportPage() {
   useEffect(() => {
     fetchReport();
   }, []);
+
+  const handleRetryRepair = async (repairId: number) => {
+    setRetryingId(repairId);
+    try {
+      await retryMemoryIndexRepair(repairId);
+      await fetchReport();
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "重试索引修复失败");
+    } finally {
+      setRetryingId(null);
+    }
+  };
 
   if (loading) {
     return (
@@ -76,6 +90,9 @@ export default function TrustReportPage() {
 
   const sov = data?.dashboard?.data_sovereignty;
   const pendingCount = data?.approvals?.length ?? 0;
+  const failedRepairs =
+    data?.memoryIndexRepairs?.items.filter((r) => r.status === "failed_permanent") ?? [];
+  const failedRepairCount = data?.memoryIndexRepairs?.failed_permanent ?? failedRepairs.length;
   const tc = data?.cost?.total_calls ?? 0;
   const tcost = data?.cost?.total_cost ?? 0;
   const alat = data?.cost?.avg_latency_ms ?? 0;
@@ -206,6 +223,51 @@ export default function TrustReportPage() {
             </div>
           )}
         </section>
+
+        {/* 记忆索引修复 */}
+        {failedRepairCount > 0 && (
+          <section>
+            <h2 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+              <AlertCircle size={20} className="text-red-400" />
+              记忆索引修复失败
+              <span className="text-xs bg-red-500/20 text-red-400 px-2 py-0.5 rounded-full">
+                {failedRepairCount}
+              </span>
+            </h2>
+            <div className="space-y-2">
+              {failedRepairs.map((repair) => (
+                <div
+                  key={repair.id}
+                  className="flex items-start gap-3 bg-red-950/20 border border-red-900/40 rounded-xl p-4"
+                >
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm text-white font-mono truncate">{repair.aggregate_id}</p>
+                    <p className="text-xs text-gray-400 mt-1">
+                      {repair.event_type} · seq {repair.event_seq} · 已重试 {repair.retry_count} 次
+                    </p>
+                    {repair.error && (
+                      <p className="text-xs text-red-300 mt-2 break-words">{repair.error}</p>
+                    )}
+                  </div>
+                  <button
+                    type="button"
+                    aria-label="重试索引"
+                    disabled={retryingId === repair.id}
+                    onClick={() => handleRetryRepair(repair.id)}
+                    className="shrink-0 px-3 py-1.5 text-xs bg-red-600/20 text-red-300 rounded-lg hover:bg-red-600/30 disabled:opacity-50"
+                  >
+                    {retryingId === repair.id ? "重试中…" : "重试索引"}
+                  </button>
+                </div>
+              ))}
+            </div>
+            {(data?.memoryIndexRepairs?.pending ?? 0) > 0 && (
+              <p className="text-xs text-gray-500 mt-3">
+                另有 {data!.memoryIndexRepairs.pending} 条修复任务排队中
+              </p>
+            )}
+          </section>
+        )}
 
         {/* 需要审批 */}
         <section>

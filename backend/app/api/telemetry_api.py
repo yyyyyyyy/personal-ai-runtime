@@ -52,6 +52,25 @@ async def health_snapshot():
     return telemetry.get_health()
 
 
+@router.get("/memory-index-repairs")
+async def memory_index_repairs(status: str = Query(default="all")):
+    """List memory index repair queue rows and aggregate counts."""
+    return telemetry.get_memory_index_repairs(status=status)
+
+
+@router.post("/memory-index-repairs/{repair_id}/retry")
+async def retry_memory_index_repair(repair_id: int):
+    """Reset a failed_permanent repair row for another drain attempt."""
+    result = telemetry.retry_memory_index_repair(repair_id)
+    if not result.get("ok"):
+        from fastapi import HTTPException
+
+        if result.get("error") == "not_found":
+            raise HTTPException(status_code=404, detail="Repair row not found")
+        raise HTTPException(status_code=400, detail=result)
+    return result
+
+
 @router.get("/governance")
 async def governance_summary(days: int = Query(default=7, ge=1, le=90)):
     """Aggregate capability governance activity for the Trust Report UI.

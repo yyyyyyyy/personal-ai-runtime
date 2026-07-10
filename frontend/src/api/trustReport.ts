@@ -10,6 +10,7 @@ import {
   getMemoryStats,
   getHealth,
   getGovernanceSummary,
+  getMemoryIndexRepairs,
 } from "./telemetry";
 import type {
   CostSummary,
@@ -19,7 +20,7 @@ import type {
   HealthSnapshot,
 } from "./types";
 import type { DashboardData } from "./types";
-import type { GovernanceSummary } from "./telemetry";
+import type { GovernanceSummary, MemoryIndexRepairsResponse } from "./telemetry";
 
 export interface TrustReportData {
   system: SystemInfo;
@@ -31,10 +32,11 @@ export interface TrustReportData {
   health: HealthSnapshot;
   governance: GovernanceSummary;
   dashboard: DashboardData | null;
+  memoryIndexRepairs: MemoryIndexRepairsResponse;
 }
 
 export async function getTrustReport(): Promise<TrustReportData> {
-  const [system, approvals, cost, costByModel, tools, memory, health, governance, dashboard] =
+  const [system, approvals, cost, costByModel, tools, memory, health, governance, dashboard, memoryIndexRepairs] =
     await Promise.all([
       fetchSystemInfo(),
       listEnrichedPendingApprovals(),
@@ -45,6 +47,11 @@ export async function getTrustReport(): Promise<TrustReportData> {
       getHealth(),
       getGovernanceSummary(7).catch(() => null),
       getDashboard().catch(() => null),
+      getMemoryIndexRepairs("all").catch(() => ({
+        pending: 0,
+        failed_permanent: 0,
+        items: [],
+      })),
     ]);
 
   return {
@@ -57,5 +64,6 @@ export async function getTrustReport(): Promise<TrustReportData> {
     health,
     governance: governance!,
     dashboard,
+    memoryIndexRepairs,
   };
 }

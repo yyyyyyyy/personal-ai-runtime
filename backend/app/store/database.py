@@ -19,8 +19,6 @@ from pathlib import Path
 from app.config import settings
 
 logger = logging.getLogger(__name__)
-
-# Thread-local connection cache to avoid per-call connection overhead.
 # Each Database path gets its own SQLite connection per thread; the connection
 # is reused across get_db() calls within the same thread and cleaned up on close().
 # Keyed by db_path to prevent cross-Database connection reuse in tests.
@@ -118,4 +116,6 @@ class Database:
             )
 
 
-db = Database()
+from app.core.runtime.runtime_container import _LazyProxy, runtime
+
+db = _LazyProxy(lambda: runtime.db)

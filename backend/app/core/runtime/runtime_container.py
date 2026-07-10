@@ -19,17 +19,23 @@ import threading
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
+    from app.chat.prompt_compiler import PromptCompiler
     from app.context_runtime import FragmentRegistry
     from app.core.agents.llm_failover import LLMRouter
     from app.core.agents.memory_engine import MemoryEngine
     from app.core.agents.memory_extractor import MemoryExtractor
+    from app.core.agents.world_model import WorldModel
     from app.core.harness.mcp_hub import MCPHub
     from app.core.runtime.capability_governance import CapabilityGovernance
     from app.core.runtime.governance.context_pipeline import ContextPipeline
     from app.core.runtime.kernel.kernel import Kernel
     from app.core.runtime.runtime_config import RuntimeConfig
+    from app.core.runtime.runtime_loop import RuntimeLoop
     from app.core.runtime.state_manager import StateManager
     from app.core.runtime.taint import TaintRegistry
+    from app.core.telemetry.telemetry import Telemetry
+    from app.store.database import Database
+    from app.store.vector import VectorStore
 
 
 class _LazyProxy:
@@ -102,6 +108,13 @@ class RuntimeContainer:
         # runtime state
         self._state_manager: "StateManager | None" = None
         self._runtime_config: "RuntimeConfig | None" = None
+        # storage + background loop + observability
+        self._db: "Database | None" = None
+        self._vector_store: "VectorStore | None" = None
+        self._runtime_loop: "RuntimeLoop | None" = None
+        self._world_model: "WorldModel | None" = None
+        self._prompt_compiler: "PromptCompiler | None" = None
+        self._telemetry: "Telemetry | None" = None
 
     def inventory(self) -> list[dict]:
         """Return list of registered subsystems (lazily populated on first access)."""
@@ -118,8 +131,7 @@ class RuntimeContainer:
     def kernel(self) -> "Kernel":
         if self._kernel is None:
             from app.core.runtime.kernel.kernel import Kernel
-            from app.store.vector import vector_store
-            self._kernel = Kernel(memory_index=vector_store)
+            self._kernel = Kernel(db=self.db, memory_index=self.vector_store)
             self._register("kernel", "app.core.runtime.kernel.kernel", "Kernel")
         return self._kernel
 
@@ -235,6 +247,56 @@ class RuntimeContainer:
             )
         return self._runtime_config
 
+    # ── Storage + background loop + observability ─────────────────────
+
+    @property
+    def db(self) -> "Database":
+        if self._db is None:
+            from app.store.database import Database
+            self._db = Database()
+            self._register("db", "app.store.database", "Database")
+        return self._db
+
+    @property
+    def vector_store(self) -> "VectorStore":
+        if self._vector_store is None:
+            from app.store.vector import VectorStore
+            self._vector_store = VectorStore()
+            self._register("vector_store", "app.store.vector", "VectorStore")
+        return self._vector_store
+
+    @property
+    def runtime_loop(self) -> "RuntimeLoop":
+        if self._runtime_loop is None:
+            from app.core.runtime.runtime_loop import RuntimeLoop
+            self._runtime_loop = RuntimeLoop()
+            self._register("runtime_loop", "app.core.runtime.runtime_loop", "RuntimeLoop")
+        return self._runtime_loop
+
+    @property
+    def world_model(self) -> "WorldModel":
+        if self._world_model is None:
+            from app.core.agents.world_model import WorldModel
+            self._world_model = WorldModel()
+            self._register("world_model", "app.core.agents.world_model", "WorldModel")
+        return self._world_model
+
+    @property
+    def prompt_compiler(self) -> "PromptCompiler":
+        if self._prompt_compiler is None:
+            from app.chat.prompt_compiler import PromptCompiler
+            self._prompt_compiler = PromptCompiler()
+            self._register("prompt_compiler", "app.chat.prompt_compiler", "PromptCompiler")
+        return self._prompt_compiler
+
+    @property
+    def telemetry(self) -> "Telemetry":
+        if self._telemetry is None:
+            from app.core.telemetry.telemetry import Telemetry
+            self._telemetry = Telemetry()
+            self._register("telemetry", "app.core.telemetry.telemetry", "Telemetry")
+        return self._telemetry
+
     # ── Legacy (not in inventory, backward compat only) ───────────────
 
     @property
@@ -258,6 +320,12 @@ class RuntimeContainer:
         "_memory_extractor",
         "_state_manager",
         "_runtime_config",
+        "_db",
+        "_vector_store",
+        "_runtime_loop",
+        "_world_model",
+        "_prompt_compiler",
+        "_telemetry",
     )
 
     def reset(self) -> None:
@@ -269,6 +337,13 @@ class RuntimeContainer:
         handlers, reactions, fragments).
         """
         with self._lock:
+            if self._runtime_loop is not None:
+                self._runtime_loop.mark_dirty()
+            if self._db is not None:
+                try:
+                    self._db.close()
+                except Exception:
+                    pass
             # Drop cached instances — properties will lazily rebuild on access.
             for attr in self._SINGLETON_ATTRS:
                 setattr(self, attr, None)
@@ -299,18 +374,10 @@ class RuntimeContainer:
             reset_sse_queues()
             from app.core.runtime.kernel.kernel import clear_pending_memory_index_repairs
             clear_pending_memory_index_repairs()
-            from app.chat.prompt_compiler import reset_prompt_compiler
-            reset_prompt_compiler()
-            from app.core.agents.world_model import reset_world_model
-            reset_world_model()
-            from app.core.telemetry.telemetry import reset_telemetry
-            reset_telemetry()
             from app.core.runtime.execution import reset_identity_resolver
             reset_identity_resolver()
             from app.core.runtime.sensitive_router import reset_sensitive_router
             reset_sensitive_router()
-            from app.core.runtime.runtime_loop import reset_runtime_loop
-            reset_runtime_loop()
 
 
 runtime = RuntimeContainer()

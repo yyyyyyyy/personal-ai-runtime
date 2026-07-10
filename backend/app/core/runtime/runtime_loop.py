@@ -4,6 +4,11 @@ Single asynchronous loop with a 100ms tick, two maintenance tiers:
   - Every 10 ticks (~1s): Timer scan (ex-timer_engine)
   - Every 100 ticks (~10s): Background maintenance (ex-background_worker polling)
 
+Blocking maintenance operations (ChromaDB repair, reaction evaluation) are
+offloaded to a worker thread via asyncio.to_thread so they never stall the
+event loop. Background task dispatch is fire-and-forget so the long
+submit_command timeout cannot block timer scans or approval expiry.
+
 The agent_scheduler still drives WorkItem execution independently (its start/stop
 lifecycle is triggered by chat API calls). RuntimeLoop focuses on the
 autonomous background loops.
@@ -16,6 +21,8 @@ import logging
 
 from app.config import settings
 from app.core.runtime.kernel_instance import kernel
+
+from app.core.runtime.runtime_container import _LazyProxy, runtime
 
 logger = logging.getLogger(__name__)
 
@@ -198,7 +205,14 @@ class RuntimeLoop:
     # ── Background maintenance ─────────────────────────────────────────
 
     async def _maintenance(self) -> None:
-        """Background maintenance (ex-background_worker polling)."""
+        """Background maintenance (ex-background_worker polling).
+
+        Blocking operations (ChromaDB indexing, SQLite-heavy reaction
+        evaluation) are offloaded to a worker thread via asyncio.to_thread
+        so they never stall the event loop. Background task dispatch is
+        fire-and-forget so the 300s submit_command timeout cannot block
+        timer scans or approval expiry.
+        """
         try:
             expired = kernel.expire_stale_approvals()
             if expired:
@@ -217,7 +231,7 @@ class RuntimeLoop:
             logger.exception("Background task processing failed")
 
         try:
-            self._drain_memory_index_repairs()
+            await asyncio.to_thread(self._drain_memory_index_repairs)
         except Exception:
             logger.exception("Memory index repair worker failed")
 
@@ -350,16 +364,26 @@ class RuntimeLoop:
                     )
 
     async def _check_reactions(self) -> None:
-        """Evaluate registered Reactions (v0.6.0: replaces TriggerEngine)."""
+        """Evaluate registered Reactions (v0.6.0: replaces TriggerEngine).
+
+        Offloaded to a worker thread because evaluate_cycle performs
+        synchronous SQLite reads/writes that can block the event loop.
+        """
         from app.core.runtime.reaction_registry import get_reaction_registry
 
         registry = get_reaction_registry()
-        registry.evaluate_cycle(kernel)
+        await asyncio.to_thread(registry.evaluate_cycle, kernel)
 
     # --- Backward compat (kept for the staleness reaction path) ----------------
 
     async def _process_background_tasks(self) -> None:
-        """Process pending background tasks."""
+        """Process pending background tasks.
+
+        Dispatch is fire-and-forget: the submit_command call (which may take
+        up to 300s) runs in a background task so it never blocks the
+        maintenance tick. The completion event resolves the command future
+        asynchronously via _dispatch, independent of this method returning.
+        """
         from app.core.runtime.agent_bootstrap import ensure_scheduler
         from app.core.runtime.agent_scheduler import get_scheduler
         from app.core.runtime.kernel.constants import (
@@ -382,15 +406,23 @@ class RuntimeLoop:
             await ensure_scheduler(kernel)
             sch = get_scheduler(kernel)
             await sch.start()
-            await kernel.submit_command(
-                "BackgroundTaskRequested", AGGREGATE_BACKGROUND_TASK,
-                f"bg_{task_id}",
-                payload={"task_id": task_id, "plan_json": plan_json, "replan_count": 0},
-                actor="background", timeout=settings.submit_command_timeout_background_task,
-            )
+
+            async def _dispatch_bg(t_id: str, pj: str) -> None:
+                try:
+                    await kernel.submit_command(
+                        "BackgroundTaskRequested", AGGREGATE_BACKGROUND_TASK,
+                        f"bg_{t_id}",
+                        payload={"task_id": t_id, "plan_json": pj, "replan_count": 0},
+                        actor="background",
+                        timeout=settings.submit_command_timeout_background_task,
+                    )
+                except Exception:
+                    logger.exception("Background task %s failed", t_id)
+
+            asyncio.create_task(_dispatch_bg(task_id, plan_json))
 
 
-runtime_loop = RuntimeLoop()
+runtime_loop = _LazyProxy(lambda: runtime.runtime_loop)
 
 
 def reset_runtime_loop() -> None:
@@ -404,4 +436,7 @@ def reset_runtime_loop() -> None:
     be called from ``RuntimeContainer.reset()``; the actual cleanup
     happens lazily on the next ``start()`` call.
     """
-    runtime_loop.mark_dirty()
+    from app.core.runtime.runtime_container import runtime
+
+    if runtime._runtime_loop is not None:
+        runtime._runtime_loop.mark_dirty()

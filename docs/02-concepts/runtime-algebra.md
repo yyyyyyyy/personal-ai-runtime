@@ -331,7 +331,7 @@ Reaction 不再是一个"概念"，而是 `subscribe + invoke + produce` 的组�
 | Fragment 注册数 | 10 | ≤ 10 |
 | Governed 投影表数 | 14 | ≤ 11 |
 | Projector 文件数 | 9 | ≤ 7 |
-| 游离单例（不在 container 内） | ~7 (v0.3.0 收编中) | 0 |
+| 游离单例（不在 container 内） | 0 (v0.5.1 收编 db/vector_store/runtime_loop 等) | 0 |
 | Dead code 文件数 | 0 | 0 |
 | God Object 最大 LOC（Kernel/Brain/MCPHub） | 1945 | ≤ 1500 |
 

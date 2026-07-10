@@ -68,7 +68,7 @@ flowchart LR
     D -->|resolve futures| Fut[submit_command waiters]
 ```
 
-关键点：投影在 `emit_event` 的**同一 SQLite 事务**内同步完成（[`backend/app/core/runtime/kernel/kernel.py`](../../backend/app/core/runtime/kernel/kernel.py) 的 `Kernel.emit_event`），因此投影状态始终与其触发事件一致。ChromaDB 索引在事件提交后维护；失败会被持久化到 `memory_index_repairs` 表（APP_STORAGE），由 [`backend/app/core/runtime/runtime_loop.py`](../../backend/app/core/runtime/runtime_loop.py) 的 `_drain_memory_index_repairs` worker 每 ~10s 重试（上限 5 次）。重试耗尽的行标记为 `failed_permanent` 并发 `MemoryIndexRepairFailed` 事件供前端可见。CI 通过 [`scripts/verify_vector_consistency.py`](../../backend/scripts/verify_vector_consistency.py) 与 [`scripts/verify_memory_index_repairs.py`](../../backend/scripts/verify_memory_index_repairs.py) 对账。
+关键点：投影在 `emit_event` 的**同一 SQLite 事务**内同步完成（[`backend/app/core/runtime/kernel/kernel.py`](../../backend/app/core/runtime/kernel/kernel.py) 的 `Kernel.emit_event`），因此投影状态始终与其触发事件一致。ChromaDB 索引在事件**事务提交后**维护（post-commit），保证 event_log 写入失败时不会产生孤儿向量；索引成功后 backfill `embedding_id`，失败会被持久化到 `memory_index_repairs` 表（APP_STORAGE），由 [`backend/app/core/runtime/runtime_loop.py`](../../backend/app/core/runtime/runtime_loop.py) 的 `_drain_memory_index_repairs` worker 每 ~10s 重试（上限 5 次）。重试耗尽的行标记为 `failed_permanent` 并发 `MemoryIndexRepairFailed` 事件供前端可见。CI 通过 [`scripts/verify_vector_consistency.py`](../../backend/scripts/verify_vector_consistency.py) 与 [`scripts/verify_memory_index_repairs.py`](../../backend/scripts/verify_memory_index_repairs.py) 对账。
 
 ## 一次聊天回合的执行流
 
@@ -125,7 +125,7 @@ sequenceDiagram
 | 执行归属 | `check_execution_ownership.py` | 静态扫描所有 `invoke_capability(` 调用必须含 `execution_id` |
 | 投影溯源 | `check_projection_provenance.py` | 运行时 SQL join 验证每条投影行有对应 `event_log` 事件 |
 | 事件日志可重建 | `verify_rebuild.py` 等 12 个脚本 | 重放 `event_log` 重建全部投影并与原状态字节比对 |
-| LLM 出口审计 | `verify_egress.py` | 验证 `prepare_llm_egress` 发出 `EgressApproved` 事件 |
+| LLM 出口审计 | `verify_egress.py` | 验证 `audit_llm_egress` 发出 `EgressAudited` 事件 |
 | 向量一致性 | `verify_vector_consistency.py` | SQLite 记忆集合与 ChromaDB collection 集合对账 |
 | 收件箱双写一致性 | `verify_inbox_audit.py` | 验证 `inbox_emails` 表与 `InboxEmailRecorded` 事件 1:1 对应 |
 | Schema 完整性 | `verify_alembic.py` + 测试 | 19 张必需表存在 + PRAGMA 校验 |
@@ -135,7 +135,7 @@ sequenceDiagram
 ## 关键设计决策（从代码可见）
 
 1. **SSE 流不经 event_log**：聊天文本增量（`text_delta`）通过内存 `asyncio.Queue`（[`backend/app/core/runtime/sse_queue_registry.py`](../../backend/app/core/runtime/sse_queue_registry.py)）直送 HTTP，避免每个 turn 写入数百条事件。`ChatCompleted`/`ChatDone` 才进 `event_log`。
-2. **统一 RuntimeLoop 替代多个守护线程**：[`backend/app/core/runtime/runtime_loop.py`](../../backend/app/core/runtime/runtime_loop.py) 用 100ms 单循环驱动 timer 扫描（每 10 tick）、维护（每 100 tick：stale agent 清理、审批过期、停滞目标提醒、后台任务派发）。
+2. **统一 RuntimeLoop 替代多个守护线程**：[`backend/app/core/runtime/runtime_loop.py`](../../backend/app/core/runtime/runtime_loop.py) 用 100ms 单循环驱动 timer 扫描（每 10 tick）、维护（每 100 tick：stale agent 清理、审批过期、停滞目标提醒、后台任务派发）。阻塞型维护操作（ChromaDB repair、reaction 评估）通过 `asyncio.to_thread` 卸载到工作线程,后台任务派发为 fire-and-forget,确保 event loop 不被同步 IO 或长超时阻塞。
 3. **execution_scope ContextVar**：所有 agent/scheduler/executor/background 触发的 capability 调用必须绑定 `execution_id`（[`backend/app/core/runtime/execution_scope.py`](../../backend/app/core/runtime/execution_scope.py)），用于归属与崩溃恢复。
 4. **WorkItem 持久化崩溃恢复**：Scheduler `__init__` 调 `_recover()` 扫描中断的 `handler_executions`，重放为 `ExecutionRetried(reason=interrupted)`（见 [`scripts/soak_recovery.py`](../../scripts/soak_recovery.py) 验证）。
 5. **投影快照增量重建**：`kernel.rebuild(aggregate_type)` 从 `projection_checkpoints.last_applied_seq` 增量重放而非全量（[`scripts/verify_snapshot_rebuild.py`](../../backend/scripts/verify_snapshot_rebuild.py) 验证）。

@@ -74,10 +74,11 @@ class PromptCompiler:
         return f"{artifact}{_ARTIFACT_CONTEXT_SEPARATOR}{context}"
 
 
-prompt_compiler = PromptCompiler()
+from app.core.runtime.runtime_container import _LazyProxy, runtime
+
+prompt_compiler = _LazyProxy(lambda: runtime.prompt_compiler)
 
 
 def reset_prompt_compiler() -> None:
     """Rebuild the prompt_compiler singleton (test isolation)."""
-    global prompt_compiler
-    prompt_compiler = PromptCompiler()
+    runtime._prompt_compiler = None

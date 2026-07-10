@@ -16,15 +16,17 @@ const frontendDir = path.join(repoRoot, "frontend");
 const frontendDist = path.join(frontendDir, "dist");
 const desktopFrontendDist = path.join(__dirname, "frontend-dist");
 
-function run(cmd, cwd) {
+function run(cmd, cwd, env = {}) {
   console.log(`[prebuild] $ ${cmd}`);
-  execSync(cmd, { cwd, stdio: "inherit" });
+  execSync(cmd, { cwd, stdio: "inherit", env: { ...process.env, ...env } });
 }
 
 function needsFrontendBuild() {
   if (!fs.existsSync(frontendDist)) return true;
   if (!fs.existsSync(path.join(frontendDist, "index.html"))) return true;
-  // Rebuild if desktop/frontend-dist is missing or stale
+  const indexHtml = fs.readFileSync(path.join(frontendDist, "index.html"), "utf8");
+  // Desktop build uses relative asset paths (base: "./").
+  if (!indexHtml.includes("./assets/")) return true;
   if (!fs.existsSync(desktopFrontendDist)) return true;
   return false;
 }
@@ -47,15 +49,21 @@ function copyDir(src, dst) {
 
 try {
   if (needsFrontendBuild()) {
-    console.log("[prebuild] Building frontend...");
+    console.log("[prebuild] Building frontend for desktop (VITE_DESKTOP=1)...");
     run("npm ci --no-audit --no-fund", frontendDir);
-    run("npm run build", frontendDir);
+    run("npm run build", frontendDir, { VITE_DESKTOP: "1" });
   } else {
     console.log("[prebuild] Frontend dist up-to-date, skipping build.");
   }
 
   console.log(`[prebuild] Copying ${frontendDist} -> ${desktopFrontendDist}`);
   copyDir(frontendDist, desktopFrontendDist);
+
+  if (process.platform === "win32") {
+    console.log("[prebuild] Bundling Windows Python runtime...");
+    run("node bundle-python.js", __dirname);
+  }
+
   console.log("[prebuild] Done.");
 } catch (err) {
   console.error("[prebuild] Failed:", err.message);

@@ -1,5 +1,6 @@
 """Chat API — conversation and message endpoints with SSE streaming."""
 
+import asyncio
 import json
 
 from fastapi import APIRouter, HTTPException
@@ -13,6 +14,32 @@ from app.core.agents.tool_markup import strip_tool_markup
 from app.core.runtime.kernel_instance import kernel
 
 router = APIRouter(tags=["chat"])
+
+
+def _drain_sse_queue(queue: asyncio.Queue) -> list[dict]:
+    """Return all items currently buffered in the SSE queue (non-blocking)."""
+    items: list[dict] = []
+    while True:
+        try:
+            items.append(queue.get_nowait())
+        except asyncio.QueueEmpty:
+            break
+    return items
+
+
+def _yield_completion_extras(result: dict, conv_id: str) -> list[str]:
+    """Build SSE lines for sources and confirmation_required before done."""
+    from app.core.runtime.governance.context_pipeline import get_sources
+
+    lines: list[str] = []
+    sources = get_sources(conv_id)
+    if sources:
+        lines.append(f"data: {json.dumps({'type': 'sources', 'sources': sources})}\n\n")
+    if result.get("pending"):
+        lines.append(
+            f"data: {json.dumps({'type': 'confirmation_required', 'tool_name': result.get('tool_name', ''), 'tool_args': result.get('tool_args', {}), 'approval_id': result.get('approval_id', '')})}\n\n"
+        )
+    return lines
 
 
 @router.post("/conversations")
@@ -133,6 +160,40 @@ async def send_message(conv_id: str, body: SendMessageRequest):
                     if now - last_ping >= 15.0:
                         yield f"data: {_json.dumps({'type': 'ping'})}\n\n"
                         last_ping = now
+
+                    # Fallback only when the queue is idle — avoids racing past
+                    # pending text_delta/tool_result items still in the queue.
+                    done = kernel.read_events(correlation_id=correlation_id, type="ChatDone")
+                    if not done:
+                        continue
+
+                    streamed_text = False
+                    for pending in _drain_sse_queue(sse_queue):
+                        if pending.get("type") == "text_delta" and pending.get("content"):
+                            streamed_text = True
+                            yield f"data: {_json.dumps(pending)}\n\n"
+                        elif pending.get("type") in ("tool_call_start", "tool_result"):
+                            yield f"data: {_json.dumps(pending)}\n\n"
+                        elif pending.get("type") == "done":
+                            if pending.get("result"):
+                                for line in _yield_completion_extras(pending["result"], conv_id):
+                                    yield line
+                            yield f"data: {_json.dumps({'type': 'done'})}\n\n"
+                            return
+                        elif pending.get("type") == "error":
+                            yield f"data: {_json.dumps({'type': 'error', 'content': pending.get('content', '')})}\n\n"
+                            return
+
+                    completed = kernel.read_events(correlation_id=correlation_id, type="ChatCompleted")
+                    if completed:
+                        result = completed[0].payload
+                        content = result.get("content", "")
+                        if content and not streamed_text:
+                            yield f"data: {_json.dumps({'type': 'text_delta', 'content': content})}\n\n"
+                        for line in _yield_completion_extras(result, conv_id):
+                            yield line
+                        yield f"data: {_json.dumps({'type': 'done'})}\n\n"
+                    return
                 else:
                     if item.get("type") == "text_delta" and item.get("content"):
                         yield f"data: {_json.dumps(item)}\n\n"
@@ -140,33 +201,13 @@ async def send_message(conv_id: str, body: SendMessageRequest):
                         yield f"data: {_json.dumps(item)}\n\n"
                     elif item.get("type") == "done":
                         if item.get("result"):
-                            result = item["result"]
-                            from app.core.runtime.governance.context_pipeline import get_sources
-                            sources = get_sources(conv_id)
-                            if sources:
-                                yield f"data: {_json.dumps({'type': 'sources', 'sources': sources})}\n\n"
-                            if result.get("pending"):
-                                yield f"data: {_json.dumps({'type': 'confirmation_required', 'tool_name': result.get('tool_name',''), 'tool_args': result.get('tool_args',{}), 'approval_id': result.get('approval_id','')})}\n\n"
+                            for line in _yield_completion_extras(item["result"], conv_id):
+                                yield line
                         yield f"data: {_json.dumps({'type': 'done'})}\n\n"
                         return
                     elif item.get("type") == "error":
                         yield f"data: {_json.dumps({'type': 'error', 'content': item.get('content', '')})}\n\n"
                         return
-
-                # Fallback: check event_log for completion (robust against queue issues)
-                done = kernel.read_events(correlation_id=correlation_id, type="ChatDone")
-                if done:
-                    completed = kernel.read_events(correlation_id=correlation_id, type="ChatCompleted")
-                    if completed:
-                        result = completed[0].payload
-                        from app.core.runtime.governance.context_pipeline import get_sources
-                        sources = get_sources(conv_id)
-                        if sources:
-                            yield f"data: {_json.dumps({'type': 'sources', 'sources': sources})}\n\n"
-                        if result.get("pending"):
-                            yield f"data: {_json.dumps({'type': 'confirmation_required', 'tool_name': result.get('tool_name',''), 'tool_args': result.get('tool_args',{}), 'approval_id': result.get('approval_id','')})}\n\n"
-                        yield f"data: {_json.dumps({'type': 'done'})}\n\n"
-                    return
 
             yield f"data: {_json.dumps({'type': 'error', 'content': 'Chat request timed out'})}\n\n"
         except Exception as exc:

@@ -1,20 +1,22 @@
 {
   "name": "personal-ai-runtime-desktop",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Personal AI Runtime Desktop Client",
+  "author": "Personal AI Runtime",
   "main": "main.js",
   "scripts": {
     "start": "electron .",
     "prebuild": "node prebuild.js",
-    "build": "npm run prebuild && electron-builder",
+    "build": "node build-desktop.js",
+    "clean:dist": "node clean-pack-output.js",
     "test": "vitest run --config vitest.config.js",
-    "postinstall": "python3 generate_icon.py"
+    "postinstall": "node postinstall.js"
   },
   "dependencies": {
-    "electron": "^43.0.0",
     "ws": "^8.18.0"
   },
   "devDependencies": {
+    "electron": "^43.0.0",
     "electron-builder": "^26.15.3",
     "vitest": "^4.1.9"
   },
@@ -28,6 +30,7 @@
     "files": [
       "main.js",
       "preload.js",
+      "run-backend.py",
       "icon.png",
       "generate_icon.py",
       "frontend-dist/**/*"

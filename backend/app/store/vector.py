@@ -130,4 +130,6 @@ class VectorStore:
             self.knowledge_collection.delete(ids=chunk_ids)
 
 
-vector_store = VectorStore()
+from app.core.runtime.runtime_container import _LazyProxy, runtime
+
+vector_store = _LazyProxy(lambda: runtime.vector_store)

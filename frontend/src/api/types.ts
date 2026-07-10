@@ -113,6 +113,8 @@ export interface HealthSnapshot {
   task_queue_length: number;
   llm_failure_rate_24h: number;
   tool_failure_rate_24h: number;
+  memory_index_repairs_pending?: number;
+  memory_index_repairs_failed_permanent?: number;
 }
 
 export interface MemoryRow {

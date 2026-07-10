@@ -220,13 +220,82 @@ class Telemetry:
             "task_queue_length": queue_len,
             "llm_failure_rate_24h": round(llm_fail / llm_count, 4) if llm_count else 0,
             "tool_failure_rate_24h": round(tool_fail / tool_count, 4) if tool_count else 0,
+            **self._memory_index_repair_counts(),
         }
 
+    def _memory_index_repair_counts(self) -> dict[str, int]:
+        with db.get_db() as conn:
+            pending = conn.execute(
+                "SELECT COUNT(*) FROM memory_index_repairs WHERE status = 'pending'"
+            ).fetchone()[0]
+            failed = conn.execute(
+                "SELECT COUNT(*) FROM memory_index_repairs WHERE status = 'failed_permanent'"
+            ).fetchone()[0]
+        return {
+            "memory_index_repairs_pending": int(pending),
+            "memory_index_repairs_failed_permanent": int(failed),
+        }
 
-telemetry = Telemetry()
+    def get_memory_index_repairs(self, status: str | None = None) -> dict:
+        """List durable memory index repair rows and aggregate counts."""
+        counts = self._memory_index_repair_counts()
+        query = (
+            "SELECT id, aggregate_id, event_type, event_seq, error, retry_count, "
+            "status, created_at, last_retry_at "
+            "FROM memory_index_repairs"
+        )
+        params: tuple = ()
+        if status and status != "all":
+            query += " WHERE status = ?"
+            params = (status,)
+        query += " ORDER BY id DESC LIMIT 200"
+        with db.get_db() as conn:
+            rows = conn.execute(query, params).fetchall()
+        items = [
+            {
+                "id": row["id"],
+                "aggregate_id": row["aggregate_id"],
+                "event_type": row["event_type"],
+                "event_seq": row["event_seq"],
+                "error": row["error"],
+                "retry_count": row["retry_count"],
+                "status": row["status"],
+                "created_at": row["created_at"],
+                "last_retry_at": row["last_retry_at"],
+            }
+            for row in rows
+        ]
+        return {
+            "pending": counts["memory_index_repairs_pending"],
+            "failed_permanent": counts["memory_index_repairs_failed_permanent"],
+            "items": items,
+        }
+
+    def retry_memory_index_repair(self, repair_id: int) -> dict:
+        """Reset a failed_permanent repair row so RuntimeLoop can drain it again."""
+        with db.get_db() as conn:
+            row = conn.execute(
+                "SELECT id, status FROM memory_index_repairs WHERE id = ?",
+                (repair_id,),
+            ).fetchone()
+            if row is None:
+                return {"ok": False, "error": "not_found"}
+            if row["status"] != "failed_permanent":
+                return {"ok": False, "error": "not_retryable", "status": row["status"]}
+            conn.execute(
+                "UPDATE memory_index_repairs "
+                "SET status = 'pending', retry_count = 0, error = NULL, last_retry_at = NULL "
+                "WHERE id = ?",
+                (repair_id,),
+            )
+        return {"ok": True, "id": repair_id, "status": "pending"}
+
+
+from app.core.runtime.runtime_container import _LazyProxy, runtime
+
+telemetry = _LazyProxy(lambda: runtime.telemetry)
 
 
 def reset_telemetry() -> None:
     """Rebuild the telemetry singleton (test isolation)."""
-    global telemetry
-    telemetry = Telemetry()
+    runtime._telemetry = None

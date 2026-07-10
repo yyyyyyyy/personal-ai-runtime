@@ -43,20 +43,27 @@ AUTH_TOKEN   = process.env.AUTH_TOKEN   || ""
 
 ## 后端进程管理
 
-[`main.js:42-101`](../../desktop/main.js) 的 `startBackend()`：
+**Python 运行时**（v0.5.1 起）：
+
+- **Windows 打包版**：`prebuild.js` 通过 [`bundle-python.js`](../../desktop/bundle-python.js) 捆绑 embeddable CPython 3.12 + `requirements.txt` 到 `extraResources/python/`；`main.js` 优先使用捆绑的 `python.exe`。
+- **开发 / 非 Windows**：`resolvePythonCommand()` 依次尝试 `py -3.12`、`python`、`python3`；依赖系统已安装的后端包。
+- **数据目录**：spawn 时注入 `DATA_DIR` / `VECTOR_DIR` / `SQLITE_PATH` 到 `%APPDATA%/Personal AI Runtime/data`（`app.getPath("userData")`），避免写入只读安装目录。
+- **依赖探测**：启动前执行 `import uvicorn, chromadb`；失败时弹出 `dialog.showErrorBox` 并指引运行 [`install.bat`](../../install.bat)（Windows）或 `install.sh`。
+
+[`main.js`](../../desktop/main.js) 的 `startBackend()`：
 
 1. 探测 `BACKEND_PORT`：用 `net.Socket` 连 localhost。
 2. 若已有进程监听 → 复用，记日志。
-3. 若连不上 → spawn：
+3. 若连不上 → 解析 Python 可执行文件并 spawn：
 
 ```
-python3 -m uvicorn app.main:app --host 127.0.0.1 --port <BACKEND_PORT>
-cwd = <repo>/backend
-env = { ...process.env }
+<python> -m uvicorn app.main:app --host 127.0.0.1 --port <BACKEND_PORT>
+cwd = <repo>/backend  (或 resources/backend)
+env = { ...process.env, DATA_DIR, VECTOR_DIR, SQLITE_PATH }
 stdio = ["ignore", "pipe", "pipe"]
 ```
 
-**不 bundle Python 解释器**——依赖系统 `python3` 且 `uvicorn`/`app.main` 可导入。托盘菜单提供「重启后端」/「启动后端」；`stopBackend()` 发 SIGTERM（5s 后升级为 SIGKILL）。
+托盘菜单提供「重启后端」/「启动后端」；`stopBackend()` 发 SIGTERM（5s 后升级为 SIGKILL）。
 
 ## 窗口管理
 
