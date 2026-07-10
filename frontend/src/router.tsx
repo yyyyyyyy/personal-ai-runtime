@@ -13,7 +13,6 @@ const TimelinePage = lazy(() => import("./pages/Timeline"));
 const KnowledgePage = lazy(() => import("./pages/Knowledge"));
 const PortraitPage = lazy(() => import("./pages/Portrait"));
 const TrustReportPage = lazy(() => import("./pages/TrustReport"));
-const ModelSwitchDemoPage = lazy(() => import("./pages/ModelSwitchDemo"));
 
 export const router = createBrowserRouter([
   {
@@ -28,7 +27,6 @@ export const router = createBrowserRouter([
       { path: "memories", element: <MemoriesPage /> },
       { path: "portrait", element: <PortraitPage /> },
       { path: "trust", element: <TrustReportPage /> },
-      { path: "demo", element: <ModelSwitchDemoPage /> },
       { path: "dashboard", element: <DashboardPage /> },
       { path: "settings", element: <SettingsPage /> },
       { path: "approvals", element: <ApprovalsPage /> },
