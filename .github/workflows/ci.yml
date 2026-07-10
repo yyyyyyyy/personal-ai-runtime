@@ -101,7 +101,16 @@ jobs:
           os.environ['LLM_API_KEY'] = 'test-key'
           import app.main as main_module
           app = main_module.app
-          routes = [r.path for r in app.routes if hasattr(r, 'path')]
+          # FastAPI 0.137+ refactored include_router to store _IncludedRouter
+          # tree nodes in app.routes (they have no .path attribute). The
+          # official replacement is iter_route_contexts (0.137.2+), which
+          # flattens the tree back into path contexts. Fall back to the legacy
+          # flat-list form for older versions so this check stays portable.
+          try:
+              from fastapi.routing import iter_route_contexts
+              routes = [ctx.path for ctx in iter_route_contexts(app.routes)]
+          except ImportError:
+              routes = [r.path for r in app.routes if hasattr(r, 'path')]
           endpoints = [
               '/api/chat/conversations',
               '/api/chat/approvals/',
