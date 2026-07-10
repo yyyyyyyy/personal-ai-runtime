@@ -17,7 +17,7 @@ from typing import TYPE_CHECKING, Any, Callable
 
 from app.core.agents.llm_failover import llm_router
 from app.core.agents.tool_markup import strip_tool_markup
-from app.core.runtime.egress.egress_gate import prepare_llm_egress
+from app.core.runtime.egress.egress_gate import audit_llm_egress
 from app.core.runtime.kernel_instance import kernel
 from app.core.runtime.runtime_config import runtime_config
 
@@ -102,7 +102,7 @@ class BrainLLMClient:
         if messages and messages[-1].get("role") == "user" and not messages[-1].get("content"):
             messages.pop()
 
-        egress_messages, _egress_audit = prepare_llm_egress(
+        egress_messages, _egress_audit = audit_llm_egress(
             messages, purpose="chat_continue"
         )
 
@@ -172,7 +172,7 @@ class BrainLLMClient:
         ]
         errors: list[str] = []
         llm_start = time.time()
-        egress_messages, _egress_audit = prepare_llm_egress(messages, purpose="chat_stream")
+        egress_messages, _egress_audit = audit_llm_egress(messages, purpose="chat_stream")
         for idx, (client, provider) in enumerate(candidates):
             is_primary = idx == 0
             max_attempts = MAX_PRIMARY_ATTEMPTS if is_primary else 1
@@ -244,7 +244,7 @@ class BrainLLMClient:
                 "用中文直接回答用户最初的问题，不要再调用任何工具。"
             ),
         })
-        egress_messages, _egress_audit = prepare_llm_egress(
+        egress_messages, _egress_audit = audit_llm_egress(
             synth_messages, purpose="synthesize_tool_results",
         )
         try:
@@ -269,7 +269,7 @@ class BrainLLMClient:
                 "(请直接文字回复。)"
             ),
         })
-        egress_messages, _egress_audit = prepare_llm_egress(
+        egress_messages, _egress_audit = audit_llm_egress(
             retry_messages, purpose="complete_text_only",
         )
         try:

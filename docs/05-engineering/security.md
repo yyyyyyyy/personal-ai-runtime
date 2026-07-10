@@ -51,7 +51,7 @@
 
 ## 出口审计
 
-[`backend/app/core/runtime/egress/egress_gate.py`](../../backend/app/core/runtime/egress/egress_gate.py) 的 `prepare_llm_egress(messages, purpose, actor)` 在每次 LLM 调用前审计——**messages 原样通过，不做脱敏**——发出 `EgressApproved` 事件，分类为 `identity_surface`/`memory_context`/`trajectory_context`/`general`。
+[`backend/app/core/runtime/egress/egress_gate.py`](../../backend/app/core/runtime/egress/egress_gate.py) 的 `audit_llm_egress(messages, purpose, actor)` 在每次 LLM 调用前审计——**messages 原样通过，不做脱敏**——发出 `EgressAudited` 事件，分类为 `identity_surface`/`memory_context`/`trajectory_context`/`general`。（旧名 `prepare_llm_egress`/`EgressApproved` 已正名。）
 
 Brain 与 BrainCompletionMixin 在每次 LLM 调用前调用。MemoryExtractor 云路径用 `purpose="memory_extract"`。验证：[`scripts/verify_egress.py`](../../backend/scripts/verify_egress.py)。
 

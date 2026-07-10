@@ -13,7 +13,7 @@ if str(_BACKEND_ROOT) not in sys.path:
 
 os.environ.setdefault("LLM_API_KEY", "test-key")
 
-from app.core.runtime.egress.egress_gate import prepare_llm_egress
+from app.core.runtime.egress.egress_gate import audit_llm_egress
 from app.core.runtime.kernel import Kernel
 from app.store.database import Database
 
@@ -35,7 +35,7 @@ def main() -> int:
             "content": "identity_narrative_opt_in claim_status proposed",
         }
     ]
-    outbound, audit = prepare_llm_egress(messages, purpose="verify")
+    outbound, audit = audit_llm_egress(messages, purpose="verify")
     if not audit.get("classification"):
         violations.append("egress: missing classification")
     if "identity_surface" not in audit["classification"]["categories"]:
@@ -45,11 +45,11 @@ def main() -> int:
     if outbound != messages:
         violations.append("egress: audit-only path must not mutate outbound messages")
 
-    events = k.read_events(type="EgressApproved", order="desc", limit=1)
+    events = k.read_events(type="EgressAudited", order="desc", limit=1)
     if not events:
-        violations.append("egress: EgressApproved event not emitted")
+        violations.append("egress: EgressAudited event not emitted")
 
-    general, audit2 = prepare_llm_egress(
+    general, audit2 = audit_llm_egress(
         [{"role": "user", "content": "hello world"}], purpose="verify_general"
     )
     if audit2["classification"]["categories"] != ["general"]:

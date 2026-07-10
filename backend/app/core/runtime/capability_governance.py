@@ -12,6 +12,13 @@ to system principal by IdentityResolver, and grant_events had no projector
 to populate it. The data path was dead; Gate 2 always returned fail-closed
 deny. Removing it eliminates the grant_events concept entirely.
 
+v0.10.0: Taint escalation now applies to ALL paths, including pre_approved.
+Previously, a pre_approved invocation skipped Gate 3 entirely, which meant a
+tainted correlation could drive a write-class tool without re-evaluation.
+The fix: tainted_write is computed before Gate 2; system principals are
+fail-closed denied even on the pre_approved path, and user principals still
+skip the approval request (no double-confirmation).
+
 Gate 1: policy_events projection (forbidden check)
 Gate 2: pre-approved fast path (consume pre-approved approval)
 Gate 3: risk assessment + approval deferral
@@ -247,7 +254,7 @@ class CapabilityGovernance:
         approval_id: str | None = None,
         execution_id: str | None = None,
     ) -> CapabilityDecision:
-        """4-gate capability authorization decision."""
+        """3-gate capability authorization decision."""
         from app.core.harness.mcp_hub import mcp_hub
         from app.core.runtime.sensitive_router import sensitive_router
         from app.core.runtime.taint import is_write_class_tool, taint_registry
@@ -260,6 +267,22 @@ class CapabilityGovernance:
         if policy_risk == "forbidden":
             return CapabilityDecision("deny", "forbidden_by_policy")
 
+        # Taint escalation applies to ALL paths (including pre_approved).
+        # A tainted correlation driving a write-class tool is always high risk.
+        tainted_write = bool(
+            correlation_id
+            and taint_registry.is_tainted(correlation_id)
+            and is_write_class_tool(capability)
+        )
+
+        # System/kernel principals running background loops cannot be
+        # escalated to a human — a tainted write-class tool auto-denies
+        # even on the pre_approved path (fail-closed).
+        if tainted_write and principal.type != "user":
+            return CapabilityDecision(
+                "deny", f"tainted_write_{principal.type}_auto_denied",
+            )
+
         # Gate 2: pre-approved fast path
         if pre_approved:
             if not approval_id:
@@ -270,34 +293,31 @@ class CapabilityGovernance:
             )
             if pre_err is not None:
                 return CapabilityDecision("deny", pre_err.get("error", "pre_approved_mismatch"))
+            # User has explicitly approved this invocation; skip Gate 3.
+            return CapabilityDecision("allow", "pre_approved")
 
         # Gate 3: risk assessment + approval
-        if not pre_approved:
-            risk = sensitive_router.elevated_risk(capability, args) or (
-                "high" if policy_risk == "high" else "low"
-            )
-            if (
-                correlation_id
-                and taint_registry.is_tainted(correlation_id)
-                and is_write_class_tool(capability)
-            ):
-                risk = "high"
+        risk = sensitive_router.elevated_risk(capability, args) or (
+            "high" if policy_risk == "high" else "low"
+        )
+        if tainted_write:
+            risk = "high"
 
-            # Only user principal can defer for human approval on high risk.
-            # System/kernel principals running background loops cannot be
-            # escalated to a human — high risk auto-denies instead.
-            if risk == "high" and principal.type != "user":
-                return CapabilityDecision("deny", f"high_risk_{principal.type}_auto_denied")
+        # Only user principal can defer for human approval on high risk.
+        # System/kernel principals running background loops cannot be
+        # escalated to a human — high risk auto-denies instead.
+        if risk == "high" and principal.type != "user":
+            return CapabilityDecision("deny", f"high_risk_{principal.type}_auto_denied")
 
-            approval = kernel.request_approval(
-                action=capability, risk=risk, ctx={"args": args},
-                actor=principal.actor, correlation_id=correlation_id,
+        approval = kernel.request_approval(
+            action=capability, risk=risk, ctx={"args": args},
+            actor=principal.actor, correlation_id=correlation_id,
+        )
+        if approval["status"] != "approved":
+            return CapabilityDecision(
+                "defer", approval.get("reason", "needs_user_confirmation"),
+                approval["approval_id"],
             )
-            if approval["status"] != "approved":
-                return CapabilityDecision(
-                    "defer", approval.get("reason", "needs_user_confirmation"),
-                    approval["approval_id"],
-                )
 
         return CapabilityDecision("allow", "approved")
 

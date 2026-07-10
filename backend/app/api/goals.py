@@ -296,7 +296,7 @@ Only return the JSON array, no other text."""
 
     try:
         from app.core.agents.llm_failover import llm_router
-        from app.core.runtime.egress import prepare_llm_egress
+        from app.core.runtime.egress import audit_llm_egress
 
         client, provider = llm_router.get_client()
 
@@ -305,9 +305,9 @@ Only return the JSON array, no other text."""
             {"role": "user", "content": prompt},
         ]
         # v0.3.0: route through the egress audit gate for parity with Brain paths.
-        # prepare_llm_egress emits EgressApproved and returns (messages, audit_meta);
+        # audit_llm_egress emits EgressAudited and returns (messages, audit_meta);
         # we reuse the returned messages so the LLM call matches what was audited.
-        audited_messages, _audit = prepare_llm_egress(
+        audited_messages, _audit = audit_llm_egress(
             messages, purpose="goal_breakdown", actor="api",
         )
 

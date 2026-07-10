@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import re
 import uuid
+import warnings
 from typing import Any
 
 from app.core.runtime import kernel_instance
@@ -38,13 +39,13 @@ def classify_llm_payload(messages: list[dict[str, Any]]) -> dict[str, Any]:
     }
 
 
-def prepare_llm_egress(
+def audit_llm_egress(
     messages: list[dict[str, Any]],
     *,
     purpose: str,
     actor: str = "kernel",
 ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
-    """Audit outbound LLM call, emit EgressApproved, return (messages, audit_meta).
+    """Audit outbound LLM call, emit EgressAudited, return (messages, audit_meta).
 
     Messages are returned unchanged — this is audit-only, not a redaction boundary.
     """
@@ -59,7 +60,7 @@ def prepare_llm_egress(
 
     k = kernel_instance.kernel
     k.emit_event(
-        "EgressApproved",
+        "EgressAudited",
         "egress",
         f"egress_{uuid.uuid4().hex[:12]}",
         payload=audit,
@@ -69,10 +70,43 @@ def prepare_llm_egress(
     return messages, audit
 
 
+def prepare_llm_egress(
+    messages: list[dict[str, Any]],
+    *,
+    purpose: str,
+    actor: str = "kernel",
+) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    """Deprecated alias for :func:`audit_llm_egress`.
+
+    Kept for call-site compatibility. Will be removed once all callers migrate.
+    """
+    warnings.warn(
+        "prepare_llm_egress is deprecated; use audit_llm_egress instead",
+        DeprecationWarning,
+        stacklevel=2,
+    )
+    return audit_llm_egress(messages, purpose=purpose, actor=actor)
+
+
+def audit_llm_egress_sync(
+    messages: list[dict[str, Any]],
+    *,
+    purpose: str,
+    actor: str = "kernel",
+) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    return audit_llm_egress(messages, purpose=purpose, actor=actor)
+
+
 def prepare_llm_egress_sync(
     messages: list[dict[str, Any]],
     *,
     purpose: str,
     actor: str = "kernel",
 ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
-    return prepare_llm_egress(messages, purpose=purpose, actor=actor)
+    """Deprecated alias for :func:`audit_llm_egress_sync`."""
+    warnings.warn(
+        "prepare_llm_egress_sync is deprecated; use audit_llm_egress_sync instead",
+        DeprecationWarning,
+        stacklevel=2,
+    )
+    return audit_llm_egress_sync(messages, purpose=purpose, actor=actor)

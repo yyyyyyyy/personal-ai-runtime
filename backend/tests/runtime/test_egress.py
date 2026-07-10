@@ -1,6 +1,6 @@
 """Egress gate tests."""
 
-from app.core.runtime.egress.egress_gate import classify_llm_payload, prepare_llm_egress
+from app.core.runtime.egress.egress_gate import audit_llm_egress, classify_llm_payload
 from app.core.runtime.kernel import Kernel
 from app.store.database import Database
 
@@ -20,17 +20,17 @@ def test_egress_emits_audit_event(tmp_path):
         db = Database(db_path=str(tmp_path / "egress.db"))
         k = Kernel(db=db)
         ki.kernel = k
-        _, audit = prepare_llm_egress(
+        _, audit = audit_llm_egress(
             [{"role": "user", "content": "hello"}], purpose="test"
         )
         assert audit["purpose"] == "test"
-        events = k.read_events(type="EgressApproved")
+        events = k.read_events(type="EgressAudited")
         assert len(events) == 1
     finally:
         ki.kernel = saved
 
 
-def test_prepare_llm_egress_returns_messages_and_audit(tmp_path):
+def test_audit_llm_egress_returns_messages_and_audit(tmp_path):
     """Regression: callers in inbox.py / api/goals.py must consume the tuple.
 
     A prior commit invoked prepare_llm_egress as a void function and redeclared
@@ -51,7 +51,7 @@ def test_prepare_llm_egress_returns_messages_and_audit(tmp_path):
             {"role": "system", "content": "classifier"},
             {"role": "user", "content": "email body"},
         ]
-        returned_messages, audit = prepare_llm_egress(
+        returned_messages, audit = audit_llm_egress(
             original, purpose="inbox_classify", actor="inbox",
         )
 
@@ -63,7 +63,7 @@ def test_prepare_llm_egress_returns_messages_and_audit(tmp_path):
         assert "classification" in audit
         assert audit["classification"]["message_count"] == 2
 
-        events = k.read_events(type="EgressApproved")
+        events = k.read_events(type="EgressAudited")
         assert len(events) == 1
         ev = events[0]
         assert ev.payload["purpose"] == "inbox_classify"
@@ -73,7 +73,7 @@ def test_prepare_llm_egress_returns_messages_and_audit(tmp_path):
         ki.kernel = saved
 
 
-def test_prepare_llm_egress_goal_breakdown_audit(tmp_path):
+def test_audit_llm_egress_goal_breakdown_audit(tmp_path):
     """Covers the api/goals.py goal_breakdown path (Low #19 closure)."""
     import app.core.runtime.kernel_instance as ki
 
@@ -87,14 +87,43 @@ def test_prepare_llm_egress_goal_breakdown_audit(tmp_path):
             {"role": "system", "content": "You break goals into steps."},
             {"role": "user", "content": "Goal: ship v0.3.0"},
         ]
-        returned_messages, audit = prepare_llm_egress(
+        returned_messages, audit = audit_llm_egress(
             messages, purpose="goal_breakdown", actor="api",
         )
 
         assert returned_messages is messages
         assert audit["purpose"] == "goal_breakdown"
-        events = k.read_events(type="EgressApproved")
+        events = k.read_events(type="EgressAudited")
         assert len(events) == 1
         assert events[0].actor == "api"
     finally:
         ki.kernel = saved
+
+
+def test_prepare_llm_egress_deprecated_alias(tmp_path):
+    """The old name still works but emits DeprecationWarning."""
+    import warnings
+
+    import app.core.runtime.kernel_instance as ki
+
+    saved = ki.kernel
+    try:
+        db = Database(db_path=str(tmp_path / "egress.db"))
+        k = Kernel(db=db)
+        ki.kernel = k
+
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            returned, audit = __import__(
+                "app.core.runtime.egress.egress_gate", fromlist=["prepare_llm_egress"]
+            ).prepare_llm_egress(
+                [{"role": "user", "content": "hello"}], purpose="deprecated",
+            )
+
+        assert any(issubclass(w.category, DeprecationWarning) for w in caught)
+        assert audit["purpose"] == "deprecated"
+        events = k.read_events(type="EgressAudited")
+        assert len(events) == 1
+    finally:
+        ki.kernel = saved
+
