@@ -58,18 +58,15 @@ def fake_brain(monkeypatch):
     monkeypatch.setattr("app.core.agents.brain.Brain", FakeBrain)
 
     # —— Patch send_message to run the ChatRequested handler inline ——
-    import app.api.chat as _chat
-
-    _orig_send_message = _chat.send_message
-
     async def _wrapped_send_message(conv_id, body):
         """Like the original send_message, but directly invokes the
         ChatRequested handler after the event is emitted so that the
         SSE queue is populated before StreamingResponse begins."""
-        from app.api.chat import ConversationAPI
         import asyncio as _asyncio2
         import json as _json2
         import uuid as _uuid2
+
+        from app.api.chat import ConversationAPI
 
         conv = ConversationAPI.get(conv_id)
         if not conv:
@@ -82,14 +79,7 @@ def fake_brain(monkeypatch):
 
         correlation_id = f"chat_{_uuid2.uuid4().hex[:12]}"
 
-        from app.core.runtime.agent_bootstrap import ensure_scheduler
         from app.core.runtime.kernel_instance import kernel as _k
-        await ensure_scheduler(_k)
-
-        from app.core.runtime.agent_scheduler import get_scheduler
-        scheduler = get_scheduler(_k)
-        await scheduler.start()
-
         from app.core.runtime.sse_queue_registry import register, unregister
         sse_queue = register(correlation_id)
 
@@ -100,9 +90,9 @@ def fake_brain(monkeypatch):
         )
 
         # —— INLINE HANDLER EXECUTION ——
-        from app.core.runtime.handler_registry import get_handler
-        from app.core.runtime.execution import identity_resolver, execution_scope
+        from app.core.runtime.execution import execution_scope, identity_resolver
         from app.core.runtime.execution_context import ExecutionContext
+        from app.core.runtime.handler_registry import get_handler
 
         handler = get_handler("ChatRequested")
         if handler is not None:

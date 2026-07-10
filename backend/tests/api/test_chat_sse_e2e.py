@@ -77,9 +77,14 @@ async def test_chat_sse_happy_path(fake_brain, app, http_client):
     assert "Hello " in text
     assert "world!" in text
 
-    completed = kernel.read_events(type="ChatCompleted", limit=10)
+    completed = kernel.read_events(
+        type="ChatCompleted",
+        aggregate_id=f"chat_{conv_id}",
+        order="desc",
+        limit=1,
+    )
     assert len(completed) > 0, "ChatCompleted event not found in event_log"
-    assert "Hello world!" in completed[-1].payload.get("content", "")
+    assert "Hello world!" in completed[0].payload.get("content", "")
 
 
 @pytest.mark.anyio
@@ -122,7 +127,13 @@ async def test_chat_sse_tool_call_path(fake_brain, app, http_client):
 
 @pytest.mark.anyio
 async def test_chat_sse_confirmation_required_path(fake_brain, app, http_client):
-    """Approval suspension: confirmation_required frame with approval_id before done."""
+    """Approval suspension: done.result carries pending=True + approval_id.
+
+    ChatHandler does not push confirmation_required as a separate SSE frame;
+    it folds the approval payload into ChatCompleted / the final done.result.
+    """
+    from app.core.runtime.kernel_instance import kernel
+
     fake_brain.set_script([
         {"type": "confirmation_required", "tool_name": "write_file",
          "tool_args": {"path": "/tmp/out.txt", "content": "data"},
@@ -136,11 +147,20 @@ async def test_chat_sse_confirmation_required_path(fake_brain, app, http_client)
     frames = await _invoke_send_message(conv_id, "Write a file")
 
     types = [f.get("type") for f in frames]
-    assert "confirmation_required" in types, f"Expected confirmation_required, got {types}"
-    cr_idx = types.index("confirmation_required")
-    done_idx = types.index("done")
-    assert cr_idx < done_idx, "confirmation_required must come before done"
+    assert types[-1] == "done", f"Expected done as last frame, got {types}"
 
-    cr_frame = next(f for f in frames if f.get("type") == "confirmation_required")
-    assert cr_frame.get("approval_id"), "approval_id must be non-empty"
-    assert cr_frame.get("tool_name") == "write_file"
+    done_frame = next(f for f in frames if f.get("type") == "done")
+    result = done_frame.get("result") or {}
+    assert result.get("pending") is True, f"Expected pending=True in done.result, got {result}"
+    assert result.get("approval_id") == "apr_test123"
+    assert result.get("tool_name") == "write_file"
+
+    completed = kernel.read_events(
+        type="ChatCompleted",
+        aggregate_id=f"chat_{conv_id}",
+        order="desc",
+        limit=1,
+    )
+    assert len(completed) > 0
+    assert completed[0].payload.get("pending") is True
+    assert completed[0].payload.get("approval_id") == "apr_test123"
