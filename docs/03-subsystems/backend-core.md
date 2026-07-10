@@ -81,11 +81,11 @@ Failover 执行在 `BrainCompletionMixin._create_llm_stream`（[`brain_completio
 2. `_default_extract` — 若 `settings.memory_extractor == "cloud"` 走云；否则试 `local_llm.extract_memories`（Ollama），失败且有 `llm_api_key` 则回退云。
 3. `extract_and_store` — 每条事实经 `_is_duplicate`（语义召回阈值 0.92 + 词法回退）去重后 `memory_engine.store_memory(category="fact", actor="extractor")`。
 
-云路径用 `prepare_llm_egress(messages, purpose="memory_extract")` 审计。
+云路径用 `audit_llm_egress(messages, purpose="memory_extract")` 审计。
 
 ### 向量索引集成
 
-Kernel 拥有 Chroma 索引。`emit_event` 对 `MEMORY_INDEX_EVENT_TYPES` **预计算 embedding_id**，使投影器在同一 SQL 事务写入（[`kernel.py`](../../backend/app/core/runtime/kernel/kernel.py)）。失败进入 `_pending_memory_index_repairs`（上限 1000），由 [`scripts/verify_vector_consistency.py`](../../backend/scripts/verify_vector_consistency.py) 对账。
+Kernel 拥有 Chroma 索引。`emit_event` 对 `MEMORY_INDEX_EVENT_TYPES` 在**事务提交后**同步索引（post-commit），保证 event_log 持久化失败时不会产生孤儿向量（[`kernel.py`](../../backend/app/core/runtime/kernel/kernel.py)）。索引成功后 backfill `embedding_id`；失败进入 `memory_index_repairs` 表（上限 1000），由 [`scripts/verify_vector_consistency.py`](../../backend/scripts/verify_vector_consistency.py) 对账。
 
 ### 记忆衰减
 

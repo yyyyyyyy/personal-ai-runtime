@@ -177,31 +177,15 @@ class Kernel(QueryStateMixin, GovernanceMixin, SovereigntyMixin):
             correlation_id=correlation_id,
         )
 
-        # Pre-compute embedding_id via MemoryIndexPort so the projector can
-        # write it in the same SQLite transaction.
-        if type in MEMORY_INDEX_EVENT_TYPES and type != "MemoryDeleted" and self._memory_index is not None:
-            try:
-                p = event.payload
-                content = str(p.get("content", ""))
-                if content:
-                    self._memory_index.delete_memory(aggregate_id)
-                    embedding_id = self._memory_index.index_memory(
-                        content=content,
-                        metadata={
-                            "category": str(p.get("category", "general")),
-                            "source": str(p.get("source", "")),
-                        },
-                        memory_id=aggregate_id,
-                    )
-                    p["embedding_id"] = embedding_id
-            except Exception:
-                logger.warning(
-                    "Pre-compute embedding failed for %s — "
-                    "embedding_id will be NULL in projection; the durable "
-                    "repair queue will retry via RuntimeLoop",
-                    aggregate_id,
-                    exc_info=True,
-                )
+        # NOTE: Vector index sync happens post-commit in _sync_memory_index.
+        # Previously embedding was pre-computed here so the projector could
+        # write embedding_id in the same transaction. However that created an
+        # asymmetric failure mode: if embedding succeeded but the SQLite INSERT
+        # failed (transaction rollback), ChromaDB was left with an orphan vector.
+        # The post-commit path is eventually-consistent (embedding_id starts
+        # NULL, backfilled via MemoryUpdated or the durable repair queue) but
+        # never produces orphans because the event is already durable before
+        # ChromaDB is touched.
 
         with self._db.get_db() as conn:
             cur = conn.execute(
@@ -304,7 +288,14 @@ class Kernel(QueryStateMixin, GovernanceMixin, SovereigntyMixin):
                 self._pending_commands.pop(key, None)
 
     def _sync_memory_index(self, event: Event) -> None:
-        """Synchronise memory events with the MemoryIndexPort (if configured)."""
+        """Synchronise memory events with the MemoryIndexPort (if configured).
+
+        Post-commit vector index sync. Called after emit_event has durably
+        written the event + projection in a single SQLite transaction.
+        Because the event is already durable, a ChromaDB failure here can
+        never orphan an event — it only leaves embedding_id NULL until the
+        repair queue retries.
+        """
         if event.type not in MEMORY_INDEX_EVENT_TYPES:
             return
         content = str(event.payload.get("content", ""))
@@ -312,7 +303,7 @@ class Kernel(QueryStateMixin, GovernanceMixin, SovereigntyMixin):
             if self._memory_index is not None:
                 if event.type == "MemoryDeleted":
                     self._memory_index.delete_memory(event.aggregate_id)
-                elif not event.payload.get("embedding_id"):
+                elif not event.payload.get("embedding_id") and content:
                     embedding_id = self._memory_index.index_memory(
                         content=content,
                         metadata={
@@ -330,6 +321,13 @@ class Kernel(QueryStateMixin, GovernanceMixin, SovereigntyMixin):
                     except Exception:
                         logger.debug("Backfill embedding_id failed for %s", event.aggregate_id, exc_info=True)
         except Exception as exc:
+            # Compensating delete: if index_memory failed partway, attempt to
+            # remove any partial ChromaDB state so the repair retry starts clean.
+            if event.type != "MemoryDeleted" and self._memory_index is not None:
+                try:
+                    self._memory_index.delete_memory(event.aggregate_id)
+                except Exception:
+                    logger.debug("Compensating delete failed for %s", event.aggregate_id, exc_info=True)
             _pending_memory_index_repairs.append({
                 "aggregate_id": event.aggregate_id,
                 "event_type": event.type,
