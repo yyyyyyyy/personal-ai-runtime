@@ -15,6 +15,7 @@ import sqlite3
 import threading
 from contextlib import contextmanager
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from app.config import settings
 
@@ -118,4 +119,7 @@ class Database:
 
 from app.core.runtime.runtime_container import _LazyProxy, runtime  # noqa: E402
 
-db = _LazyProxy(lambda: runtime.db)
+if TYPE_CHECKING:
+    db: Database
+else:
+    db = _LazyProxy(lambda: runtime.db)

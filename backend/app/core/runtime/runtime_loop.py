@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from typing import Any, Coroutine
 
 from app.config import settings
 from app.core.runtime.kernel_instance import kernel
@@ -429,14 +430,14 @@ class RuntimeLoop:
 
             self._spawn_background_task(_dispatch_bg(task_id, plan_json))
 
-    def _spawn_background_task(self, coro: "asyncio.coroutines") -> None:
+    def _spawn_background_task(self, coro: Coroutine[Any, Any, None]) -> None:
         """Create a tracked fire-and-forget task.
 
         The task reference is held in _bg_tasks to prevent the GC from
         collecting it mid-flight (a known asyncio footgun when create_task
         results are discarded). On completion the entry is discarded.
         """
-        task = asyncio.create_task(coro)
+        task: asyncio.Task[None] = asyncio.create_task(coro)
         self._bg_tasks.add(task)
         task.add_done_callback(self._bg_tasks.discard)
 
