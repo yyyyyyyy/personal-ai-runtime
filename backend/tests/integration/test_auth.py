@@ -5,7 +5,7 @@ from starlette.testclient import TestClient
 
 
 def test_api_open_when_auth_disabled(client: TestClient):
-    r = client.get("/api/goals/")
+    r = client.get("/api/work-items/")
     assert r.status_code == 200
 
     health = client.get("/api/system/health").json()
@@ -22,11 +22,11 @@ def test_health_reports_auth_required(authed_client: TestClient):
 
 
 def test_api_requires_bearer_when_auth_enabled(authed_client: TestClient):
-    r = authed_client.get("/api/goals/")
+    r = authed_client.get("/api/work-items/")
     assert r.status_code == 401
 
     r2 = authed_client.get(
-        "/api/goals/",
+        "/api/work-items/",
         headers={"Authorization": "Bearer test-secret"},
     )
     assert r2.status_code == 200

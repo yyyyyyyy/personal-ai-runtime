@@ -1,16 +1,32 @@
 /**
- * Goals API client — migrating toward /api/work-items.
+ * Goals client — thin adapters over /api/work-items (Phase 4).
  *
- * CRUD list/create/update/delete go through workItems (work_type=goal).
- * getGoal, actions, and decompose remain on /api/goals (actions + events
- * composition and goal-specific endpoints not yet mirrored on work-items).
+ * Keeps the Goal view-model for existing pages while all HTTP goes through
+ * the unified work-items surface.
  */
 
 import { API_BASE, request } from "./core";
-import type { Goal, GoalAction, WorkItem } from "./types";
-import { createWorkItem, deleteWorkItem, listWorkItems, updateWorkItem } from "./workItems";
+import type { Goal, GoalAction, GoalEvent, WorkItem } from "./types";
+import {
+  createWorkItem,
+  deleteWorkItem,
+  getWorkItem,
+  listWorkItems,
+  updateWorkItem,
+} from "./workItems";
 
-function workItemToGoal(item: WorkItem): Goal {
+function actionToGoalAction(item: WorkItem, goalId: string): GoalAction {
+  return {
+    id: item.id,
+    goal_id: item.parent_goal_id || goalId,
+    title: item.title,
+    status: item.status,
+    created_at: item.created_at,
+    completed_at: item.completed_at,
+  };
+}
+
+function workItemToGoal(item: WorkItem & { actions?: WorkItem[]; events?: GoalEvent[] }): Goal {
   return {
     id: item.id,
     title: item.title,
@@ -23,17 +39,19 @@ function workItemToGoal(item: WorkItem): Goal {
     parent_id: item.parent_work_id,
     created_at: item.created_at,
     last_activity_at: item.last_activity_at,
+    actions: (item.actions || []).map((a) => actionToGoalAction(a, item.id)),
+    events: item.events,
   };
 }
 
 export async function listGoals(status?: string): Promise<Goal[]> {
   const items = await listWorkItems("goal", status);
-  return items.map(workItemToGoal);
+  return items.map((item) => workItemToGoal(item));
 }
 
 export async function getGoal(goalId: string): Promise<Goal> {
-  // Still /api/goals — embeds actions + events.
-  return request<Goal>(`${API_BASE}/goals/${goalId}`);
+  const item = await getWorkItem(goalId, "actions,events");
+  return workItemToGoal(item as WorkItem & { actions?: WorkItem[]; events?: GoalEvent[] });
 }
 
 export async function createGoal(body: { title: string; description?: string }): Promise<Goal> {
@@ -62,10 +80,13 @@ export async function deleteGoal(goalId: string): Promise<void> {
 }
 
 export async function createGoalAction(goalId: string, title: string): Promise<GoalAction> {
-  return request<GoalAction>(`${API_BASE}/goals/${goalId}/actions`, {
-    method: "POST",
-    body: JSON.stringify({ title }),
+  const item = await createWorkItem({
+    title,
+    work_type: "action",
+    parent_goal_id: goalId,
+    status: "pending",
   });
+  return actionToGoalAction(item, goalId);
 }
 
 export async function updateGoalAction(
@@ -73,14 +94,12 @@ export async function updateGoalAction(
   actionId: string,
   body: { status: string },
 ): Promise<GoalAction> {
-  return request<GoalAction>(`${API_BASE}/goals/${goalId}/actions/${actionId}`, {
-    method: "PUT",
-    body: JSON.stringify(body),
-  });
+  const item = await updateWorkItem(actionId, body);
+  return actionToGoalAction(item, goalId);
 }
 
 export async function decomposeGoal(goalId: string): Promise<{ steps: string[] }> {
-  return request<{ steps: string[] }>(`${API_BASE}/goals/${goalId}/decompose`, {
+  return request<{ steps: string[] }>(`${API_BASE}/work-items/${goalId}/decompose`, {
     method: "POST",
   });
 }

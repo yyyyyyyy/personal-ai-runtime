@@ -209,10 +209,8 @@ export interface Goal {
 }
 
 /**
- * v1.0 WorkItem — unified type for tasks, actions, goals.
- *
- * Coexists with the legacy `Goal` interface during the v1.0 migration;
- * Phase 4 will retire `Goal` and `GoalAction` in favour of this type.
+ * WorkItem — unified type for tasks, actions, goals.
+ * Goal/GoalAction remain thin view-model adapters used by the Goals page.
  */
 export type WorkItemType = "task" | "action" | "background" | "goal";
 

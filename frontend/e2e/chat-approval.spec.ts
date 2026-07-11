@@ -134,7 +134,6 @@ test.describe("Error handling", () => {
     const router = new MockApiRouter()
       .json("/api/system/health", { status: "ok", service: "personal-ai", auth_required: false })
       .json("/api/system/info", { conversations: 0, goals: 0, memories: 0, messages: 0 })
-      .json("/api/goals", [])
       .json("/api/work-items", [])
       .json("/api/memory/memories/grouped", { memories: [] })
       .json("/api/memory/memories/search", [])

@@ -134,9 +134,9 @@ sequenceDiagram
 
 ## 关键设计决策（从代码可见）
 
-1. **SSE 流不经 event_log**：聊天文本增量（`text_delta`）通过内存 `asyncio.Queue`（[`backend/app/core/runtime/sse_queue_registry.py`](../../backend/app/core/runtime/sse_queue_registry.py)）直送 HTTP，避免每个 turn 写入数百条事件。`ChatCompleted`/`ChatDone` 才进 `event_log`。
+1. **SSE 流不经 event_log**：聊天文本增量（`text_delta`）通过内存 `asyncio.Queue`（[`backend/app/core/runtime/notification_bridge.py`](../../backend/app/core/runtime/notification_bridge.py)）直送 HTTP，避免每个 turn 写入数百条事件。`ChatCompleted`/`ChatDone` 才进 `event_log`。
 2. **统一 RuntimeLoop 替代多个守护线程**：[`backend/app/core/runtime/runtime_loop.py`](../../backend/app/core/runtime/runtime_loop.py) 用 100ms 单循环驱动 timer 扫描（每 10 tick）、维护（每 100 tick：stale agent 清理、审批过期、停滞目标提醒、后台任务派发）。阻塞型维护操作（ChromaDB repair、reaction 评估）通过 `asyncio.to_thread` 卸载到工作线程,后台任务派发为 fire-and-forget,确保 event loop 不被同步 IO 或长超时阻塞。
-3. **execution_scope ContextVar**：所有 agent/scheduler/executor/background 触发的 capability 调用必须绑定 `execution_id`（[`backend/app/core/runtime/execution_scope.py`](../../backend/app/core/runtime/execution_scope.py)），用于归属与崩溃恢复。
+3. **execution_scope ContextVar**：所有 agent/scheduler/executor/background 触发的 capability 调用必须绑定 `execution_id`（[`backend/app/core/runtime/execution.py`](../../backend/app/core/runtime/execution.py)），用于归属与崩溃恢复。
 4. **WorkItem 持久化崩溃恢复**：Scheduler `__init__` 调 `_recover()` 扫描中断的 `handler_executions`，重放为 `ExecutionRetried(reason=interrupted)`（见 [`scripts/soak_recovery.py`](../../scripts/soak_recovery.py) 验证）。
 5. **投影快照增量重建**：`kernel.rebuild(aggregate_type)` 从 `projection_checkpoints.last_applied_seq` 增量重放而非全量（[`scripts/verify_snapshot_rebuild.py`](../../backend/scripts/verify_snapshot_rebuild.py) 验证）。
 

@@ -21,14 +21,12 @@ from app.api import (
     chat,
     connectors,
     dashboard,
-    goals,
     inbox,
     knowledge,
     memory,
     notifications,
     settings_api,
     system,
-    tasks,
     telemetry_api,
     timeline,
     triggers,
@@ -393,7 +391,7 @@ app = FastAPI(
 
 **Core Capabilities:**
 - **Chat** — conversational AI with tool calling and streaming
-- **Goals & Tasks** — goal tracking with progress and subtasks
+- **Work Items** — unified goals / tasks / actions tracking
 - **Memory** — automated memory extraction and semantic search
 - **Inbox** — email polling, reading, and sending (Gmail)
 - **Approvals** — human-in-the-loop confirmation for high-risk actions
@@ -431,9 +429,7 @@ app.include_router(dashboard.router, prefix="/api/dashboard")
 app.include_router(system.router, prefix="/api/system")
 app.include_router(settings_api.router, prefix="/api/settings")
 app.include_router(memory.router, prefix="/api/memory")
-app.include_router(goals.router, prefix="/api/goals")
 app.include_router(notifications.router, prefix="/api/notifications")
-app.include_router(tasks.router, prefix="/api/tasks")
 app.include_router(telemetry_api.router, prefix="/api/telemetry")
 app.include_router(approvals.router, prefix="/api/approvals")
 app.include_router(background_tasks.router, prefix="/api/tasks/background")

@@ -33,32 +33,21 @@
 | GET | `/portrait` | `136-192` | — | `{profile, habits, goals}` | 无 |
 | GET | `/graph` | `202-272` | query `limit=50` | `{nodes, edges}` | 无 |
 
-## goals — `/api/goals`（[`api/goals.py`](../../backend/app/api/goals.py)）
+## work-items — `/api/work-items`（[`api/work_items.py`](../../backend/app/api/work_items.py)）
 
-| 方法 | 路径 | 行 | 请求 | 响应 | 副作用 |
-|---|---|---|---|---|---|
-| POST | `/` | `49-77` | `CreateGoalRequest{title, description="", importance=0.5, urgency=0.5, parent_id?, deadline?}` | goal dict | emit `WorkItemCreated` (work_type=goal) |
-| GET | `/` | `80-86` | query `status?`, `limit=50` | list | 无 |
-| GET | `/{goal_id}` | `89-98` | path | goal + actions + events | 无 |
-| PUT/PATCH | `/{goal_id}` | `102-144` | body dict（title/description/status/progress/importance/urgency/deadline/parent_id） | goal dict / 404 | emit `WorkItemUpdated` 或 `WorkItemStatusChanged` |
-| DELETE | `/{goal_id}` | `147-167` | path | `{"status":"ok"}` / 404 | emit `WorkItemDeleted`（含子 action） |
-| POST | `/{goal_id}/actions` | `172-208` | `CreateActionRequest{title, goal_id=""}` | action dict | emit `WorkItemCreated` (work_type=action) |
-| PUT | `/{goal_id}/actions/{action_id}` | `211-251` | body dict（status, title） | `{"status":"ok"}` / 404 | emit `WorkItemUpdated`；completed 时联动通知 + memory |
-| DELETE | `/{goal_id}/actions/{action_id}` | `254-267` | path | `{"status":"ok"}` / 404 | emit `WorkItemDeleted` |
-| POST | `/{goal_id}/decompose` | `257-338` | path | `{"steps": list[str]}` | **LLM 调用**：拆解目标 3-10 步 |
+统一的 Work 原语 HTTP 表面（Phase 4 已退休 `/api/goals` 与 `/api/tasks`）。
 
-## tasks — `/api/tasks`（[`api/tasks.py`](../../backend/app/api/tasks.py)）
-
-| 方法 | 路径 | 行 | 请求 | 响应 | 副作用 |
-|---|---|---|---|---|---|
-| POST | `/` | `21-36` | body dict（name/title, description, parent_goal_id, parent_task_id, priority, dependencies） | work_item dict | `task_engine.create_work_item` → `WorkItemCreated` |
-| GET | `/` | `39-41` | query `status?`, `limit=50` | list | 无 |
-| GET | `/{task_id}` | `44-49` | path | task / 404 | 无 |
-| GET | `/{task_id}/subtasks` | `52-57` | path | list / 404 | 无 |
-| DELETE | `/{task_id}` | `60-65` | path | `{"status":"ok"}` / 404 | emit `WorkItemDeleted` |
-| PATCH | `/{task_id}/status` | `68-76` | body `{status}` | task / 404 / 400 | `task_engine.update_work_item_status` |
-| POST | `/goal/{goal_id}` | `81-95` | body dict | work_item dict | `create_work_item` under goal |
-| GET | `/goal/{goal_id}` | `98-100` | path | tree | 无 |
+| 方法 | 路径 | 请求 | 响应 | 副作用 |
+|---|---|---|---|---|
+| POST | `/` | `{title\|name, work_type, parent_goal_id?, parent_work_id?, ...}` | work_item | `WorkItemCreated`；action/task 挂 goal 时 bump `last_activity_at` |
+| GET | `/` | query `work_type?`, `status?`, `parent_goal_id?`, `parent_work_id?`, `limit` | list | 无 |
+| GET | `/{id}` | query `include=actions,events,children,tree` | work_item（可选嵌入） | 无 |
+| GET | `/{id}/children` | path | list（goal 用 `parent_goal_id`） | 无 |
+| GET | `/{id}/events` | query `limit` | legacy-shaped events | 无 |
+| PATCH | `/{id}` | 字段更新 | work_item | `WorkItemUpdated` / goal `completed` → `WorkItemStatusChanged`；action 完成 → 通知 + memory |
+| POST | `/{id}/status` | `{status}` | work_item | 状态机或 goal 状态更新 |
+| DELETE | `/{id}` | path | `{"status":"ok"}` | goal 级联删除子项 |
+| POST | `/{id}/decompose` | path（仅 goal） | `{"steps": string[]}` | LLM 拆解 |
 
 ## background_tasks — `/api/tasks/background`（[`api/background_tasks.py`](../../backend/app/api/background_tasks.py)）
 

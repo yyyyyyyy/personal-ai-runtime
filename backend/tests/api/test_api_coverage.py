@@ -109,21 +109,23 @@ class TestMemoryAPI:
 # ── Goals API ─────────────────────────────────────────────────────────────
 
 
-class TestGoalsAPI:
+class TestGoalsViaWorkItemsAPI:
     def test_list_empty(self, client):
-        resp = client.get("/api/goals/")
+        resp = client.get("/api/work-items/?work_type=goal")
         assert resp.status_code == 200
         assert isinstance(resp.json(), list)
 
     def test_create_goal_minimal(self, client):
-        resp = client.post("/api/goals/", json={"title": "Learn Rust"})
+        resp = client.post("/api/work-items/", json={"title": "Learn Rust", "work_type": "goal"})
         assert resp.status_code == 200
         data = resp.json()
-        assert data["status"] in ("ok", "active")
+        assert data["status"] == "active"
+        assert data["work_type"] == "goal"
 
     def test_create_goal_with_all_fields(self, client):
-        resp = client.post("/api/goals/", json={
+        resp = client.post("/api/work-items/", json={
             "title": "Learn Go",
+            "work_type": "goal",
             "description": "Master Go",
             "importance": 0.8,
             "urgency": 0.6,
@@ -133,38 +135,44 @@ class TestGoalsAPI:
         assert resp.json()["title"] == "Learn Go"
 
     def test_create_empty_title(self, client):
-        resp = client.post("/api/goals/", json={"title": ""})
+        resp = client.post("/api/work-items/", json={"title": "", "work_type": "goal"})
         assert resp.status_code == 400
 
     def test_get_not_found(self, client):
-        resp = client.get("/api/goals/nonexistent")
+        resp = client.get("/api/work-items/nonexistent")
         assert resp.status_code == 404
 
     def test_get_goal_with_actions(self, client):
-        resp = client.post("/api/goals/", json={"title": "G"})
+        resp = client.post("/api/work-items/", json={"title": "G", "work_type": "goal"})
         gid = resp.json()["id"]
-        client.post(f"/api/goals/{gid}/actions", json={"title": "Step 1"})
-        resp = client.get(f"/api/goals/{gid}")
+        client.post("/api/work-items/", json={
+            "title": "Step 1", "work_type": "action", "parent_goal_id": gid,
+        })
+        resp = client.get(f"/api/work-items/{gid}?include=actions,events")
         assert resp.status_code == 200
-        assert "actions" in resp.json()
-        assert "events" in resp.json()
+        body = resp.json()
+        assert len(body["actions"]) == 1
+        assert "events" in body
 
     def test_delete_not_found(self, client):
-        resp = client.delete("/api/goals/nonexistent")
+        resp = client.delete("/api/work-items/nonexistent")
         assert resp.status_code == 404
 
     def test_delete_goal_with_items(self, client):
-        resp = client.post("/api/goals/", json={"title": "G"})
+        resp = client.post("/api/work-items/", json={"title": "G", "work_type": "goal"})
         gid = resp.json()["id"]
-        client.post(f"/api/goals/{gid}/actions", json={"title": "Step 1"})
-        resp = client.delete(f"/api/goals/{gid}")
+        client.post("/api/work-items/", json={
+            "title": "Step 1", "work_type": "action", "parent_goal_id": gid,
+        })
+        resp = client.delete(f"/api/work-items/{gid}")
         assert resp.status_code == 200
         assert resp.json()["status"] == "ok"
+        assert client.get(f"/api/work-items/{gid}").status_code == 404
 
     def test_update_goal_fields(self, client):
-        resp = client.post("/api/goals/", json={"title": "Update test"})
+        resp = client.post("/api/work-items/", json={"title": "Update test", "work_type": "goal"})
         gid = resp.json()["id"]
-        resp = client.patch(f"/api/goals/{gid}", json={
+        resp = client.patch(f"/api/work-items/{gid}", json={
             "title": "Updated title",
             "importance": 0.9,
             "status": "active",
@@ -173,68 +181,79 @@ class TestGoalsAPI:
         assert resp.json()["title"] == "Updated title"
 
     def test_update_goal_no_changes(self, client):
-        resp = client.post("/api/goals/", json={"title": "NoOp"})
+        resp = client.post("/api/work-items/", json={"title": "NoOp", "work_type": "goal"})
         gid = resp.json()["id"]
-        resp = client.patch(f"/api/goals/{gid}", json={})
-        assert resp.status_code == 200
+        resp = client.patch(f"/api/work-items/{gid}", json={})
+        assert resp.status_code == 400
 
     def test_update_goal_invalid_status(self, client):
-        resp = client.post("/api/goals/", json={"title": "G"})
+        resp = client.post("/api/work-items/", json={"title": "G", "work_type": "goal"})
         gid = resp.json()["id"]
-        resp = client.patch(f"/api/goals/{gid}", json={"status": "invalid"})
+        resp = client.patch(f"/api/work-items/{gid}", json={"status": "invalid"})
         assert resp.status_code == 400
 
     def test_update_goal_invalid_importance(self, client):
-        resp = client.post("/api/goals/", json={"title": "G"})
+        resp = client.post("/api/work-items/", json={"title": "G", "work_type": "goal"})
         gid = resp.json()["id"]
-        resp = client.patch(f"/api/goals/{gid}", json={"importance": 1.5})
+        resp = client.patch(f"/api/work-items/{gid}", json={"importance": 1.5})
         assert resp.status_code == 400
 
     def test_mark_goal_completed(self, client):
-        resp = client.post("/api/goals/", json={"title": "Complete me"})
+        resp = client.post("/api/work-items/", json={"title": "Complete me", "work_type": "goal"})
         gid = resp.json()["id"]
-        resp = client.patch(f"/api/goals/{gid}", json={"status": "completed"})
+        resp = client.patch(f"/api/work-items/{gid}", json={"status": "completed"})
         assert resp.status_code == 200
 
     def test_create_action(self, client):
-        resp = client.post("/api/goals/", json={"title": "G"})
+        resp = client.post("/api/work-items/", json={"title": "G", "work_type": "goal"})
         gid = resp.json()["id"]
-        resp = client.post(f"/api/goals/{gid}/actions", json={"title": "Do thing"})
+        resp = client.post("/api/work-items/", json={
+            "title": "Do thing", "work_type": "action", "parent_goal_id": gid,
+        })
         assert resp.status_code == 200
         assert resp.json()["title"] == "Do thing"
+        assert resp.json()["parent_goal_id"] == gid
 
     def test_create_action_empty_title(self, client):
-        resp = client.post("/api/goals/", json={"title": "G"})
+        resp = client.post("/api/work-items/", json={"title": "G", "work_type": "goal"})
         gid = resp.json()["id"]
-        resp = client.post(f"/api/goals/{gid}/actions", json={"title": ""})
+        resp = client.post("/api/work-items/", json={
+            "title": "", "work_type": "action", "parent_goal_id": gid,
+        })
         assert resp.status_code == 400
 
     def test_create_action_goal_not_found(self, client):
-        resp = client.post("/api/goals/nonexistent/actions", json={"title": "Step"})
+        resp = client.post("/api/work-items/", json={
+            "title": "Step", "work_type": "action", "parent_goal_id": "missing",
+        })
         assert resp.status_code == 404
 
     def test_update_action_status(self, client):
-        resp = client.post("/api/goals/", json={"title": "G"})
+        resp = client.post("/api/work-items/", json={"title": "G", "work_type": "goal"})
         gid = resp.json()["id"]
-        resp = client.post(f"/api/goals/{gid}/actions", json={"title": "Step"})
+        resp = client.post("/api/work-items/", json={
+            "title": "Step", "work_type": "action", "parent_goal_id": gid,
+        })
         aid = resp.json()["id"]
-        resp = client.put(f"/api/goals/{gid}/actions/{aid}", json={"status": "completed"})
+        resp = client.patch(f"/api/work-items/{aid}", json={"status": "completed"})
         assert resp.status_code == 200
 
     def test_update_action_not_found(self, client):
-        resp = client.put("/api/goals/g/actions/nonexistent", json={"status": "done"})
+        resp = client.patch("/api/work-items/nonexistent", json={"status": "completed"})
         assert resp.status_code == 404
 
     def test_delete_action(self, client):
-        resp = client.post("/api/goals/", json={"title": "G"})
+        resp = client.post("/api/work-items/", json={"title": "G", "work_type": "goal"})
         gid = resp.json()["id"]
-        resp = client.post(f"/api/goals/{gid}/actions", json={"title": "Del me"})
+        resp = client.post("/api/work-items/", json={
+            "title": "Del me", "work_type": "action", "parent_goal_id": gid,
+        })
         aid = resp.json()["id"]
-        resp = client.delete(f"/api/goals/{gid}/actions/{aid}")
+        resp = client.delete(f"/api/work-items/{aid}")
         assert resp.status_code == 200
 
     def test_delete_action_not_found(self, client):
-        resp = client.delete("/api/goals/g/actions/nonexistent")
+        resp = client.delete("/api/work-items/nonexistent")
         assert resp.status_code == 404
 
 
@@ -305,87 +324,98 @@ class TestSystemAPI:
 # ── Tasks API ─────────────────────────────────────────────────────────────
 
 
-class TestTasksAPI:
+class TestTasksViaWorkItemsAPI:
     def test_list(self, client):
-        resp = client.get("/api/tasks/")
+        resp = client.get("/api/work-items/?work_type=task")
         assert resp.status_code == 200
         assert isinstance(resp.json(), list)
 
     def test_create_task_valid(self, client):
-        resp = client.post("/api/tasks/", json={"name": "Deploy app", "priority": 2})
+        resp = client.post("/api/work-items/", json={"name": "Deploy app", "priority": 2})
         assert resp.status_code == 200
         data = resp.json()
         assert data["title"] == "Deploy app"
         assert "id" in data
 
     def test_create_task_empty_name(self, client):
-        resp = client.post("/api/tasks/", json={"name": ""})
+        resp = client.post("/api/work-items/", json={"name": ""})
         assert resp.status_code == 400
 
     def test_create_task_uses_title_fallback(self, client):
-        resp = client.post("/api/tasks/", json={"title": "Via Title"})
+        resp = client.post("/api/work-items/", json={"title": "Via Title"})
         assert resp.status_code == 200
         assert resp.json()["title"] == "Via Title"
 
     def test_get_task_not_found(self, client):
-        resp = client.get("/api/tasks/nonexistent")
+        resp = client.get("/api/work-items/nonexistent")
         assert resp.status_code == 404
 
     def test_get_task_found(self, client):
-        resp = client.post("/api/tasks/", json={"name": "For get"})
+        resp = client.post("/api/work-items/", json={"name": "For get"})
         tid = resp.json()["id"]
-        resp = client.get(f"/api/tasks/{tid}")
+        resp = client.get(f"/api/work-items/{tid}")
         assert resp.status_code == 200
         assert resp.json()["title"] == "For get"
 
     def test_get_subtasks_not_found(self, client):
-        resp = client.get("/api/tasks/nonexistent/subtasks")
+        resp = client.get("/api/work-items/nonexistent/children")
         assert resp.status_code == 404
 
     def test_delete_task_not_found(self, client):
-        resp = client.delete("/api/tasks/nonexistent")
+        resp = client.delete("/api/work-items/nonexistent")
         assert resp.status_code == 404
 
     def test_delete_task_ok(self, client):
-        resp = client.post("/api/tasks/", json={"name": "To delete"})
+        resp = client.post("/api/work-items/", json={"name": "To delete"})
         tid = resp.json()["id"]
-        resp = client.delete(f"/api/tasks/{tid}")
+        resp = client.delete(f"/api/work-items/{tid}")
         assert resp.status_code == 200
         assert resp.json()["status"] == "ok"
 
     def test_update_status_not_found(self, client):
-        resp = client.patch("/api/tasks/nonexistent/status", json={"status": "running"})
+        resp = client.post("/api/work-items/nonexistent/status", json={"status": "running"})
         assert resp.status_code == 404
 
     def test_update_status_missing_field(self, client):
-        resp = client.patch("/api/tasks/any/status", json={})
+        resp = client.post("/api/work-items/", json={"name": "Any"})
+        tid = resp.json()["id"]
+        resp = client.post(f"/api/work-items/{tid}/status", json={})
         assert resp.status_code == 400
 
     def test_update_status_ok(self, client):
-        resp = client.post("/api/tasks/", json={"name": "Status test"})
+        resp = client.post("/api/work-items/", json={"name": "Status test"})
         tid = resp.json()["id"]
-        resp = client.patch(f"/api/tasks/{tid}/status", json={"status": "running"})
+        resp = client.post(f"/api/work-items/{tid}/status", json={"status": "running"})
         assert resp.status_code == 200
 
     def test_goal_task_create(self, client):
-        resp = client.post("/api/goals/", json={"title": "Goal for task"})
+        resp = client.post("/api/work-items/", json={"title": "Goal for task", "work_type": "goal"})
         gid = resp.json()["id"]
-        resp = client.post(f"/api/tasks/goal/{gid}", json={"name": "Sub task"})
+        resp = client.post("/api/work-items/", json={
+            "name": "Sub task", "work_type": "task", "parent_goal_id": gid,
+        })
         assert resp.status_code == 200
         assert resp.json()["parent_goal_id"] == gid
 
     def test_goal_task_create_empty_title(self, client):
-        resp = client.post("/api/goals/", json={"title": "G"})
+        resp = client.post("/api/work-items/", json={"title": "G", "work_type": "goal"})
         gid = resp.json()["id"]
-        resp = client.post(f"/api/tasks/goal/{gid}", json={"name": ""})
+        resp = client.post("/api/work-items/", json={
+            "name": "", "work_type": "task", "parent_goal_id": gid,
+        })
         assert resp.status_code == 400
 
     def test_goal_task_list(self, client):
-        resp = client.post("/api/goals/", json={"title": "G"})
+        resp = client.post("/api/work-items/", json={"title": "G", "work_type": "goal"})
         gid = resp.json()["id"]
-        resp = client.get(f"/api/tasks/goal/{gid}")
+        client.post("/api/work-items/", json={
+            "title": "Child", "work_type": "task", "parent_goal_id": gid,
+        })
+        resp = client.get(f"/api/work-items/{gid}?include=tree")
         assert resp.status_code == 200
-        assert isinstance(resp.json(), list)
+        body = resp.json()
+        assert "tree" in body
+        assert isinstance(body["tree"], list)
 
 
 # ── Triggers API ──────────────────────────────────────────────────────────

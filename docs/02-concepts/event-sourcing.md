@@ -41,7 +41,7 @@ flowchart LR
 
 ## 同步命令包装：`submit_command`
 
-`Kernel.submit_command(...)`（[`kernel.py`](../../backend/app/core/runtime/kernel/kernel.py)）是 `emit_event` 的同步包装：发出请求事件后，await 一个由 `(correlation_id, completion_type)` 匹配的完成事件。默认完成类型把 `Requested` 替换为 `Completed`。HTTP API 的多数写操作（如 `POST /api/chat/approvals/{id}/resolve`、`POST /api/goals/{id}/decompose`）走这条路。
+`Kernel.submit_command(...)`（[`kernel.py`](../../backend/app/core/runtime/kernel/kernel.py)）是 `emit_event` 的同步包装：发出请求事件后，await 一个由 `(correlation_id, completion_type)` 匹配的完成事件。默认完成类型把 `Requested` 替换为 `Completed`。HTTP API 的多数写操作（如 `POST /api/chat/approvals/{id}/resolve`、`POST /api/work-items/{id}/decompose`）走这条路。
 
 ## 读路径
 

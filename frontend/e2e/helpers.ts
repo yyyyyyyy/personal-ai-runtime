@@ -1,6 +1,6 @@
 import type { Page, Route } from "@playwright/test";
 
-/** Match only real HTTP API paths (e.g. /api/goals), not Vite source like /src/api/goals.ts */
+/** Match only real HTTP API paths (e.g. /api/work-items), not Vite source like /src/api/goals.ts */
 export function matchesApiPath(url: string, prefix: string): boolean {
   const pathname = new URL(url).pathname;
   return pathname === prefix || pathname.startsWith(`${prefix}/`);
@@ -89,21 +89,10 @@ export function buildCommonMocks(): MockApiRouter {
     .json("/api/settings/llm", llmSettings)
     .json("/api/settings/email", emailSettings)
     .json("/api/inbox", [])
-    .json("/api/goals", [
-      {
-        id: "goal-1",
-        title: "学习 Rust",
-        description: "通过实践项目学习 Rust",
-        status: "active",
-        priority: "high",
-        progress: 0.3,
-        created_at: "2026-06-01T00:00:00Z",
-        updated_at: "2026-06-15T00:00:00Z",
-        last_activity_at: "2026-06-15T00:00:00Z",
-      },
-    ])
-    .json("/api/work-items", [
-      {
+    .handler("/api/work-items", async (route) => {
+      const url = new URL(route.request().url());
+      const pathname = url.pathname.replace(/\/$/, "");
+      const goal = {
         id: "goal-1",
         title: "学习 Rust",
         description: "通过实践项目学习 Rust",
@@ -122,8 +111,19 @@ export function buildCommonMocks(): MockApiRouter {
         updated_at: "2026-06-15T00:00:00Z",
         completed_at: null,
         last_activity_at: "2026-06-15T00:00:00Z",
-      },
-    ])
+        actions: [],
+        events: [],
+      };
+      if (pathname === "/api/work-items" || pathname.endsWith("/work-items")) {
+        await route.fulfill({ json: [goal] });
+        return;
+      }
+      if (pathname.includes("/decompose")) {
+        await route.fulfill({ json: { steps: ["读文档", "写练习"] } });
+        return;
+      }
+      await route.fulfill({ json: goal });
+    })
     .handler(`/api/chat/conversations/${E2E_CONV_ID}/messages`, async (route) => {
       if (route.request().method() === "GET") {
         await route.fulfill({ json: [] });

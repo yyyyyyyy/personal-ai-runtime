@@ -1,11 +1,8 @@
 /**
- * Work Items API — unified endpoint for tasks, actions, goals (v1.0).
+ * Work Items API — unified endpoint for tasks, actions, goals.
  *
- * Replaces the type-specific goals.ts and tasks.ts clients. Work type
- * discrimination happens via the `work_type` field on payloads / query params.
- *
- * v1.0 Phase 3a: coexists with goals.ts. Components migrate incrementally;
- * Phase 4 will retire the legacy goals API client.
+ * Phase 4: sole HTTP client for Work. goals.ts is a thin Goal view-model
+ * adapter over these helpers.
  */
 import { API_BASE, request } from "./core";
 import type { WorkItem, WorkItemType } from "./types";
@@ -19,8 +16,9 @@ export async function listWorkItems(workType?: WorkItemType, status?: string): P
   return request<WorkItem[]>(url);
 }
 
-export async function getWorkItem(itemId: string): Promise<WorkItem> {
-  return request<WorkItem>(`${API_BASE}/work-items/${itemId}`);
+export async function getWorkItem(itemId: string, include?: string): Promise<WorkItem> {
+  const qs = include ? `?include=${encodeURIComponent(include)}` : "";
+  return request<WorkItem>(`${API_BASE}/work-items/${itemId}${qs}`);
 }
 
 export async function getChildren(itemId: string): Promise<WorkItem[]> {
@@ -37,7 +35,6 @@ export interface CreateWorkItemPayload {
   dependencies?: string[];
   executable_plan?: string;
   status?: string;
-  // Goal-unification fields (used when work_type="goal")
   progress?: number;
   importance?: number;
   urgency?: number;
@@ -84,4 +81,10 @@ export async function transitionStatus(itemId: string, status: string): Promise<
 
 export async function deleteWorkItem(itemId: string): Promise<void> {
   await request(`${API_BASE}/work-items/${itemId}`, { method: "DELETE" });
+}
+
+export async function decomposeWorkItem(itemId: string): Promise<{ steps: string[] }> {
+  return request<{ steps: string[] }>(`${API_BASE}/work-items/${itemId}/decompose`, {
+    method: "POST",
+  });
 }

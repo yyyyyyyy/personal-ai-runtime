@@ -134,7 +134,7 @@ cron 表达式解析 `_next_cron_fire(cron_expr, from_ts)`（[`runtime_loop.py`]
 
 ### 单 Agent 模型（v0.4.0+）
 
-Runtime 在 v0.4.0 移除了多 Agent 抽象（`AgentDefinition`/`AgentInstance`/`AgentRegistry` 已删），改为单一持久 agent。`agent:primary` 字符串直接由 [`agent_bootstrap.py`](../../backend/app/core/runtime/agent_bootstrap.py) 内联使用，作为 `ensure_scheduler(kernel)` 内部的 actor 标识。所有事件路由都通过 Scheduler + `@subscribe` handler 注册机制（详见 [02-concepts/runtime-algebra.md](../02-concepts/runtime-algebra.md) §4.5）。
+Runtime 在 v0.4.0 移除了多 Agent 抽象（`AgentDefinition`/`AgentInstance`/`AgentRegistry` 已删），改为单一持久 agent。`agent:primary` 字符串直接由 [`agent_scheduler.py`](../../backend/app/core/runtime/agent_scheduler.py) 内联使用，作为 `ensure_scheduler(kernel)` 内部的 actor 标识。所有事件路由都通过 Scheduler + `@subscribe` handler 注册机制（详见 [02-concepts/runtime-algebra.md](../02-concepts/runtime-algebra.md) §4.5）。
 
 ### MVP Agent
 
@@ -166,13 +166,13 @@ Handlers（[`mvp/`](../../backend/app/core/agents/mvp/)）：
 ### WorkItem 与 ExecutionContext
 
 - [`work_item.py`](../../backend/app/core/runtime/work_item.py) — 原子执行单元，状态机 `pending → running → completed | failed → retrying → running`，持久化于 `handler_executions`。`to_row`/`from_row` 用于序列化。
-- [`execution_context.py`](../../backend/app/core/runtime/execution_context.py) — 最小 handler 上下文（`instance_id`、`actor`、`correlation_id`、`_kernel`、`principal`、`execution_id`），暴露 `emit()`。
+- [`execution.py`](../../backend/app/core/runtime/execution.py) — 最小 handler 上下文（`instance_id`、`actor`、`correlation_id`、`_kernel`、`principal`、`execution_id`），暴露 `emit()`。
 - [`handler_registry.py`](../../backend/app/core/runtime/handler_registry.py) — 事件类型 → async handler 映射，`@subscribe("EventType")` 装饰器注册。
 - [`execution_shadow_compare.py`](../../backend/app/core/runtime/execution_shadow_compare.py) — ADR-0007 Step 2 验证：每次双写后比对 `WorkItem.to_row()`（真相 A）与 `handler_executions` 投影（真相 B）。
 
 ### SSE 队列
 
-[`backend/app/core/runtime/sse_queue_registry.py`](../../backend/app/core/runtime/sse_queue_registry.py) — 每个 `correlation_id` 一个内存 `asyncio.Queue`，用于聊天流式。避免每个 turn 在 event_log 写入数百条 `ChatTextDelta`。
+[`backend/app/core/runtime/notification_bridge.py`](../../backend/app/core/runtime/notification_bridge.py) — 每个 `correlation_id` 一个内存 `asyncio.Queue`，用于聊天流式。避免每个 turn 在 event_log 写入数百条 `ChatTextDelta`。
 
 ## AgentBus
 
@@ -182,7 +182,7 @@ Handlers（[`mvp/`](../../backend/app/core/agents/mvp/)）：
 
 | 文件 | 职责 |
 |---|---|
-| [`state_manager.py`](../../backend/app/core/runtime/state_manager.py) | 统一状态机（`TaskStatus` 枚举 + `_TRANSITIONS` 校验） |
+| [`task_engine.py`](../../backend/app/core/runtime/task_engine.py) | 统一状态机（`TaskStatus` 枚举 + `_TRANSITIONS` 校验） |
 | [`runtime_config.py`](../../backend/app/core/runtime/runtime_config.py) | LLM/Email 设置持久化于 SQLite `app_settings`；env 播种默认；UI 编辑持久化 DB；遗留 `runtime_config.json` 自动迁移。`PROVIDER_TYPES`、`PROVIDER_PRESETS`、`effective_api_key`、`get_llm_config(masked)`、`update_llm_config`、`get_email_config`、`get_generation_params`、`get_prompt`/`save_prompt` |
 | [`conversation_recorder.py`](../../backend/app/core/runtime/conversation_recorder.py) | 追加 `ConversationRecorded` 事件（用户↔助手回合的不可变 Experience 表示） |
 | [`timer_engine.py`](../../backend/app/core/runtime/timer_engine.py) | Cron 调度注册（扫描已迁移到 RuntimeLoop）：`ensure_schedules`/`create_schedule`/`list_schedules`/`delete_schedule` |

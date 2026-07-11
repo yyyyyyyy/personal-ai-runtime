@@ -8,11 +8,11 @@
 
 ### 路由挂载
 
-17 个 router 在 [`main.py`](../../backend/app/main.py) 挂载：
+15 个 router 在 [`main.py`](../../backend/app/main.py) 挂载：
 
 ```
-chat, dashboard, system, settings_api, memory, goals, notifications,
-tasks, telemetry_api, approvals, background_tasks, triggers, inbox,
+chat, dashboard, system, settings_api, memory, notifications,
+telemetry_api, approvals, background_tasks, triggers, inbox,
 connectors, timeline, knowledge, work_items
 ```
 
@@ -52,8 +52,7 @@ connectors, timeline, knowledge, work_items
 |---|---|---|---|
 | chat | `/api/chat` | 会话 CRUD、`POST /conversations/{id}/messages`（**SSE**）、`POST /chat/approvals/{id}/resolve` | Kernel 事件 + LLM + 工具执行 |
 | memory | `/api/memory` | memories CRUD、search、ratify/reject/contest、portrait、graph | Kernel 事件 + Chroma |
-| goals | `/api/goals` | goal CRUD、actions、`/{id}/decompose`（LLM） | Kernel 事件 + LLM |
-| tasks | `/api/tasks` | task CRUD、status、dependencies | Kernel 事件 |
+| work_items | `/api/work-items` | 统一 goal/task/action CRUD、`include=`、`decompose` | Kernel 事件 + LLM |
 | background_tasks | `/api/tasks/background` | 后台任务 | Kernel 事件 |
 | approvals | `/api/approvals` | 列表、`/{id}/approve`、`/{id}/reject` | `submit_command("ApproveRequested")` + 工具执行 |
 | inbox | `/api/inbox` | 列表、`/poll`（IMAP）、`/digest`、状态更新 | 网络出口 + Kernel 事件 |
@@ -75,7 +74,7 @@ connectors, timeline, knowledge, work_items
 
 实现细节（[`chat.py`](../../backend/app/api/chat.py)）：
 
-- 内部生成 `correlation_id = "chat_" + uuid[:12]`，从 `sse_queue_registry` 注册内存队列。
+- 内部生成 `correlation_id = "chat_" + uuid[:12]`，从 `notification_bridge`（SSE queue registry）注册内存队列。
 - 上限 `settings.total_tool_loop_timeout + 10s`；超时返回 `error`。
 - 既监听 SSE 队列，也回退查询 `event_log` 中的 `ChatDone`/`ChatCompleted`。
 - 响应头：`Cache-Control: no-cache`、`Connection: keep-alive`、`X-Accel-Buffering: no`（禁用 nginx 缓冲）。
@@ -127,6 +126,6 @@ connectors, timeline, knowledge, work_items
 
 ## 请求/响应模型
 
-所有 Pydantic 模型定义于 [`backend/app/api/models.py`](../../backend/app/api/models.py)（如 `SendMessageRequest`、`ResolveApprovalRequest`、`CreateGoalRequest`、`CreateMemoryRequest`、`UpdateMemoryRequest`（category 必须在 `{fact, preference, habit, belief, insight, work, personal}`）、`CreateTaskRequest`、`UpdateTaskStatusRequest`、`CreateBackgroundTaskRequest`、`CreateTriggerRequest`、`ExportRequest`/`ImportRequest`/`EncryptedExportRequest`/`EncryptedImportRequest`、`UpdateInboxStatusRequest`、`LlmProviderInput`/`UpdateLlmConfigRequest`/`UpdateEmailConfigRequest`/`TestEmailRequest`/`TestLlmRequest`/`PromptConfig`/`NotificationSettings`、`InstallConnectorRequest`）。
+所有 Pydantic 模型定义于 [`backend/app/api/models.py`](../../backend/app/api/models.py)（如 `SendMessageRequest`、`ResolveApprovalRequest`、`CreateMemoryRequest`、`UpdateMemoryRequest`（category 必须在 `{fact, preference, habit, belief, insight, work, personal}`）、`CreateBackgroundTaskRequest`、`CreateTriggerRequest`、`ExportRequest`/`ImportRequest`/`EncryptedExportRequest`/`EncryptedImportRequest`、`UpdateInboxStatusRequest`、`LlmProviderInput`/`UpdateLlmConfigRequest`/`UpdateEmailConfigRequest`/`TestEmailRequest`/`TestLlmRequest`/`PromptConfig`/`NotificationSettings`、`InstallConnectorRequest`）。Work item 请求体定义在 [`work_items.py`](../../backend/app/api/work_items.py)。
 
 确认码常量（[`system.py`](../../backend/app/api/system.py)）：`EXPORT_CONFIRM="EXPORT_ALL_DATA"`、`DESTROY_CONFIRM="DESTROY_ALL_DATA"`、`IMPORT_CONFIRM="DESTROY_AND_IMPORT"`。

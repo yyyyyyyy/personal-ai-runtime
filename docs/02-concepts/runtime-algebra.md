@@ -263,7 +263,7 @@ Reaction 不再是一个"概念"，而是 `subscribe + invoke + produce` 的组�
 | `kernel/kernel.py` | 759 | Event + Capability + Work | 必须存在 | refactor: 拆 emit/read/sovereignty |
 | `kernel/kernel_query_state.py` | 543 | State | 必须存在但应瘦身 | 替换为类型化端口 |
 | `kernel/kernel_sovereignty.py` | 511 | State（rebuild） | 必须存在 | 保留 |
-| `kernel/kernel_governance.py` | 152 | Capability（approval） | 必须存在 | 保留，但有中文文案泄漏 |
+| `kernel/governance_ops.py` | — | Capability（approval） | 必须存在 | 自 `kernel_governance` 折叠 |
 | `kernel/projectors_*.py` | 10 个文件 | State | 必须存在 | 按聚合垂直拆分 |
 | `kernel/constants.py` | 157 | Event（类型注册） | 必须存在但应只增事件、不增概念 | 锁定增长速率 |
 | `kernel/event.py` | 77 | Event | 必须存在 | 保留 |
@@ -316,8 +316,8 @@ Reaction 不再是一个"概念"，而是 `subscribe + invoke + produce` 的组�
 | 模块 | 文件 | 状态 |
 |---|---|---|
 | AgentDefinition | `agent_definition.py` | **已删除** (v0.4.0) |
-| AgentBootstrap | `agent_bootstrap.py` | **已简化** → `ensure_scheduler(kernel)` |
-| AgentInstance | `agent_instance.py` | **已删除** (v0.4.0/v0.5.0) — `agent:primary` 字符串直接由 `agent_bootstrap.py` 内联 |
+| AgentBootstrap | `agent_bootstrap.py` | **已折叠** → `agent_scheduler.ensure_scheduler` |
+| AgentInstance | `agent_instance.py` | **已删除** — `agent:primary` 由 `agent_scheduler` 内联 |
 | AgentRegistry | `agent_registry.py` | **已瘦身** → stub with `cleanup_stale()` no-op |
 | Principal | `principal.py` | **保留** — Capability 的身份维度 |
 

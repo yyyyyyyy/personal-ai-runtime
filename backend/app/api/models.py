@@ -68,23 +68,6 @@ class UpdateMemoryRequest(BaseModel):
         return value
 
 
-# ── Goal & Action models ──────────────────────────────────────────────────
-
-
-class CreateGoalRequest(BaseModel):
-    title: str
-    description: str = ""
-    importance: float = Field(default=0.5, ge=0.0, le=1.0)
-    urgency: float = Field(default=0.5, ge=0.0, le=1.0)
-    parent_id: str | None = None
-    deadline: str | None = None
-
-
-class CreateActionRequest(BaseModel):
-    title: str
-    goal_id: str = ""
-
-
 # ── Trigger models ────────────────────────────────────────────────────────
 
 
@@ -94,23 +77,6 @@ class CreateTriggerRequest(BaseModel):
     condition: dict = Field(default_factory=dict)
     action_type: str = "suggestion"
     action_config: dict | None = None
-
-
-
-class CreateTaskRequest(BaseModel):
-    name: str = ""
-    title: str = ""
-    description: str = ""
-    goal_id: str = ""
-    parent_goal_id: str | None = None
-    parent_task_id: str | None = None
-    priority: int = 0
-    dependencies: list[str] | None = None
-
-
-class UpdateTaskStatusRequest(BaseModel):
-    status: str
-    result: str = ""
 
 
 class CreateBackgroundTaskRequest(BaseModel):
