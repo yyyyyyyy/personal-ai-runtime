@@ -118,6 +118,7 @@ export {
   testEmailConnection,
   getPromptConfig,
   updatePromptConfig,
+  getCapabilityPolicy,
 } from "./settings";
 export type {
   LlmConfig,
@@ -128,6 +129,7 @@ export type {
   LlmTestResult,
   EmailTestResult,
   PromptConfig,
+  CapabilityPolicy,
 } from "./settings";
 
 // Approvals

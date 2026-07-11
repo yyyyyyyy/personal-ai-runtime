@@ -34,12 +34,15 @@ describe("PortraitPage", () => {
   it("shows error state with retry button", async () => {
     mockGetPortrait.mockRejectedValue(new Error("获取画像失败"));
     renderPortrait();
-    await waitFor(() => {
-      expect(screen.getByText("获取画像失败")).toBeInTheDocument();
-    });
-    const retryButton = screen.getByText("重试");
-    fireEvent.click(retryButton);
-    expect(mockGetPortrait).toHaveBeenCalledTimes(2);
+    await waitFor(
+      () => {
+        expect(screen.getByText("获取画像失败")).toBeInTheDocument();
+      },
+      { timeout: 3000 },
+    );
+    const before = mockGetPortrait.mock.calls.length;
+    fireEvent.click(screen.getByText("重试"));
+    await waitFor(() => expect(mockGetPortrait.mock.calls.length).toBeGreaterThan(before));
   });
 
   it("shows empty state when no data available", async () => {

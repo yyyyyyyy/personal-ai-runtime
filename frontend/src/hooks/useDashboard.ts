@@ -72,7 +72,7 @@ export function useDashboard() {
 
   const notifications = useQuery<Notification[]>({
     queryKey: ["notifications", "dashboard"],
-    queryFn: () => listNotifications(10).catch(() => [] as Notification[]),
+    queryFn: () => listNotifications(10),
     refetchInterval: DASHBOARD_STALE_MS,
     staleTime: 30_000,
     retry: 1,
@@ -80,7 +80,7 @@ export function useDashboard() {
 
   const dashboard = useQuery<DashboardData | null>({
     queryKey: queryKeys.dashboard,
-    queryFn: () => getDashboard().catch(() => null),
+    queryFn: getDashboard,
     refetchInterval: DASHBOARD_STALE_MS,
     staleTime: 30_000,
     retry: 1,

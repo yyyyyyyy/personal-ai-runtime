@@ -30,7 +30,7 @@ export interface TrustReportData {
   tools: ToolSummaryItem[];
   memory: MemoryStats;
   health: HealthSnapshot;
-  governance: GovernanceSummary;
+  governance: GovernanceSummary | null;
   dashboard: DashboardData | null;
   memoryIndexRepairs: MemoryIndexRepairsResponse;
 }
@@ -55,8 +55,8 @@ export async function getTrustReport(): Promise<TrustReportData> {
     getToolSummary(7),
     getMemoryStats(),
     getHealth(),
-    getGovernanceSummary(7).catch(() => null),
-    getDashboard().catch(() => null),
+    getGovernanceSummary(7),
+    getDashboard(),
     getMemoryIndexRepairs("all").catch(() => ({
       pending: 0,
       failed_permanent: 0,
@@ -72,7 +72,7 @@ export async function getTrustReport(): Promise<TrustReportData> {
     tools,
     memory,
     health,
-    governance: governance!,
+    governance,
     dashboard,
     memoryIndexRepairs,
   };

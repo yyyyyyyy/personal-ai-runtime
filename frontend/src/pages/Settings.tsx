@@ -1,27 +1,34 @@
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import {
-  getSystemHealth,
   exportData,
   exportEncryptedData,
   importData,
   importEncryptedData,
   destroyAllData,
-  getLlmSettings,
   updateLlmSettings,
   testLlmConnection,
-  getEmailSettings,
   updateEmailSettings,
   testEmailConnection,
   getPromptConfig,
   updatePromptConfig,
   ApiError,
-  type HealthResponse,
   type LlmSettingsResponse,
   type LlmProviderConfig,
   type EmailSettingsResponse,
 } from "../api/client";
-import { listMcpRegistry, installMcpConnector } from "../api/connectors";
+import { installMcpConnector } from "../api/connectors";
 import { useErrorStore } from "../stores/errorStore";
+import {
+  useSettingsCoreQuery,
+  useSettingsHealthQuery,
+  useCapabilityPolicyQuery,
+  usePromptConfigQuery,
+  useMcpRegistryQuery,
+  useInvalidateSettings,
+} from "../hooks/useSettingsQuery";
+import { queryKeys } from "../hooks/useWsInvalidationBridge";
+import { useQueryClient } from "@tanstack/react-query";
+import { toolLabel } from "../utils/toolLabels";
 import Card from "../components/ui/Card";
 import Button from "../components/ui/Button";
 import Badge from "../components/ui/Badge";
@@ -51,7 +58,15 @@ function emptyProvider(id = ""): LlmProviderConfig {
 
 export default function SettingsPage() {
   const addError = useErrorStore((s) => s.addError);
-  const [health, setHealth] = useState<HealthResponse | null>(null);
+  const invalidateSettings = useInvalidateSettings();
+  const {
+    data: core,
+    isLoading: coreLoading,
+    error: coreError,
+    refetch: refetchCore,
+  } = useSettingsCoreQuery();
+  const { data: health, error: healthError } = useSettingsHealthQuery();
+
   const [llmSettings, setLlmSettings] = useState<LlmSettingsResponse | null>(null);
   const [llmForm, setLlmForm] = useState<LlmProviderConfig[]>([]);
   const [llmDefault, setLlmDefault] = useState("deepseek");
@@ -60,9 +75,6 @@ export default function SettingsPage() {
   const [emailSettings, setEmailSettings] = useState<EmailSettingsResponse | null>(null);
   const [emailUser, setEmailUser] = useState("");
   const [emailPass, setEmailPass] = useState("");
-  const [loading, setLoading] = useState(true);
-  const [settingsReady, setSettingsReady] = useState(false);
-  const [loadError, setLoadError] = useState<string | null>(null);
   const [exporting, setExporting] = useState(false);
   const [importing, setImporting] = useState(false);
   const [importConfirm, setImportConfirm] = useState("");
@@ -74,6 +86,7 @@ export default function SettingsPage() {
   const [savingEmail, setSavingEmail] = useState(false);
   const [testingLlm, setTestingLlm] = useState<string | null>(null);
   const [testingEmail, setTestingEmail] = useState(false);
+  const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [emailTestResult, setEmailTestResult] = useState<{
     ok: boolean;
     imap_ok: boolean;
@@ -96,35 +109,24 @@ export default function SettingsPage() {
     setEmailTestResult(null);
   };
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    setLoadError(null);
-    setSettingsReady(false);
-    try {
-      const [llm, email] = await Promise.all([getLlmSettings(), getEmailSettings()]);
-      applyLlmSettings(llm);
-      applyEmailSettings(email);
-      setSettingsReady(true);
-    } catch (err) {
-      const msg = err instanceof ApiError ? err.message : "加载配置失败";
-      setLoadError(msg);
-      addError(msg, "设置");
+  useEffect(() => {
+    if (core) {
+      applyLlmSettings(core.llm);
+      applyEmailSettings(core.email);
     }
-
-    try {
-      const h = await getSystemHealth();
-      setHealth(h);
-    } catch (err) {
-      const msg = err instanceof ApiError ? err.message : "加载系统状态失败";
-      addError(msg, "设置");
-    } finally {
-      setLoading(false);
-    }
-  }, [addError]);
+  }, [core]);
 
   useEffect(() => {
-    load();
-  }, [load]);
+    if (healthError) {
+      const msg = healthError instanceof Error ? healthError.message : "加载系统状态失败";
+      addError(msg, "设置");
+    }
+  }, [healthError, addError]);
+
+  const reload = () => {
+    void refetchCore();
+    invalidateSettings();
+  };
 
   const handleExport = async () => {
     setExporting(true);
@@ -152,7 +154,7 @@ export default function SettingsPage() {
     try {
       await importData(data, !write);
       if (write) setImportConfirm("");
-      await load();
+      reload();
     } catch (err) {
       const msg = err instanceof ApiError ? err.message : "导入失败";
       addError(msg, "设置");
@@ -208,8 +210,8 @@ export default function SettingsPage() {
       const raw = await file.text();
       const { data, password } = JSON.parse(raw);
       await importEncryptedData(data, password || encryptPassword);
-      addError("加密导入成功", "设置");
-      await load();
+      setStatusMessage("加密导入成功");
+      reload();
     } catch {
       addError("加密导入失败，请检查密码和文件", "设置");
     } finally {
@@ -224,7 +226,7 @@ export default function SettingsPage() {
     setDestroying(true);
     try {
       await destroyAllData();
-      addError("数据已销毁，请重新启动应用", "设置");
+      setStatusMessage("数据已销毁，请重新启动应用");
     } catch (err) {
       const msg = err instanceof ApiError ? err.message : "销毁失败";
       addError(msg, "设置");
@@ -340,7 +342,7 @@ export default function SettingsPage() {
     }
   };
 
-  if (loading && !settingsReady) {
+  if (coreLoading && !core) {
     return (
       <div className="flex-1 flex items-center justify-center gap-2 text-gray-500">
         <Spinner />
@@ -349,11 +351,13 @@ export default function SettingsPage() {
     );
   }
 
-  if (!settingsReady) {
+  if (!core) {
+    const loadError =
+      coreError instanceof Error ? coreError.message : coreError ? String(coreError) : null;
     return (
       <div className="flex-1 flex flex-col items-center justify-center gap-4 text-gray-500 p-6">
         <p>{loadError || "无法加载已保存的配置"}</p>
-        <Button onClick={load}>重试</Button>
+        <Button onClick={() => void refetchCore()}>重试</Button>
       </div>
     );
   }
@@ -382,6 +386,12 @@ export default function SettingsPage() {
                 : health?.status || "未知"}
           </Badge>
         </div>
+
+        {statusMessage && (
+          <p className="text-sm text-emerald-400 bg-emerald-950/30 border border-emerald-800/40 rounded-lg px-3 py-2">
+            {statusMessage}
+          </p>
+        )}
 
         <Card>
           <h3 className="text-sm font-medium text-gray-300 mb-3">LLM 配置</h3>
@@ -647,79 +657,9 @@ export default function SettingsPage() {
         <Card>
           <h3 className="text-sm font-medium text-gray-300 mb-3">AI 能力与信任</h3>
           <p className="text-xs text-gray-500 mb-4">
-            AI 可以调用不同的工具帮你做事。根据风险级别，工具分为三类：
+            工具风险分级来自 capability_policy.json（与运行时闸门同一来源）。需要确认的操作可在同一对话内选择信任后自动放行。
           </p>
-
-          <div className="space-y-4">
-            <div>
-              <div className="flex items-center gap-2 mb-2">
-                <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
-                <span className="text-xs font-medium text-emerald-400">自动执行</span>
-                <span className="text-xs text-gray-500">— 安全操作，无需确认</span>
-              </div>
-              <div className="flex flex-wrap gap-1.5">
-                {[
-                  "获取时间",
-                  "读取文件",
-                  "列出目录",
-                  "搜索文件",
-                  "搜索网页",
-                  "抓取网页",
-                  "查看日历",
-                  "查看收件箱",
-                  "Git 状态",
-                  "Git 日志",
-                ].map((t) => (
-                  <span
-                    key={t}
-                    className="text-xs px-2 py-1 bg-emerald-900/20 text-emerald-400/70 rounded border border-emerald-700/20"
-                  >
-                    {t}
-                  </span>
-                ))}
-              </div>
-            </div>
-
-            <div>
-              <div className="flex items-center gap-2 mb-2">
-                <span className="w-2 h-2 rounded-full bg-amber-500"></span>
-                <span className="text-xs font-medium text-amber-400">需要确认</span>
-                <span className="text-xs text-gray-500">— 首次需要你确认，可在对话内选择信任</span>
-              </div>
-              <div className="flex flex-wrap gap-1.5">
-                {["写入文件", "修改文件", "添加日程"].map((t) => (
-                  <span
-                    key={t}
-                    className="text-xs px-2 py-1 bg-amber-900/20 text-amber-400/70 rounded border border-amber-700/20"
-                  >
-                    {t}
-                  </span>
-                ))}
-              </div>
-            </div>
-
-            <div>
-              <div className="flex items-center gap-2 mb-2">
-                <span className="w-2 h-2 rounded-full bg-red-500"></span>
-                <span className="text-xs font-medium text-red-400">每次确认</span>
-                <span className="text-xs text-gray-500">— 不可逆操作，始终需要你确认</span>
-              </div>
-              <div className="flex flex-wrap gap-1.5">
-                {["执行命令", "发送邮件", "发送消息"].map((t) => (
-                  <span
-                    key={t}
-                    className="text-xs px-2 py-1 bg-red-900/20 text-red-400/70 rounded border border-red-700/20"
-                  >
-                    {t}
-                  </span>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          <p className="text-xs text-gray-600 mt-4">
-            信任级别随对话建立——你在对话中确认过的中风险操作， 同一对话内会自动放行。
-          </p>
+          <CapabilityTrustPanel />
         </Card>
 
         <Card>
@@ -828,26 +768,120 @@ export default function SettingsPage() {
   );
 }
 
+// ── Capability trust panel (from capability_policy.json) ──────────────────
+
+function ToolChipList({
+  tools,
+  tone,
+}: {
+  tools: string[];
+  tone: "emerald" | "amber" | "red";
+}) {
+  const styles = {
+    emerald: "bg-emerald-900/20 text-emerald-400/70 border-emerald-700/20",
+    amber: "bg-amber-900/20 text-amber-400/70 border-amber-700/20",
+    red: "bg-red-900/20 text-red-400/70 border-red-700/20",
+  }[tone];
+  if (tools.length === 0) {
+    return <p className="text-xs text-gray-600">（无）</p>;
+  }
+  return (
+    <div className="flex flex-wrap gap-1.5">
+      {tools.map((id) => (
+        <span key={id} className={`text-xs px-2 py-1 rounded border ${styles}`} title={id}>
+          {toolLabel(id)}
+        </span>
+      ))}
+    </div>
+  );
+}
+
+function CapabilityTrustPanel() {
+  const { data, isLoading, error, refetch } = useCapabilityPolicyQuery();
+  const addError = useErrorStore((s) => s.addError);
+
+  useEffect(() => {
+    if (error) {
+      addError(error instanceof Error ? error.message : "加载能力策略失败", "设置");
+    }
+  }, [error, addError]);
+
+  if (isLoading) {
+    return <p className="text-xs text-gray-600">加载策略中…</p>;
+  }
+  if (!data) {
+    return (
+      <button
+        type="button"
+        onClick={() => void refetch()}
+        className="text-xs text-emerald-400 hover:text-emerald-300"
+      >
+        加载失败，点击重试
+      </button>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      <div>
+        <div className="flex items-center gap-2 mb-2">
+          <span className="w-2 h-2 rounded-full bg-emerald-500" />
+          <span className="text-xs font-medium text-emerald-400">自动执行</span>
+          <span className="text-xs text-gray-500">— 安全操作，无需确认</span>
+        </div>
+        <ToolChipList tools={data.auto_allow} tone="emerald" />
+      </div>
+      <div>
+        <div className="flex items-center gap-2 mb-2">
+          <span className="w-2 h-2 rounded-full bg-amber-500" />
+          <span className="text-xs font-medium text-amber-400">需要确认</span>
+          <span className="text-xs text-gray-500">— 写操作 / 外发，可在对话内信任</span>
+        </div>
+        <ToolChipList tools={data.needs_user} tone="amber" />
+      </div>
+      {data.forbidden.length > 0 && (
+        <div>
+          <div className="flex items-center gap-2 mb-2">
+            <span className="w-2 h-2 rounded-full bg-red-500" />
+            <span className="text-xs font-medium text-red-400">禁止</span>
+            <span className="text-xs text-gray-500">— 策略硬拦截</span>
+          </div>
+          <ToolChipList tools={data.forbidden} tone="red" />
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Prompt Editor component ───────────────────────────────────────────────
 
 function PromptEditor() {
+  const addError = useErrorStore((s) => s.addError);
+  const queryClient = useQueryClient();
+  const { data: cfg, isLoading, error } = usePromptConfigQuery();
   const [identity, setIdentity] = useState("");
   const [codingRules, setCodingRules] = useState("");
   const [isCustomIdentity, setIsCustomIdentity] = useState(false);
   const [isCustomCodingRules, setIsCustomCodingRules] = useState(false);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
+  const [hydrated, setHydrated] = useState(false);
 
   useEffect(() => {
-    getPromptConfig()
-      .then((cfg) => {
-        setIdentity(cfg.identity);
-        setCodingRules(cfg.coding_rules);
-        setIsCustomIdentity(cfg.is_custom_identity);
-        setIsCustomCodingRules(cfg.is_custom_coding_rules);
-      })
-      .catch(() => {});
-  }, []);
+    if (error) {
+      addError(error instanceof Error ? error.message : "加载人设配置失败", "设置");
+    }
+  }, [error, addError]);
+
+  useEffect(() => {
+    if (cfg && !hydrated) {
+      setIdentity(cfg.identity);
+      setCodingRules(cfg.coding_rules);
+      setIsCustomIdentity(cfg.is_custom_identity);
+      setIsCustomCodingRules(cfg.is_custom_coding_rules);
+      setHydrated(true);
+    }
+  }, [cfg, hydrated]);
 
   const handleSave = async (field: "identity" | "coding_rules") => {
     setSaving(true);
@@ -857,6 +891,7 @@ function PromptEditor() {
       await updatePromptConfig(payload);
       if (field === "identity") setIsCustomIdentity(!!identity.trim());
       if (field === "coding_rules") setIsCustomCodingRules(!!codingRules.trim());
+      void queryClient.invalidateQueries({ queryKey: queryKeys.promptConfig });
       setMessage("已保存");
       setTimeout(() => setMessage(""), 2000);
     } catch {
@@ -871,15 +906,16 @@ function PromptEditor() {
     setMessage("");
     try {
       await updatePromptConfig({ [field]: "" });
-      const cfg = await getPromptConfig();
+      const next = await getPromptConfig();
       if (field === "identity") {
-        setIdentity(cfg.identity);
+        setIdentity(next.identity);
         setIsCustomIdentity(false);
       }
       if (field === "coding_rules") {
-        setCodingRules(cfg.coding_rules);
+        setCodingRules(next.coding_rules);
         setIsCustomCodingRules(false);
       }
+      void queryClient.invalidateQueries({ queryKey: queryKeys.promptConfig });
       setMessage("已重置为默认");
       setTimeout(() => setMessage(""), 2000);
     } catch {
@@ -888,6 +924,10 @@ function PromptEditor() {
       setSaving(false);
     }
   };
+
+  if (isLoading && !hydrated) {
+    return <p className="text-xs text-gray-600">加载人设中…</p>;
+  }
 
   return (
     <div className="space-y-4">
@@ -963,23 +1003,15 @@ function PromptEditor() {
 // ── MCP Marketplace Component ─────────────────────────────────────────────
 
 function McpMarketplace() {
-  const [servers, setServers] = useState<
-    Array<{
-      name: string;
-      description: string;
-      category: string;
-      env_vars: Record<string, string>;
-    }>
-  >([]);
+  const addError = useErrorStore((s) => s.addError);
+  const { data: servers = [], isLoading, error, isFetched } = useMcpRegistryQuery();
   const [installing, setInstalling] = useState<string | null>(null);
-  const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
-    listMcpRegistry()
-      .then((list) => setServers(list))
-      .catch(() => {})
-      .finally(() => setLoaded(true));
-  }, []);
+    if (error) {
+      addError(error instanceof Error ? error.message : "加载 MCP 市场失败", "设置");
+    }
+  }, [error, addError]);
 
   const handleInstall = async (name: string) => {
     setInstalling(name);
@@ -997,7 +1029,9 @@ function McpMarketplace() {
     }
   };
 
-  if (!loaded) return null;
+  if (isLoading || !isFetched) {
+    return <p className="text-xs text-gray-600">加载市场中…</p>;
+  }
 
   const categories: Record<string, string> = {
     browser: "浏览器",

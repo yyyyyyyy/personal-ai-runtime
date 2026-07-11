@@ -337,6 +337,31 @@ async def get_notification_settings():
     return {"webhook_url": "", "ntfy_topic": "", "ntfy_server": "https://ntfy.sh"}
 
 
+@router.get("/capability-policy")
+async def get_capability_policy():
+    """Return builtin capability risk tiers from capability_policy.json.
+
+    Single source of truth shared with Gate seeding and taint classification.
+    """
+    import json
+    from pathlib import Path
+
+    from app.config import settings
+
+    path = Path(settings.capability_policy_path)
+    if not path.is_file():
+        raise HTTPException(status_code=404, detail="capability_policy.json not found")
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise HTTPException(status_code=500, detail=f"failed to read policy: {exc}") from exc
+    return {
+        "auto_allow": list(data.get("auto_allow") or []),
+        "needs_user": list(data.get("needs_user") or []),
+        "forbidden": list(data.get("forbidden") or []),
+    }
+
+
 @router.put("/notifications")
 async def update_notification_settings(body: NotificationSettings):
     """Update notification channel configuration."""

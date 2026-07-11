@@ -1,4 +1,3 @@
-import { useState, useEffect } from "react";
 import { Navigate } from "react-router-dom";
 import {
   User,
@@ -14,7 +13,7 @@ import {
   RefreshCw,
   ChevronRight,
 } from "lucide-react";
-import { getPortrait, type PortraitData } from "../api/portrait";
+import { usePortraitQuery } from "../hooks/usePortraitQuery";
 
 const CATEGORY_META: Record<string, { label: string; icon: typeof User; description: string }> = {
   preferences: { label: "偏好", icon: Heart, description: "你的喜好与倾向" },
@@ -34,26 +33,8 @@ function confidenceLevel(score: number): { color: string; label: string; pct: nu
 
 /** Portrait content — embedded as a Memories tab; also used by tests. */
 export function PortraitPanel({ compact = false }: { compact?: boolean }) {
-  const [data, setData] = useState<PortraitData | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  const fetchPortrait = async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const result = await getPortrait();
-      setData(result);
-    } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : "获取画像失败");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    void fetchPortrait();
-  }, []);
+  const { data, isLoading: loading, error: queryError, refetch } = usePortraitQuery();
+  const error = queryError instanceof Error ? queryError.message : queryError ? String(queryError) : null;
 
   if (loading) {
     return (
@@ -73,7 +54,7 @@ export function PortraitPanel({ compact = false }: { compact?: boolean }) {
           <AlertCircle size={32} className="text-red-400" />
           <p className="text-sm">{error}</p>
           <button
-            onClick={() => void fetchPortrait()}
+            onClick={() => void refetch()}
             className="flex items-center gap-2 px-4 py-2 mt-2 text-sm bg-emerald-600/20 text-emerald-400 rounded-lg hover:bg-emerald-600/30 transition-colors"
           >
             <RefreshCw size={14} />

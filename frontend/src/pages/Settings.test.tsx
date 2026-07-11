@@ -1,6 +1,6 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
-import { MemoryRouter } from "react-router-dom";
+import { screen, waitFor } from "@testing-library/react";
+import { renderWithRouter } from "../test-utils";
 import SettingsPage from "./Settings";
 
 vi.mock("../api/client", () => ({
@@ -78,6 +78,11 @@ vi.mock("../api/client", () => ({
     is_custom_coding_rules: false,
   }),
   updatePromptConfig: vi.fn().mockResolvedValue({ ok: true }),
+  getCapabilityPolicy: vi.fn().mockResolvedValue({
+    auto_allow: ["read_file", "web_search"],
+    needs_user: ["write_file", "send_email"],
+    forbidden: [],
+  }),
   exportData: vi.fn().mockResolvedValue({ events: [] }),
   importData: vi.fn(),
   ApiError: class extends Error {
@@ -87,6 +92,11 @@ vi.mock("../api/client", () => ({
       this.status = status;
     }
   },
+}));
+
+vi.mock("../api/connectors", () => ({
+  listMcpRegistry: vi.fn().mockResolvedValue([]),
+  installMcpConnector: vi.fn(),
 }));
 
 vi.mock("../stores/errorStore", () => ({
@@ -100,11 +110,7 @@ describe("SettingsPage", () => {
   });
 
   it("renders header, status badge and export button", async () => {
-    render(
-      <MemoryRouter>
-        <SettingsPage />
-      </MemoryRouter>,
-    );
+    renderWithRouter(<SettingsPage />);
     await waitFor(() => {
       expect(screen.getByText("设置")).toBeInTheDocument();
     });
@@ -113,16 +119,24 @@ describe("SettingsPage", () => {
   });
 
   it("shows editable LLM and Gmail config sections", async () => {
-    render(
-      <MemoryRouter>
-        <SettingsPage />
-      </MemoryRouter>,
-    );
+    renderWithRouter(<SettingsPage />);
     await waitFor(() => {
       expect(screen.getByText("Gmail 邮箱配置")).toBeInTheDocument();
     });
     expect(screen.getByText("保存 LLM 配置")).toBeInTheDocument();
     expect(screen.getByText("保存邮箱配置")).toBeInTheDocument();
     expect(screen.getByText("测试连接")).toBeInTheDocument();
+  });
+
+  it("renders capability policy tools from API", async () => {
+    renderWithRouter(<SettingsPage />);
+    await waitFor(() => {
+      expect(screen.getByText("AI 能力与信任")).toBeInTheDocument();
+    });
+    await waitFor(() => {
+      expect(screen.getByText("读取文件")).toBeInTheDocument();
+      expect(screen.getByText("写入文件")).toBeInTheDocument();
+      expect(screen.getByText("发送邮件")).toBeInTheDocument();
+    });
   });
 });

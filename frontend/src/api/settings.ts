@@ -131,3 +131,15 @@ export async function updatePromptConfig(payload: {
     body: JSON.stringify(payload),
   });
 }
+
+// ── Capability policy (trust tiers) ───────────────────────────────────────
+
+export interface CapabilityPolicy {
+  auto_allow: string[];
+  needs_user: string[];
+  forbidden: string[];
+}
+
+export async function getCapabilityPolicy(): Promise<CapabilityPolicy> {
+  return request<CapabilityPolicy>(`${API_BASE}/settings/capability-policy`);
+}

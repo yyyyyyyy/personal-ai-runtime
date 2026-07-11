@@ -72,7 +72,13 @@ def test_update_email_settings(client: TestClient, tmp_path, monkeypatch):
     assert r.json()["config"]["user"] == "test@gmail.com"
 
 
-def test_cost_by_model_endpoint(client: TestClient):
-    r = client.get("/api/telemetry/cost/by-model?days=7")
+def test_get_capability_policy(client: TestClient):
+    r = client.get("/api/settings/capability-policy")
     assert r.status_code == 200
-    assert isinstance(r.json(), list)
+    data = r.json()
+    assert "auto_allow" in data
+    assert "needs_user" in data
+    assert "forbidden" in data
+    assert "read_file" in data["auto_allow"]
+    assert "write_file" in data["needs_user"]
+    assert "send_email" in data["needs_user"]
