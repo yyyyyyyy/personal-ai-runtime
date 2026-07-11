@@ -43,6 +43,18 @@ def safe_limit(limit: int | None, default: int | None = None) -> str:
     return f" LIMIT {n}"
 
 
+def safe_offset(offset: int | None) -> str:
+    """Return an ``OFFSET N`` fragment, or ``""`` when unset/zero."""
+    if not offset:
+        return ""
+    n = int(offset)
+    if n < 0:
+        n = 0
+    if n > MAX_LIMIT * 10:
+        n = MAX_LIMIT * 10
+    return f" OFFSET {n}"
+
+
 def safe_order(order: str | None, allowed: dict[str, str], default_key: str) -> str:
     """Return an ``ORDER BY`` fragment validated against ``allowed``.
 

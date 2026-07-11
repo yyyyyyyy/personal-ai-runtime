@@ -29,7 +29,7 @@ from .event import Event
 from .kernel_governance import GovernanceMixin
 from .kernel_query_state import QueryStateMixin
 from .kernel_sovereignty import SovereigntyMixin
-from .query_builder import build_where, safe_limit, safe_order
+from .query_builder import build_where, safe_limit, safe_offset, safe_order
 
 if TYPE_CHECKING:
     import asyncio
@@ -400,8 +400,10 @@ class Kernel(QueryStateMixin, GovernanceMixin, SovereigntyMixin):
         correlation_id: str | None = None,
         since_seq: int = 0,
         since_ts: str | None = None,
+        until_ts: str | None = None,
         payload_goal_id: str | None = None,
         limit: int | None = None,
+        offset: int | None = None,
         order: str = "asc",
         id: str | None = None,
     ) -> list[Event]:
@@ -437,6 +439,9 @@ class Kernel(QueryStateMixin, GovernanceMixin, SovereigntyMixin):
         if since_ts is not None:
             clauses.append("ts >= ?")
             params.append(since_ts)
+        if until_ts is not None:
+            clauses.append("ts <= ?")
+            params.append(until_ts)
         where = build_where(clauses)
         order_sql = safe_order(
             order,
@@ -444,9 +449,10 @@ class Kernel(QueryStateMixin, GovernanceMixin, SovereigntyMixin):
             default_key="asc",
         )
         limit_sql = safe_limit(limit)
+        offset_sql = safe_offset(offset)
         with self._db.get_db() as conn:
             rows = conn.execute(
-                f"SELECT * FROM event_log{where}{order_sql}{limit_sql}",
+                f"SELECT * FROM event_log{where}{order_sql}{limit_sql}{offset_sql}",
                 params,
             ).fetchall()
         return [Event.from_row(r) for r in rows]

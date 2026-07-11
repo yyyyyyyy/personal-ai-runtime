@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import { resolveApproval, ApiError } from "../api/client";
 import type { DisplayMessage } from "./useChatMessages";
 import { stripToolMarkup } from "../utils/stripToolMarkup";
@@ -40,6 +40,14 @@ export function useApprovalFlow(conversationId: string) {
   const trustedToolsRef = useRef<Set<string>>(_loadTrustedTools(conversationId));
   // 正在处理中的 approval_id 去重集合：防止并发重复提交
   const inflightApprovalsRef = useRef<Set<string>>(new Set());
+
+  // ChatPage 在会话切换时可能复用同一 ChatView 实例；必须按 conversationId 重载信任集，
+  // 否则 A 会话「本会话信任」会泄漏到 B，导致误自动批准。
+  useEffect(() => {
+    trustedToolsRef.current = _loadTrustedTools(conversationId);
+    inflightApprovalsRef.current = new Set();
+    setPendingConfirmation(null);
+  }, [conversationId]);
 
   const confirm = useCallback(
     async (

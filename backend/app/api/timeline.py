@@ -7,6 +7,7 @@ from app.core.runtime.kernel_instance import kernel
 router = APIRouter(tags=["timeline"])
 
 # Event type → human-readable label mapping
+# Keys must match Kernel event type constants (see kernel/constants.py).
 EVENT_LABELS: dict[str, str] = {
     "WorkItemCreated": "创建了目标",
     "WorkItemUpdated": "更新了目标",
@@ -19,13 +20,15 @@ EVENT_LABELS: dict[str, str] = {
     "MemoryUpdated": "AI 更新了记忆",
     "MemoryDeleted": "移除了记忆",
     "ConversationCreated": "发起了新对话",
-    "MessageAdded": "发送了消息",
+    "MessageAppended": "发送了消息",
     "ChatRequested": "发起了 AI 对话",
     "ChatTextDelta": "AI 正在回复",
     "ChatDone": "AI 回复完成",
     "CapabilityInvoked": "调用了工具",
     "ApprovalRequested": "请求了操作确认",
-    "ApprovalResolved": "操作已完成确认",
+    "ApprovalGranted": "操作已批准",
+    "ApprovalDenied": "操作已拒绝",
+    "ApprovalExpired": "操作确认已过期",
     "InboxEmailReceived": "收到了新邮件",
     "InboxDigestGenerated": "AI 生成了邮件摘要",
     "TimerFired": "定时任务触发",
@@ -34,6 +37,9 @@ EVENT_LABELS: dict[str, str] = {
     "BackgroundTaskCompleted": "后台任务完成",
     "NotificationCreated": "AI 给出了提醒",
     "WorldModelSnapshotted": "AI 记录了世界认知",
+    # Legacy aliases (pre-rename); keep labels if old rows still exist
+    "MessageAdded": "发送了消息",
+    "ApprovalResolved": "操作已完成确认",
 }
 
 
@@ -96,11 +102,15 @@ EVENT_ICONS: dict[str, str] = {
     "MemoryDerived": "brain",
     "MemoryUpdated": "brain",
     "ConversationCreated": "message-square",
+    "MessageAppended": "message-square",
     "MessageAdded": "message-square",
     "ChatRequested": "message-square",
     "ChatDone": "message-square",
     "CapabilityInvoked": "zap",
     "ApprovalRequested": "shield",
+    "ApprovalGranted": "shield-check",
+    "ApprovalDenied": "shield",
+    "ApprovalExpired": "shield",
     "ApprovalResolved": "shield-check",
     "InboxEmailReceived": "mail",
     "TimerFired": "clock",
@@ -120,48 +130,38 @@ async def list_timeline_events(
 ):
     """Return paginated, human-readable timeline events.
 
-    Events are ordered by seq descending (newest first).
+    Events are ordered by seq descending (newest first). Pagination is done
+    in SQL (offset/limit) so results remain correct past the old 500-row cap.
     """
-    # Build query filters
-    since_ts = None
-    if date_from:
-        since_ts = f"{date_from}T00:00:00+00:00"
-    if date_to:
-        # read_events uses until_ts
-        pass  # We'll filter in Python for simplicity
+    since_ts = f"{date_from}T00:00:00+00:00" if date_from else None
+    until_ts = f"{date_to}T23:59:59+00:00" if date_to else None
+    offset = (page - 1) * page_size
 
+    # Fetch one extra row to compute has_more without a separate COUNT.
     events = kernel.read_events(
+        type=event_type,
         since_ts=since_ts,
-        limit=500,  # Fetch a large batch, we'll paginate and filter
+        until_ts=until_ts,
+        limit=page_size + 1,
+        offset=offset,
         order="desc",
     )
+    has_more = len(events) > page_size
+    page_events = events[:page_size]
 
-    # Filter by type
-    if event_type:
-        events = [e for e in events if e.type == event_type]
-
-    # Filter by date_to
-    if date_to:
-        end_ts = f"{date_to}T23:59:59+00:00"
-        events = [e for e in events if e.ts <= end_ts]
-
-    total = len(events)
-
-    # Paginate
-    start = (page - 1) * page_size
-    page_events = events[start:start + page_size]
-
-    # Translate to human-readable items
     items = [_translate_event(e) for e in page_events]
     if event_type:
         for item in items:
             item["icon"] = EVENT_ICONS.get(event_type, "activity")
+
+    # Approximate total for UI: known prefix + whether more exists.
+    total = offset + len(page_events) + (1 if has_more else 0)
 
     return {
         "items": items,
         "total": total,
         "page": page,
         "page_size": page_size,
-        "has_more": start + page_size < total,
+        "has_more": has_more,
         "icons": EVENT_ICONS,
     }

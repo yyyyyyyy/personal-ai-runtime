@@ -6,7 +6,7 @@ export default function ChatPage() {
   const { conversationId } = useParams();
 
   if (conversationId) {
-    return <ChatView conversationId={conversationId} />;
+    return <ChatView key={conversationId} conversationId={conversationId} />;
   }
 
   return <ChatHome />;
