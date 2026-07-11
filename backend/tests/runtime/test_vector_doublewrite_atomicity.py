@@ -130,7 +130,7 @@ def test_no_precompute_before_transaction(kernel):
     idx = _RecordingIndex()
     kernel._memory_index = idx
 
-    import app.core.runtime.kernel.projectors as pmod
+    import app.core.runtime.kernel.projectors_registry as pmod
 
     original = pmod.apply
 

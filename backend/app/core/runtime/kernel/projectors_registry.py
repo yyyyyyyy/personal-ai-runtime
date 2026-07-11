@@ -42,3 +42,15 @@ def apply(event: Event, conn) -> None:
 def owned_tables(aggregate_type: str) -> list[str]:
     return _OWNED_TABLES.get(aggregate_type, [])
 
+
+# Side-effect imports: each projectors_* module registers handlers via @projector.
+# Kept here (not a separate projectors.py) so runtime_files stays zero-sum when
+# other Kernel collaborators are extracted.
+from . import (  # noqa: E402, F401
+    projectors_chat,
+    projectors_core,
+    projectors_execution,
+    projectors_governance,
+    projectors_inbox,
+)
+

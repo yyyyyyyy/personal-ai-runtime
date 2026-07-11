@@ -2,6 +2,7 @@
 
 from fastapi import APIRouter, HTTPException, Query
 
+from app.core.runtime import read_ports
 from app.core.runtime.kernel.constants import (
     AGGREGATE_NOTIFICATION,
     EVENT_NOTIFICATION_READ,
@@ -15,25 +16,21 @@ router = APIRouter(tags=["notifications"])
 @router.get("/")
 async def list_notifications(unread_only: bool = False, limit: int = Query(50, ge=1, le=500)):
     """List notifications, optionally filtered to unread only."""
-    rows = kernel.query_state(
-        "notifications",
-        unread_only=unread_only,
-        limit=limit,
-    )
+    rows = read_ports.query_notifications(unread_only=unread_only, limit=limit)
     return [dict(r) for r in rows]
 
 
 @router.get("/unread-count")
 async def unread_count():
     """Get count of unread notifications."""
-    rows = kernel.query_state("notifications", unread_only=True, limit=10_000)
+    rows = read_ports.query_notifications(unread_only=True, limit=10_000)
     return {"count": len(rows)}
 
 
 @router.put("/{notification_id}/read")
 async def mark_as_read(notification_id: str):
     """Mark a notification as read."""
-    existing = kernel.query_state("notifications", id=notification_id)
+    existing = read_ports.query_notification(notification_id)
     if not existing:
         raise HTTPException(status_code=404, detail="Notification not found")
     kernel.emit_event(

@@ -35,14 +35,14 @@ class TestGoalsEventSourced:
         k.emit_event("WorkItemCreated", "work_item", "g2", {'work_type': 'goal', 'status': 'active', "title": "Task B", "urgency": 0.7}, actor="user")
         k.emit_event("WorkItemCreated", "work_item", "g3", {'work_type': 'goal', 'status': 'active', "title": "Task C"}, actor="user")
 
-        assert len(k.query_state("goals")) == 3
+        assert len(k.query_state("work_items", work_type="goal")) == 3
 
         # ---- Modify ----
         k.emit_event("WorkItemUpdated", "work_item", "g1", {"title": "Task A2", "progress": 0.5}, actor="user")
         k.emit_event("WorkItemStatusChanged", "work_item", "g2", {"status": "completed"}, actor="user")
         k.emit_event("WorkItemDeleted", "work_item", "g3", {}, actor="user")
 
-        before = k.query_state("goals")
+        before = k.query_state("work_items", work_type="goal")
         assert len(before) == 2  # g3 deleted
 
         by_id_before = {g["id"]: g for g in before}
@@ -57,15 +57,15 @@ class TestGoalsEventSourced:
         replayed = k.rebuild("work_item")  # v1.0: goal→work_item unification
         assert replayed == 6  # 3 created + 1 updated + 1 status_changed + 1 deleted
 
-        after = k.query_state("goals")
+        after = k.query_state("work_items", work_type="goal")
         assert before == after, "rebuilt State must be byte-identical to pre-rebuild State"
 
     def test_goal_deleted_removed_from_projection(self, tmp_path):
         k, _ = make_kernel_and_db(tmp_path)
         k.emit_event("WorkItemCreated", "work_item", "g1", {'work_type': 'goal', 'status': 'active', "title": "X"}, actor="user")
-        assert len(k.query_state("goals")) == 1
+        assert len(k.query_state("work_items", work_type="goal")) == 1
         k.emit_event("WorkItemDeleted", "work_item", "g1", {}, actor="user")
-        assert len(k.query_state("goals")) == 0
+        assert len(k.query_state("work_items", work_type="goal")) == 0
 
     def test_goal_created_projection_fields(self, tmp_path):
         k, _ = make_kernel_and_db(tmp_path)
@@ -83,7 +83,7 @@ class TestGoalsEventSourced:
             },
             actor="user",
         )
-        goals = k.query_state("goals", id="g1")
+        goals = k.query_state("work_items", work_type="goal", id="g1")
         assert len(goals) == 1
         g = goals[0]
         assert g["title"] == "Learn Rust"

@@ -15,17 +15,19 @@ import {
   Clock,
   BookOpen,
 } from "lucide-react";
+import { useApprovalsQuery } from "../../hooks/useApprovalsQuery";
+import { useInboxQuery } from "../../hooks/useInboxQuery";
 
 const PRIMARY_NAV = [{ path: "/", label: "对话", icon: MessageSquare, matchChat: true }];
 
 const DATA_NAV = [
-  { path: "/dashboard", label: "概览", icon: BarChart3 },
-  { path: "/goals", label: "目标", icon: Target },
-  { path: "/inbox", label: "收件箱", icon: Mail },
-  { path: "/approvals", label: "审批", icon: ShieldCheck },
-  { path: "/memories", label: "记忆", icon: Brain },
-  { path: "/timeline", label: "时间线", icon: Clock },
-  { path: "/knowledge", label: "知识库", icon: BookOpen },
+  { path: "/dashboard", label: "概览", icon: BarChart3, badgeKey: null },
+  { path: "/goals", label: "目标", icon: Target, badgeKey: null },
+  { path: "/inbox", label: "收件箱", icon: Mail, badgeKey: "inbox" as const },
+  { path: "/approvals", label: "审批", icon: ShieldCheck, badgeKey: "approvals" as const },
+  { path: "/memories", label: "记忆", icon: Brain, badgeKey: null },
+  { path: "/timeline", label: "时间线", icon: Clock, badgeKey: null },
+  { path: "/knowledge", label: "知识库", icon: BookOpen, badgeKey: null },
 ];
 
 const SYSTEM_NAV = [{ path: "/settings", label: "设置", icon: Settings }];
@@ -47,6 +49,15 @@ function isDataRoute(pathname: string) {
   return DATA_NAV.some((item) => pathname.startsWith(item.path));
 }
 
+function NavBadge({ count }: { count: number }) {
+  if (count <= 0) return null;
+  return (
+    <span className="ml-auto text-[10px] min-w-[1.25rem] h-5 px-1.5 rounded-full bg-amber-600/30 text-amber-300 flex items-center justify-center font-medium">
+      {count > 99 ? "99+" : count}
+    </span>
+  );
+}
+
 export default function Sidebar({
   conversations,
   activeConversationId,
@@ -58,6 +69,16 @@ export default function Sidebar({
   const location = useLocation();
   const onChatPage = isChatRoute(location.pathname);
   const [dataExpanded, setDataExpanded] = useState(isDataRoute(location.pathname));
+  const { data: approvals = [] } = useApprovalsQuery();
+  const { data: inbox } = useInboxQuery();
+  const approvalCount = approvals.length;
+  const inboxCount = inbox?.emails?.length ?? 0;
+
+  const badgeFor = (key: "inbox" | "approvals" | null) => {
+    if (key === "approvals") return approvalCount;
+    if (key === "inbox") return inboxCount;
+    return 0;
+  };
 
   return (
     <aside className="w-64 bg-gray-900 border-r border-gray-800 flex flex-col shrink-0">
@@ -66,7 +87,6 @@ export default function Sidebar({
         <p className="text-xs text-gray-500 mt-1">你的第二大脑</p>
       </div>
 
-      {/* 对话 — 永远显示的主动入口 */}
       <nav className="px-2 py-2 border-b border-gray-800">
         {PRIMARY_NAV.map((item) => {
           const Icon = item.icon;
@@ -85,6 +105,32 @@ export default function Sidebar({
             </NavLink>
           );
         })}
+
+        {/* Always-visible decision shortcuts when something needs attention */}
+        {(approvalCount > 0 || inboxCount > 0) && (
+          <div className="mt-1 space-y-0.5">
+            {approvalCount > 0 && (
+              <NavLink
+                to="/approvals"
+                className="w-full flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs text-amber-300/90 hover:bg-amber-900/20 transition-colors"
+              >
+                <ShieldCheck size={14} className="shrink-0" />
+                <span>待审批</span>
+                <NavBadge count={approvalCount} />
+              </NavLink>
+            )}
+            {inboxCount > 0 && (
+              <NavLink
+                to="/inbox"
+                className="w-full flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs text-blue-300/90 hover:bg-blue-900/20 transition-colors"
+              >
+                <Mail size={14} className="shrink-0" />
+                <span>待处理邮件</span>
+                <NavBadge count={inboxCount} />
+              </NavLink>
+            )}
+          </div>
+        )}
       </nav>
 
       {onChatPage && (
@@ -133,9 +179,8 @@ export default function Sidebar({
         </>
       )}
 
-      {/* 我的数据 — 折叠区 */}
       {!onChatPage && (
-        <div className="px-2 py-2">
+        <div className="px-2 py-2 flex-1 overflow-y-auto">
           <button
             onClick={() => setDataExpanded(!dataExpanded)}
             className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-gray-500 hover:text-gray-400 transition-colors uppercase tracking-wide"
@@ -148,6 +193,7 @@ export default function Sidebar({
             <div className="mt-1">
               {DATA_NAV.map((item) => {
                 const Icon = item.icon;
+                const count = badgeFor(item.badgeKey);
                 return (
                   <NavLink
                     key={item.path}
@@ -162,6 +208,7 @@ export default function Sidebar({
                   >
                     <Icon size={18} className="shrink-0" />
                     <span>{item.label}</span>
+                    <NavBadge count={count} />
                   </NavLink>
                 );
               })}
@@ -170,8 +217,7 @@ export default function Sidebar({
         </div>
       )}
 
-      {/* 系统 — 始终在底部 */}
-      <div className="border-t border-gray-800 px-2 py-2">
+      <div className="border-t border-gray-800 px-2 py-2 mt-auto">
         {SYSTEM_NAV.map((item) => {
           const Icon = item.icon;
           return (

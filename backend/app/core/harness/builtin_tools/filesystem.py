@@ -27,7 +27,7 @@ def default_protected_paths() -> list[str]:
         str(base / "backend/scripts/check_boundary.py"),
         str(base / "backend/capability_policy.json"),
         str(runtime / "taint.py"),
-        str(runtime / "sensitive_router.py"),
+        str(runtime / "capability_governance.py"),
         str(base / ".env"),
         str(base / ".git"),
         # Sensitive host files — prevent LLM from reading SSH keys, AWS creds, shell history

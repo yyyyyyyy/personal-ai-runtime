@@ -25,7 +25,7 @@ class TestEventSourcing:
         kernel.emit_event(
             "WorkItemCreated", "work_item", "g1", {'work_type': 'goal', "title": "Learn Rust", "importance": 0.8}
         )
-        goals = kernel.query_state("goals")
+        goals = kernel.query_state("work_items", work_type="goal")
         assert len(goals) == 1
         assert goals[0]["title"] == "Learn Rust"
         assert goals[0]["importance"] == 0.8
@@ -37,11 +37,11 @@ class TestEventSourcing:
         kernel.emit_event("WorkItemUpdated", "work_item", "g1", {"title": "A2", "progress": 0.5})
         kernel.emit_event("WorkItemStatusChanged", "work_item", "g2", {"status": "completed"})
 
-        before = kernel.query_state("goals")
+        before = kernel.query_state("work_items", work_type="goal")
 
         # Wipe the projection and rebuild from the immutable Event Log alone.
         replayed = kernel.rebuild("goal")
-        after = kernel.query_state("goals")
+        after = kernel.query_state("work_items", work_type="goal")
 
         assert replayed >= 0  # v1.0: goal→work_item migration
         assert before == after, "rebuilt State must be byte-identical to the original"
@@ -98,7 +98,7 @@ class TestEventSourcing:
         kernel.emit_event("WorkItemCreated", "work_item", "g1", {'work_type': 'goal', "title": "A"})
 
         assert seen == ["WorkItemCreated"]
-        goals = kernel.query_state("goals")
+        goals = kernel.query_state("work_items", work_type="goal")
         assert len(goals) == 1
         assert goals[0]["title"] == "A"
 

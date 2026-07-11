@@ -29,6 +29,8 @@ PROJECTION_TABLES = (
     "timer_events",
     "policy_events",
     "inbox_emails",  # v0.3.0: promoted to governed (projectors_inbox.py)
+    "llm_calls",  # v0.3.0 governed telemetry
+    "tool_calls",
 )
 KERNEL_PREFIX = Path("core/runtime/kernel")
 HARNESS_PREFIX = Path("core/harness")
@@ -67,7 +69,7 @@ def _capability_subsystem_file(rel: Path) -> bool:
     if _is_kernel_space(rel) or _is_harness(rel):
         return True
     return rel in {
-        Path("core/runtime/sensitive_router.py"),
+        Path("core/runtime/capability_governance.py"),  # includes SensitiveRouter
         Path("core/runtime/capability_decision.py"),  # ADR-0007 Step 9: CapabilityGateway (deprecated v0.4.0)
         Path("core/runtime/capability_governance.py"),  # v0.4.0: merged governance
         Path("core/runtime/runtime_container.py"),  # v0.5.0: DI container for all subsystems

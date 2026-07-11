@@ -7,6 +7,7 @@ from fastapi import APIRouter, HTTPException
 from app.api.models import CreateMemoryRequest, UpdateMemoryRequest
 from app.core.agents.memory_engine import memory_engine
 from app.core.agents.user_profile import user_profile
+from app.core.runtime import read_ports
 from app.core.runtime.kernel_instance import kernel
 
 router = APIRouter(tags=["memory"])
@@ -14,8 +15,7 @@ router = APIRouter(tags=["memory"])
 
 def _get_memory(memory_id: str) -> dict | None:
     """Check if a memory exists by querying the kernel projection."""
-    rows = kernel.query_state("memories", id=memory_id)
-    return rows[0] if rows else None
+    return read_ports.query_memory(memory_id)
 
 
 @router.get("/memories")
@@ -191,9 +191,7 @@ async def get_portrait():
 
     # 3. Active goals (v1.0 Phase 4: goals table retired)
     try:
-        goal_rows = kernel.query_state(
-            "work_items", work_type="goal", status="active", limit=20,
-        )
+        goal_rows = read_ports.query_active_goals(limit=20)
     except Exception:
         import logging
         logging.getLogger(__name__).warning(

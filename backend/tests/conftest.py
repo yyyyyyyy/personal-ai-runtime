@@ -80,7 +80,7 @@ def fake_brain(monkeypatch):
         correlation_id = f"chat_{_uuid2.uuid4().hex[:12]}"
 
         from app.core.runtime.kernel_instance import kernel as _k
-        from app.core.runtime.sse_queue_registry import register, unregister
+        from app.core.runtime.notification_bridge import register, unregister
         sse_queue = register(correlation_id)
 
         _k.emit_event(
@@ -91,7 +91,7 @@ def fake_brain(monkeypatch):
 
         # —— INLINE HANDLER EXECUTION ——
         from app.core.runtime.execution import execution_scope, identity_resolver
-        from app.core.runtime.execution_context import ExecutionContext
+        from app.core.runtime.execution import ExecutionContext
         from app.core.runtime.handler_registry import get_handler
 
         handler = get_handler("ChatRequested")
@@ -219,7 +219,7 @@ def app(tmp_path, monkeypatch):
     importlib.reload(_ch)
     import app.core.agents.mvp as _mvp
     importlib.reload(_mvp)
-    importlib.reload(app.core.runtime.agent_bootstrap)
+    importlib.reload(app.core.runtime.agent_scheduler)
     importlib.reload(app.main)
 
     a = app.main.app

@@ -2,7 +2,7 @@
 
 This product is the "一致性测试床" — it proves the Runtime can natively host
 a product feature without any boundary violations. Every data access goes
-through Kernel ABI (query_state, read_events, recall_memory).
+through read_ports → Kernel ABI (query_state, read_events, recall_memory).
 
 No SQL. No file system access. No direct ChromaDB access. Zero bypasses.
 
@@ -17,6 +17,7 @@ Widgets:
 
 from datetime import UTC, datetime, timedelta
 
+from app.core.runtime import read_ports
 from app.core.runtime.kernel_instance import kernel
 
 # Maximum items per widget
@@ -26,12 +27,7 @@ _MAX_TOP_GOALS = 3
 
 
 def generate_dashboard() -> dict:
-    """Generate a Personal Dashboard using only Kernel ABI.
-
-    This function proves a product can be built without bypassing Runtime
-    boundaries. Every read goes through kernel.query_state / read_events /
-    recall_memory.
-    """
+    """Generate a Personal Dashboard using only Kernel ABI via read_ports."""
     now = datetime.now(UTC)
     seven_days_ago = (now - timedelta(days=7)).isoformat()
 
@@ -47,26 +43,20 @@ def generate_dashboard() -> dict:
 
 
 def _widget_data_sovereignty() -> dict:
-    """Data sovereignty overview — user's personal data footprint.
-
-    Every data query goes through Kernel ABI only.
-    """
+    """Data sovereignty overview — user's personal data footprint."""
     try:
         table_counts = kernel.table_counts(
             ("conversations", "messages", "memories", "event_log")
         )
     except Exception:
         table_counts = {}
-    # goals table dropped in v06; count from work_items instead.
     try:
-        goal_total_rows = kernel.query_state("work_items", work_type="goal", limit=10000)
-        goal_total = len(goal_total_rows)
+        goal_total = len(read_ports.query_goals(limit=10000))
     except Exception:
         goal_total = 0
 
-    # Count self-report vs claim memories
     try:
-        memories = kernel.query_state("memories", limit=5000)
+        memories = read_ports.query_memories(limit=5000)
         self_report_count = sum(1 for m in memories if m.get("origin") == "self_report")
         claim_count = sum(1 for m in memories if m.get("origin") == "claim")
     except Exception:
@@ -74,21 +64,15 @@ def _widget_data_sovereignty() -> dict:
         self_report_count = 0
         claim_count = 0
 
-    # Active vs completed goals (v1.0 Phase 4: goals table retired)
     try:
-        goals_active = kernel.query_state(
-            "work_items", work_type="goal", status="active", limit=5000,
-        )
-        goals_completed = kernel.query_state(
-            "work_items", work_type="goal", status="completed", limit=5000,
-        )
+        goals_active = read_ports.query_active_goals(limit=5000)
+        goals_completed = read_ports.query_completed_goals(limit=5000)
     except Exception:
         goals_active = []
         goals_completed = []
 
-    # Last belief reflection time
     try:
-        beliefs = kernel.query_state("memories", category="belief", limit=5, order="created_desc")
+        beliefs = read_ports.query_memories(category="belief", limit=5, order="created_desc")
         last_reflection = beliefs[0].get("created_at") if beliefs else None
     except Exception:
         last_reflection = None
@@ -110,11 +94,8 @@ def _widget_data_sovereignty() -> dict:
 
 
 def _widget_active_goals() -> dict:
-    """Active goals — count + top by importance (v1.0: unified work_items)."""
-    active = kernel.query_state(
-        "work_items", work_type="goal", status="active",
-        limit=50, order="importance_desc",
-    )
+    """Active goals — count + top by importance."""
+    active = read_ports.query_active_goals(limit=50, order="importance_desc")
     top = active[:_MAX_TOP_GOALS]
     return {
         "count": len(active),
@@ -132,9 +113,7 @@ def _widget_active_goals() -> dict:
 
 def _widget_recent_events(since_ts: str) -> dict:
     """Recent system events — what happened (read_events only)."""
-    # Get the last N events from the Event Log
     all_events = kernel.read_events(since_ts=since_ts, limit=_MAX_RECENT_EVENTS, order="desc")
-    # Filter out internal/chatter events for a cleaner dashboard
     interesting = [e for e in all_events if e.type not in {
         "ChatTextDelta", "ChatDone",
     }]
@@ -156,7 +135,6 @@ def _widget_recent_events(since_ts: str) -> dict:
 
 def _widget_recent_memories() -> dict:
     """Recent beliefs — what the system thinks it knows (recall_memory only)."""
-    # Semantic recall for a general summary of what the user cares about
     memories = kernel.recall_memory("recent activities goals preferences", k=_MAX_RECENT_MEMORIES)
     return {
         "count": len(memories),
@@ -172,9 +150,9 @@ def _widget_recent_memories() -> dict:
 
 
 def _widget_timer_status() -> dict:
-    """Active timers — Time dimension health (query_state only)."""
+    """Active timers — Time dimension health."""
     try:
-        active = kernel.query_state("timer_events", status="active", limit=100)
+        active = read_ports.query_active_timers(limit=100)
     except Exception:
         return {"active_timers": 0, "items": []}
     return {
@@ -191,14 +169,14 @@ def _widget_timer_status() -> dict:
 
 
 def _widget_governance_status() -> dict:
-    """Policy status — Governance Runtime health (query_state only).
+    """Policy status — Governance Runtime health.
 
     v0.9.0: grant_events reporting removed — table has no projector writer
     since v0.7.0, so the count was always 0. active_grants kept in the
     response shape for frontend backward-compat but is hardcoded 0.
     """
     try:
-        policies = kernel.query_state("policy_events", status="active", limit=200)
+        policies = read_ports.query_active_policies(limit=200)
     except Exception:
         policies = []
     return {

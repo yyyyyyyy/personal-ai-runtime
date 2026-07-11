@@ -6,8 +6,8 @@ import pytest
 
 os.environ.setdefault("LLM_API_KEY", "test-key")
 
-from app.core.runtime.conversation_recorder import record_conversation_turn
-from app.core.runtime.event_formatting import to_legacy_dict
+from app.core.agents.mvp.chat_completed_handlers import record_conversation_turn
+from app.core.runtime.read_ports import to_legacy_dict
 from app.core.runtime.kernel import Kernel
 from app.store.database import Database
 

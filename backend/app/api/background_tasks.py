@@ -1,6 +1,11 @@
 """Background Tasks API — manage long-running background tasks.
 
 v0.4.0: create_task/get_task/list_tasks inlined from deleted background_worker.py.
+
+Compatibility note: background tasks are a **Work subtype** (see Runtime
+Algebra). New runtime code should treat them as Work with a background
+lifecycle, not a separate conceptual layer. This HTTP surface remains for
+operators / SPA; avoid introducing parallel task engines.
 """
 import json
 import uuid
@@ -9,6 +14,7 @@ from datetime import UTC, datetime
 from fastapi import APIRouter, HTTPException
 
 from app.api.models import CreateBackgroundTaskRequest
+from app.core.runtime import read_ports
 from app.core.runtime.kernel.constants import (
     AGGREGATE_BACKGROUND_TASK,
     EVENT_BG_TASK_CREATED,
@@ -39,19 +45,18 @@ def _create_bg_task(user_request: str, plan: dict | None = None) -> dict:
         actor="user",
     )
 
-    rows = kernel.query_state("background_tasks", id=task_id)
+    rows = read_ports.query_background_task(task_id)
     if not rows:
         raise RuntimeError(f"Background task {task_id} not found after creation")
-    return rows[0]
+    return rows
 
 
 def _get_bg_task(task_id: str) -> dict | None:
-    rows = kernel.query_state("background_tasks", id=task_id)
-    return rows[0] if rows else None
+    return read_ports.query_background_task(task_id)
 
 
 def _list_bg_tasks(limit: int = 50) -> list[dict]:
-    return kernel.query_state("background_tasks", limit=limit)
+    return read_ports.query_background_tasks(limit=limit)
 
 
 @router.post("/")

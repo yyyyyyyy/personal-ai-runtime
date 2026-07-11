@@ -14,7 +14,7 @@ async def test_ensure_scheduler_creates_and_caches(monkeypatch, tmp_path):
     k = Kernel(db=Database(db_path=str(tmp_path / "boot.db")))
     monkeypatch.setattr("app.core.runtime.kernel_instance.kernel", k)
 
-    import app.core.runtime.agent_bootstrap as boot
+    import app.core.runtime.agent_scheduler as boot
     boot._started = False
 
     await boot.ensure_scheduler(k)
@@ -34,7 +34,7 @@ async def test_ensure_scheduler_registers_async_dispatcher(monkeypatch, tmp_path
     k = Kernel(db=Database(db_path=str(tmp_path / "boot2.db")))
     monkeypatch.setattr("app.core.runtime.kernel_instance.kernel", k)
 
-    import app.core.runtime.agent_bootstrap as boot
+    import app.core.runtime.agent_scheduler as boot
     boot._started = False
 
     # Before ensure_scheduler, no dispatcher set

@@ -138,8 +138,7 @@ class TestKernelReadSelectors:
             actor="test",
         )
 
-        rows = k.query_state(
-            "goals",
+        rows = k.query_state("work_items", work_type="goal",
             status_in=("active", "in_progress"),
             limit=5,
             order="importance_urgency_desc",
@@ -203,7 +202,13 @@ class TestKernelReadSelectors:
             calls.append((selector, filters))
             return [{"title": "Test Goal", "status": "active"}]
 
-        monkeypatch.setattr(read_ports.kernel, "query_state", fake_query_state)
+        class FakeKernel:
+            def query_state(self, selector: str, **filters):
+                return fake_query_state(selector, **filters)
+
+        monkeypatch.setattr(
+            "app.core.runtime.kernel_instance.kernel", FakeKernel(),
+        )
         rows = read_ports.query_top_active_goals(limit=3)
         assert rows[0]["title"] == "Test Goal"
         assert calls[0][0] == "work_items"

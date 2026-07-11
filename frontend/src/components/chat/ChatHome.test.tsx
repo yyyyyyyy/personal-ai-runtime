@@ -31,6 +31,10 @@ vi.mock("../../hooks/useQuickChat", () => ({
   useQuickChat: () => quickChat,
 }));
 
+vi.mock("../../hooks/useApprovalsQuery", () => ({
+  useApprovalsQuery: () => ({ data: [] }),
+}));
+
 import { listMemoriesGrouped, listGoals, listInboxEmails } from "../../api/client";
 
 const mockMemories = vi.mocked(listMemoriesGrouped);
@@ -54,7 +58,7 @@ describe("ChatHome", () => {
     renderWithRouter(<ChatHome />);
     expect(screen.getByText("早上好")).toBeInTheDocument();
     await waitFor(() => {
-      expect(screen.getByText("这是我能帮你做的事")).toBeInTheDocument();
+      expect(screen.getByText(/今天没有待决断事项|这些事需要你决断/)).toBeInTheDocument();
     });
   });
 

@@ -7,7 +7,7 @@ import pytest
 
 def test_register_creates_and_returns_queue():
     """register() creates a new queue and returns it."""
-    from app.core.runtime.sse_queue_registry import _registry, register, unregister
+    from app.core.runtime.notification_bridge import _registry, register, unregister
 
     cid = "test_register"
     q = register(cid)
@@ -20,7 +20,7 @@ def test_register_creates_and_returns_queue():
 
 def test_unregister_removes_queue():
     """unregister() removes the queue from the registry."""
-    from app.core.runtime.sse_queue_registry import _registry, register, unregister
+    from app.core.runtime.notification_bridge import _registry, register, unregister
 
     cid = "test_unregister"
     register(cid)
@@ -30,7 +30,7 @@ def test_unregister_removes_queue():
 
 def test_unregister_missing_key_is_noop():
     """unregister() on a missing key does not raise."""
-    from app.core.runtime.sse_queue_registry import unregister
+    from app.core.runtime.notification_bridge import unregister
 
     unregister("nonexistent")
 
@@ -38,7 +38,7 @@ def test_unregister_missing_key_is_noop():
 @pytest.mark.asyncio
 async def test_push_to_registered_queue():
     """push() delivers payload to the registered asyncio.Queue."""
-    from app.core.runtime.sse_queue_registry import push, register, unregister
+    from app.core.runtime.notification_bridge import push, register, unregister
 
     cid = "test_push"
     q = register(cid)
@@ -55,7 +55,7 @@ async def test_push_to_registered_queue():
 @pytest.mark.asyncio
 async def test_push_to_missing_queue_silently_drops():
     """push() silently drops when no queue is registered for the given id."""
-    from app.core.runtime.sse_queue_registry import push
+    from app.core.runtime.notification_bridge import push
 
     # Should not raise
     await push("missing_queue", {"type": "text_delta", "content": "dropped"})
@@ -64,7 +64,7 @@ async def test_push_to_missing_queue_silently_drops():
 @pytest.mark.asyncio
 async def test_push_to_full_queue_handles_gracefully():
     """push() logs a warning and drops when the queue is full."""
-    from app.core.runtime.sse_queue_registry import _registry, push
+    from app.core.runtime.notification_bridge import _registry, push
 
     cid = "test_full"
     # Manually insert a bounded queue to force QueueFull

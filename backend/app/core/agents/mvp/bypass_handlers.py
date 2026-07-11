@@ -13,7 +13,7 @@ from typing import TYPE_CHECKING
 from app.core.runtime.handler_registry import subscribe
 
 if TYPE_CHECKING:
-    from app.core.runtime.execution_context import ExecutionContext
+    from app.core.runtime.execution import ExecutionContext
     from app.core.runtime.kernel.event import Event
 
 logger = logging.getLogger(__name__)
@@ -105,7 +105,7 @@ async def on_approve_requested(ctx: "ExecutionContext", event: "Event") -> None:
 @subscribe("ExecuteRequested")
 async def on_execute_requested(ctx: "ExecutionContext", event: "Event") -> None:
     """Execute a planned action's steps via Scheduler."""
-    from app.core.runtime.kernel_instance import kernel
+    from app.core.runtime import read_ports
 
     action_id = event.payload.get("action_id", "")
     if not action_id:
@@ -117,16 +117,14 @@ async def on_execute_requested(ctx: "ExecutionContext", event: "Event") -> None:
         return
 
     # Load action's executable plan
-    rows = kernel.query_state("work_items", id=action_id)
-    if not rows:
+    action = read_ports.query_work_item(action_id)
+    if not action:
         ctx.emit(
             "ExecuteCompleted", "action", f"exec_{action_id}",
             payload={"status": "error", "error": "action not found"},
             caused_by=event.id,
         )
         return
-
-    action = rows[0]
     plan_raw = action.get("executable_plan") or "{}"
     plan = json.loads(plan_raw) if isinstance(plan_raw, str) else plan_raw
     steps = plan.get("steps", [])

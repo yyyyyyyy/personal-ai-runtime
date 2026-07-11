@@ -2,7 +2,8 @@
 
 This endpoint is the "一致性测试床" — it proves a product feature can be
 delivered using only Kernel ABI without bypassing Runtime boundaries.
-Every data read goes through kernel.query_state / read_events / recall_memory.
+Every data read goes through read_ports → Kernel (query_state / read_events /
+recall_memory).
 """
 
 import asyncio

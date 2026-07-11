@@ -17,7 +17,7 @@ from typing import TYPE_CHECKING
 from app.core.runtime.handler_registry import subscribe
 
 if TYPE_CHECKING:
-    from app.core.runtime.execution_context import ExecutionContext
+    from app.core.runtime.execution import ExecutionContext
     from app.core.runtime.kernel.event import Event
 
 logger = logging.getLogger(__name__)
@@ -33,7 +33,7 @@ async def on_chat_requested(ctx: "ExecutionContext", event: "Event") -> None:
     from app.chat.prompt_compiler import CompileContext, prompt_compiler
     from app.core.agents.brain import Brain
     from app.core.agents.conversation import ConversationManager
-    from app.core.runtime.sse_queue_registry import push
+    from app.core.runtime.notification_bridge import push
 
     user_message = event.payload.get("user_message", "")
     conv_id = event.payload.get("conversation_id", "")

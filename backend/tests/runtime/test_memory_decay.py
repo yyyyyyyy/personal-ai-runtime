@@ -25,7 +25,7 @@ class TestRunMemoryDecay:
     def test_no_eligible_memories_returns_zero(self, isolated_kernel):
         """Empty store → no decay events."""
         k, db = isolated_kernel
-        import app.core.runtime.memory_decay as md
+        import app.core.runtime.cron_registry as md
         md.kernel = k
         try:
             count = md.run_memory_decay()
@@ -37,7 +37,7 @@ class TestRunMemoryDecay:
         """Confidence > 0.3 (default threshold) → skipped; ≤ 0.3 → decayed."""
         k, db = isolated_kernel
 
-        import app.core.runtime.memory_decay as md
+        import app.core.runtime.cron_registry as md
         md.kernel = k
         try:
             count = md.run_memory_decay(threshold=0.3)
@@ -60,7 +60,7 @@ class TestRunMemoryDecay:
         """Custom threshold: confidence ≤ 0.5 → m_medium + m_low decayed."""
         k, db = isolated_kernel
 
-        import app.core.runtime.memory_decay as md
+        import app.core.runtime.cron_registry as md
         md.kernel = k
         try:
             count = md.run_memory_decay(threshold=0.5)
@@ -81,7 +81,7 @@ class TestRunMemoryDecay:
             "confidence": 0.15,
         }, actor="scheduler")
 
-        import app.core.runtime.memory_decay as md
+        import app.core.runtime.cron_registry as md
         md.kernel = k
         try:
             count = md.run_memory_decay(threshold=0.3)
@@ -98,7 +98,7 @@ class TestRunMemoryDecay:
             "category": "preference", "content": "floor", "confidence": 0.1,
         }, actor="extractor")
 
-        import app.core.runtime.memory_decay as md
+        import app.core.runtime.cron_registry as md
         md.kernel = k
         try:
             count = md.run_memory_decay(threshold=0.3, decay_to=0.1)
@@ -115,7 +115,7 @@ class TestRunMemoryDecay:
             "category": "preference", "content": "test", "confidence": 0.25,
         }, actor="extractor")
 
-        import app.core.runtime.memory_decay as md
+        import app.core.runtime.cron_registry as md
         md.kernel = k
         try:
             md.run_memory_decay(threshold=0.3)

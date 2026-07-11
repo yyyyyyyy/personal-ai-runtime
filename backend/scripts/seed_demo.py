@@ -25,7 +25,7 @@ DEMO_MEMORY_SNIPPET = "偏好本地优先、可随时导出的个人 AI 助手"
 def _demo_exists() -> bool:
     from app.core.runtime.kernel_instance import kernel
 
-    goals = kernel.query_state("goals", limit=200)
+    goals = kernel.query_state("work_items", work_type="goal", limit=200)
     return any(g.get("title") == DEMO_GOAL_TITLE for g in goals)
 
 

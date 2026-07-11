@@ -116,7 +116,7 @@ def test_resolver_user_actor(kernel):
 
 def test_execution_context_has_principal(kernel):
     from app.core.runtime.execution import Principal
-    from app.core.runtime.execution_context import ExecutionContext
+    from app.core.runtime.execution import ExecutionContext
 
     p = Principal.user("test_user")
     ctx = ExecutionContext(
@@ -132,7 +132,7 @@ def test_execution_context_has_principal(kernel):
 
 def test_execution_context_default_principal(kernel):
     from app.core.runtime.execution import Principal
-    from app.core.runtime.execution_context import ExecutionContext
+    from app.core.runtime.execution import ExecutionContext
 
     ctx = ExecutionContext(
         instance_id="aginst_test",

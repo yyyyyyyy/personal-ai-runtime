@@ -5,6 +5,7 @@ import json
 from fastapi import APIRouter, HTTPException
 
 from app.config import settings
+from app.core.runtime import read_ports
 from app.core.runtime.capability_governance import capability_governance
 from app.core.runtime.kernel_instance import kernel
 
@@ -54,7 +55,7 @@ def _list_pending_enriched(kernel) -> list[dict]:
     Moved from capability_governance.list_pending_enriched (v0.11.0) —
     this is a UI-presentation concern, not a governance decision.
     """
-    pending = kernel.query_state("approvals", status="pending")
+    pending = read_ports.query_pending_approvals()
     if not pending:
         return []
 
@@ -72,9 +73,9 @@ def _list_pending_enriched(kernel) -> list[dict]:
     task_map: dict[str, str] = {}
     for tid in task_ids:
         try:
-            task_rows = kernel.query_state("work_items", id=tid)
-            if task_rows:
-                task_map[tid] = task_rows[0].get("title", "")
+            item = read_ports.query_work_item(tid)
+            if item:
+                task_map[tid] = item.get("title", "")
         except Exception:
             pass
 
@@ -124,7 +125,7 @@ async def approve(approval_id: str):
     context, the conversation is automatically resumed; otherwise the
     capability is still executed but no conversation reply is sent.
     """
-    from app.core.runtime.agent_bootstrap import ensure_scheduler
+    from app.core.runtime.agent_scheduler import ensure_scheduler
     from app.core.runtime.agent_scheduler import get_scheduler
 
     approval = capability_governance.get_approval(kernel, approval_id)
@@ -190,7 +191,7 @@ async def approve(approval_id: str):
 @router.post("/{approval_id}/reject")
 async def reject(approval_id: str, reason: str = ""):
     """Reject a pending approval through the standard handler pipeline."""
-    from app.core.runtime.agent_bootstrap import ensure_scheduler
+    from app.core.runtime.agent_scheduler import ensure_scheduler
     from app.core.runtime.agent_scheduler import get_scheduler
 
     approval = capability_governance.get_approval(kernel, approval_id)

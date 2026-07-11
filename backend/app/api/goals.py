@@ -3,6 +3,11 @@
 v1.0: uses WorkItemCreated/Updated/StatusChanged/Deleted events with
 work_type='goal' and aggregate_type='work_item' (previously GoalCreated/
 Updated/Completed/Deleted/Touched with aggregate_type='goal').
+
+Compatibility note: this router is a **product-facing alias** over the Work
+primitive (``work_items`` with ``work_type='goal'``). Prefer
+``read_ports.query_goals`` / ``query_goal`` in new code. The HTTP ``/api/goals``
+surface stays for the SPA; do not add a second goal projection table.
 """
 
 import asyncio
@@ -10,13 +15,23 @@ import json
 import uuid
 from datetime import UTC, datetime
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Response
 
 from app.api.models import CreateActionRequest, CreateGoalRequest
-from app.core.runtime.event_formatting import goal_events
+from app.core.runtime import read_ports
 from app.core.runtime.kernel_instance import kernel
+from app.core.runtime.read_ports import goal_events
 
-router = APIRouter(tags=["goals"])
+# Product-facing alias over work_items(work_type=goal). Prefer /api/work-items.
+_DEPRECATION_LINK = '</api/work-items?work_type=goal>; rel="successor-version"'
+
+
+def _mark_goals_deprecated(response: Response) -> None:
+    response.headers["Deprecation"] = "true"
+    response.headers["Link"] = _DEPRECATION_LINK
+
+
+router = APIRouter(tags=["goals"], dependencies=[Depends(_mark_goals_deprecated)])
 
 VALID_GOAL_STATUSES = frozenset({"active", "completed", "paused"})
 
@@ -81,10 +96,7 @@ async def create_goal(body: CreateGoalRequest):
 @router.get("/")
 async def list_goals(status: str | None = None, limit: int = 50):
     """List all goals, optionally filtered by status."""
-    filters: dict[str, object] = {"limit": limit}
-    if status:
-        filters["status"] = status
-    return await asyncio.to_thread(kernel.query_state, "goals", **filters)
+    return await asyncio.to_thread(read_ports.query_goals, status=status, limit=limit)
 
 
 @router.get("/{goal_id}")
@@ -94,9 +106,7 @@ async def get_goal(goal_id: str):
         goal = _get_goal(goal_id)
         if not goal:
             return None
-        goal["actions"] = kernel.query_state(
-            "work_items", parent_goal_id=goal_id, work_type="action",
-        )
+        goal["actions"] = read_ports.query_goal_actions(goal_id)
         goal["events"] = goal_events(goal_id, limit=10)
         return goal
 
@@ -158,7 +168,7 @@ async def delete_goal(goal_id: str):
         raise HTTPException(status_code=404, detail="Goal not found")
 
     # Delete all sub-items via WorkItemDeleted
-    for item in kernel.query_state("work_items", parent_goal_id=goal_id):
+    for item in read_ports.query_work_items_by_parent_goal(goal_id):
         kernel.emit_event(
             type="WorkItemDeleted",
             aggregate_type="work_item",
@@ -211,14 +221,14 @@ async def create_action(goal_id: str, body: CreateActionRequest):
         actor="user",
     )
 
-    rows = kernel.query_state("work_items", id=action_id)
-    return rows[0] if rows else {"id": action_id, "parent_goal_id": goal_id, "title": title, "status": "pending"}
+    item = read_ports.query_work_item(action_id)
+    return item if item else {"id": action_id, "parent_goal_id": goal_id, "title": title, "status": "pending"}
 
 
 @router.put("/{goal_id}/actions/{action_id}")
 async def update_action(goal_id: str, action_id: str, body: dict):
     """Update an action's status or title."""
-    rows = kernel.query_state("work_items", id=action_id)
+    rows = read_ports.query_work_item(action_id)
     if not rows:
         raise HTTPException(status_code=404, detail="Action not found")
 
@@ -253,7 +263,7 @@ async def update_action(goal_id: str, action_id: str, body: dict):
         )
 
         if status == "completed":
-            _on_action_completed(goal_id, action_id, rows[0].get("title", ""))
+            _on_action_completed(goal_id, action_id, rows.get("title", ""))
 
     return {"status": "ok"}
 
@@ -261,7 +271,7 @@ async def update_action(goal_id: str, action_id: str, body: dict):
 @router.delete("/{goal_id}/actions/{action_id}")
 async def delete_action(goal_id: str, action_id: str):
     """Delete an action."""
-    rows = kernel.query_state("work_items", id=action_id)
+    rows = read_ports.query_work_item(action_id)
     if not rows:
         raise HTTPException(status_code=404, detail="Action not found")
 
@@ -275,8 +285,7 @@ async def delete_action(goal_id: str, action_id: str):
 
 
 def _get_goal(goal_id: str) -> dict | None:
-    goals = kernel.query_state("goals", id=goal_id)
-    return goals[0] if goals else None
+    return read_ports.query_goal(goal_id)
 
 
 # --- AI Goal Decomposition ---------------------------------------------------
@@ -379,13 +388,13 @@ def _on_action_completed(goal_id: str, action_id: str, action_title: str):
     the user-facing side-effects: notification + memory extraction.
     """
     try:
-        all_items = kernel.query_state("work_items", parent_goal_id=goal_id, limit=500)
+        all_items = read_ports.query_work_items_by_parent_goal(goal_id, limit=500)
         completed = sum(1 for a in all_items if a.get("status") == "completed") if all_items else 0
 
         from app.product.notifications import create_notification
 
-        goal_rows = kernel.query_state("goals", id=goal_id)
-        goal_title = goal_rows[0]["title"] if goal_rows else "目标"
+        goal_row = read_ports.query_goal(goal_id)
+        goal_title = goal_row["title"] if goal_row else "目标"
         all_done = bool(all_items) and all(a.get("status") == "completed" for a in all_items)
         if all_done:
             create_notification(

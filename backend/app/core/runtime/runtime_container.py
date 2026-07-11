@@ -31,7 +31,7 @@ if TYPE_CHECKING:
     from app.core.runtime.kernel.kernel import Kernel
     from app.core.runtime.runtime_config import RuntimeConfig
     from app.core.runtime.runtime_loop import RuntimeLoop
-    from app.core.runtime.state_manager import StateManager
+    from app.core.runtime.task_engine import StateManager
     from app.core.runtime.taint import TaintRegistry
     from app.core.telemetry.telemetry import Telemetry
     from app.store.database import Database
@@ -230,10 +230,10 @@ class RuntimeContainer:
     @property
     def state_manager(self) -> "StateManager":
         if self._state_manager is None:
-            from app.core.runtime.state_manager import StateManager
+            from app.core.runtime.task_engine import StateManager
             self._state_manager = StateManager()
             self._register(
-                "state_manager", "app.core.runtime.state_manager", "StateManager",
+                "state_manager", "app.core.runtime.task_engine", "StateManager",
             )
         return self._state_manager
 
@@ -358,7 +358,7 @@ class RuntimeContainer:
             # agent_bootstrap._started must be cleared alongside the scheduler
             # singleton, otherwise ensure_scheduler short-circuits on the next
             # test and the dispatcher is never rebound to the fresh Kernel.
-            from app.core.runtime.agent_bootstrap import reset_agent_bootstrap
+            from app.core.runtime.agent_scheduler import reset_agent_bootstrap
             reset_agent_bootstrap()
             from app.core.runtime.reaction_registry import reset_reactions
             reset_reactions()
@@ -370,13 +370,13 @@ class RuntimeContainer:
             # the low-hanging fruit.  These modules hold either no mutable state
             # (identity_resolver, sensitive_router) or state that is safe to
             # reset synchronously (caches, queues, telemetry instance).
-            from app.core.runtime.sse_queue_registry import reset_sse_queues
+            from app.core.runtime.notification_bridge import reset_sse_queues
             reset_sse_queues()
             from app.core.runtime.kernel.kernel import clear_pending_memory_index_repairs
             clear_pending_memory_index_repairs()
             from app.core.runtime.execution import reset_identity_resolver
             reset_identity_resolver()
-            from app.core.runtime.sensitive_router import reset_sensitive_router
+            from app.core.runtime.capability_governance import reset_sensitive_router
             reset_sensitive_router()
 
 

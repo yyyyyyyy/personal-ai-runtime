@@ -26,7 +26,7 @@ def apply_projection_ddl(db: Database) -> None:
     baseline; production DBs need this after ``run_migrations()``.
     """
     from app.core.runtime.kernel.projectors_governance import POLICY_DDL
-    from app.core.runtime.kernel.projectors_timer import TIMER_DDL
+    from app.core.runtime.kernel.projectors_inbox import TIMER_DDL
     from app.store.schema_ddl import MEMORY_INDEX_REPAIRS_SCHEMA
 
     with db.get_db() as conn:

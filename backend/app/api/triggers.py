@@ -1,6 +1,9 @@
-"""Triggers API — manage proactive triggers via ReactionRegistry.
+"""Triggers API — manage proactive reactions via ReactionRegistry.
 
 v0.6.0: replaces imperative trigger_engine with declarative ReactionRegistry.
+The path prefix remains ``/api/triggers`` for compatibility; responses are
+Reaction descriptors (see ``list_reactions``). Prefer ``gated_by`` /
+``every_cycle`` / ``state_selector`` over assuming ``threshold`` alone fires.
 """
 
 from fastapi import APIRouter, HTTPException
@@ -28,22 +31,37 @@ async def create_trigger(body: CreateTriggerRequest):
 
     registry = get_reaction_registry()
 
+    count = int(condition.get("count", 0) or 0)
+    state_selector = str(condition.get("state_selector", "") or "")
+    state_filters = condition.get("state_filters") or {}
+    if not isinstance(state_filters, dict):
+        state_filters = {}
+
     when = ReactionWhen(
+        every_cycle=True,
         event_types=condition.get("event_type") and [condition["event_type"]] or [],
         aggregate_type=condition.get("aggregate_type", ""),
-        count_gte=condition.get("count", 0),
+        count_gte=count,
         window_days=condition.get("window_days", 1),
+        state_selector=state_selector,
+        state_filters=state_filters,
     )
 
     template = action_config.get("template", "")
     then = ReactionThen(notification_template=template)
 
+    # Metadata-only registration unless a handler is attached later.
     registry.register(Reaction(name=name, when=when, then=then))
-    return {"name": name, "status": "registered"}
+    return {
+        "name": name,
+        "status": "registered",
+        "note": "without a handler this reaction will not fire in evaluate_cycle",
+    }
 
 
 @router.get("/")
 async def list_triggers():
+    """List registered reactions (legacy route name: triggers)."""
     registry = get_reaction_registry()
     return registry.list_reactions()
 

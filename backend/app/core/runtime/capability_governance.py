@@ -28,9 +28,11 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
+from app.config import settings
 from app.core.runtime.execution import Principal
 from app.core.runtime.runtime_container import _LazyProxy, runtime
 
@@ -271,7 +273,6 @@ class CapabilityGovernance:
     ) -> CapabilityDecision:
         """3-gate capability authorization decision."""
         from app.core.harness.mcp_hub import mcp_hub
-        from app.core.runtime.sensitive_router import sensitive_router
         from app.core.runtime.taint import is_write_class_tool, taint_registry
 
         # Gate 1: forbidden by event-sourced policy
@@ -362,6 +363,42 @@ class CapabilityGovernance:
         self._external_forbidden.clear()
         self._risk_cache.clear()
         self._kernel = None
+
+
+# ── Sensitive operation routing (folded from sensitive_router.py) ──────────
+
+_SENSITIVE_PATTERNS = [
+    re.compile(r"\b(password|api[_-]?key|secret|token)\b", re.I),
+    re.compile(r"\.(pem|key|env)$", re.I),
+    re.compile(r"/Users/|/home/|~/|C:\\Users\\|C:/Users/", re.I),
+]
+
+
+class SensitiveRouter:
+    def is_sensitive_capability(self, name: str, args: dict | None = None) -> bool:
+        if not settings.sensitive_ops_local:
+            return False
+        write_tools = {"apply_patch", "write_file", "shell_exec", "send_email"}
+        if name in write_tools:
+            return True
+        if args:
+            blob = str(args)
+            return any(p.search(blob) for p in _SENSITIVE_PATTERNS)
+        return False
+
+    def elevated_risk(self, name: str, args: dict | None = None) -> str:
+        """Return 'high' if sensitive, else defer to policy."""
+        if self.is_sensitive_capability(name, args):
+            return "high"
+        return ""
+
+
+sensitive_router = SensitiveRouter()
+
+
+def reset_sensitive_router() -> None:
+    """No-op — SensitiveRouter is stateless (pattern matching only)."""
+    pass
 
 
 if TYPE_CHECKING:

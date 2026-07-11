@@ -49,7 +49,7 @@ Kernel 提供两类读 API：
 
 - **拉取式** `read_events(...)`（[`kernel.py`](../../backend/app/core/runtime/kernel/kernel.py)）— 支持按类型、聚合、时间、actor 等过滤的事件日志读取。
 - **订阅式** `subscribe_events(handler, type, aggregate_type)`（[`kernel.py`](../../backend/app/core/runtime/kernel/kernel.py)）— 注册回调，返回反订阅函数。
-- **状态查询** `query_state(selector, **filters)`（[`kernel_query_state.py`](../../backend/app/core/runtime/kernel_query_state.py)）— 从投影表读取当前状态。支持的选择器：`goals`（`work_items` 别名）、`work_items`、`approvals`、`memories`、`notifications`、`timer_events`、`policy_events`、`messages`、`conversations`、`inbox_emails`、`background_tasks`、`user_profile`、`tool_calls`、`llm_calls`。
+- **状态查询** `query_state(selector, **filters)`（[`kernel_query_state.py`](../../backend/app/core/runtime/kernel_query_state.py)）— 从投影表读取当前状态。支持的选择器：`work_items`、`approvals`、`memories`、`notifications`、`policy_events`、`messages`、`conversations`、`inbox_emails`、`tool_calls`、`llm_calls`（timer/background/user_profile 经 `read_ports` → `query_builder`）。
 
 ## 投影器
 
@@ -68,12 +68,9 @@ def project_work_item_created(event, conn):
 | `projectors_work_items.py` | WorkItem（含 goal/task/action） |
 | `projectors_chat.py` | Conversation / Message |
 | `projectors_aux.py` | Memory（写入 `embedding_id`） |
-| `projectors_background.py` | `background_tasks` |
-| `projectors_execution.py` | `handler_executions` |
-| `projectors_governance.py` | `policy_events` |
-| `projectors_timer.py` | timer |
-| `projectors_inbox.py` | inbox_emails |
-| `projectors_telemetry.py` | tool_calls / llm_calls |
+| `projectors_execution.py` | `handler_executions` + `background_tasks` |
+| `projectors_governance.py` | `policy_events` + tool_calls / llm_calls |
+| `projectors_inbox.py` | inbox_emails + timer_events |
 
 新增投影器须同时在 `projectors_registry._OWNED_TABLES` 注册所属表，`kernel.rebuild()` 才能正确清空并重建。
 

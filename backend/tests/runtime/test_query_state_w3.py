@@ -41,7 +41,7 @@ class TestQueryStateW3:
         k.emit_event("WorkItemCreated", "work_item", "g-nd", payload={'work_type': 'goal',
             "title": "No deadline",
         })
-        results = k.query_state("goals", has_deadline=True)
+        results = k.query_state("work_items", work_type="goal", has_deadline=True)
         ids = {r["id"] for r in results}
         assert "g-dl" in ids
         assert "g-nd" not in ids
@@ -227,7 +227,7 @@ class TestUncoveredSelectors:
         k.emit_event("WorkItemUpdated", "work_item", "g-upd", payload={'work_type': 'goal',
             "title": "Updated Now",
         })
-        results = k.query_state("goals", updated_since="2020-01-01", limit=10)
+        results = k.query_state("work_items", work_type="goal", updated_since="2020-01-01", limit=10)
         ids = {r["id"] for r in results}
         assert "g-upd" in ids
 

@@ -15,9 +15,8 @@ def test_generate_dashboard_with_seeded_data(tmp_path, monkeypatch):
     from app.store.database import Database
 
     k = Kernel(db=Database(db_path=str(tmp_path / "dashboard.db")))
-    monkeypatch.setattr(
-        "app.product.personal_dashboard.kernel", k,
-    )
+    monkeypatch.setattr("app.product.personal_dashboard.kernel", k)
+    monkeypatch.setattr("app.core.runtime.kernel_instance.kernel", k)
 
     # Seed: goals
     k.emit_event("WorkItemCreated", "work_item", "g1",

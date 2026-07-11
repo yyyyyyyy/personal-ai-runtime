@@ -35,7 +35,7 @@ def test_ensure_schema_on_custom_db(tmp_path):
     db = Database(db_path=db_path)
     k = Kernel(db=db)
     k.emit_event("WorkItemCreated", "work_item", "g1", payload={'work_type': 'goal', "title": "Test"})
-    rows = k.query_state("goals", id="g1")
+    rows = k.query_state("work_items", work_type="goal", id="g1")
     assert rows and rows[0]["title"] == "Test"
 
 

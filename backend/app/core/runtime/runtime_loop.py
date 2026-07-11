@@ -21,6 +21,7 @@ import logging
 from typing import Any, Coroutine
 
 from app.config import settings
+from app.core.runtime import read_ports
 from app.core.runtime.kernel_instance import kernel
 from app.core.runtime.runtime_container import _LazyProxy, runtime
 
@@ -122,9 +123,7 @@ class RuntimeLoop:
         try:
             now = datetime.now(UTC)
             now_iso = now.isoformat()
-            rows = kernel.query_state(
-                "timer_events", status="active", fire_at_lt=now_iso, limit=50,
-            )
+            rows = read_ports.query_due_timers(now_iso=now_iso, limit=50)
             for row in rows:
                 timer_id = row["id"]
                 handler_name = row.get("handler_name", "")
@@ -283,8 +282,8 @@ class RuntimeLoop:
                     kernel._memory_index.delete_memory(aggregate_id)
                 else:
                     # Pull current memory content from projection.
-                    mem_rows = kernel.query_state("memories", id=aggregate_id, limit=1)
-                    if not mem_rows:
+                    mem = read_ports.query_memory(aggregate_id)
+                    if not mem:
                         # Memory was deleted after the failure; nothing to index.
                         with db.get_db() as conn:
                             conn.execute(
@@ -292,7 +291,6 @@ class RuntimeLoop:
                                 (repair_id,),
                             )
                         continue
-                    mem = mem_rows[0]
                     content = str(mem.get("content", ""))
                     if not content:
                         with db.get_db() as conn:
@@ -387,15 +385,15 @@ class RuntimeLoop:
         maintenance tick. The completion event resolves the command future
         asynchronously via _dispatch, independent of this method returning.
         """
-        from app.core.runtime.agent_bootstrap import ensure_scheduler
+        from app.core.runtime.agent_scheduler import ensure_scheduler
         from app.core.runtime.agent_scheduler import get_scheduler
         from app.core.runtime.kernel.constants import (
             AGGREGATE_BACKGROUND_TASK,
             EVENT_BG_TASK_STATUS_CHANGED,
         )
 
-        rows = kernel.query_state(
-            "background_tasks", status="pending", limit=1, order="created_at_asc",
+        rows = read_ports.query_background_tasks(
+            status="pending", limit=1, order="created_at_asc",
         )
         for row in rows:
             task_id = row["id"]

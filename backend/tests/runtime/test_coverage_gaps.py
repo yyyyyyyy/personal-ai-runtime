@@ -39,10 +39,10 @@ class TestHandlerRegistry:
 class TestSensitiveRouter:
     def test_is_sensitive_capability_with_local_enabled(self, monkeypatch):
         monkeypatch.setattr(
-            "app.core.runtime.sensitive_router.settings.sensitive_ops_local", True
+            "app.core.runtime.capability_governance.settings.sensitive_ops_local", True
         )
 
-        from app.core.runtime.sensitive_router import sensitive_router
+        from app.core.runtime.capability_governance import sensitive_router
 
         assert sensitive_router.is_sensitive_capability("write_file")
         assert sensitive_router.is_sensitive_capability("shell_exec")
@@ -50,10 +50,10 @@ class TestSensitiveRouter:
 
     def test_elevated_risk_high_when_sensitive(self, monkeypatch):
         monkeypatch.setattr(
-            "app.core.runtime.sensitive_router.settings.sensitive_ops_local", True
+            "app.core.runtime.capability_governance.settings.sensitive_ops_local", True
         )
 
-        from app.core.runtime.sensitive_router import sensitive_router
+        from app.core.runtime.capability_governance import sensitive_router
 
         assert sensitive_router.elevated_risk("write_file") == "high"
         assert sensitive_router.elevated_risk("read_file") == ""

@@ -13,7 +13,7 @@ os.environ.setdefault("LLM_API_KEY", "test-key")
 
 @pytest.fixture(autouse=True)
 def _reset_scheduler():
-    import app.core.runtime.agent_bootstrap as agent_bootstrap
+    import app.core.runtime.agent_scheduler as agent_bootstrap
     from app.core.runtime.agent_scheduler import reset_scheduler
 
     reset_scheduler()
@@ -54,7 +54,8 @@ def _create_bg_task(kernel, user_request, plan=None):
         },
         actor="user",
     )
-    rows = kernel.query_state("background_tasks", id=task_id)
+    from app.core.runtime.kernel import query_builder as qb
+    rows = qb.query_background_tasks(kernel._db, {"id": task_id, "limit": 1})
     return rows[0] if rows else None
 
 

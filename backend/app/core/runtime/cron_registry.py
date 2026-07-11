@@ -7,6 +7,7 @@ from __future__ import annotations
 import logging
 from datetime import UTC, datetime, timedelta
 
+from app.core.runtime import read_ports
 from app.core.runtime.kernel_instance import kernel
 from app.core.runtime.runtime_loop import RuntimeLoop
 
@@ -34,7 +35,7 @@ def _init_timers():
     """Register TimerCreated events for all scheduled cron jobs."""
     for sched in SCHEDULES:
         name = sched["name"]
-        existing = kernel.query_state("timer_events", id=name, limit=1)
+        existing = read_ports.query_timer(name)
         if existing:
             continue
         cron_expr = sched.get("cron_expr", "")
@@ -60,7 +61,7 @@ def _on_task_completed(event):
 
     from app.core.runtime.task_engine import are_dependencies_met
 
-    rows = kernel.query_state("work_items", status="pending", limit=100)
+    rows = read_ports.query_pending_work_items(limit=100)
     for item in rows:
         if are_dependencies_met(item["id"]):
             kernel.emit_event(
@@ -78,3 +79,26 @@ def _deadline_target_dates() -> set:
 def shutdown_scheduler():
     """Shutdown stub — timer scanning is now handled by RuntimeLoop."""
     pass
+
+
+def run_memory_decay(threshold: float = 0.3, decay_to: float = 0.1) -> int:
+    """Emit MemoryDecayed for stale low-confidence memories (daily cron)."""
+    count = 0
+    candidates = read_ports.query_memories(
+        confidence_gt=decay_to,
+        confidence_lt=0.8,
+        decay_eligible=True,
+        limit=50,
+    )
+    for mem in candidates:
+        if mem["confidence"] <= threshold:
+            new_conf = max(decay_to, mem["confidence"] - 0.1)
+            kernel.emit_event(
+                type="MemoryDecayed",
+                aggregate_type="memory",
+                aggregate_id=mem["id"],
+                payload={"confidence": new_conf},
+                actor="scheduler",
+            )
+            count += 1
+    return count

@@ -206,12 +206,9 @@ class GoalsServer:
 
         v1.0 Phase 3b: prefer work_items(work_type='goal'), fall back to goals.
         """
-        from app.core.runtime.kernel_instance import kernel
+        from app.core.runtime import read_ports
 
-        goals = kernel.query_state(
-            "work_items", work_type="goal", status="active",
-            limit=20, order="importance_desc",
-        )
+        goals = read_ports.query_active_goals(limit=20, order="importance_desc")
 
         return json.dumps({
             "count": len(goals),

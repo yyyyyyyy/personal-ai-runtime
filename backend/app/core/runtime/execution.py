@@ -8,10 +8,11 @@ from __future__ import annotations
 
 import contextvars
 from contextlib import contextmanager
-from dataclasses import dataclass
-from typing import TYPE_CHECKING, Iterator
+from dataclasses import dataclass, field
+from typing import TYPE_CHECKING, Iterator, Any
 
 if TYPE_CHECKING:
+    from .kernel.event import Event
     from .kernel.kernel import Kernel
 
 
@@ -97,3 +98,45 @@ def execution_scope(execution_id: str) -> Iterator[None]:
         yield
     finally:
         _current_execution_id.reset(token)
+
+
+# ── ExecutionContext (folded from execution_context.py) ──────────────────
+
+@dataclass
+class ExecutionContext:
+    """Minimal runtime context passed to handlers.
+
+    Carries only what a handler needs to execute: identity (for event
+    emission and logging), the kernel reference (for emit), and the
+    Principal (typed identity for capability authorization).
+    """
+
+    instance_id: str
+    actor: str
+    correlation_id: str
+    _kernel: "Kernel"
+    principal: Principal = field(default_factory=Principal.system)
+
+    # Execution Ownership: the Execution aggregate_id that owns
+    # this handler run. Every capability invocation inside this handler
+    # MUST be attributable to this Execution.
+    execution_id: str = ""
+
+    def emit(
+        self,
+        event_type: str,
+        aggregate_type: str,
+        aggregate_id: str,
+        payload: dict[str, Any] | None = None,
+        caused_by: str | None = None,
+    ) -> "Event":
+        """Emit an event through the Kernel with this context's actor."""
+        return self._kernel.emit_event(
+            type=event_type,
+            aggregate_type=aggregate_type,
+            aggregate_id=aggregate_id,
+            payload=payload or {},
+            actor=self.actor,
+            caused_by=caused_by,
+            correlation_id=self.correlation_id or None,
+        )

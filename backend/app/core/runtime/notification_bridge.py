@@ -108,3 +108,41 @@ async def _broadcast(event: dict) -> None:
             event.get("type"),
             exc_info=True,
         )
+
+# ── SSE queue registry (folded from sse_queue_registry.py) ────────────────
+
+_registry: dict[str, asyncio.Queue] = {}
+
+
+def register(correlation_id: str) -> asyncio.Queue:
+    """Create and register a queue for the given correlation_id.
+
+    Returns the queue so the SSE consumer can `async for` items.
+    """
+    q: asyncio.Queue[dict] = asyncio.Queue()
+    _registry[correlation_id] = q
+    return q
+
+
+def unregister(correlation_id: str) -> None:
+    """Remove a queue from the registry (call after SSE stream ends)."""
+    _registry.pop(correlation_id, None)
+
+
+async def push(correlation_id: str, payload: dict) -> None:
+    """Push a text delta payload to the queue for the given correlation_id.
+
+    If the queue doesn't exist (SSE consumer already disconnected), silently drop.
+    """
+    q = _registry.get(correlation_id)
+    if q is None:
+        return
+    try:
+        q.put_nowait(payload)
+    except asyncio.QueueFull:
+        logger.warning("SSE queue full for %s, dropping delta", correlation_id)
+
+
+def reset_sse_queues() -> None:
+    """Clear the in-memory SSE queue registry (test isolation)."""
+    _registry.clear()

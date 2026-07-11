@@ -99,13 +99,6 @@ def test_background_task_dispatch_does_not_block_maintenance(kernel, monkeypatch
 
     kernel.submit_command = slow_submit  # type: ignore[assignment]
 
-    def patched_query(name, **kw):
-        if name == "background_tasks" and kw.get("status") == "pending":
-            return [{"id": "bg1", "plan_json": "{}"}]
-        return []
-
-    kernel.query_state = patched_query  # type: ignore[assignment]
-
     real_emit = kernel.emit_event
 
     def patched_emit(type, agt, agid, payload=None, actor="system", **kw):
@@ -122,10 +115,15 @@ def test_background_task_dispatch_does_not_block_maintenance(kernel, monkeypatch
     async def mock_ensure(k):
         pass
 
-    # Patch the module-level kernel reference used by _process_background_tasks.
+    # Patch both the loop singleton and kernel_instance (read_ports resolves the latter).
     monkeypatch.setattr(rl_mod, "kernel", kernel)
+    monkeypatch.setattr("app.core.runtime.kernel_instance.kernel", kernel)
     monkeypatch.setattr(
-        "app.core.runtime.agent_bootstrap.ensure_scheduler", mock_ensure,
+        "app.core.runtime.read_ports.query_background_tasks",
+        lambda **kw: [{"id": "bg1", "plan_json": "{}"}],
+    )
+    monkeypatch.setattr(
+        "app.core.runtime.agent_scheduler.ensure_scheduler", mock_ensure,
     )
     monkeypatch.setattr(
         "app.core.runtime.agent_scheduler.get_scheduler", lambda k: FakeSch(),

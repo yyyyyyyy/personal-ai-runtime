@@ -7,7 +7,8 @@ Injected into Planner's system prompt on every call.
 import json
 from datetime import UTC, datetime, timedelta
 
-from app.core.runtime.event_formatting import to_legacy_dict
+from app.core.runtime import read_ports
+from app.core.runtime.read_ports import to_legacy_dict
 from app.core.runtime.kernel_instance import kernel
 
 
@@ -32,15 +33,10 @@ class WorldModel:
         thirty_days_ago = (now - timedelta(days=30)).isoformat()
 
         # v1.0 Phase 4: goals table retired — always read from work_items.
-        active_goals = kernel.query_state(
-            "work_items", work_type="goal", status="active", limit=500,
-        )
-        all_goals = kernel.query_state(
-            "work_items", work_type="goal", limit=500,
-        )
-        completed_recently = kernel.query_state(
-            "work_items", work_type="goal",
-            status="completed", updated_since=thirty_days_ago, limit=500,
+        active_goals = read_ports.query_active_goals(limit=500)
+        all_goals = read_ports.query_goals(limit=500)
+        completed_recently = read_ports.query_completed_goals(
+            updated_since=thirty_days_ago, limit=500,
         )
 
         recent_kernel_events = kernel.read_events(

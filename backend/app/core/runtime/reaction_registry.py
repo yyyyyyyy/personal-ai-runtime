@@ -4,12 +4,13 @@ v0.6.0: Imperative TriggerEngine replaced by @reaction declarations.
 v0.11.0: removed unused event-driven ``on_event``/``_check_threshold`` path
          (it was never wired into Kernel._dispatch). ``evaluate_cycle`` is
          now the only firing mechanism.
-
-A Reaction is registered with declarative metadata (``ReactionWhen``) and a
-handler. The runtime invokes ``evaluate_cycle`` periodically (via
-RuntimeLoop._maintenance); handlers receive the Kernel and must perform their
-own condition checks internally — ``ReactionWhen`` fields are surfaced via
-``list_reactions`` and the Triggers API but do NOT gate firing.
+v0.12.0: ``ReactionWhen`` is consulted by ``evaluate_cycle``.
+         - ``every_cycle`` opts a reaction into the periodic loop.
+         - ``state_selector`` + ``count_gte`` (+ optional ``state_filters``)
+           are a pre-gate: the handler is skipped when matching state rows
+           are below the threshold.
+         - ``event_type`` / ``window_days`` / ``payload_check`` remain
+           descriptive metadata for the Triggers API (not yet an event bus).
 """
 
 from __future__ import annotations
@@ -24,12 +25,31 @@ if TYPE_CHECKING:
 
 @dataclass
 class ReactionWhen:
-    """Condition describing when a Reaction should fire."""
+    """Conditions that gate periodic evaluation.
+
+    ``every_cycle``
+        Include this reaction in RuntimeLoop ``evaluate_cycle``. Prefer this
+        over the legacy ``count_gte > 0`` opt-in.
+
+    ``state_selector`` / ``state_filters`` / ``count_gte``
+        Pre-gate against governed state via ``kernel.query_state``. When
+        ``state_selector`` is set and ``count_gte > 0``, the handler is only
+        invoked if at least ``count_gte`` rows match.
+
+    ``event_type`` / ``event_types`` / ``aggregate_type`` / ``window_days`` /
+    ``payload_check``
+        Descriptive metadata (Triggers API / future event-driven paths).
+        Not consulted by ``evaluate_cycle``.
+    """
+
+    every_cycle: bool = False
+    state_selector: str = ""
+    state_filters: dict[str, Any] = field(default_factory=dict)
+    count_gte: int = 0
     event_type: str = ""
     event_types: list[str] = field(default_factory=list)
     aggregate_type: str = ""
-    count_gte: int = 0          # threshold: fire after N events in window
-    window_days: int = 1        # rolling window for threshold
+    window_days: int = 1
     payload_check: dict[str, Any] = field(default_factory=dict)
 
     def matches_event(self, event: "Event") -> bool:
@@ -39,6 +59,17 @@ class ReactionWhen:
         if self.aggregate_type and event.aggregate_type != self.aggregate_type:
             return False
         return True
+
+    def is_periodic(self) -> bool:
+        """Whether this reaction participates in ``evaluate_cycle``."""
+        if self.every_cycle:
+            return True
+        # Legacy opt-in: count_gte > 0 without every_cycle (pre-v0.12).
+        if self.count_gte > 0:
+            return True
+        if self.state_selector:
+            return True
+        return False
 
 
 @dataclass
@@ -72,17 +103,11 @@ class Reaction:
 class ReactionRegistry:
     """Manages declared Reactions and evaluates them periodically.
 
-    Only ``evaluate_cycle`` is wired into the runtime (via
-    ``RuntimeLoop._maintenance``). It unconditionally invokes every Reaction
-    whose ``count_gte > 0`` and which has a handler, passing the Kernel as
-    the sole argument. ``ReactionWhen`` fields (``event_type``, ``window_days``,
-    ``payload_check``…) are declarative metadata surfaced via ``list_reactions``
-    and the Triggers API, but are NOT consulted by the evaluator — handlers
-    must perform their own condition checks internally.
-
-    An earlier ``on_event`` event-driven path existed but was never wired into
-    Kernel._dispatch; it was removed to avoid giving the impression that
-    ``ReactionWhen`` fields drive firing.
+    ``evaluate_cycle`` (via ``RuntimeLoop._maintenance``):
+      1. Skip reactions without a handler or not marked periodic.
+      2. If ``state_selector`` + ``count_gte`` are set, query state and skip
+         when below threshold.
+      3. Invoke the handler with the Kernel.
     """
 
     def __init__(self):
@@ -91,34 +116,65 @@ class ReactionRegistry:
     def register(self, reaction: Reaction) -> None:
         self._reactions[reaction.name] = reaction
 
+    def _state_gate_passes(self, reaction: Reaction, kernel: "Kernel") -> bool:
+        """Return False when a state threshold is configured and not met."""
+        when = reaction.when
+        if not when.state_selector or when.count_gte <= 0:
+            return True
+        try:
+            rows = kernel.query_state(
+                when.state_selector,
+                limit=when.count_gte,
+                **when.state_filters,
+            )
+        except Exception:
+            import logging
+            logging.getLogger(__name__).warning(
+                "Reaction state gate query failed for %s", reaction.name, exc_info=True,
+            )
+            return False
+        return len(rows) >= when.count_gte
+
     def evaluate_cycle(self, kernel: "Kernel") -> int:
         """Called periodically by RuntimeLoop to process timer-based reactions.
 
-        Returns number of reactions that fired.
+        Returns number of reactions whose handlers were invoked (after gates).
         """
         fired = 0
-        # Timer-based reactions include staleness checks, etc.
-        # This is the replacement for the old trigger_engine.evaluate_and_notify().
         for reaction in self._reactions.values():
-            if reaction.when.count_gte > 0 and reaction.handler:
-                try:
-                    reaction.handler(kernel)
-                    fired += 1
-                except Exception:
-                    import logging
-                    logging.getLogger(__name__).warning(
-                        "Periodic reaction handler failed for %s", reaction.name, exc_info=True
-                    )
+            if not reaction.handler or not reaction.when.is_periodic():
+                continue
+            if not self._state_gate_passes(reaction, kernel):
+                continue
+            try:
+                reaction.handler(kernel)
+                fired += 1
+            except Exception:
+                import logging
+                logging.getLogger(__name__).warning(
+                    "Periodic reaction handler failed for %s", reaction.name, exc_info=True,
+                )
         return fired
 
     def list_reactions(self) -> list[dict]:
-        return [
-            {"name": r.name, "when_type": r.when.event_type,
-             "when_aggregate": r.when.aggregate_type,
-             "threshold": r.when.count_gte,
-             "has_handler": r.handler is not None}
-            for r in self._reactions.values()
-        ]
+        result = []
+        for r in self._reactions.values():
+            gated_by = "none"
+            if r.when.state_selector and r.when.count_gte > 0:
+                gated_by = "state"
+            elif r.handler:
+                gated_by = "handler"
+            result.append({
+                "name": r.name,
+                "every_cycle": r.when.every_cycle or r.when.is_periodic(),
+                "when_type": r.when.event_type,
+                "when_aggregate": r.when.aggregate_type,
+                "state_selector": r.when.state_selector,
+                "threshold": r.when.count_gte,
+                "gated_by": gated_by,
+                "has_handler": r.handler is not None,
+            })
+        return result
 
 
 # ── Decorator ──────────────────────────────────────────────────────────────
@@ -136,7 +192,12 @@ def reaction(
 
     Example:
         @reaction(
-            when=ReactionWhen(count_gte=1),
+            when=ReactionWhen(
+                every_cycle=True,
+                state_selector="inbox_emails",
+                state_filters={"status": "pending"},
+                count_gte=50,
+            ),
             then=ReactionThen(notification_template="..."),
         )
         def my_check(kernel=None):

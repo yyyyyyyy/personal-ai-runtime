@@ -98,7 +98,7 @@ class WorkItem:
         state machine jumps (e.g. completed → running) raise immediately
         rather than silently corrupting handler_executions.
         """
-        from app.core.runtime.state_manager import TaskStatus, state_manager
+        from app.core.runtime.task_engine import TaskStatus, state_manager
         state_manager.validate_transition(
             TaskStatus(self.status), TaskStatus(status),
         )

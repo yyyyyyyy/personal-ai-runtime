@@ -50,7 +50,7 @@ def test_query_state_simple(isolated_kernel):
         "title": "Query test",
     }, actor="verify")
 
-    rows = k.query_state("goals", status="active", limit=5)
+    rows = k.query_state("work_items", work_type="goal", status="active", limit=5)
     assert isinstance(rows, list)
     assert len(rows) > 0
 
@@ -63,7 +63,7 @@ def test_query_state_multiple_conditions(isolated_kernel):
         "title": "Query2",
     }, actor="verify")
 
-    rows = k.query_state("goals", limit=10, order="created_at_desc")
+    rows = k.query_state("work_items", work_type="goal", limit=10, order="created_at_desc")
     assert isinstance(rows, list)
     assert len(rows) > 0
 

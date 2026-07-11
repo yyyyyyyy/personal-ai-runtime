@@ -15,6 +15,7 @@ import re
 from datetime import UTC, datetime
 
 from app.config import settings
+from app.core.runtime import read_ports
 from app.core.runtime.kernel import constants
 from app.core.runtime.kernel_instance import kernel
 
@@ -39,7 +40,7 @@ CLASSIFY_SYSTEM_PROMPT = """你是一个邮件分类助手。将每封邮件分�
 
 
 def _existing_message_ids() -> set[str]:
-    rows = kernel.query_state("inbox_emails", limit=5000)
+    rows = read_ports.query_inbox_emails(status="all", limit=5000)
     return {r["id"] for r in rows}
 
 
@@ -158,7 +159,7 @@ def _sync_read_status(unread_ids: set[str]) -> int:
     v0.3.0: emits InboxEmailStatusChanged(status='read') instead of UPDATE.
     """
     updated = 0
-    pending = kernel.query_state("inbox_emails", status="pending", limit=5000)
+    pending = read_ports.query_pending_inbox_emails(limit=5000)
     for row in pending:
         email_id = row["id"]
         if email_id not in unread_ids:
@@ -263,8 +264,8 @@ async def apply_inbox_poll_payload(payload: dict, *, execution_id: str | None = 
 def mark_inbox_email_status(email_id: str, status: str) -> dict | None:
     if status not in ("pending", "read", "handled"):
         raise ValueError(f"Invalid status: {status}")
-    rows = kernel.query_state("inbox_emails", id=email_id, limit=1)
-    if not rows:
+    row = read_ports.query_inbox_email(email_id)
+    if not row:
         return None
     kernel.emit_event(
         constants.EVENT_INBOX_EMAIL_STATUS_CHANGED,
@@ -280,7 +281,7 @@ async def poll_inbox(limit: int = 20, *, execution_id: str | None = None) -> dic
     """Poll unread inbox via Execution chain (InboxPollRequested → handler)."""
     import uuid
 
-    from app.core.runtime.agent_bootstrap import ensure_scheduler
+    from app.core.runtime.agent_scheduler import ensure_scheduler
     from app.core.runtime.agent_scheduler import get_scheduler
 
     if execution_id:
@@ -337,7 +338,7 @@ def generate_inbox_digest() -> dict | None:
     if existing:
         return existing
 
-    rows = kernel.query_state("inbox_emails", digested=0, limit=50, order="importance_desc")
+    rows = read_ports.query_inbox_emails(digested=0, limit=50, order="importance_desc")
 
     if not rows:
         return None
@@ -392,30 +393,14 @@ def list_inbox_emails(
     limit: int = 50,
     status: str = "pending",
 ) -> list[dict]:
-    """Read the inbox_emails projection via Kernel ABI.
-
-    v0.3.0: this is now a thin reader over kernel.query_state; no direct SQL.
-    """
-    if status == "all":
-        if category:
-            rows = kernel.query_state(
-                "inbox_emails", category=category, limit=limit, order="date_desc",
-            )
-        else:
-            rows = kernel.query_state("inbox_emails", limit=limit, order="date_desc")
-    elif category:
-        rows = kernel.query_state(
-            "inbox_emails", category=category, status=status, limit=limit, order="date_desc",
-        )
-    else:
-        rows = kernel.query_state("inbox_emails", status=status, limit=limit, order="date_desc")
-    return rows
+    """Read the inbox_emails projection via read_ports."""
+    return read_ports.query_inbox_emails(
+        category=category, status=status, limit=limit, order="date_desc",
+    )
 
 
 def latest_digest() -> dict | None:
-    from app.core.runtime.kernel_instance import kernel
-
-    rows = kernel.query_state(
-        "notifications", type="inbox_digest", limit=1, order="created_at_desc"
+    rows = read_ports.query_notifications(
+        type="inbox_digest", limit=1, order="created_at_desc",
     )
     return rows[0] if rows else None

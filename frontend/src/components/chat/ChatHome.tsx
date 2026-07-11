@@ -9,15 +9,18 @@ import {
   type Goal,
 } from "../../api/client";
 import { useQuickChat } from "../../hooks/useQuickChat";
+import { useApprovalsQuery } from "../../hooks/useApprovalsQuery";
 import { timeAgo, isStagnant } from "../../utils/timeUtils";
 
 interface ProactiveNudge {
   icon: string;
   message: string;
   action: string;
-  prompt: string;
+  prompt?: string;
   title: string;
   tone: "warning" | "info" | "success";
+  /** If set, navigate here instead of starting a chat. */
+  href?: string;
 }
 
 export default function ChatHome() {
@@ -25,6 +28,7 @@ export default function ChatHome() {
   const conversations = useChatStore((s) => s.conversations);
   const setActiveConversation = useChatStore((s) => s.setActiveConversation);
   const quickChat = useQuickChat();
+  const { data: pendingApprovals = [] } = useApprovalsQuery();
 
   const [memories, setMemories] = useState<{ content: string; category?: string }[]>([]);
   const [goals, setGoals] = useState<Goal[]>([]);
@@ -64,9 +68,24 @@ export default function ChatHome() {
   );
   const activeGoals = goals.filter((g) => g.status === "active");
   const unreadInbox = inbox.length;
+  const approvalCount = pendingApprovals.length;
 
-  // 构建 AI 主动开场白 —— 基于实际状态，不是静态文本
+  // 待决断优先：审批 > 停滞目标 > 邮件 > 引导
   const nudges: ProactiveNudge[] = [];
+
+  if (approvalCount > 0) {
+    nudges.push({
+      icon: "🛡️",
+      message:
+        approvalCount === 1
+          ? "有 1 项工具调用等待你批准"
+          : `有 ${approvalCount} 项工具调用等待你批准`,
+      action: "去审批",
+      title: "待审批",
+      tone: "warning",
+      href: "/approvals",
+    });
+  }
 
   if (stagnantGoals.length > 0) {
     const names = stagnantGoals
@@ -97,7 +116,12 @@ export default function ChatHome() {
     });
   }
 
-  if (memories.length === 0 && activeGoals.length === 0 && unreadInbox === 0) {
+  if (
+    approvalCount === 0 &&
+    memories.length === 0 &&
+    activeGoals.length === 0 &&
+    unreadInbox === 0
+  ) {
     nudges.push({
       icon: "👋",
       message: "我还不太了解你。聊几句，让我记住对你重要的事",
@@ -106,7 +130,7 @@ export default function ChatHome() {
       title: "建立记忆",
       tone: "success",
     });
-  } else if (memories.length > 0 && activeGoals.length === 0) {
+  } else if (memories.length > 0 && activeGoals.length === 0 && approvalCount === 0) {
     nudges.push({
       icon: "🎯",
       message: `我已经记住了 ${memories.length} 件关于你的事。要不要设定一个目标？`,
@@ -118,7 +142,13 @@ export default function ChatHome() {
   }
 
   const handleNudge = (nudge: ProactiveNudge) => {
-    quickChat({ prompt: nudge.prompt, title: nudge.title });
+    if (nudge.href) {
+      navigate(nudge.href);
+      return;
+    }
+    if (nudge.prompt) {
+      quickChat({ prompt: nudge.prompt, title: nudge.title });
+    }
   };
 
   const handleNewChat = () => quickChat();
@@ -132,19 +162,22 @@ export default function ChatHome() {
     .filter((c) => c.updated_at)
     .sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime())[0];
 
+  const decisionCount = approvalCount + stagnantGoals.length + (unreadInbox > 0 ? 1 : 0);
+  const subtitle = loading
+    ? "正在了解你的近况…"
+    : decisionCount > 0
+      ? "这些事需要你决断或推进"
+      : "今天没有待决断事项，开始新对话吧";
+
   return (
     <div className="flex-1 overflow-y-auto p-6">
       <div className="max-w-2xl mx-auto space-y-5">
-        {/* AI 主动开场 */}
         <div className="text-center pt-8 pb-2">
           <div className="text-4xl mb-3">🧠</div>
           <h2 className="text-2xl font-semibold text-gray-200">{greeting}</h2>
-          <p className="text-gray-500 mt-2 text-sm">
-            {loading ? "正在了解你的近况…" : "这是我能帮你做的事"}
-          </p>
+          <p className="text-gray-500 mt-2 text-sm">{subtitle}</p>
         </div>
 
-        {/* 主动建议 —— 替代静态快捷入口 */}
         {!loading && (
           <div className="space-y-2">
             {nudges.map((nudge, i) => {
@@ -181,7 +214,6 @@ export default function ChatHome() {
           </div>
         )}
 
-        {/* 继续上次对话 */}
         {lastConversation && (
           <div
             className="bg-gray-900 border border-gray-800 rounded-xl p-4 hover:border-emerald-600/30 transition-colors cursor-pointer"
@@ -198,7 +230,6 @@ export default function ChatHome() {
           </div>
         )}
 
-        {/* 开始新对话 */}
         <div className="text-center pt-4 pb-8">
           <button
             onClick={handleNewChat}

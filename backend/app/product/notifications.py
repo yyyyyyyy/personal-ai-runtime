@@ -4,6 +4,7 @@ import uuid
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
+from app.core.runtime import read_ports
 from app.core.runtime.kernel.constants import (
     AGGREGATE_NOTIFICATION,
     EVENT_NOTIFICATION_CREATED,
@@ -26,9 +27,14 @@ def find_notification(
     kernel: "Kernel | None" = None,
 ) -> dict | None:
     """Return an existing notification with the same type and title, if any."""
-    rows = _kernel(kernel).query_state(
-        "notifications", type=notif_type, title=title, limit=1
-    )
+    if kernel is None:
+        rows = read_ports.query_notifications(
+            type=notif_type, title=title, limit=1,
+        )
+    else:
+        rows = kernel.query_state(
+            "notifications", type=notif_type, title=title, limit=1,
+        )
     return rows[0] if rows else None
 
 

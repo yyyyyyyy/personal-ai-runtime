@@ -3,6 +3,8 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { type ToolSummaryItem, markNotificationRead, type Notification } from "../api/client";
 import { useDashboard } from "../hooks/useDashboard";
 import { useNotifications } from "../hooks/useNotifications";
+import { useApprovalsQuery } from "../hooks/useApprovalsQuery";
+import { useInboxQuery } from "../hooks/useInboxQuery";
 import { toolLabel } from "../utils/toolLabels";
 import NotificationDetailModal from "../components/notifications/NotificationDetailModal";
 import { notificationPreview } from "../utils/notificationUtils";
@@ -20,6 +22,7 @@ import {
   ChevronDown,
   ChevronRight,
   LayoutDashboard,
+  ShieldCheck,
 } from "lucide-react";
 
 function getDateString(): string {
@@ -78,6 +81,10 @@ export default function DashboardPage() {
   const { cost, tools, memory, health, notifications, dashboard, loading, error, refresh } =
     useDashboard();
   const { liveNotifications } = useNotifications();
+  const { data: pendingApprovals = [] } = useApprovalsQuery();
+  const { data: inboxData } = useInboxQuery();
+  const pendingApprovalCount = pendingApprovals.length;
+  const pendingInboxCount = inboxData?.emails?.length ?? 0;
 
   if (tab === "trust") {
     return (
@@ -161,6 +168,34 @@ export default function DashboardPage() {
         </div>
 
         <TabBar tab={tab} setTab={setTab} />
+
+        {(pendingApprovalCount > 0 || pendingInboxCount > 0) && (
+          <div className="bg-gray-900 border border-amber-800/40 rounded-xl p-4 mb-6">
+            <h3 className="text-sm font-medium text-amber-200/90 mb-3">待你决断</h3>
+            <div className="flex flex-wrap gap-2">
+              {pendingApprovalCount > 0 && (
+                <button
+                  type="button"
+                  onClick={() => navigate("/approvals")}
+                  className="flex items-center gap-2 px-3 py-2 bg-amber-900/20 hover:bg-amber-900/40 text-amber-200 rounded-lg border border-amber-700/40 text-sm transition-colors"
+                >
+                  <ShieldCheck size={14} />
+                  <span>{pendingApprovalCount} 项待审批</span>
+                </button>
+              )}
+              {pendingInboxCount > 0 && (
+                <button
+                  type="button"
+                  onClick={() => navigate("/inbox")}
+                  className="flex items-center gap-2 px-3 py-2 bg-blue-900/20 hover:bg-blue-900/40 text-blue-200 rounded-lg border border-blue-700/40 text-sm transition-colors"
+                >
+                  <Mail size={14} />
+                  <span>{pendingInboxCount} 封待处理邮件</span>
+                </button>
+              )}
+            </div>
+          </div>
+        )}
 
         {dashboard?.data_sovereignty && (
           <div className="bg-gray-900 border border-gray-800 rounded-xl p-5 mb-6">

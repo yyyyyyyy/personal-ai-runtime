@@ -38,10 +38,10 @@ class TestQueryStateW2:
             },
         )
 
-        stale = k.query_state("goals", status="active", last_activity_older_than_days=3, limit=50)
+        stale = k.query_state("work_items", work_type="goal", status="active", last_activity_older_than_days=3, limit=50)
         assert {g["id"] for g in stale} == {"g-stale"}
 
-        due = k.query_state("goals", status="active", deadline_within_days=36500, limit=50)
+        due = k.query_state("work_items", work_type="goal", status="active", deadline_within_days=36500, limit=50)
         assert {g["id"] for g in due} == {"g-due"}
 
     def test_actions_status_filter(self, tmp_path):

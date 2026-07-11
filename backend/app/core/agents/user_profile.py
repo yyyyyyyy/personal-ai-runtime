@@ -9,6 +9,7 @@ through the Kernel.
 import json
 from datetime import UTC, datetime, timedelta
 
+from app.core.runtime import read_ports
 from app.core.runtime.kernel_instance import kernel
 
 CATEGORIES = ["preferences", "values", "relationships", "health", "finance", "career"]
@@ -76,8 +77,7 @@ class UserProfile:
         return self._get_category(category)
 
     def _get_category(self, category: str) -> dict | None:
-        rows = kernel.query_state("user_profile", id=category)
-        return rows[0] if rows else None
+        return read_ports.query_user_profile_category(category)
 
     def refresh_all(self):
         """Recalculate time decay on all categories."""

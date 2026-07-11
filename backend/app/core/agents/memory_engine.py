@@ -8,6 +8,7 @@ ChromaDB is a derived search index maintained by the Kernel after projection.
 import uuid
 from typing import TYPE_CHECKING
 
+from app.core.runtime import read_ports
 from app.core.runtime.kernel_instance import kernel
 from app.core.runtime.runtime_container import _LazyProxy, runtime
 
@@ -65,10 +66,9 @@ class MemoryEngine:
             memory_id = hit.get("id")
             if not memory_id:
                 continue
-            rows = kernel.query_state("memories", id=memory_id)
-            if not rows:
+            row = read_ports.query_memory(memory_id)
+            if not row:
                 continue
-            row = rows[0]
             enriched.append({
                 "id": memory_id,
                 "content": row.get("content") or hit.get("content", ""),
@@ -94,11 +94,8 @@ class MemoryEngine:
         return self.format_memory_context(enriched)
 
     def list_memories(self, category: str | None = None, limit: int = 50) -> list[dict]:
-        """List stored memories via Kernel read ABI."""
-        filters: dict = {"limit": limit}
-        if category:
-            filters["category"] = category
-        return kernel.query_state("memories", **filters)
+        """List stored memories via read_ports."""
+        return read_ports.query_memories(category=category, limit=limit)
 
     def delete_memory(self, memory_id: str, actor: str = "user") -> None:
         """Delete a memory via Kernel event; Chroma index syncs in Kernel Space."""

@@ -122,7 +122,7 @@ def test_last_activity_asc_order(kernel_with_goal_work_items):
 def test_work_type_filter_excludes_tasks(kernel_with_goal_work_items):
     """work_type='goal' excludes task rows."""
     k = kernel_with_goal_work_items
-    rows = k.query_state("goals", limit=50)
+    rows = k.query_state("work_items", work_type="goal", limit=50)
     ids = {r["id"] for r in rows}
     assert "t_task_1" not in ids
     assert "g_active_1" in ids

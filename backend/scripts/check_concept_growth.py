@@ -77,7 +77,7 @@ def count_projector_files() -> int:
 def count_god_object_max_loc() -> int:
     """Return the max LOC of known God Object candidates.
 
-    Measures Kernel (core class + 3 mixins), Brain (core + mixin), and
+    Measures Kernel (core + query/sovereignty mixins), Brain (core + mixin), and
     MCPHub. Returns the LOC of the largest one.
     """
     kernel_dir = ROOT / "backend" / "app" / "core" / "runtime" / "kernel"
@@ -91,7 +91,6 @@ def count_god_object_max_loc() -> int:
 
     kernel_loc = _loc(
         kernel_dir / "kernel.py",
-        kernel_dir / "kernel_governance.py",
         kernel_dir / "kernel_query_state.py",
         kernel_dir / "kernel_sovereignty.py",
     )
@@ -123,13 +122,13 @@ def count_dead_code_files() -> int:
 # the table in docs/02-concepts/runtime-algebra.md §4.6.
 
 BASELINE = {
-    "runtime_files": 55,               # unchanged
+    "runtime_files": 45,               # concept compression merges
     "event_types": 56,                 # unchanged
-    "query_state_selectors": 14,       # unchanged
+    "query_state_selectors": 10,       # dropped goals/timer/background/user_profile
     "fragments": 10,                   # register.py
     "governed_tables": 14,             # unchanged
-    "projector_files": 9,              # unchanged
-    "god_object_max_loc": 1989,        # streaming export via query_builder; snapshot() delegates to iter chunks
+    "projector_files": 6,              # telemetry folded into projectors_governance
+    "god_object_max_loc": 559,        # after governance fold into kernel.py
     "dead_code_files": 0,              # 已知死代码文件数
 }
 

@@ -1,6 +1,7 @@
 """Built-in Reactions — declarative event→action bindings.
 
 v0.6.0: Replaces the old trigger_engine.seed_builtin_triggers().
+v0.12.0: ReactionWhen.every_cycle + state_selector gate evaluated by registry.
 Each reaction below is registered via the @reaction decorator at import time.
 """
 
@@ -19,10 +20,14 @@ _EMAIL_BACKLOG_NOTIF_TITLE = "收件箱整理建议"
 
 
 @reaction(
-    # count_gte > 0 opts the reaction into evaluate_cycle. event_type is
-    # declarative metadata surfaced via list_reactions (see Triggers API) —
-    # the handler performs the real condition check.
-    when=ReactionWhen(event_type="InboxEmailRecorded", count_gte=_EMAIL_BACKLOG_THRESHOLD),
+    when=ReactionWhen(
+        every_cycle=True,
+        state_selector="inbox_emails",
+        state_filters={"status": "pending"},
+        count_gte=_EMAIL_BACKLOG_THRESHOLD,
+        # Descriptive: InboxEmailRecorded feeds the pending inbox projection.
+        event_type="InboxEmailRecorded",
+    ),
     then=ReactionThen(
         notification_template="收件箱积压 {count} 封邮件，需要整理吗？",
         notification_severity="warning",
@@ -31,11 +36,8 @@ _EMAIL_BACKLOG_NOTIF_TITLE = "收件箱整理建议"
 def email_backlog_50(kernel=None) -> None:
     """Notify when pending inbox emails reach the backlog threshold.
 
-    Invoked periodically by RuntimeLoop via ``evaluate_cycle``, which passes
-    the Kernel instance. The ``count_gte``/``event_type`` on ``ReactionWhen``
-    are declarative metadata only — ``evaluate_cycle`` does not consult them
-    when deciding whether to call the handler (it calls every handler whose
-    ``count_gte > 0``), so the real threshold check must live here.
+    ``evaluate_cycle`` already gates on pending inbox count >= threshold.
+    This handler re-checks (defense in depth), dedupes, and notifies.
     """
     import logging
 
@@ -76,11 +78,10 @@ def _register_staleness_reactions():
 
     registry = get_reaction_registry()
 
-    # Goal staleness reaction: fired periodically by RuntimeLoop._maintenance
     from app.core.runtime.reaction_registry import Reaction, ReactionWhen
     registry.register(Reaction(
         name="goal_staleness_check",
-        when=ReactionWhen(count_gte=1),  # always evaluated in cycle
+        when=ReactionWhen(every_cycle=True),
         handler=_check_stagnant_goals,
     ))
 
@@ -92,7 +93,7 @@ def _check_stagnant_goals(kernel=None) -> None:
     from app.core.runtime.kernel_instance import kernel as k
     kern = kernel or k
 
-    # v1.0 Phase 3b: prefer work_items(work_type='goal'), fall back to goals.
+    # Prefer work_items(work_type='goal'); goals selector is a legacy alias.
     stagnant = kern.query_state(
         "work_items", work_type="goal", status="active",
         last_activity_older_than_days=3, limit=5,

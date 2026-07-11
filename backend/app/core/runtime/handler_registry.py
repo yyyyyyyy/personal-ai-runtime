@@ -25,7 +25,7 @@ import logging
 from typing import TYPE_CHECKING, Awaitable, Callable
 
 if TYPE_CHECKING:
-    from .execution_context import ExecutionContext
+    from .execution import ExecutionContext
     from .kernel.event import Event
 
 logger = logging.getLogger(__name__)

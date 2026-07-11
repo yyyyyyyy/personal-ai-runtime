@@ -15,6 +15,14 @@ vi.mock("../hooks/useNotifications", () => ({
   useNotifications: vi.fn(),
 }));
 
+vi.mock("../hooks/useApprovalsQuery", () => ({
+  useApprovalsQuery: () => ({ data: [] }),
+}));
+
+vi.mock("../hooks/useInboxQuery", () => ({
+  useInboxQuery: () => ({ data: { emails: [], digest: {} } }),
+}));
+
 import { useDashboard } from "../hooks/useDashboard";
 import { useNotifications } from "../hooks/useNotifications";
 

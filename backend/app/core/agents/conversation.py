@@ -13,6 +13,7 @@ from datetime import UTC, datetime
 
 from app.config import settings
 from app.core.agents.tool_markup import strip_tool_markup
+from app.core.runtime import read_ports
 from app.core.runtime.kernel_instance import kernel as default_kernel
 
 
@@ -36,12 +37,19 @@ class ConversationManager:
         If since_created_at is provided, only return messages created after
         that timestamp (enables incremental fetching for long conversations).
         """
-        messages = self._k().query_state(
-            "messages",
-            conversation_id=self.conversation_id,
-            limit=settings.max_recent_messages,
-            order="created_at_asc",
-        )
+        if self.kernel is not None:
+            messages = self.kernel.query_state(
+                "messages",
+                conversation_id=self.conversation_id,
+                limit=settings.max_recent_messages,
+                order="created_at_asc",
+            )
+        else:
+            messages = read_ports.query_conversation_messages(
+                self.conversation_id,
+                limit=settings.max_recent_messages,
+                order="created_at_asc",
+            )
         result = []
         for msg in messages:
             if since_created_at and msg["created_at"] <= since_created_at:
@@ -87,8 +95,12 @@ class ConversationManager:
             payload=payload,
             actor="user",
         )
-        rows = self._k().query_state("messages", id=msg_id)
-        return rows[0] if rows else {
+        if self.kernel is not None:
+            rows = self.kernel.query_state("messages", id=msg_id)
+            row = rows[0] if rows else None
+        else:
+            row = read_ports.query_message(msg_id)
+        return row if row else {
             "id": msg_id,
             "conversation_id": self.conversation_id,
             "role": role,
@@ -128,8 +140,12 @@ class ConversationAPI:
             payload={"title": title or "New Conversation", "created_at": now},
             actor="user",
         )
-        rows = k.query_state("conversations", id=conv_id)
-        return rows[0] if rows else {
+        if kernel is None:
+            conv = read_ports.query_conversation(conv_id)
+        else:
+            rows = k.query_state("conversations", id=conv_id)
+            conv = rows[0] if rows else None
+        return conv if conv else {
             "id": conv_id,
             "title": title or "New Conversation",
             "created_at": now,
@@ -138,12 +154,11 @@ class ConversationAPI:
 
     @staticmethod
     def get(conv_id: str) -> dict | None:
-        rows = default_kernel.query_state("conversations", id=conv_id)
-        return rows[0] if rows else None
+        return read_ports.query_conversation(conv_id)
 
     @staticmethod
     def list_all(limit: int = 50) -> list[dict]:
-        return default_kernel.query_state("conversations", limit=limit)
+        return read_ports.query_conversations(limit=limit)
 
     @staticmethod
     def delete(conv_id: str, *, kernel=None):

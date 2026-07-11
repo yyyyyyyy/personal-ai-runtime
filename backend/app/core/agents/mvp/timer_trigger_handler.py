@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING
 from app.core.runtime.handler_registry import subscribe
 
 if TYPE_CHECKING:
-    from app.core.runtime.execution_context import ExecutionContext
+    from app.core.runtime.execution import ExecutionContext
     from app.core.runtime.kernel.event import Event
 
 logger = logging.getLogger(__name__)
@@ -20,13 +20,10 @@ async def _call_product(handler_name: str) -> None:
 
     try:
         if handler_name == "deadline_alert":
-            from app.core.runtime.kernel_instance import kernel
+            from app.core.runtime import read_ports
 
             # v1.0 Phase 4: goals table retired
-            candidates = kernel.query_state(
-                "work_items", work_type="goal", status="active",
-                has_deadline=True, limit=500,
-            )
+            candidates = read_ports.query_goals_with_deadline(limit=500)
             today_utc = datetime.now(UTC).date()
             target_dates = {today_utc + timedelta(days=offset) for offset in (1, 3)}
             for goal in candidates:
@@ -43,7 +40,7 @@ async def _call_product(handler_name: str) -> None:
 
                     create_notification("alert", "Deadline 预警", f"目标「{goal['title']}」还有 {days_left} 天截止")
         elif handler_name == "memory_decay":
-            from app.core.runtime.memory_decay import run_memory_decay
+            from app.core.runtime.cron_registry import run_memory_decay
 
             run_memory_decay()
         elif handler_name == "world_model_snapshot":
@@ -69,21 +66,19 @@ async def _call_product(handler_name: str) -> None:
                     type_="inbox_digest",
                 )
         elif handler_name == "morning_brief":
-            from app.core.runtime.kernel_instance import kernel
+            from app.core.runtime import read_ports
             from app.core.runtime.notification_channel import notification_router
 
             now = datetime.now(UTC)
             # Get today's calendar events
             try:
-                calendar_items = kernel.query_state("timer_events", status="active", limit=50)
+                calendar_items = read_ports.query_active_timers(limit=50)
             except Exception:
                 calendar_items = []
 
-            # Get goal summary (v1.0 Phase 3b: prefer work_items, fall back to goals)
+            # Get goal summary
             try:
-                active_goals = kernel.query_state(
-                    "work_items", work_type="goal", status="active", limit=10,
-                )
+                active_goals = read_ports.query_active_goals(limit=10)
 
                 goal_lines = "\n".join([f"  · {g.get('title', '')} (进度 {g.get('progress', 0)}%)" for g in active_goals[:5]]) if active_goals else "  无"
             except Exception:
@@ -91,7 +86,7 @@ async def _call_product(handler_name: str) -> None:
 
             # Get unread inbox count
             try:
-                inbox_items = kernel.query_state("inbox_emails", limit=500, status="new")
+                inbox_items = read_ports.query_inbox_emails(limit=500, status="new")
                 inbox_count: int = len(inbox_items)
             except Exception:
                 inbox_count = 0
@@ -124,7 +119,7 @@ async def _run_inbox_poll():
     """
     import uuid
 
-    from app.core.runtime.agent_bootstrap import ensure_scheduler
+    from app.core.runtime.agent_scheduler import ensure_scheduler
     from app.core.runtime.agent_scheduler import get_scheduler
     from app.core.runtime.kernel_instance import kernel
 

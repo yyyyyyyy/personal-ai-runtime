@@ -1,7 +1,7 @@
 """Tests for State Manager."""
 import pytest
 
-from app.core.runtime.state_manager import TaskStatus, state_manager
+from app.core.runtime.task_engine import TaskStatus, state_manager
 
 
 class TestStateManager:

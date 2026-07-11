@@ -11,6 +11,7 @@ from app.config import settings
 from app.core.agents.brain import Brain
 from app.core.agents.conversation import ConversationAPI, ConversationManager
 from app.core.agents.tool_markup import strip_tool_markup
+from app.core.runtime import read_ports
 from app.core.runtime.kernel_instance import kernel
 
 router = APIRouter(tags=["chat"])
@@ -90,7 +91,9 @@ async def get_messages(conv_id: str, limit: int = 100):
     conv = ConversationAPI.get(conv_id)
     if not conv:
         raise HTTPException(status_code=404, detail="Conversation not found")
-    rows = kernel.query_state("messages", conversation_id=conv_id, limit=limit, order="created_at_asc")
+    rows = read_ports.query_conversation_messages(
+        conv_id, limit=limit, order="created_at_asc",
+    )
     result = []
     for row in rows:
         item = dict(row)
@@ -123,14 +126,14 @@ async def send_message(conv_id: str, body: SendMessageRequest):
 
     correlation_id = f"chat_{uuid.uuid4().hex[:12]}"
 
-    from app.core.runtime.agent_bootstrap import ensure_scheduler
+    from app.core.runtime.agent_scheduler import ensure_scheduler
     await ensure_scheduler(kernel)
 
     from app.core.runtime.agent_scheduler import get_scheduler
     scheduler = get_scheduler(kernel)
     await scheduler.start()
 
-    from app.core.runtime.sse_queue_registry import register, unregister
+    from app.core.runtime.notification_bridge import register, unregister
     sse_queue = register(correlation_id)
 
     kernel.emit_event(
@@ -230,10 +233,9 @@ async def send_message(conv_id: str, body: SendMessageRequest):
 
 def _load_pending_approval(approval_id: str) -> tuple[str, dict]:
     """Load action/params from the governed approval projection (authoritative)."""
-    rows = kernel.query_state("approvals", id=approval_id)
-    if not rows:
+    approval = read_ports.query_approval(approval_id)
+    if not approval:
         raise HTTPException(status_code=404, detail="Approval not found")
-    approval = rows[0]
     if approval["status"] != "pending":
         raise HTTPException(
             status_code=409,
@@ -279,7 +281,7 @@ async def resolve_approval(approval_id: str, body: ResolveApprovalRequest):
     tool_name, tool_args = _load_pending_approval(approval_id)
     _reject_client_approval_mismatch(body, tool_name, tool_args)
 
-    from app.core.runtime.agent_bootstrap import ensure_scheduler
+    from app.core.runtime.agent_scheduler import ensure_scheduler
     await ensure_scheduler(kernel)
     from app.core.runtime.agent_scheduler import get_scheduler
     scheduler = get_scheduler(kernel)

@@ -9,7 +9,7 @@ os.environ.setdefault("LLM_API_KEY", "test-key")
 
 
 @pytest.mark.asyncio
-@patch("app.core.runtime.memory_decay.run_memory_decay")
+@patch("app.core.runtime.cron_registry.run_memory_decay")
 async def test_run_memory_decay(mock_decay):
     from app.core.agents.mvp.timer_trigger_handler import _call_product
 

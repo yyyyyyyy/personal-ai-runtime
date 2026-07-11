@@ -8,15 +8,79 @@ any caller's business logic: import sites shift from
 and calls drop the ``task_engine.`` prefix.
 
 The functions remain thin wrappers over ``kernel.emit_event`` +
-``kernel.query_state`` plus three pieces of real business logic that were
+``read_ports`` queries plus three pieces of real business logic that were
 always worth keeping: status-machine validation (StateManager), dependency
 checks, and recursive tree assembly.
 """
 import json
 import uuid
+from enum import Enum
+from typing import TYPE_CHECKING
 
+from app.core.runtime import read_ports
 from app.core.runtime.kernel_instance import kernel
-from app.core.runtime.state_manager import TaskStatus, state_manager
+from app.core.runtime.runtime_container import _LazyProxy, runtime
+
+
+# ── State Manager (folded from state_manager.py) ─────────────────────────
+
+class TaskStatus(str, Enum):
+    PENDING = "pending"
+    RUNNING = "running"
+    BLOCKED = "blocked"
+    WAITING_APPROVAL = "waiting_approval"
+    COMPLETED = "completed"
+    FAILED = "failed"
+    CANCELLED = "cancelled"
+    RETRYING = "retrying"
+
+
+# Valid state transitions
+_TRANSITIONS: dict[TaskStatus, set[TaskStatus]] = {
+    TaskStatus.PENDING: {TaskStatus.RUNNING, TaskStatus.CANCELLED},
+    TaskStatus.RUNNING: {
+        TaskStatus.BLOCKED, TaskStatus.WAITING_APPROVAL,
+        TaskStatus.COMPLETED, TaskStatus.FAILED, TaskStatus.RETRYING,
+    },
+    TaskStatus.BLOCKED: {TaskStatus.PENDING, TaskStatus.RUNNING, TaskStatus.CANCELLED},
+    TaskStatus.WAITING_APPROVAL: {TaskStatus.RUNNING, TaskStatus.CANCELLED},
+    TaskStatus.RETRYING: {TaskStatus.PENDING, TaskStatus.FAILED},
+    TaskStatus.COMPLETED: set(),  # terminal
+    TaskStatus.FAILED: {TaskStatus.PENDING, TaskStatus.RETRYING},  # can retry
+    TaskStatus.CANCELLED: set(),  # terminal
+}
+
+
+class StateManager:
+    """Validates and performs state transitions."""
+
+    def validate_transition(self, from_status: TaskStatus, to_status: TaskStatus) -> bool:
+        """Check if a transition is allowed."""
+        if to_status not in _TRANSITIONS.get(from_status, set()):
+            raise ValueError(
+                f"Illegal state transition: {from_status.value} -> {to_status.value}. "
+                f"Allowed: {[s.value for s in _TRANSITIONS.get(from_status, set())]}"
+            )
+        return True
+
+    def transition(self, entity_id: str, entity_type: str, from_status: TaskStatus, to_status: TaskStatus) -> TaskStatus:
+        """Perform a validated state transition."""
+        self.validate_transition(from_status, to_status)
+        return to_status
+
+    @staticmethod
+    def is_terminal(status: TaskStatus) -> bool:
+        return status in (TaskStatus.COMPLETED, TaskStatus.CANCELLED)
+
+    @staticmethod
+    def is_active(status: TaskStatus) -> bool:
+        return status in (TaskStatus.PENDING, TaskStatus.RUNNING, TaskStatus.BLOCKED, TaskStatus.WAITING_APPROVAL)
+
+
+if TYPE_CHECKING:
+    state_manager: StateManager
+else:
+    state_manager = _LazyProxy(lambda: runtime.state_manager)
 
 
 def create_work_item(
@@ -75,10 +139,10 @@ def create_work_item(
         actor="user",
     )
 
-    rows = kernel.query_state("work_items", id=item_id)
-    if not rows:
+    item = read_ports.query_work_item(item_id)
+    if not item:
         raise RuntimeError(f"WorkItem {item_id} not found after creation")
-    return rows[0]
+    return item
 
 
 def update_work_item_fields(
@@ -140,20 +204,20 @@ def update_work_item_fields(
 
 
 def get_work_item(item_id: str) -> dict | None:
-    rows = kernel.query_state("work_items", id=item_id)
-    return rows[0] if rows else None
+    return read_ports.query_work_item(item_id)
 
 
 def get_sub_work_items(parent_work_id: str) -> list[dict]:
-    return kernel.query_state("work_items", parent_work_id=parent_work_id,
-                              order="priority_desc")
+    return read_ports.query_work_items(
+        parent_work_id=parent_work_id, order="priority_desc",
+    )
 
 
 def get_work_items_for_goal(goal_id: str, *, work_type: str | None = None) -> list[dict]:
     filters: dict = {"parent_goal_id": goal_id, "order": "priority_desc"}
     if work_type:
         filters["work_type"] = work_type
-    return kernel.query_state("work_items", **filters)
+    return read_ports.query_work_items(**filters)
 
 
 def get_work_item_tree(goal_id: str) -> list[dict]:
@@ -203,7 +267,7 @@ def list_work_items(
         filters["order"] = "created_at_desc"
     if work_type:
         filters["work_type"] = work_type
-    return kernel.query_state("work_items", **filters)
+    return read_ports.query_work_items(**filters)
 
 
 def are_dependencies_met(item_id: str) -> bool:

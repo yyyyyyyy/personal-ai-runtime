@@ -138,14 +138,18 @@ def test_drain_repairs_succeeds_and_deletes_row(tmp_path):
     k._memory_index = _HealthyIndex()
 
     loop = RuntimeLoop()
-    # Inject the test kernel into the loop's module-level kernel reference.
+    # Inject the test kernel into loop + kernel_instance (read_ports uses the latter).
+    import app.core.runtime.kernel_instance as ki
     import app.core.runtime.runtime_loop as rl_mod
-    original_kernel = rl_mod.kernel
+    original_loop_kernel = rl_mod.kernel
+    original_instance_kernel = ki.kernel
     rl_mod.kernel = k
+    ki.kernel = k
     try:
         loop._drain_memory_index_repairs()
     finally:
-        rl_mod.kernel = original_kernel
+        rl_mod.kernel = original_loop_kernel
+        ki.kernel = original_instance_kernel
 
     assert _count_repairs(db) == [], "row should be deleted after successful repair"
 
@@ -165,15 +169,19 @@ def test_drain_repairs_marks_permanent_after_max_retries(tmp_path):
     )
 
     loop = RuntimeLoop()
+    import app.core.runtime.kernel_instance as ki
     import app.core.runtime.runtime_loop as rl_mod
-    original_kernel = rl_mod.kernel
+    original_loop_kernel = rl_mod.kernel
+    original_instance_kernel = ki.kernel
     rl_mod.kernel = k
+    ki.kernel = k
     try:
         # max_retries in the worker is 5; loop enough times to exhaust.
         for _ in range(6):
             loop._drain_memory_index_repairs()
     finally:
-        rl_mod.kernel = original_kernel
+        rl_mod.kernel = original_loop_kernel
+        ki.kernel = original_instance_kernel
 
     rows = _count_repairs(db, status="failed_permanent")
     assert len(rows) == 1, f"expected 1 failed_permanent row, got {len(rows)}"
