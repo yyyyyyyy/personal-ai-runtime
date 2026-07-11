@@ -67,7 +67,8 @@ def main() -> int:
         return 1
 
     k.emit_event("WorkItemUpdated", "work_item", "g2", payload={"progress": 0.25}, actor="verify")
-    k.snapshot()
+    # Export snapshot is read-only; checkpoints advance via save_projection_snapshots.
+    k.save_projection_snapshots(("work_item",))
 
     seq_after_export = read_checkpoint_seq(db, "work_item")
     if seq_after_export is None:
@@ -88,7 +89,7 @@ def main() -> int:
 
     print(
         f"SNAPSHOT REBUILD PASSED — incremental replay {replayed} events; "
-        f"export advanced checkpoint {seq_before_export} -> {seq_after_export}"
+        f"checkpoint advanced {seq_before_export} -> {seq_after_export}"
     )
     return 0
 
