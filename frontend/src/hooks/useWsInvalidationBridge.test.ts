@@ -32,6 +32,21 @@ describe("applyWsInvalidation", () => {
     );
   });
 
+  it("invalidates goals on goal_changed", () => {
+    const qc = makeQc();
+    applyWsInvalidation(qc as never, { type: "goal_changed", work_item_id: "g1" });
+    const keys = qc.invalidateQueries.mock.calls.map((c) => c[0].queryKey);
+    expect(keys).toEqual(
+      expect.arrayContaining([
+        queryKeys.goals,
+        queryKeys.dashboard,
+        queryKeys.timeline,
+        queryKeys.trustReport,
+        queryKeys.portrait,
+      ]),
+    );
+  });
+
   it("routes notification_type to inbox/goals", () => {
     const qc = makeQc();
     applyWsInvalidation(qc as never, {

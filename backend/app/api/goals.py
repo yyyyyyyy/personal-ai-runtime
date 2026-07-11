@@ -5,6 +5,7 @@ work_type='goal' and aggregate_type='work_item' (previously GoalCreated/
 Updated/Completed/Deleted/Touched with aggregate_type='goal').
 """
 
+import asyncio
 import json
 import uuid
 from datetime import UTC, datetime
@@ -83,19 +84,25 @@ async def list_goals(status: str | None = None, limit: int = 50):
     filters: dict[str, object] = {"limit": limit}
     if status:
         filters["status"] = status
-    return kernel.query_state("goals", **filters)
+    return await asyncio.to_thread(kernel.query_state, "goals", **filters)
 
 
 @router.get("/{goal_id}")
 async def get_goal(goal_id: str):
     """Get a goal with its actions and events."""
-    goal = _get_goal(goal_id)
+    def _load() -> dict | None:
+        goal = _get_goal(goal_id)
+        if not goal:
+            return None
+        goal["actions"] = kernel.query_state(
+            "work_items", parent_goal_id=goal_id, work_type="action",
+        )
+        goal["events"] = goal_events(goal_id, limit=10)
+        return goal
+
+    goal = await asyncio.to_thread(_load)
     if not goal:
         raise HTTPException(status_code=404, detail="Goal not found")
-    goal["actions"] = kernel.query_state(
-        "work_items", parent_goal_id=goal_id, work_type="action",
-    )
-    goal["events"] = goal_events(goal_id, limit=10)
     return goal
 
 

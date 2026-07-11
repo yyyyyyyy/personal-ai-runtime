@@ -64,6 +64,13 @@ export function applyWsInvalidation(qc: QueryClient, raw: unknown): void {
       invalidate(qc, queryKeys.trustReport);
       invalidate(qc, queryKeys.dashboard);
       break;
+    case "goal_changed":
+      invalidate(qc, queryKeys.goals);
+      invalidate(qc, queryKeys.dashboard);
+      invalidate(qc, queryKeys.timeline);
+      invalidate(qc, queryKeys.trustReport);
+      invalidate(qc, queryKeys.portrait);
+      break;
     case "notification": {
       invalidate(qc, queryKeys.dashboard);
       invalidate(qc, queryKeys.trustReport);

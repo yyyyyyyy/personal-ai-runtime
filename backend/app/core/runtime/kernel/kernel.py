@@ -213,6 +213,7 @@ class Kernel(QueryStateMixin, GovernanceMixin, SovereigntyMixin):
 
         self._sync_memory_index(event)
         self._dispatch(event)
+        self._notify_goal_changed(event)
         return event
 
     async def submit_command(
@@ -364,6 +365,29 @@ class Kernel(QueryStateMixin, GovernanceMixin, SovereigntyMixin):
             "memory_id": event.aggregate_id,
             "category": event.payload.get("category", "general"),
             "preview": (content or "")[:120],
+            "ts": event.ts,
+        })
+
+    _GOAL_NOTIFY_TYPES = frozenset({
+        "WorkItemCreated",
+        "WorkItemUpdated",
+        "WorkItemStatusChanged",
+        "WorkItemDeleted",
+    })
+
+    def _notify_goal_changed(self, event: Event) -> None:
+        """Push a WS hint when work_items (goals/actions) change."""
+        if event.type not in self._GOAL_NOTIFY_TYPES:
+            return
+        if event.aggregate_type != "work_item":
+            return
+        from app.core.runtime.notification_bridge import broadcast_event
+
+        broadcast_event({
+            "type": "goal_changed",
+            "event_type": event.type,
+            "work_item_id": event.aggregate_id,
+            "work_type": event.payload.get("work_type"),
             "ts": event.ts,
         })
 

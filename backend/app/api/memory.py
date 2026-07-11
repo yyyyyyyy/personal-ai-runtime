@@ -1,5 +1,7 @@
 """Memory API — manage long-term memories and user profile."""
 
+import asyncio
+
 from fastapi import APIRouter, HTTPException
 
 from app.api.models import CreateMemoryRequest, UpdateMemoryRequest
@@ -19,13 +21,15 @@ def _get_memory(memory_id: str) -> dict | None:
 @router.get("/memories")
 async def list_memories(category: str | None = None, limit: int = 50):
     """List all memories, optionally filtered by category."""
-    return memory_engine.list_memories(category=category, limit=limit)
+    return await asyncio.to_thread(
+        memory_engine.list_memories, category=category, limit=limit,
+    )
 
 
 @router.get("/memories/grouped")
 async def list_memories_grouped(limit: int = 100):
     """List memories for the Memory Explorer UI."""
-    rows = memory_engine.list_memories(limit=limit)
+    rows = await asyncio.to_thread(memory_engine.list_memories, limit=limit)
     return {"memories": rows}
 
 
@@ -38,7 +42,9 @@ async def create_memory(body: CreateMemoryRequest):
     if not content:
         raise HTTPException(status_code=400, detail="Content is required")
 
-    memory_id = memory_engine.store_memory(content, category, source="manual")
+    memory_id = await asyncio.to_thread(
+        memory_engine.store_memory, content, category, source="manual",
+    )
     return {"id": memory_id, "status": "ok"}
 
 
@@ -47,7 +53,9 @@ async def search_memories(q: str, n: int = 5):
     """Search memories semantically. **@public** SDK surface — external agents may call this to recall what the user knows."""
     if not q:
         raise HTTPException(status_code=400, detail="Query parameter 'q' is required")
-    return memory_engine.search_relevant_memories(q, n_results=n)
+    return await asyncio.to_thread(
+        memory_engine.search_relevant_memories, q, n,
+    )
 
 
 @router.get("/memories/{memory_id}/provenance")
@@ -240,9 +248,7 @@ async def get_memory_graph(limit: int = 50):
     Edges are built by sampling up to _MAX_EDGE_QUERY_SOURCES memories and
     running a **single** batched Chroma query (not N round-trips).
     """
-    import asyncio
-
-    memories = memory_engine.list_memories(limit=limit)
+    memories = await asyncio.to_thread(memory_engine.list_memories, limit=limit)
     if not memories:
         return {"nodes": [], "edges": []}
 

@@ -36,3 +36,4 @@ Format follows [Keep a Changelog](https://keepachangelog.com/). Version numbers 
 - Settings: Query migration, capability-policy API (trust UI from JSON), surface silent load errors
 - Follow-up: taint path = settings.capability_policy_path (fail-closed); Dashboard/Trust soft-fail; MCP mesh in startup_health
 - Fix notification WS envelope type; approval_changed invalidation; memory graph batched Chroma query
+- goal_changed WS; async to_thread on dashboard/memory/goals/knowledge reads; SSE idle timeout during read()

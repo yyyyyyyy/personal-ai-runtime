@@ -85,6 +85,30 @@ export async function sendMessage(
   let lastByteTime = Date.now();
   const SSE_IDLE_TIMEOUT_MS = 30_000;
 
+  const readWithIdleTimeout = (): Promise<ReadableStreamReadResult<Uint8Array>> => {
+    let timer: ReturnType<typeof setInterval> | undefined;
+    return new Promise((resolve, reject) => {
+      let settled = false;
+      const finish = (fn: () => void) => {
+        if (settled) return;
+        settled = true;
+        if (timer !== undefined) clearInterval(timer);
+        fn();
+      };
+      timer = setInterval(() => {
+        if (signal?.aborted) {
+          finish(() => reject(new DOMException("Aborted", "AbortError")));
+        } else if (Date.now() - lastByteTime > SSE_IDLE_TIMEOUT_MS) {
+          finish(() => reject(new Error("SSE_IDLE_TIMEOUT")));
+        }
+      }, 1000);
+      reader.read().then(
+        (result) => finish(() => resolve(result)),
+        (err) => finish(() => reject(err)),
+      );
+    });
+  };
+
   try {
     while (true) {
       if (signal?.aborted) {
@@ -92,7 +116,23 @@ export async function sendMessage(
         return;
       }
 
-      const { done, value } = await reader.read();
+      let chunk: ReadableStreamReadResult<Uint8Array>;
+      try {
+        chunk = await readWithIdleTimeout();
+      } catch (err) {
+        if (signal?.aborted || (err instanceof DOMException && err.name === "AbortError")) {
+          onDone();
+          return;
+        }
+        if (err instanceof Error && err.message === "SSE_IDLE_TIMEOUT") {
+          reader.cancel().catch(() => {});
+          onError("连接超时，服务端无响应。请重试。");
+          return;
+        }
+        throw err;
+      }
+
+      const { done, value } = chunk;
       if (done) {
         onDone();
         break;
@@ -125,13 +165,6 @@ export async function sendMessage(
         } catch {
           // Skip parse errors
         }
-      }
-
-      // Abort if no data received for too long (silent server hang)
-      if (Date.now() - lastByteTime > SSE_IDLE_TIMEOUT_MS) {
-        reader.cancel().catch(() => {});
-        onError("连接超时，服务端无响应。请重试。");
-        return;
       }
     }
   } catch (err) {

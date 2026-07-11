@@ -8,6 +8,7 @@ import json
 import logging
 import re
 import uuid
+import asyncio
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -203,5 +204,5 @@ async def search_knowledge(
     n_results: int = Query(5, ge=1, le=20),
 ):
     """Search knowledge documents semantically. **@public** SDK surface — external agents may call this to recall from the user's document library."""
-    results = vector_store.search_knowledge(query, n_results=n_results)
+    results = await asyncio.to_thread(vector_store.search_knowledge, query, n_results)
     return {"results": results, "query": query, "total": len(results)}

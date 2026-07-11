@@ -18,6 +18,7 @@ interface WSNotificationPayload {
   title?: string;
   content?: string;
   created_at?: string;
+  notification_type?: string;
 }
 
 function isValidNotification(data: unknown): data is WSNotificationPayload {
@@ -88,8 +89,8 @@ export function useNotifications() {
             if (raw.type !== "notification") return;
 
             const category =
-              typeof (raw as { notification_type?: unknown }).notification_type === "string"
-                ? (raw as { notification_type: string }).notification_type
+              typeof raw.notification_type === "string" && raw.notification_type
+                ? raw.notification_type
                 : "notification";
 
             const item: NotificationItem = {

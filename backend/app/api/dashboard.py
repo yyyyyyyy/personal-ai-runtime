@@ -5,6 +5,8 @@ delivered using only Kernel ABI without bypassing Runtime boundaries.
 Every data read goes through kernel.query_state / read_events / recall_memory.
 """
 
+import asyncio
+
 from fastapi import APIRouter
 
 from app.product.personal_dashboard import generate_dashboard
@@ -22,4 +24,5 @@ async def get_dashboard():
       - recall_memory for semantic belief recall
       - Zero SQL / storage / filesystem access outside Kernel
     """
-    return generate_dashboard()
+    # generate_dashboard does sync SQLite + Chroma — keep the event loop free.
+    return await asyncio.to_thread(generate_dashboard)
