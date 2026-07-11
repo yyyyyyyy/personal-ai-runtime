@@ -192,6 +192,10 @@ export interface GoalEvent {
   timestamp: string;
 }
 
+/**
+ * Goal — view-model over WorkItem (work_type=goal) plus optional embedded
+ * actions/events. UI consumers use this shape; API clients convert at the edge.
+ */
 export interface Goal {
   id: string;
   title: string;

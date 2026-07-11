@@ -2,12 +2,15 @@ import { describe, expect, it, vi, beforeEach } from "vitest";
 import { render, screen, waitFor, fireEvent } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import ContextPanel from "./ContextPanel";
-import { listGoals, searchMemories, listPendingApprovals } from "../../api/client";
+import { searchMemories, listPendingApprovals } from "../../api/client";
 
 vi.mock("../../api/client", () => ({
-  listGoals: vi.fn(),
   searchMemories: vi.fn(),
   listPendingApprovals: vi.fn(),
+}));
+
+vi.mock("../../api/workItems", () => ({
+  listWorkItems: vi.fn(),
 }));
 
 vi.mock("../../stores/errorStore", () => ({
@@ -78,10 +81,12 @@ const mockGoals = [
   },
 ];
 
+import { listWorkItems } from "../../api/workItems";
+
 describe("ContextPanel", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.mocked(listGoals).mockResolvedValue(mockGoals);
+    vi.mocked(listWorkItems).mockResolvedValue(mockGoals as never);
     vi.mocked(searchMemories).mockResolvedValue([
       { id: "m1", content: "喜欢 Rust 所有权模型", category: "note", created_at: "" },
     ]);

@@ -1,13 +1,13 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
-  listGoals,
   searchMemories,
   listPendingApprovals,
-  type Goal,
   type MemoryRow,
   type Approval,
+  type WorkItem,
 } from "../../api/client";
+import { listWorkItems } from "../../api/workItems";
 import { useErrorStore } from "../../stores/errorStore";
 
 interface ToolResult {
@@ -26,7 +26,7 @@ interface Props {
 export default function ContextPanel({ lastUserMessage, toolResults = [], open, onToggle }: Props) {
   const navigate = useNavigate();
   const addError = useErrorStore((s) => s.addError);
-  const [goals, setGoals] = useState<Goal[]>([]);
+  const [goals, setGoals] = useState<WorkItem[]>([]);
   const [memories, setMemories] = useState<MemoryRow[]>([]);
   const [approvals, setApprovals] = useState<Approval[]>([]);
 
@@ -37,7 +37,7 @@ export default function ContextPanel({ lastUserMessage, toolResults = [], open, 
 
   const loadContext = async () => {
     try {
-      const allGoals = await listGoals();
+      const allGoals = await listWorkItems("goal");
       const active = allGoals
         .filter((g) => g.status === "active")
         .sort((a, b) => {

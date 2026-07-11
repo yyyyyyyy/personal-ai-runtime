@@ -10,7 +10,6 @@ vi.mock("../../api/client", () => ({
   sendMessage: vi.fn(),
   resolveApproval: vi.fn(),
   updateConversation: vi.fn().mockResolvedValue({ status: "ok" }),
-  listGoals: vi.fn().mockResolvedValue([]),
   listPendingApprovals: vi.fn().mockResolvedValue([]),
   listMemoriesGrouped: vi.fn().mockResolvedValue({ memories: [] }),
   searchMemories: vi.fn().mockResolvedValue([]),
@@ -21,6 +20,10 @@ vi.mock("../../api/client", () => ({
       this.status = status;
     }
   },
+}));
+
+vi.mock("../../api/workItems", () => ({
+  listWorkItems: vi.fn().mockResolvedValue([]),
 }));
 
 vi.mock("../../stores/errorStore", () => ({

@@ -8,8 +8,11 @@ const setActiveConversation = vi.fn();
 
 vi.mock("../../api/client", () => ({
   listMemoriesGrouped: vi.fn(),
-  listGoals: vi.fn(),
   listInboxEmails: vi.fn(),
+}));
+
+vi.mock("../../api/workItems", () => ({
+  listWorkItems: vi.fn(),
 }));
 
 vi.mock("../../stores/chatStore", () => ({
@@ -35,10 +38,11 @@ vi.mock("../../hooks/useApprovalsQuery", () => ({
   useApprovalsQuery: () => ({ data: [] }),
 }));
 
-import { listMemoriesGrouped, listGoals, listInboxEmails } from "../../api/client";
+import { listMemoriesGrouped, listInboxEmails } from "../../api/client";
+import { listWorkItems } from "../../api/workItems";
 
 const mockMemories = vi.mocked(listMemoriesGrouped);
-const mockGoals = vi.mocked(listGoals);
+const mockGoals = vi.mocked(listWorkItems);
 const mockInbox = vi.mocked(listInboxEmails);
 
 describe("ChatHome", () => {

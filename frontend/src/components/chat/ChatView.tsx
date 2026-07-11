@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { Zap, MailSearch, Target as TargetIcon, BrainCircuit, Lightbulb } from "lucide-react";
-import { listGoals, type MemoryRow } from "../../api/client";
+import { type MemoryRow } from "../../api/client";
 import { type StreamEvent } from "../../api/client";
+import { listWorkItems } from "../../api/workItems";
 import { useErrorStore } from "../../stores/errorStore";
 import { useChatStore } from "../../stores/chatStore";
 import { useChatMessages } from "../../hooks/useChatMessages";
@@ -108,7 +109,7 @@ export default function ChatView({ conversationId }: Props) {
   // Aggregator emits many MemoryDerived events in quick succession.
   const loadSuggestions = useCallback(async () => {
     try {
-      const goals = await listGoals().catch(() => []);
+      const goals = await listWorkItems("goal").catch(() => []);
       const allMems = memData?.recent ?? [];
       const stale = goals.filter((g) => {
         if (g.status !== "active") return false;

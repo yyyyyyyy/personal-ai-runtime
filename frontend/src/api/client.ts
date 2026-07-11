@@ -34,6 +34,8 @@ export type {
   GoalAction,
   GoalEvent,
   Goal,
+  WorkItemType,
+  WorkItem,
   Approval,
   EnrichedApproval,
   DataSovereignty,

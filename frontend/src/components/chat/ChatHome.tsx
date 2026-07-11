@@ -3,11 +3,11 @@ import { useNavigate } from "react-router-dom";
 import { useChatStore } from "../../stores/chatStore";
 import {
   listMemoriesGrouped,
-  listGoals,
   listInboxEmails,
   type Conversation,
-  type Goal,
+  type WorkItem,
 } from "../../api/client";
+import { listWorkItems } from "../../api/workItems";
 import { useQuickChat } from "../../hooks/useQuickChat";
 import { useApprovalsQuery } from "../../hooks/useApprovalsQuery";
 import { timeAgo, isStagnant } from "../../utils/timeUtils";
@@ -31,7 +31,7 @@ export default function ChatHome() {
   const { data: pendingApprovals = [] } = useApprovalsQuery();
 
   const [memories, setMemories] = useState<{ content: string; category?: string }[]>([]);
-  const [goals, setGoals] = useState<Goal[]>([]);
+  const [goals, setGoals] = useState<WorkItem[]>([]);
   const [inbox, setInbox] = useState<{ id: string; subject?: string; sender?: string }[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -50,7 +50,7 @@ export default function ChatHome() {
     try {
       const [memData, goalData, inboxData] = await Promise.all([
         listMemoriesGrouped().catch(() => ({ memories: [] })),
-        listGoals().catch(() => []),
+        listWorkItems("goal").catch(() => []),
         listInboxEmails().catch(() => []),
       ]);
       setMemories(memData.memories ?? []);
