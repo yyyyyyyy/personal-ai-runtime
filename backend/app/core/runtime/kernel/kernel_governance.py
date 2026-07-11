@@ -1,11 +1,12 @@
 # mypy: disable-error-code="attr-defined"
-"""Kernel Governance Mixin — approval and authorization workflows.
+"""Kernel Governance Mixin — approval and capability invocation.
 
 Extracted from kernel.py to keep the main kernel module focused on the
 core ABI (emit_event / read_events / query_state).
 
-All approval lifecycle (request → grant/deny → emit ApprovalRequested/
-ApprovalGranted/ApprovalDenied events) lives here.
+Covers:
+  - Approval lifecycle (request → grant/deny → Approval* events)
+  - Capability invocation with approval gating (invoke_capability)
 
 Approval expiry: pending approvals auto-expire after 24h (configurable).
 BackgroundWorker periodically calls expire_stale_approvals() to clean up.
@@ -180,3 +181,162 @@ class GovernanceMixin:  # type: ignore[attr-defined]  # mixed into Kernel which 
             "status": status,
             "action": action,
         })
+
+    def _handler_execution_exists(self, execution_id: str) -> bool:
+        with self._db.get_db() as conn:
+            row = conn.execute(
+                "SELECT 1 FROM handler_executions WHERE id = ? LIMIT 1",
+                (execution_id,),
+            ).fetchone()
+        return row is not None
+
+    async def invoke_capability(
+        self,
+        name: str,
+        args: dict[str, Any] | None = None,
+        actor: str = "system",
+        correlation_id: str | None = None,
+        caused_by: str | None = None,
+        pre_approved: bool = False,
+        approval_id: str | None = None,
+        principal: Any | None = None,
+        execution_id: str | None = None,
+    ) -> dict:
+        """Invoke a capability through the Kernel, with approval gating.
+
+        ADR-0007 Step 9: authorization is delegated to CapabilityGateway,
+        which uses typed Principal (Step 8) for identity-based checks.
+
+        When execution_id is provided, this invocation is attributed to the
+        owning Execution aggregate via caused_by.
+        """
+        args = args or {}
+        from app.core.harness.mcp_hub import mcp_hub
+        from app.core.runtime.capability_governance import capability_governance
+        from app.core.runtime.execution import (
+            actor_requires_execution_ownership,
+            get_current_execution_id,
+            identity_resolver,
+        )
+
+        tool = mcp_hub.get_tool(name)
+        if tool is None:
+            return {"status": "error", "error": f"Unknown capability: {name}"}
+
+        if principal is None:
+            principal = identity_resolver.resolve(actor, self)
+
+        resolved_execution_id = execution_id or get_current_execution_id()
+        if resolved_execution_id == "":
+            resolved_execution_id = None
+
+        if actor_requires_execution_ownership(actor) and not resolved_execution_id:
+            self.emit_event(
+                type="CapabilityDenied",
+                aggregate_type="capability",
+                aggregate_id=f"cap_{name}",
+                payload={"name": name, "reason": "missing_execution_id"},
+                actor=principal.actor,
+                correlation_id=correlation_id,
+            )
+            return {"status": "error", "error": "missing_execution_id"}
+
+        if resolved_execution_id:
+            if not self._handler_execution_exists(resolved_execution_id):
+                self.emit_event(
+                    type="CapabilityDenied",
+                    aggregate_type="capability",
+                    aggregate_id=f"cap_{name}",
+                    payload={"name": name, "reason": "invalid_execution_id"},
+                    actor=principal.actor,
+                    correlation_id=correlation_id,
+                )
+                return {"status": "error", "error": "invalid_execution_id"}
+
+        capability_caused_by = resolved_execution_id or caused_by
+
+        decision = capability_governance.decide(
+            principal,
+            name,
+            args,
+            self,
+            correlation_id=correlation_id,
+            pre_approved=pre_approved,
+            approval_id=approval_id,
+            execution_id=resolved_execution_id,
+        )
+
+        if decision.decision == "deny":
+            self.emit_event(
+                type="CapabilityDenied",
+                aggregate_type="capability",
+                aggregate_id=f"cap_{name}",
+                payload={"name": name, "reason": decision.reason},
+                actor=principal.actor,
+                correlation_id=correlation_id,
+            )
+            return {"status": "error", "error": decision.reason}
+
+        if decision.decision == "defer":
+            self.emit_event(
+                type="CapabilityDeferred",
+                aggregate_type="capability",
+                aggregate_id=f"cap_{name}",
+                payload={
+                    "name": name,
+                    "args_summary": str(args)[:200],
+                    "reason": decision.reason,
+                    "approval_id": decision.approval_id,
+                },
+                actor=principal.actor,
+                caused_by=capability_caused_by,
+                correlation_id=correlation_id,
+            )
+            return {"status": "pending", "approval_id": decision.approval_id}
+
+        import time as _time
+        _t0 = _time.perf_counter()
+        try:
+            result_str = await mcp_hub.invoke_tool(name, args)
+            _latency_ms = (_time.perf_counter() - _t0) * 1000
+
+            self.emit_event(
+                type="CapabilityInvoked",
+                aggregate_type="capability",
+                aggregate_id=f"cap_{name}",
+                payload={
+                    "name": name,
+                    "args_summary": str(args)[:200],
+                    "result_summary": str(result_str)[:200],
+                    "latency_ms": round(_latency_ms, 2),
+                },
+                actor=principal.actor,
+                caused_by=capability_caused_by,
+                correlation_id=correlation_id,
+            )
+            if correlation_id:
+                from app.core.runtime.taint import is_external_ingestion_tool, taint_registry
+
+                if is_external_ingestion_tool(name):
+                    taint_registry.mark(
+                        correlation_id,
+                        source="external_ingestion",
+                        reason=name,
+                    )
+            return {"status": "success", "result": result_str}
+        except Exception as exc:
+            _latency_ms = (_time.perf_counter() - _t0) * 1000
+            self.emit_event(
+                type="CapabilityFailed",
+                aggregate_type="capability",
+                aggregate_id=f"cap_{name}",
+                payload={
+                    "name": name,
+                    "error": str(exc),
+                    "latency_ms": round(_latency_ms, 2),
+                },
+                actor=principal.actor,
+                caused_by=capability_caused_by,
+                correlation_id=correlation_id,
+            )
+            return {"status": "error", "error": str(exc)}

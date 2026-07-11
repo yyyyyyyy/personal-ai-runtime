@@ -86,3 +86,45 @@ def test_bootstrap_chat_skips_when_events_present(kernel):
         events,
     )
     assert result == {"conversations": 0, "messages": 0}
+
+
+def test_export_event_log_batched_matches_full_order(kernel):
+    """Batched seq-cursor export must equal a single ordered scan."""
+    k = kernel
+    for i in range(25):
+        k.emit_event(
+            "NotificationCreated",
+            "notification",
+            f"sov_batch_{i}",
+            payload={"title": f"t{i}"},
+        )
+    from app.core.runtime.kernel.query_builder import fetch_event_log_dicts
+
+    with k._db.get_db() as conn:
+        batched = fetch_event_log_dicts(conn, batch_size=7)
+        full = [dict(r) for r in conn.execute(
+            "SELECT * FROM event_log ORDER BY seq ASC"
+        ).fetchall()]
+    assert [r["seq"] for r in batched] == [r["seq"] for r in full]
+    assert [r["id"] for r in batched] == [r["id"] for r in full]
+
+
+def test_snapshot_point_in_time_and_no_checkpoint_side_effect(kernel, monkeypatch):
+    """snapshot() must not write projection checkpoints during export."""
+    k = kernel
+    k.emit_event(
+        "WorkItemCreated",
+        "work_item",
+        "g_snap_exp",
+        payload={"work_type": "goal", "title": "SnapExport"},
+    )
+    calls: list[object] = []
+    monkeypatch.setattr(
+        k, "save_projection_snapshots", lambda *a, **kw: calls.append(1) or []
+    )
+    snap = k.snapshot()
+    assert calls == []
+    assert snap["format"] == "snapshot"
+    assert snap["counts"]["event_log"] == len(snap["event_log"])
+    assert snap["counts"]["goals"] >= 1
+    assert any(e["aggregate_id"] == "g_snap_exp" for e in snap["event_log"])

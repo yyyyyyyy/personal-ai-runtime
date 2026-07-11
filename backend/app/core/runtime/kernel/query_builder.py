@@ -91,3 +91,54 @@ def build_where(clauses: list[str]) -> str:
     if not clauses:
         return ""
     return " WHERE " + " AND ".join(clauses)
+
+
+# Default batch for sovereignty export — keeps peak memory bounded without
+# changing the snapshot wire format (still a full list of row dicts).
+EVENT_LOG_EXPORT_BATCH = 2000
+
+
+def fetch_event_log_dicts(conn: Any, *, batch_size: int = EVENT_LOG_EXPORT_BATCH) -> list[dict[str, Any]]:
+    """Read ``event_log`` in seq order via batched ``seq > ?`` cursors.
+
+    Avoids a single ``fetchall()`` of the entire table. Caller owns the
+    connection/transaction so ``snapshot()`` can share one read txn.
+    """
+    out: list[dict[str, Any]] = []
+    last_seq = 0
+    n = int(batch_size)
+    if n < 1:
+        n = 1
+    if n > MAX_LIMIT:
+        n = MAX_LIMIT
+    while True:
+        rows = conn.execute(
+            "SELECT * FROM event_log WHERE seq > ? ORDER BY seq ASC LIMIT ?",
+            (last_seq, n),
+        ).fetchall()
+        if not rows:
+            break
+        out.extend(dict(r) for r in rows)
+        last_seq = int(rows[-1]["seq"])
+        if len(rows) < n:
+            break
+    return out
+
+
+def fetch_chat_projection_dicts(
+    conn: Any,
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    """Read conversation/message projections on an open connection."""
+    conversations = [
+        dict(r)
+        for r in conn.execute(
+            "SELECT * FROM conversations ORDER BY created_at ASC"
+        ).fetchall()
+    ]
+    messages = [
+        dict(r)
+        for r in conn.execute(
+            "SELECT * FROM messages ORDER BY created_at ASC"
+        ).fetchall()
+    ]
+    return conversations, messages

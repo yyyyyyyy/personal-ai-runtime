@@ -26,6 +26,7 @@ from .constants import (
     MEMORY_INDEX_EVENT_TYPES,
     PROJECTION_SNAPSHOT_AGGREGATES,
 )
+from .query_builder import fetch_chat_projection_dicts, fetch_event_log_dicts
 
 EXPORT_FORMAT = "snapshot"
 
@@ -67,11 +68,16 @@ class SovereigntyMixin:  # type: ignore[attr-defined]  # mixed into Kernel which
 
     # ── Export / import ──────────────────────────────────────────────────
 
-    def export_event_log_rows(self) -> list[dict[str, Any]]:
-        """Export full event_log for lossless snapshot."""
-        with self._db.get_db() as conn:
-            rows = conn.execute("SELECT * FROM event_log ORDER BY seq ASC").fetchall()
-        return [dict(r) for r in rows]
+    def export_event_log_rows(self, *, conn=None) -> list[dict[str, Any]]:
+        """Export full event_log for lossless snapshot (batched seq cursor).
+
+        When ``conn`` is provided, reads on that connection so callers can
+        hold a single point-in-time transaction across event_log + chat.
+        """
+        if conn is not None:
+            return fetch_event_log_dicts(conn)
+        with self._db.get_db() as owned:
+            return fetch_event_log_dicts(owned)
 
     def import_event_log_rows(
         self,
@@ -215,22 +221,14 @@ class SovereigntyMixin:  # type: ignore[attr-defined]  # mixed into Kernel which
 
         return {"conversations": conv_count, "messages": msg_count}
 
-    def export_chat_rows(self) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    def export_chat_rows(
+        self, *, conn=None
+    ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
         """Export conversation/message projections (denormalized backup)."""
-        with self._db.get_db() as conn:
-            conversations = [
-                dict(r)
-                for r in conn.execute(
-                    "SELECT * FROM conversations ORDER BY created_at ASC"
-                ).fetchall()
-            ]
-            messages = [
-                dict(r)
-                for r in conn.execute(
-                    "SELECT * FROM messages ORDER BY created_at ASC"
-                ).fetchall()
-            ]
-        return conversations, messages
+        if conn is not None:
+            return fetch_chat_projection_dicts(conn)
+        with self._db.get_db() as owned:
+            return fetch_chat_projection_dicts(owned)
 
     # ── Rebuild ──────────────────────────────────────────────────────────
 
@@ -360,18 +358,30 @@ class SovereigntyMixin:  # type: ignore[attr-defined]  # mixed into Kernel which
     def snapshot(self) -> dict[str, Any]:
         """Export complete personal snapshot: event_log + conversations + messages.
 
-        This is the kernel-space equivalent of DigitalLegacy.export_all().
-        It assembles the snapshot dict from existing sovereignty primitives
-        (export_event_log_rows, export_chat_rows, table_counts) plus a
-        projection checkpoint save.
+        Reads event_log and chat projections in one DB transaction for a
+        point-in-time view. Does not write projection checkpoints (those are
+        a rebuild concern, owned by ``save_projection_snapshots`` / timers).
         """
         now = datetime.now(UTC).isoformat()
         snapshot_id = str(uuid.uuid4())
 
-        event_log = self.export_event_log_rows()
-        conversations, messages = self.export_chat_rows()
+        with self._db.get_db() as conn:
+            event_log = self.export_event_log_rows(conn=conn)
+            conversations, messages = self.export_chat_rows(conn=conn)
+            goals = int(
+                conn.execute(
+                    "SELECT COUNT(*) AS c FROM work_items WHERE work_type = ?",
+                    ("goal",),
+                ).fetchone()["c"]
+            )
+            memories = int(
+                conn.execute("SELECT COUNT(*) AS c FROM memories").fetchone()["c"]
+            )
+            notifications = int(
+                conn.execute("SELECT COUNT(*) AS c FROM notifications").fetchone()["c"]
+            )
 
-        snapshot: dict[str, Any] = {
+        return {
             "snapshot_id": snapshot_id,
             "exported_at": now,
             "format": EXPORT_FORMAT,
@@ -382,16 +392,11 @@ class SovereigntyMixin:  # type: ignore[attr-defined]  # mixed into Kernel which
                 "event_log": len(event_log),
                 "conversations": len(conversations),
                 "messages": len(messages),
-                "goals": len(self.query_state("work_items", work_type="goal", limit=10000)),
-                "memories": self.table_counts(("memories",)).get("memories", 0),
-                "notifications": self.table_counts(("notifications",)).get(
-                    "notifications", 0
-                ),
+                "goals": goals,
+                "memories": memories,
+                "notifications": notifications,
             },
         }
-
-        self.save_projection_snapshots()
-        return snapshot
 
     def restore(self, snapshot: dict, read_only: bool = True) -> dict[str, Any]:
         """Import snapshot. Write import requires read_only=False.
