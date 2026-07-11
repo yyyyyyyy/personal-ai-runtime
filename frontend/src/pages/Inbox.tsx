@@ -1,7 +1,5 @@
 import { useEffect, useState } from "react";
 import {
-  getInboxDigest,
-  listInboxEmails,
   triggerInboxPoll,
   updateInboxEmailStatus,
   ApiError,
@@ -9,6 +7,7 @@ import {
 } from "../api/client";
 import { useErrorStore } from "../stores/errorStore";
 import { useQuickChat } from "../hooks/useQuickChat";
+import { useInboxQuery, useInvalidateInbox } from "../hooks/useInboxQuery";
 import Button from "../components/ui/Button";
 import Card from "../components/ui/Card";
 
@@ -19,21 +18,35 @@ const COLUMNS: { key: string; label: string; color: string }[] = [
 ];
 
 export default function InboxPage() {
-  const [emails, setEmails] = useState<InboxEmail[]>([]);
-  const [digest, setDigest] = useState<{
-    title?: string;
-    content?: string;
-    message?: string;
-  } | null>(null);
-  const [loading, setLoading] = useState(false);
+  const { data, isLoading: loading, error, refetch } = useInboxQuery();
+  const invalidateInbox = useInvalidateInbox();
+  const emails = data?.emails ?? [];
+  const digest = data?.digest ?? null;
   const [polling, setPolling] = useState(false);
+  const [initialPollDone, setInitialPollDone] = useState(false);
   const addError = useErrorStore((s) => s.addError);
   const quickChat = useQuickChat();
+
+  useEffect(() => {
+    if (error) {
+      const msg = error instanceof ApiError ? error.message : "加载收件箱失败";
+      addError(msg, "收件箱");
+    }
+  }, [error, addError]);
+
+  // One-shot sync poll on first mount (best-effort), then rely on query cache.
+  useEffect(() => {
+    if (initialPollDone) return;
+    setInitialPollDone(true);
+    void triggerInboxPoll()
+      .then(() => invalidateInbox())
+      .catch(() => null);
+  }, [initialPollDone, invalidateInbox]);
 
   const handleAiProcess = async (em: InboxEmail) => {
     try {
       await updateInboxEmailStatus(em.id, "handled");
-      setEmails((prev) => prev.filter((e) => e.id !== em.id));
+      invalidateInbox();
     } catch (err) {
       const msg = err instanceof ApiError ? err.message : "标记处理失败";
       addError(msg, "收件箱");
@@ -45,42 +58,18 @@ export default function InboxPage() {
   const handleMarkRead = async (em: InboxEmail) => {
     try {
       await updateInboxEmailStatus(em.id, "read");
-      setEmails((prev) => prev.filter((e) => e.id !== em.id));
+      invalidateInbox();
     } catch (err) {
       const msg = err instanceof ApiError ? err.message : "标记已读失败";
       addError(msg, "收件箱");
     }
   };
 
-  const load = async (sync = true) => {
-    setLoading(true);
-    try {
-      if (sync) {
-        await triggerInboxPoll().catch(() => null);
-      }
-      const [items, dig] = await Promise.all([
-        listInboxEmails(undefined, "pending"),
-        getInboxDigest(),
-      ]);
-      setEmails(items);
-      setDigest(dig);
-    } catch (err) {
-      const msg = err instanceof ApiError ? err.message : "加载收件箱失败";
-      addError(msg, "收件箱");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    load();
-  }, []);
-
   const handlePoll = async () => {
     setPolling(true);
     try {
       await triggerInboxPoll();
-      await load(false);
+      await refetch();
     } catch (err) {
       const msg = err instanceof ApiError ? err.message : "轮询邮件失败";
       addError(msg, "收件箱");

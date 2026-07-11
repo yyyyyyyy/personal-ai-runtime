@@ -24,9 +24,18 @@ def kernel(tmp_path):
 
 
 def test_write_class_tools_match_capability_policy():
-    """Contract: taint write-class set must track capability_policy needs_user."""
+    """Contract: taint write-class set is loaded from capability_policy needs_user."""
     policy = json.loads(POLICY_PATH.read_text(encoding="utf-8"))
     assert WRITE_CLASS_TOOLS == frozenset(policy["needs_user"])
+    assert "write_file" in WRITE_CLASS_TOOLS
+
+
+def test_external_ingestion_tools_loaded_from_policy():
+    """Contract: external ingestion set is loaded from capability_policy."""
+    policy = json.loads(POLICY_PATH.read_text(encoding="utf-8"))
+    assert "external_ingestion" in policy
+    assert EXTERNAL_INGESTION_TOOLS == frozenset(policy["external_ingestion"])
+    assert EXTERNAL_INGESTION_TOOLS  # non-empty
 
 
 def test_external_ingestion_tools_are_registered_mcp_tools():

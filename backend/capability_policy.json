@@ -40,5 +40,13 @@
     "update_goal_progress",
     "complete_goal"
   ],
+  "external_ingestion": [
+    "check_inbox",
+    "read_inbox_email",
+    "web_search",
+    "fetch_url",
+    "search_and_extract",
+    "open_web_page"
+  ],
   "forbidden": []
 }

@@ -160,6 +160,7 @@ export function useChatMessages(
 
   const onLoadErrorRef = useRef(onLoadError);
   onLoadErrorRef.current = onLoadError;
+  const abortRef = useRef<AbortController | null>(null);
 
   const lastUserMessage = useMemo(() => {
     const userMsgs = messages.filter((m) => m.role === "user");
@@ -181,8 +182,18 @@ export function useChatMessages(
   }, [conversationId]);
 
   useEffect(() => {
-    loadMessages();
+    abortRef.current?.abort();
+    abortRef.current = null;
+    setIsLoading(false);
+    setStreamingContent("");
+    void loadMessages();
   }, [loadMessages]);
+
+  useEffect(() => {
+    return () => {
+      abortRef.current?.abort();
+    };
+  }, []);
 
   const handleSend = useCallback(
     async (
@@ -192,6 +203,10 @@ export function useChatMessages(
     ) => {
       const trimmed = text.trim();
       if (!trimmed || isLoading) return;
+
+      abortRef.current?.abort();
+      const controller = new AbortController();
+      abortRef.current = controller;
 
       const userMsg: DisplayMessage = {
         id: `user-${Date.now()}`,
@@ -320,6 +335,7 @@ export function useChatMessages(
           trimmed,
           handleEvent,
           (error) => {
+            if (controller.signal.aborted) return;
             setIsLoading(false);
             onError?.(error);
             setMessages((prev) =>
@@ -331,10 +347,18 @@ export function useChatMessages(
             );
           },
           () => {
+            if (abortRef.current === controller) {
+              abortRef.current = null;
+            }
             setIsLoading(false);
           },
+          controller.signal,
         );
       } catch (err: unknown) {
+        if (controller.signal.aborted) {
+          setIsLoading(false);
+          return;
+        }
         setIsLoading(false);
         const errorMsg =
           err instanceof ApiError ? err.message : err instanceof Error ? err.message : "未知错误";

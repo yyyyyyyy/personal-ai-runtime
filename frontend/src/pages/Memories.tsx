@@ -1,6 +1,6 @@
 import { useEffect, useState, useMemo, useRef } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import {
-  listMemoriesGrouped,
   createMemory,
   deleteMemory,
   updateMemory,
@@ -16,6 +16,8 @@ import {
 } from "../api/client";
 import { useErrorStore } from "../stores/errorStore";
 import { useQuickChat } from "../hooks/useQuickChat";
+import { useMemoriesGroupedQuery } from "../hooks/useMemoriesQuery";
+import { queryKeys } from "../hooks/useWsInvalidationBridge";
 import Dialog from "../components/ui/Dialog";
 import { Network, List, Check, X, Edit3, FileText, History } from "lucide-react";
 
@@ -33,8 +35,9 @@ function timeAgoShort(dateStr: string): string {
 }
 
 export default function MemoriesPage() {
-  const [memories, setMemories] = useState<MemoryRow[]>([]);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
+  const { data, isLoading: loading, error: loadError } = useMemoriesGroupedQuery();
+  const memories = data?.memories ?? [];
   const [newContent, setNewContent] = useState("");
   const [deleteTarget, setDeleteTarget] = useState<MemoryRow | null>(null);
   const [viewMode, setViewMode] = useState<"list" | "graph">("list");
@@ -49,6 +52,10 @@ export default function MemoriesPage() {
   const addError = useErrorStore((s) => s.addError);
   const quickChat = useQuickChat();
 
+  const invalidateMemories = () => {
+    void queryClient.invalidateQueries({ queryKey: queryKeys.memories });
+  };
+
   const grouped = useMemo(() => {
     const map: Record<string, MemoryRow[]> = {};
     for (const m of memories) {
@@ -59,22 +66,12 @@ export default function MemoriesPage() {
     return map;
   }, [memories]);
 
-  const load = async () => {
-    setLoading(true);
-    try {
-      const groupedData = await listMemoriesGrouped();
-      setMemories(groupedData.memories);
-    } catch (err) {
-      const msg = err instanceof ApiError ? err.message : "加载记忆失败";
-      addError(msg, "记忆");
-    } finally {
-      setLoading(false);
-    }
-  };
-
   useEffect(() => {
-    load();
-  }, []);
+    if (loadError) {
+      const msg = loadError instanceof ApiError ? loadError.message : "加载记忆失败";
+      addError(msg, "记忆");
+    }
+  }, [loadError, addError]);
 
   const handleDelete = (m: MemoryRow) => {
     setDeleteTarget(m);
@@ -86,7 +83,7 @@ export default function MemoriesPage() {
     setDeleteTarget(null);
     try {
       await deleteMemory(id);
-      load();
+      invalidateMemories();
     } catch (err) {
       const msg = err instanceof ApiError ? err.message : "删除记忆失败";
       addError(msg, "记忆");
@@ -105,7 +102,7 @@ export default function MemoriesPage() {
     setEditTarget(null);
     try {
       await updateMemory(id, { content: editContent.trim(), category: editCategory || undefined });
-      load();
+      invalidateMemories();
     } catch (err) {
       const msg = err instanceof ApiError ? err.message : "更新记忆失败";
       addError(msg, "记忆");
@@ -115,7 +112,7 @@ export default function MemoriesPage() {
   const handleRatify = async (m: MemoryRow) => {
     try {
       await ratifyMemory(m.id);
-      load();
+      invalidateMemories();
     } catch (err) {
       const msg = err instanceof ApiError ? err.message : "确认记忆失败";
       addError(msg, "记忆");
@@ -125,7 +122,7 @@ export default function MemoriesPage() {
   const handleReject = async (m: MemoryRow) => {
     try {
       await rejectMemory(m.id);
-      load();
+      invalidateMemories();
     } catch (err) {
       const msg = err instanceof ApiError ? err.message : "拒绝记忆失败";
       addError(msg, "记忆");
@@ -137,7 +134,7 @@ export default function MemoriesPage() {
     try {
       await createMemory({ content: newContent.trim(), category: "fact" });
       setNewContent("");
-      load();
+      invalidateMemories();
     } catch (err) {
       const msg = err instanceof ApiError ? err.message : "创建记忆失败";
       addError(msg, "记忆");

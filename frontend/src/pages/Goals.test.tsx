@@ -1,5 +1,6 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { screen, fireEvent } from "@testing-library/react";
+import { renderWithRouter } from "../test-utils";
 import GoalsPage from "./Goals";
 
 vi.mock("../api/client", () => ({
@@ -10,6 +11,7 @@ vi.mock("../api/client", () => ({
   deleteGoal: vi.fn(),
   createGoalAction: vi.fn(),
   updateGoalAction: vi.fn(),
+  decomposeGoal: vi.fn(),
   ApiError: class extends Error {
     status: number;
     constructor(message: string, status: number) {
@@ -33,22 +35,13 @@ vi.mock("../stores/chatStore", () => ({
     }),
 }));
 
-vi.mock("react-router-dom", async () => {
-  const actual = await vi.importActual("react-router-dom");
-  return {
-    ...actual,
-    useNavigate: () => vi.fn(),
-    useParams: () => ({}),
-  };
-});
-
 describe("GoalsPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
   it("renders the goals page with title", () => {
-    render(<GoalsPage />);
+    renderWithRouter(<GoalsPage />);
 
     expect(screen.getByText("目标")).toBeInTheDocument();
     const newButtons = screen.getAllByText("+ 新建");
@@ -56,7 +49,7 @@ describe("GoalsPage", () => {
   });
 
   it("shows create input after clicking + 新建", () => {
-    render(<GoalsPage />);
+    renderWithRouter(<GoalsPage />);
 
     fireEvent.click(screen.getAllByText("+ 新建")[0]);
 

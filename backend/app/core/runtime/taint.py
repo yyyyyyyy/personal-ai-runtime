@@ -4,7 +4,8 @@ When external content (inbox, web fetch, browser) enters the agent context,
 subsequent write-class capability invocations in the same correlation chain
 MUST require user approval.
 
-Tool names MUST match mcp_hub registrations and capability_policy.json.
+Tool classification is loaded from capability_policy.json (single source of
+truth): ``needs_user`` → write-class, ``external_ingestion`` → taint sources.
 
 v0.2.1: Taint marks moved from contextvars.ContextVar to an instance-level dict
 with TTL-based expiry. ContextVar was async-task-local and broke under
@@ -14,7 +15,9 @@ that share the same correlation_id.
 
 from __future__ import annotations
 
+import json
 import time
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from app.core.runtime.runtime_container import _LazyProxy, runtime
@@ -23,19 +26,26 @@ from app.core.runtime.runtime_container import _LazyProxy, runtime
 # After this duration, the mark is considered expired and cleaned up on next access.
 _TAINT_TTL_SECONDS = 300
 
-# Builtin MCP tools that ingest untrusted external content (see mcp_hub).
-_BUILTIN_EXTERNAL_INGESTION_TOOLS = frozenset({
-    "check_inbox",
-    "read_inbox_email",
-    "web_search",
-    "fetch_url",
-    "search_and_extract",
-    "open_web_page",
-})
+_POLICY_PATH = Path(__file__).resolve().parents[3] / "capability_policy.json"
+
+
+def _load_capability_policy() -> dict[str, Any]:
+    if not _POLICY_PATH.is_file():
+        return {}
+    return json.loads(_POLICY_PATH.read_text(encoding="utf-8"))
+
+
+_policy = _load_capability_policy()
+
+# Write-class tools: mutate host or exfiltrate — sourced from needs_user.
+WRITE_CLASS_TOOLS = frozenset(_policy.get("needs_user", []))
+
+# Builtin MCP tools that ingest untrusted external content.
+_BUILTIN_EXTERNAL_INGESTION_TOOLS = frozenset(_policy.get("external_ingestion", []))
+EXTERNAL_INGESTION_TOOLS = _BUILTIN_EXTERNAL_INGESTION_TOOLS
 
 _EXTERNAL_INGESTION_DYNAMIC: set[str] = set()
-
-EXTERNAL_INGESTION_TOOLS = _BUILTIN_EXTERNAL_INGESTION_TOOLS
+_EXTERNAL_WRITE_DYNAMIC: set[str] = set()
 
 
 def register_external_ingestion_tool(name: str) -> None:
@@ -44,27 +54,6 @@ def register_external_ingestion_tool(name: str) -> None:
 
 def clear_external_ingestion_tools() -> None:
     _EXTERNAL_INGESTION_DYNAMIC.clear()
-
-
-_EXTERNAL_WRITE_DYNAMIC: set[str] = set()
-
-# Registered MCP tools in capability_policy.json "needs_user" — mutate host or exfiltrate.
-# Must stay in sync with capability_policy.json's "needs_user" list; the test
-# test_write_class_tools_match_capability_policy pins this contract.
-WRITE_CLASS_TOOLS = frozenset({
-    "apply_patch",
-    "write_file",
-    "add_calendar_event",
-    "send_email",
-    "shell_exec",
-    "telegram_send",
-    "computer_click",
-    "computer_type",
-    "computer_key",
-    "create_goal",
-    "update_goal_progress",
-    "complete_goal",
-})
 
 
 class TaintRegistry:

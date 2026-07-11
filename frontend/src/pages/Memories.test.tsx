@@ -1,6 +1,6 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
-import { render, screen } from "@testing-library/react";
-import { MemoryRouter } from "react-router-dom";
+import { screen } from "@testing-library/react";
+import { renderWithRouter } from "../test-utils";
 import MemoriesPage from "./Memories";
 
 vi.mock("../api/client", () => ({
@@ -9,6 +9,11 @@ vi.mock("../api/client", () => ({
   }),
   createMemory: vi.fn(),
   deleteMemory: vi.fn(),
+  updateMemory: vi.fn(),
+  ratifyMemory: vi.fn(),
+  rejectMemory: vi.fn(),
+  getMemoryGraph: vi.fn(),
+  getMemoryProvenance: vi.fn(),
   createConversation: vi.fn(),
   ApiError: class extends Error {
     status: number;
@@ -39,11 +44,7 @@ describe("MemoriesPage", () => {
   });
 
   it("renders memories list", async () => {
-    render(
-      <MemoryRouter>
-        <MemoriesPage />
-      </MemoryRouter>,
-    );
+    renderWithRouter(<MemoriesPage />);
     expect(await screen.findByText("AI 对你的理解")).toBeInTheDocument();
     expect(screen.getByText("喜欢早起跑步")).toBeInTheDocument();
   });

@@ -15,7 +15,7 @@ export async function listConversations(): Promise<Conversation[]> {
 }
 
 export async function deleteConversation(id: string): Promise<void> {
-  return request<void>(`${API_BASE}/chat/conversations/${id}`, { method: "DELETE" });
+  await request<void>(`${API_BASE}/chat/conversations/${id}`, { method: "DELETE" });
 }
 
 export async function updateConversation(id: string, title: string): Promise<{ status: string }> {
@@ -33,6 +33,7 @@ export async function sendMessage(
   onEvent: (event: StreamEvent) => void,
   onError: (error: string) => void,
   onDone: () => void,
+  signal?: AbortSignal,
 ): Promise<void> {
   const url = `${API_BASE}/chat/conversations/${convId}/messages`;
   const headers: Record<string, string> = { "Content-Type": "application/json" };
@@ -41,11 +42,22 @@ export async function sendMessage(
     headers["Authorization"] = `Bearer ${token}`;
   }
 
-  const res = await fetch(url, {
-    method: "POST",
-    headers,
-    body: JSON.stringify({ content }),
-  });
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ content }),
+      signal,
+    });
+  } catch (err) {
+    if (signal?.aborted || (err instanceof DOMException && err.name === "AbortError")) {
+      onDone();
+      return;
+    }
+    onError(err instanceof Error ? err.message : "网络错误");
+    return;
+  }
 
   if (res.status === 401) {
     onError("认证失败，请检查 AUTH_TOKEN 与 VITE_AUTH_TOKEN 是否一致");
@@ -63,52 +75,72 @@ export async function sendMessage(
     return;
   }
 
+  const onAbort = () => {
+    reader.cancel().catch(() => {});
+  };
+  signal?.addEventListener("abort", onAbort);
+
   const decoder = new TextDecoder();
   let buffer = "";
-  let lastByteTime: number;
+  let lastByteTime = Date.now();
   const SSE_IDLE_TIMEOUT_MS = 30_000;
 
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) {
-      onDone();
-      break;
-    }
-
-    lastByteTime = Date.now();
-    buffer += decoder.decode(value, { stream: true });
-    const lines = buffer.split("\n");
-    buffer = lines.pop() || "";
-
-    for (const line of lines) {
-      const trimmed = line.trim();
-      if (!trimmed || !trimmed.startsWith("data: ")) continue;
-
-      const data = trimmed.slice(6);
-      if (data === "[DONE]") {
+  try {
+    while (true) {
+      if (signal?.aborted) {
         onDone();
         return;
       }
 
-      try {
-        const event: StreamEvent = JSON.parse(data);
-        if (event.type !== "ping") {
-          onEvent(event);
-        }
-        if (event.type === "done" || event.type === "error") {
+      const { done, value } = await reader.read();
+      if (done) {
+        onDone();
+        break;
+      }
+
+      lastByteTime = Date.now();
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split("\n");
+      buffer = lines.pop() || "";
+
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (!trimmed || !trimmed.startsWith("data: ")) continue;
+
+        const data = trimmed.slice(6);
+        if (data === "[DONE]") {
           onDone();
           return;
         }
-      } catch {
-        // Skip parse errors
+
+        try {
+          const event: StreamEvent = JSON.parse(data);
+          if (event.type !== "ping") {
+            onEvent(event);
+          }
+          if (event.type === "done" || event.type === "error") {
+            onDone();
+            return;
+          }
+        } catch {
+          // Skip parse errors
+        }
+      }
+
+      // Abort if no data received for too long (silent server hang)
+      if (Date.now() - lastByteTime > SSE_IDLE_TIMEOUT_MS) {
+        reader.cancel().catch(() => {});
+        onError("连接超时，服务端无响应。请重试。");
+        return;
       }
     }
-
-    // Abort if no data received for too long (silent server hang)
-    if (Date.now() - lastByteTime > SSE_IDLE_TIMEOUT_MS) {
-      reader.cancel().catch(() => {});
-      onError("连接超时，服务端无响应。请重试。");
+  } catch (err) {
+    if (signal?.aborted || (err instanceof DOMException && err.name === "AbortError")) {
+      onDone();
       return;
     }
+    onError(err instanceof Error ? err.message : "读取流失败");
+  } finally {
+    signal?.removeEventListener("abort", onAbort);
   }
 }

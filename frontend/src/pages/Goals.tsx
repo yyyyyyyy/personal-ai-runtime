@@ -1,8 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
-  listGoals,
-  getGoal,
   createGoal,
   updateGoal,
   deleteGoal,
@@ -14,6 +12,7 @@ import {
 } from "../api/client";
 import { useErrorStore } from "../stores/errorStore";
 import { useQuickChat } from "../hooks/useQuickChat";
+import { useGoalsQuery, useGoalQuery, useInvalidateGoals } from "../hooks/useGoalsQuery";
 import Badge from "../components/ui/Badge";
 import Button from "../components/ui/Button";
 import Dialog from "../components/ui/Dialog";
@@ -25,56 +24,42 @@ import { Sparkles } from "lucide-react";
 export default function GoalsPage() {
   const { goalId: urlGoalId } = useParams();
   const navigate = useNavigate();
-  const [goals, setGoals] = useState<Goal[]>([]);
-  const [selectedGoal, setSelectedGoal] = useState<Goal | null>(null);
+  const { data: goals = [], error: listError } = useGoalsQuery();
+  const {
+    data: selectedGoal = null,
+    error: detailError,
+    isError: detailIsError,
+  } = useGoalQuery(urlGoalId);
+  const invalidateGoals = useInvalidateGoals();
   const [showCreate, setShowCreate] = useState(false);
   const [newTitle, setNewTitle] = useState("");
   const [loading, setLoading] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<Goal | null>(null);
   const [deleting, setDeleting] = useState(false);
-  const [goalNotFound, setGoalNotFound] = useState(false);
   const [suggestedSteps, setSuggestedSteps] = useState<string[]>([]);
   const [decomposing, setDecomposing] = useState(false);
   const addError = useErrorStore((s) => s.addError);
   const quickChat = useQuickChat();
 
-  useEffect(() => {
-    loadGoals();
-  }, []);
+  const goalNotFound =
+    Boolean(urlGoalId) &&
+    detailIsError &&
+    detailError instanceof ApiError &&
+    detailError.status === 404;
 
   useEffect(() => {
-    if (urlGoalId) {
-      loadGoalById(urlGoalId);
-    } else {
-      setSelectedGoal(null);
-      setGoalNotFound(false);
-    }
-  }, [urlGoalId]);
-
-  const loadGoals = async () => {
-    try {
-      const data = await listGoals();
-      setGoals(data);
-    } catch (err) {
-      const msg = err instanceof ApiError ? err.message : "加载目标失败";
+    if (listError) {
+      const msg = listError instanceof ApiError ? listError.message : "加载目标失败";
       addError(msg, "目标");
     }
-  };
+  }, [listError, addError]);
 
-  const loadGoalById = async (goalId: string) => {
-    setGoalNotFound(false);
-    try {
-      const data = await getGoal(goalId);
-      setSelectedGoal(data);
-    } catch (err) {
-      if (err instanceof ApiError && err.status === 404) {
-        setGoalNotFound(true);
-        setSelectedGoal(null);
-      }
-      const msg = err instanceof ApiError ? err.message : "加载目标详情失败";
+  useEffect(() => {
+    if (detailError && !(detailError instanceof ApiError && detailError.status === 404)) {
+      const msg = detailError instanceof ApiError ? detailError.message : "加载目标详情失败";
       addError(msg, "目标");
     }
-  };
+  }, [detailError, addError]);
 
   const handleSelectGoal = (goalId: string) => {
     navigate(`/goals/${goalId}`);
@@ -94,7 +79,7 @@ export default function GoalsPage() {
       await createGoal({ title: newTitle });
       setNewTitle("");
       setShowCreate(false);
-      loadGoals();
+      invalidateGoals();
     } catch (err) {
       const msg = err instanceof ApiError ? err.message : "创建目标失败";
       addError(msg, "目标");
@@ -105,8 +90,7 @@ export default function GoalsPage() {
   const handleUpdateStatus = async (goalId: string, status: string) => {
     try {
       await updateGoal(goalId, { status });
-      loadGoals();
-      if (selectedGoal?.id === goalId) loadGoalById(goalId);
+      invalidateGoals();
     } catch (err) {
       const msg = err instanceof ApiError ? err.message : "更新目标状态失败";
       addError(msg, "目标");
@@ -117,8 +101,7 @@ export default function GoalsPage() {
     if (!title.trim()) return;
     try {
       await createGoalAction(goalId, title);
-      loadGoalById(goalId);
-      loadGoals();
+      invalidateGoals();
     } catch (err) {
       const msg = err instanceof ApiError ? err.message : "创建行动步骤失败";
       addError(msg, "目标");
@@ -129,8 +112,7 @@ export default function GoalsPage() {
     const newStatus = currentStatus === "completed" ? "pending" : "completed";
     try {
       await updateGoalAction(goalId, actionId, { status: newStatus });
-      loadGoalById(goalId);
-      loadGoals();
+      invalidateGoals();
     } catch (err) {
       const msg = err instanceof ApiError ? err.message : "更新行动步骤失败";
       addError(msg, "目标");
@@ -144,11 +126,10 @@ export default function GoalsPage() {
     try {
       await deleteGoal(goalId);
       setDeleteTarget(null);
-      if (selectedGoal?.id === goalId) {
-        setSelectedGoal(null);
+      if (urlGoalId === goalId) {
         navigate("/goals");
       }
-      await loadGoals();
+      invalidateGoals();
     } catch (err) {
       const msg = err instanceof ApiError ? err.message : "删除目标失败";
       addError(msg, "目标");

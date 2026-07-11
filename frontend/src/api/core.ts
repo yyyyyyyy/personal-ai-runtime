@@ -16,8 +16,12 @@ export function isAuthConfigured(): boolean {
   return _authToken !== null && _authToken.length > 0;
 }
 
-function authHeaders(): Record<string, string> {
-  const headers: Record<string, string> = { "Content-Type": "application/json" };
+/** Auth headers for JSON requests. Exported for FormData / custom fetch paths. */
+export function authHeaders(jsonContentType = true): Record<string, string> {
+  const headers: Record<string, string> = {};
+  if (jsonContentType) {
+    headers["Content-Type"] = "application/json";
+  }
   if (_authToken) {
     headers["Authorization"] = `Bearer ${_authToken}`;
   }
@@ -58,5 +62,13 @@ export async function request<T>(url: string, options: RequestInit = {}): Promis
     throw new ApiError(msg, res.status);
   }
 
-  return res.json();
+  // 204 / empty body — honour Promise<void> and avoid SyntaxError on res.json()
+  if (res.status === 204) {
+    return undefined as T;
+  }
+  const text = await res.text();
+  if (!text) {
+    return undefined as T;
+  }
+  return JSON.parse(text) as T;
 }

@@ -410,10 +410,24 @@ def _on_notification_created(event: Event, conn) -> None:
 @projector("NotificationUpdated")
 def _on_notification_updated(event: Event, conn) -> None:
     p = event.payload
-    conn.execute(
-        "UPDATE notifications SET content = ? WHERE id = ?",
-        (p.get("content", ""), event.aggregate_id),
-    )
+    if "related_id" in p or "related_type" in p:
+        conn.execute(
+            """UPDATE notifications
+               SET content = ?, related_id = COALESCE(?, related_id),
+                   related_type = COALESCE(?, related_type)
+               WHERE id = ?""",
+            (
+                p.get("content", ""),
+                p.get("related_id"),
+                p.get("related_type"),
+                event.aggregate_id,
+            ),
+        )
+    else:
+        conn.execute(
+            "UPDATE notifications SET content = ? WHERE id = ?",
+            (p.get("content", ""), event.aggregate_id),
+        )
 
 
 @projector("NotificationRead")
