@@ -38,7 +38,11 @@ from app.config import settings
 from app.core.logging_config import configure_logging
 from app.core.runtime.cron_registry import init_scheduler
 from app.core.runtime.runtime_loop import runtime_loop
-from app.core.startup_health import enrich_with_mcp_status, run_startup_checks
+from app.core.startup_health import (
+    enrich_with_mcp_status,
+    record_startup_failure,
+    run_startup_checks,
+)
 from app.version import VERSION
 
 configure_logging()
@@ -269,13 +273,20 @@ async def lifespan(app: FastAPI):
 
     init_scheduler()
 
-    # Seed governance events from capability_policy.json (v0.4.0: unified governance)
+    # Seed governance events from capability_policy.json
     try:
         from app.core.runtime.capability_governance import capability_governance
         from app.core.runtime.kernel_instance import kernel
         capability_governance.seed_from_json(kernel)
-    except Exception:
-        logger.debug("Governance seed skipped (test context)")
+        if isinstance(app.state.startup_health, dict):
+            app.state.startup_health.setdefault("checks", {})["governance_seed"] = {
+                "status": "ok",
+            }
+    except Exception as exc:
+        logger.exception("Governance seed failed")
+        app.state.startup_health = record_startup_failure(
+            app.state.startup_health, "governance_seed", exc
+        )
 
     # Surface fragment registration health on startup. Registration runs in
     # the ContextPipeline constructor (lazy via RuntimeContainer); we trigger
@@ -289,17 +300,32 @@ async def lifespan(app: FastAPI):
                 "Context fragment registration is degraded: %s",
                 ctx_health.get("error", "(no detail)"),
             )
-        # Stash on startup_health so /api/system/health can report it.
+            if isinstance(app.state.startup_health, dict):
+                app.state.startup_health.setdefault("warnings", []).append(
+                    f"context_pipeline degraded: {ctx_health.get('error', '(no detail)')}"
+                )
+                if app.state.startup_health.get("status") == "ok":
+                    app.state.startup_health["status"] = "degraded"
         if isinstance(app.state.startup_health, dict):
-            app.state.startup_health["context_pipeline"] = ctx_health
-    except Exception:
-        logger.debug("ContextPipeline health check skipped (test context)")
+            app.state.startup_health.setdefault("checks", {})["context_pipeline"] = ctx_health
+    except Exception as exc:
+        logger.exception("ContextPipeline health check failed")
+        app.state.startup_health = record_startup_failure(
+            app.state.startup_health, "context_pipeline", exc
+        )
 
     # Start unified runtime loop (replaces background_worker + scheduler + timer_engine)
     try:
         await runtime_loop.start()
-    except Exception:
-        logger.debug("RuntimeLoop skipped (test context)")
+        if isinstance(app.state.startup_health, dict):
+            app.state.startup_health.setdefault("checks", {})["runtime_loop"] = {
+                "status": "ok",
+            }
+    except Exception as exc:
+        logger.exception("RuntimeLoop failed to start — timers/reactions/background jobs inactive")
+        app.state.startup_health = record_startup_failure(
+            app.state.startup_health, "runtime_loop", exc
+        )
 
     try:
         from app.core.harness.mcp_lifecycle import start_mcp_mesh

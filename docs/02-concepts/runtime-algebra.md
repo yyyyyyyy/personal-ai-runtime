@@ -73,7 +73,7 @@ CONTEXT — 触发 WORK 的输入（消息 + 环境快照）
 
 **不变量**：
 
-- 4-gate 授权：forbidden → principal grant → pre-approved → risk assessment
+- 3-gate 授权：forbidden → pre-approved → risk assessment
 - 所有工具调用产生可审计事件：`CapabilityInvoked/Failed/Denied/Deferred`
 - 外部摄入类工具污染当前 `correlation_id`（taint 追踪）
 

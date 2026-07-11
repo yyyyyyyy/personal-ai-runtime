@@ -88,7 +88,7 @@ types.ts       ← 共享 TS 接口
 
 ### Zustand stores（[`frontend/src/stores/`](../../frontend/src/stores/)）
 
-- **`chatStore.ts`** — 全局聊天 UI 状态：`conversations`、`activeConversationId`、`pendingPrompt`（被 `useQuickChat` 用于播种新聊天）、`loading`。
+- **`chatStore.ts`** — 全局聊天 UI 状态：`conversations`、`activeConversationId`、`pendingPrompt`（被 `useQuickChat` 用于播种新聊天）。
 - **`errorStore.ts`** — 全局错误/toast 队列：`errors`（上限 5）、`backendUnavailable` 标志（`Layout` 初始健康检查失败时翻转）、`addError`/`dismissError`/`setBackendUnavailable`/`clearErrors`。
 
 ### TanStack React Query

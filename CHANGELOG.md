@@ -12,7 +12,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/). Version numbers 
 - Streaming chat with tool loops, approval flow, and SSE delivery
 - Memory extraction, semantic search (ChromaDB), portrait, and claim workflow
 - Goals unified under `work_items`; inbox (Gmail), knowledge base RAG
-- 4-gate capability governance, taint tracking, LLM egress audit
+- 3-gate capability governance, taint tracking, LLM egress audit
 - Data sovereignty: export/import (plain + encrypted), destroy, snapshot/restore
 - MCP harness: 26+ builtin tools + external MCP registry
 - React frontend (Chat, Goals, Memories, Inbox, TrustReport, Dashboard, Settings, …)
@@ -25,4 +25,6 @@ Format follows [Keep a Changelog](https://keepachangelog.com/). Version numbers 
 
 ### Fixed
 
-- Various projector and provenance fixes tracked in architecture survival review
+- Startup failures (governance seed, ContextPipeline, RuntimeLoop) now log at ERROR and appear in `/api/system/health` instead of being swallowed as DEBUG
+- Removed dead `event_recorder` / `activity_log` wrapper and deprecated `prepare_llm_egress` aliases
+- Docs aligned to 3-gate governance and CI coverage thresholds (runtime ≥75%)

@@ -79,7 +79,7 @@ async def governance_summary(days: int = Query(default=7, ge=1, le=90)):
     tools deferred to user approval, approvals approved/rejected/expired,
     and taint-elevated decisions — all within the window.
 
-    This makes the 4-gate governance model visible: users can see exactly
+    This makes the 3-gate governance model visible: users can see exactly
     how many risky operations the LLM attempted and how many were caught.
     """
     since = (datetime.now(UTC) - timedelta(days=days)).isoformat()

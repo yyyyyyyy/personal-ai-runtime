@@ -80,6 +80,28 @@ def run_startup_checks() -> dict[str, Any]:
     return {"status": status, "checks": checks, "warnings": warnings}
 
 
+def record_startup_failure(
+    snapshot: dict[str, Any] | None,
+    key: str,
+    exc: BaseException,
+) -> dict[str, Any]:
+    """Mark a startup step as failed on the health snapshot (never raises).
+
+    Used by lifespan so critical boot failures are visible via
+    ``/api/system/health`` instead of being swallowed as DEBUG logs.
+    """
+    if not isinstance(snapshot, dict):
+        snapshot = {"status": "degraded", "checks": {}, "warnings": []}
+    snapshot.setdefault("checks", {})[key] = {
+        "status": "failed",
+        "error": str(exc),
+    }
+    snapshot.setdefault("warnings", []).append(f"{key} failed: {exc}")
+    if snapshot.get("status") == "ok":
+        snapshot["status"] = "degraded"
+    return snapshot
+
+
 def enrich_with_mcp_status(snapshot: dict[str, Any]) -> dict[str, Any]:
     """Attach MCP mesh status after async startup connect."""
     try:
@@ -143,6 +165,15 @@ def sanitize_startup_for_public(snapshot: dict[str, Any] | None) -> dict[str, An
             public_checks["mcp"] = _summarize_mcp_for_public(mcp)
         elif isinstance(mcp, dict) and "error" in mcp:
             public_checks["mcp"] = {"error": True}
+
+    # Status-only view of lifespan step results (no exception text).
+    for key in ("governance_seed", "runtime_loop", "context_pipeline"):
+        entry = checks.get(key)
+        if not isinstance(entry, dict):
+            continue
+        status = entry.get("status") or entry.get("fragment_registration")
+        if status is not None:
+            public_checks[key] = {"status": status}
 
     return {
         "status": snapshot.get("status"),

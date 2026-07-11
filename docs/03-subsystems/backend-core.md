@@ -19,7 +19,7 @@ flowchart TB
     Delta --> HasTool{"有 tool_calls?"}
     HasTool -->|否| Final["合成最终文本，break"]
     HasTool -->|是| Dispatch["ToolDispatcher.dispatch"]
-    Dispatch --> Cap["kernel.invoke_capability<br/>走 4-gate"]
+    Dispatch --> Cap["kernel.invoke_capability<br/>走 3-gate"]
     Cap --> Conf{需审批?}
     Conf -->|是| Suspend["挂起，yield confirmation_required"]
     Conf -->|否| Result["yield tool_result"]

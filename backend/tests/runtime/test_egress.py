@@ -33,7 +33,7 @@ def test_egress_emits_audit_event(tmp_path):
 def test_audit_llm_egress_returns_messages_and_audit(tmp_path):
     """Regression: callers in inbox.py / api/goals.py must consume the tuple.
 
-    A prior commit invoked prepare_llm_egress as a void function and redeclared
+    A prior commit invoked the egress helper as a void function and redeclared
     the messages list separately, which meant the audited payload could drift
     from the payload actually sent to the LLM. This test pins the contract:
     the first tuple element equals the input messages (audit-only, no
@@ -96,34 +96,6 @@ def test_audit_llm_egress_goal_breakdown_audit(tmp_path):
         events = k.read_events(type="EgressAudited")
         assert len(events) == 1
         assert events[0].actor == "api"
-    finally:
-        ki.kernel = saved
-
-
-def test_prepare_llm_egress_deprecated_alias(tmp_path):
-    """The old name still works but emits DeprecationWarning."""
-    import warnings
-
-    import app.core.runtime.kernel_instance as ki
-
-    saved = ki.kernel
-    try:
-        db = Database(db_path=str(tmp_path / "egress.db"))
-        k = Kernel(db=db)
-        ki.kernel = k
-
-        with warnings.catch_warnings(record=True) as caught:
-            warnings.simplefilter("always")
-            returned, audit = __import__(
-                "app.core.runtime.egress.egress_gate", fromlist=["prepare_llm_egress"]
-            ).prepare_llm_egress(
-                [{"role": "user", "content": "hello"}], purpose="deprecated",
-            )
-
-        assert any(issubclass(w.category, DeprecationWarning) for w in caught)
-        assert audit["purpose"] == "deprecated"
-        events = k.read_events(type="EgressAudited")
-        assert len(events) == 1
     finally:
         ki.kernel = saved
 

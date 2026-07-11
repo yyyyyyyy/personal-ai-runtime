@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import re
 import uuid
-import warnings
 from typing import Any
 
 from app.core.runtime import kernel_instance
@@ -70,24 +69,6 @@ def audit_llm_egress(
     return messages, audit
 
 
-def prepare_llm_egress(
-    messages: list[dict[str, Any]],
-    *,
-    purpose: str,
-    actor: str = "kernel",
-) -> tuple[list[dict[str, Any]], dict[str, Any]]:
-    """Deprecated alias for :func:`audit_llm_egress`.
-
-    Kept for call-site compatibility. Scheduled for removal in v0.4.0.
-    """
-    warnings.warn(
-        "prepare_llm_egress is deprecated; use audit_llm_egress instead",
-        DeprecationWarning,
-        stacklevel=2,
-    )
-    return audit_llm_egress(messages, purpose=purpose, actor=actor)
-
-
 def audit_llm_egress_sync(
     messages: list[dict[str, Any]],
     *,
@@ -95,18 +76,3 @@ def audit_llm_egress_sync(
     actor: str = "kernel",
 ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     return audit_llm_egress(messages, purpose=purpose, actor=actor)
-
-
-def prepare_llm_egress_sync(
-    messages: list[dict[str, Any]],
-    *,
-    purpose: str,
-    actor: str = "kernel",
-) -> tuple[list[dict[str, Any]], dict[str, Any]]:
-    """Deprecated alias for :func:`audit_llm_egress_sync`. Removed in v0.4.0."""
-    warnings.warn(
-        "prepare_llm_egress_sync is deprecated; use audit_llm_egress_sync instead",
-        DeprecationWarning,
-        stacklevel=2,
-    )
-    return audit_llm_egress_sync(messages, purpose=purpose, actor=actor)

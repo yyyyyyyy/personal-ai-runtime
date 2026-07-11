@@ -99,7 +99,7 @@ sequenceDiagram
         LLM-->>B: text deltas + tool_calls
         B->>TD: dispatch(tool_calls)
         TD->>K: invoke_capability(name, args, execution_id)
-        K->>K: 4-gate decide
+        K->>K: 3-gate decide
         alt 允许
             K-->>TD: CapabilityInvoked
         else 需审批

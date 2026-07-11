@@ -111,7 +111,7 @@
 工具调用流程参见 [02-concepts/capability-governance.md](../02-concepts/capability-governance.md)：
 
 1. Brain 经 `ToolDispatcher` 调 `kernel.invoke_capability(name, args, execution_id)`。
-2. Kernel 走 4-gate，外部 MCP 工具的 `policy_risk` 来自 [`mcp_config.json`](../../backend/mcp_config.json)。
+2. Kernel 走 3-gate，外部 MCP 工具的 `policy_risk` 来自 [`mcp_config.json`](../../backend/mcp_config.json)。
 3. 允许后 Kernel 调 `mcp_hub.invoke_tool` → 内建 handler 或 `mcp_mesh.call_tool`。
 4. 摄入类工具成功后 taint `correlation_id`。
 

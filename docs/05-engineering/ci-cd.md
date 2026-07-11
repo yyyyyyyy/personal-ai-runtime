@@ -16,7 +16,7 @@ push/PR 到 `main` 时触发，三个 job：
 2. `compileall app/`（字节编译检查）。
 3. `ruff check app/`。
 4. `mypy app/ scripts/`。
-5. `pytest tests/ -v --cov=app/core/runtime --cov=app/core/harness --cov=app/api -m "not live_llm"`，两个 `--fail-under` 门：`app/core/runtime/*` ≥84%、`app/api/*` ≥50%。
+5. `pytest tests/ -v --cov=app/core/runtime --cov=app/core/harness --cov=app/api -m "not live_llm"`，两个 `--fail-under` 门：`app/core/runtime/*` ≥75%、`app/api/*` ≥50%。
 6. 顺序跑：`verify_alembic.py` → 内联 MCP 工具存在性检查（26 个命名内建工具 + confirmation/async 标志）→ 内联 API 路由加载检查（14 个端点前缀）→ `verify_rebuild.py`、`verify_export_roundtrip.py`、`verify_snapshot_rebuild.py`、`check_boundary.py`、`check_execution_ownership.py`、`check_projection_provenance.py`、`verify_conversation_rebuild.py`、`verify_goal_rebuild.py`、`verify_memory_lifecycle.py`、`verify_inbox_audit.py`、`verify_egress.py`、`verify_connector.py`、`verify_vector_consistency.py`。
 
 **`frontend` job**（Node 20）：

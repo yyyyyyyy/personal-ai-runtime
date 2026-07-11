@@ -13,6 +13,16 @@ def test_startup_checks_returns_structure(monkeypatch):
     assert snapshot["checks"]["llm"]["configured"] is True
 
 
+def test_record_startup_failure_marks_degraded():
+    from app.core.startup_health import record_startup_failure
+
+    snapshot = {"status": "ok", "checks": {}, "warnings": []}
+    result = record_startup_failure(snapshot, "runtime_loop", RuntimeError("boom"))
+    assert result["status"] == "degraded"
+    assert result["checks"]["runtime_loop"]["status"] == "failed"
+    assert any("runtime_loop failed" in w for w in result["warnings"])
+
+
 def test_sanitize_startup_strips_sensitive_fields():
     snapshot = {
         "status": "degraded",

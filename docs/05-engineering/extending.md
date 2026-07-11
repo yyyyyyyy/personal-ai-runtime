@@ -112,7 +112,7 @@ fragment_registry.register(YourFragment())
 3. 在 [`backend/capability_policy.json`](../../backend/capability_policy.json) 分类（auto_allow / needs_user / forbidden）。
 4. 若属摄入类或写类，在 [`backend/app/core/runtime/taint.py`](../../backend/app/core/runtime/taint.py) 的 `_BUILTIN_EXTERNAL_INGESTION_TOOLS` 或 `WRITE_CLASS_TOOLS` 注册。
 
-**守卫**：capability 治理 4-gate；CI 内联检查期望 26 个命名内建工具。
+**守卫**：capability 治理 3-gate；CI 内联检查期望 26 个命名内建工具。
 
 ## LLM Provider
 

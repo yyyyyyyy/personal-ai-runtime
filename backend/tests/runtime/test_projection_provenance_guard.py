@@ -56,7 +56,12 @@ class TestProjectionProvenanceGuard:
         finally:
             sys.path.pop(0)
 
-    def test_orphan_goal_fails(self, provenance_db):
+    def test_orphan_goal_not_scanned_by_provenance(self, provenance_db):
+        """work_items goal orphans are out of scope for check_provenance.
+
+        Orphan detection for goal rows lives in verify_work_items_goal_rebuild;
+        this test pins that check_provenance does not claim them.
+        """
         sys.path.insert(0, str(BACKEND))
         try:
             from scripts.check_projection_provenance import check_provenance
@@ -70,11 +75,9 @@ class TestProjectionProvenanceGuard:
                                NULL, NULL, '2026-01-01', '2026-01-01', '2026-01-01')"""
                 )
                 violations = check_provenance(conn)
-            # v1.0: check_provenance no longer scans all work_items rows.
-            # Orphan detection for goal rows is replaced by verify_work_items_goal_rebuild.
-            # This test validates INSERT bypasses event_log — the violation format is
-            # different now, but the principle holds: raw INSERTs should be detectable.
-            assert True  # v1.0: goals table dropped; raw-INSERT guard reassessed elsewhere
+            assert not any(
+                v[0] == "work_items" and v[1] == "orphan_goal" for v in violations
+            )
         finally:
             sys.path.pop(0)
 
