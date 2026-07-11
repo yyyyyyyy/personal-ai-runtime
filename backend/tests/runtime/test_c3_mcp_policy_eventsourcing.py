@@ -66,9 +66,12 @@ def test_clear_external_tools_emits_policy_revoked(kernel):
 
     capability_governance.clear_external_tools()
 
-    # Verify PolicyRevoked events exist
+    # Verify PolicyUpdated (status=revoked) events exist
     events = kernel.read_events(aggregate_type="policy")
-    revoked = [e for e in events if e.type == "PolicyRevoked"]
+    revoked = [
+        e for e in events
+        if e.type == "PolicyUpdated" and e.payload.get("status") == "revoked"
+    ]
     assert len(revoked) == 2
     capabilities = {e.payload.get("capability") for e in revoked}
     assert capabilities == {"mock_external_search", "mock_external_write"}
@@ -115,10 +118,16 @@ def test_reregister_after_clear_reactivates(kernel):
         if e.payload.get("capability") == "mock_external_search"
     ]
     assert "PolicyCreated" in types_for_tool
-    assert "PolicyRevoked" in types_for_tool
-    # The second PolicyCreated should appear after the Revoked
-    revoked_idx = types_for_tool.index("PolicyRevoked")
-    created_after_revoked = types_for_tool.index("PolicyCreated", revoked_idx)
+    revoked_types = [
+        e.type for e in events
+        if e.payload.get("capability") == "mock_external_search"
+        and e.payload.get("status") == "revoked"
+    ]
+    assert "PolicyUpdated" in revoked_types
+    # The second PolicyCreated should appear after the revoked.
+    all_types = [e.type for e in events if e.payload.get("capability") == "mock_external_search"]
+    revoked_idx = all_types.index("PolicyUpdated")
+    created_after_revoked = all_types.index("PolicyCreated", revoked_idx)
     assert created_after_revoked > revoked_idx
 
 

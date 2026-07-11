@@ -6,7 +6,6 @@ from app.core.runtime import read_ports
 from app.core.runtime.kernel.constants import (
     AGGREGATE_NOTIFICATION,
     EVENT_NOTIFICATION_READ,
-    EVENT_NOTIFICATION_READ_ALL,
 )
 from app.core.runtime.kernel_instance import kernel
 
@@ -47,7 +46,7 @@ async def mark_as_read(notification_id: str):
 async def mark_all_as_read():
     """Mark all notifications as read."""
     kernel.emit_event(
-        EVENT_NOTIFICATION_READ_ALL,
+        EVENT_NOTIFICATION_READ,
         AGGREGATE_NOTIFICATION,
         "all",
         payload={},

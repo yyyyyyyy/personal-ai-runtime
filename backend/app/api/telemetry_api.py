@@ -85,8 +85,10 @@ async def governance_summary(days: int = Query(default=7, ge=1, le=90)):
     since = (datetime.now(UTC) - timedelta(days=days)).isoformat()
 
     invoked = kernel.read_events(type="CapabilityInvoked", since_ts=since, limit=1000)
-    denied = kernel.read_events(type="CapabilityDenied", since_ts=since, limit=1000)
-    deferred = kernel.read_events(type="CapabilityDeferred", since_ts=since, limit=1000)
+    denied_all = kernel.read_events(type="CapabilityDenied", since_ts=since, limit=1000)
+    # Split denied events by reason: "deferred" vs explicit deny.
+    denied = [e for e in denied_all if e.payload.get("reason") != "deferred"]
+    deferred = [e for e in denied_all if e.payload.get("reason") == "deferred"]
     approve_req = kernel.read_events(type="ApproveRequested", since_ts=since, limit=1000)
     approve_done = kernel.read_events(type="ApproveCompleted", since_ts=since, limit=1000)
 

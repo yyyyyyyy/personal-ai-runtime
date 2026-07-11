@@ -62,18 +62,16 @@ def _on_policy_created(event: Event, conn) -> None:
 @projector("PolicyUpdated")
 def _on_policy_updated(event: Event, conn) -> None:
     p = event.payload
+    if p.get("status") == "revoked":
+        conn.execute(
+            "UPDATE policy_events SET status = 'revoked', updated_at = ? WHERE id = ?",
+            (event.ts, event.aggregate_id),
+        )
+        _invalidate_risk_cache()
+        return
     conn.execute(
         "UPDATE policy_events SET risk_level = ?, updated_at = ? WHERE id = ?",
         (p.get("risk_level", "low"), event.ts, event.aggregate_id),
-    )
-    _invalidate_risk_cache()
-
-
-@projector("PolicyRevoked")
-def _on_policy_revoked(event: Event, conn) -> None:
-    conn.execute(
-        "UPDATE policy_events SET status = 'revoked', updated_at = ? WHERE id = ?",
-        (event.ts, event.aggregate_id),
     )
     _invalidate_risk_cache()
 

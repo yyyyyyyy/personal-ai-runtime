@@ -97,14 +97,14 @@ def expire_stale_approvals(kernel) -> int:
 
     for approval_id, action in expired_ids:
         kernel.emit_event(
-            type="ApprovalExpired",
+            type="ApprovalDenied",
             aggregate_type="approval",
             aggregate_id=approval_id,
             payload={"action": action, "reason": "auto_expired"},
             actor="kernel",
         )
         _notify_approval_changed(kernel,
-            approval_id, status="expired", action=action, event_type="ApprovalExpired",
+            approval_id, status="expired", action=action, event_type="ApprovalDenied",
         )
     return len(expired_ids)
 
@@ -266,13 +266,14 @@ async def invoke_capability(
 
     if decision.decision == "defer":
         kernel.emit_event(
-            type="CapabilityDeferred",
+            type="CapabilityDenied",
             aggregate_type="capability",
             aggregate_id=f"cap_{name}",
             payload={
                 "name": name,
                 "args_summary": str(args)[:200],
-                "reason": decision.reason,
+                "reason": "deferred",
+                "deny_reason": decision.reason,
                 "approval_id": decision.approval_id,
             },
             actor=principal.actor,

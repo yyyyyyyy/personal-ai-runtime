@@ -204,8 +204,8 @@ class CapabilityGovernance:
         if self._kernel is not None and all_names:
             for name in all_names:
                 self._kernel.emit_event(
-                    "PolicyRevoked", "policy", f"policy_{name}",
-                    payload={"capability": name}, actor="kernel",
+                    "PolicyUpdated", "policy", f"policy_{name}",
+                    payload={"capability": name, "status": "revoked"}, actor="kernel",
                 )
         self._external_auto_allow.clear()
         self._external_needs_user.clear()

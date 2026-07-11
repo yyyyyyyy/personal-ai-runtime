@@ -184,7 +184,7 @@ class TestProjectorsAux:
             payload={}, actor="user",
         )
         k.emit_event(
-            "NotificationReadAll", "notification", "n_all",
+            "NotificationRead", "notification", "all",
             payload={}, actor="user",
         )
         rows = k.query_state("notifications")

@@ -119,7 +119,10 @@ class TestCapabilityApproval:
         events = k.read_events(correlation_id="corr2")
         types = [e.type for e in events]
         assert "ApprovalRequested" in types
-        assert "CapabilityDeferred" in types
+        assert "CapabilityDenied" in types
+        # Ensure it was the deferred variant (not a hard deny).
+        deferred_evt = next(e for e in events if e.type == "CapabilityDenied")
+        assert deferred_evt.payload.get("reason") == "deferred"
         assert "ApprovalGranted" not in types
         assert "CapabilityInvoked" not in types
 

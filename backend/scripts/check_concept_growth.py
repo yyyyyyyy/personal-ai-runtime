@@ -123,7 +123,7 @@ def count_dead_code_files() -> int:
 
 BASELINE = {
     "runtime_files": 45,               # concept compression merges
-    "event_types": 56,                 # unchanged
+    "event_types": 50,                # event type compression                 # unchanged
     "query_state_selectors": 10,       # dropped goals/timer/background/user_profile
     "fragments": 10,                   # register.py
     "governed_tables": 14,             # unchanged

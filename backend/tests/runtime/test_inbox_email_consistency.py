@@ -132,7 +132,7 @@ def test_status_changed_event_updates_projection(fresh_db):
 
 
 def test_notified_and_digested_events_update_projection(fresh_db):
-    """v0.3.0: InboxEmailNotified / InboxEmailDigested flip the flags."""
+    """v0.3.0: InboxEmailFlagSet (flag=notified / flag=digested) flips the flags."""
     db, _ = fresh_db
     kernel = Kernel(db=db)
 
@@ -142,11 +142,13 @@ def test_notified_and_digested_events_update_projection(fresh_db):
         actor="inbox",
     )
     kernel.emit_event(
-        "InboxEmailNotified", "inbox_email", "m_notify",
+        "InboxEmailFlagSet", "inbox_email", "m_notify",
+        payload={"flag": "notified"},
         actor="inbox",
     )
     kernel.emit_event(
-        "InboxEmailDigested", "inbox_email", "digest_1",
+        "InboxEmailFlagSet", "inbox_email", "digest_1",
+        payload={"flag": "digested"},
         actor="inbox",
     )
 

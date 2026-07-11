@@ -14,13 +14,11 @@ EVENT_WORK_ITEM_STATUS_CHANGED = "WorkItemStatusChanged"
 
 EVENT_APPROVAL_REQUESTED = "ApprovalRequested"
 EVENT_APPROVAL_GRANTED = "ApprovalGranted"
-EVENT_APPROVAL_DENIED = "ApprovalDenied"
-EVENT_APPROVAL_EXPIRED = "ApprovalExpired"
+EVENT_APPROVAL_DENIED = "ApprovalDenied"  # also covers auto-expired (reason="auto_expired")
 
 EVENT_CAPABILITY_INVOKED = "CapabilityInvoked"
 EVENT_CAPABILITY_FAILED = "CapabilityFailed"
-EVENT_CAPABILITY_DENIED = "CapabilityDenied"
-EVENT_CAPABILITY_DEFERRED = "CapabilityDeferred"
+EVENT_CAPABILITY_DENIED = "CapabilityDenied"  # also covers deferred (reason="deferred")
 
 EVENT_MEMORY_DERIVED = "MemoryDerived"
 EVENT_MEMORY_UPDATED = "MemoryUpdated"
@@ -37,8 +35,7 @@ EVENT_MESSAGE_APPENDED = "MessageAppended"
 
 EVENT_NOTIFICATION_CREATED = "NotificationCreated"
 EVENT_NOTIFICATION_UPDATED = "NotificationUpdated"
-EVENT_NOTIFICATION_READ = "NotificationRead"
-EVENT_NOTIFICATION_READ_ALL = "NotificationReadAll"
+EVENT_NOTIFICATION_READ = "NotificationRead"  # aggregate_id="all" marks bulk read
 
 # ── Chat (ADR Unification) ──────────────────────────────────────────────────
 
@@ -52,10 +49,9 @@ EVENT_EXECUTE_REQUESTED = "ExecuteRequested"
 EVENT_EXECUTE_COMPLETED = "ExecuteCompleted"
 
 EVENT_BG_TASK_REQUESTED = "BackgroundTaskRequested"
-EVENT_BG_TASK_COMPLETED = "BackgroundTaskCompleted"
+EVENT_BG_TASK_COMPLETED = "BackgroundTaskCompleted"  # also covers failed (status="failed")
 EVENT_BG_TASK_CREATED = "BackgroundTaskCreated"
 EVENT_BG_TASK_STATUS_CHANGED = "BackgroundTaskStatusChanged"
-EVENT_BG_TASK_FAILED = "BackgroundTaskFailed"
 
 EVENT_INBOX_POLL_REQUESTED = "InboxPollRequested"
 EVENT_INBOX_POLL_COMPLETED = "InboxPollCompleted"
@@ -65,8 +61,8 @@ EVENT_INBOX_EMAIL_RECORDED = "InboxEmailRecorded"
 # verify_inbox_audit can guarantee the table is fully reconstructable from
 # event_log (closes Critical #1 from ARCHITECTURE_SURVIVAL_REVIEW.md).
 EVENT_INBOX_EMAIL_STATUS_CHANGED = "InboxEmailStatusChanged"
-EVENT_INBOX_EMAIL_NOTIFIED = "InboxEmailNotified"
-EVENT_INBOX_EMAIL_DIGESTED = "InboxEmailDigested"
+# InboxEmailFlagSet covers both notified and digested (payload.flag distinguishes).
+EVENT_INBOX_EMAIL_FLAG_SET = "InboxEmailFlagSet"
 
 EVENT_CHAT_TEXT_DELTA = "ChatTextDelta"   # DELIBERATELY NOT EMITTED TO EVENT_LOG — pushed to SSE queue to avoid polluting Truth Layer
 EVENT_CHAT_DONE = "ChatDone"
@@ -121,8 +117,7 @@ EVENT_TIMER_FIRED = "TimerFired"
 # ── Policy aggregate (Governance Event-Sourced) ─────────────────────────────
 
 EVENT_POLICY_CREATED = "PolicyCreated"
-EVENT_POLICY_UPDATED = "PolicyUpdated"
-EVENT_POLICY_REVOKED = "PolicyRevoked"
+EVENT_POLICY_UPDATED = "PolicyUpdated"  # also covers revoked (status="revoked")
 
 # ── Snapshot-eligible aggregates ─────────────────────────────────────────────
 

@@ -27,15 +27,18 @@ def _on_approval_requested(event: Event, conn) -> None:
     )
 
 
-@projector("ApprovalExpired")
-@projector("ApprovalGranted", "ApprovalDenied")
-def _on_approval_resolved(event: Event, conn) -> None:
-    if event.type == "ApprovalGranted":
-        status = "approved"
-    elif event.type == "ApprovalDenied":
-        status = "denied"
-    else:
-        status = "expired"
+@projector("ApprovalGranted")
+def _on_approval_granted(event: Event, conn) -> None:
+    conn.execute(
+        "UPDATE approvals SET status = ?, resolved_at = ?, resolved_by = ? WHERE id = ?",
+        ("approved", event.ts, event.actor, event.aggregate_id),
+    )
+
+
+@projector("ApprovalDenied")
+def _on_approval_denied(event: Event, conn) -> None:
+    p = event.payload
+    status = "expired" if p.get("reason") == "auto_expired" else "denied"
     conn.execute(
         "UPDATE approvals SET status = ?, resolved_at = ?, resolved_by = ? WHERE id = ?",
         (status, event.ts, event.actor, event.aggregate_id),
@@ -432,13 +435,11 @@ def _on_notification_updated(event: Event, conn) -> None:
 
 @projector("NotificationRead")
 def _on_notification_read(event: Event, conn) -> None:
+    if event.aggregate_id == "all":
+        conn.execute("UPDATE notifications SET read = 1 WHERE read = 0")
+        return
     conn.execute(
         "UPDATE notifications SET read = 1 WHERE id = ?",
         (event.aggregate_id,),
     )
-
-
-@projector("NotificationReadAll")
-def _on_notification_read_all(event: Event, conn) -> None:
-    conn.execute("UPDATE notifications SET read = 1 WHERE read = 0")
 

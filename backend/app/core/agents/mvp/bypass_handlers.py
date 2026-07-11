@@ -175,7 +175,6 @@ async def on_bg_task_requested(ctx: "ExecutionContext", event: "Event") -> None:
     from app.core.runtime.kernel.constants import (
         AGGREGATE_BACKGROUND_TASK,
         EVENT_BG_TASK_COMPLETED,
-        EVENT_BG_TASK_FAILED,
         EVENT_BG_TASK_STATUS_CHANGED,
     )
     from app.core.runtime.kernel_instance import kernel
@@ -251,10 +250,10 @@ async def on_bg_task_requested(ctx: "ExecutionContext", event: "Event") -> None:
     except Exception:
         logger.exception("BackgroundTaskRequested handler failed for task %s", task_id)
         ctx.emit(
-            EVENT_BG_TASK_FAILED,
+            EVENT_BG_TASK_COMPLETED,
             AGGREGATE_BACKGROUND_TASK,
             aggregate_id,
-            payload={"task_id": task_id, "progress": 0.0},
+            payload={"task_id": task_id, "status": "failed", "progress": 0.0},
             caused_by=event.id,
         )
 

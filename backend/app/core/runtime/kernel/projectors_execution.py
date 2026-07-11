@@ -13,7 +13,6 @@ from .constants import (
     AGGREGATE_EXECUTION,
     EVENT_BG_TASK_COMPLETED,
     EVENT_BG_TASK_CREATED,
-    EVENT_BG_TASK_FAILED,
     EVENT_BG_TASK_STATUS_CHANGED,
 )
 from .event import Event
@@ -155,27 +154,11 @@ def _on_background_task_completed(event: Event, conn) -> None:
     p = event.payload
     task_id = p.get("task_id") or event.aggregate_id.removeprefix("bg_")
     status = p.get("status", "completed")
-    progress = float(p.get("progress", 1.0 if status == "completed" else 0.1))
-    completed_at = p.get("completed_at", event.ts if status == "completed" else None)
+    progress = float(p.get("progress", 1.0 if status == "completed" else 0.0))
+    completed_at = p.get("completed_at", event.ts if status in ("completed", "failed") else None)
     conn.execute(
         """UPDATE background_tasks
            SET status = ?, progress = ?, completed_at = ?
            WHERE id = ?""",
         (status, progress, completed_at, task_id),
-    )
-
-
-@projector(EVENT_BG_TASK_FAILED)
-def _on_background_task_failed(event: Event, conn) -> None:
-    p = event.payload
-    task_id = p.get("task_id") or event.aggregate_id.removeprefix("bg_")
-    conn.execute(
-        """UPDATE background_tasks
-           SET status = 'failed', progress = ?, completed_at = ?
-           WHERE id = ?""",
-        (
-            float(p.get("progress", 0)),
-            p.get("completed_at", event.ts),
-            task_id,
-        ),
     )

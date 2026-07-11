@@ -173,8 +173,8 @@ def dispatch(kernel: Any, event: "Event") -> None:
         if not _resolve_future_threadsafe(future, event):
             return
 
-    # Background tasks: Failed also resolves Requested → Completed waiters.
-    if event.type == "BackgroundTaskFailed" and event.correlation_id:
+    # Background tasks: Completed-with-failed-status also resolves Requested waiters.
+    if event.type == "BackgroundTaskCompleted" and event.payload.get("status") == "failed" and event.correlation_id:
         fail_key = (event.correlation_id, "BackgroundTaskCompleted")
         with kernel._commands_lock:
             fail_future = kernel._pending_commands.pop(fail_key, None)

@@ -251,9 +251,10 @@ async def apply_inbox_poll_payload(payload: dict, *, execution_id: str | None = 
         content = f"发件人相关邮件需关注（分类: important，置信度 {item['importance']:.2f}）"
         push_notification("inbox", title, content)
         kernel.emit_event(
-            constants.EVENT_INBOX_EMAIL_NOTIFIED,
+            constants.EVENT_INBOX_EMAIL_FLAG_SET,
             constants.AGGREGATE_INBOX_EMAIL,
             item["id"],
+            payload={"flag": "notified"},
             actor="inbox",
         )
         notified += 1
@@ -378,9 +379,10 @@ def generate_inbox_digest() -> dict | None:
     notif = push_notification("inbox_digest", title, content)
 
     kernel.emit_event(
-        constants.EVENT_INBOX_EMAIL_DIGESTED,
+        constants.EVENT_INBOX_EMAIL_FLAG_SET,
         constants.AGGREGATE_INBOX_EMAIL,
         f"digest_{now.strftime('%Y%m%d')}",
+        payload={"flag": "digested"},
         actor="inbox",
     )
 

@@ -49,20 +49,20 @@ def _on_inbox_email_status_changed(event: Event, conn) -> None:
     )
 
 
-@projector("InboxEmailNotified")
-def _on_inbox_email_notified(event: Event, conn) -> None:
-    conn.execute(
-        "UPDATE inbox_emails SET notified = 1 WHERE id = ?",
-        (event.aggregate_id,),
-    )
-
-
-@projector("InboxEmailDigested")
-def _on_inbox_email_digested(event: Event, conn) -> None:
-    # Bulk op: mark all undigested rows as digested. aggregate_id carries the
-    # digest run id; we update every row where digested = 0 so the projection
-    # converges to "everything emitted before this event has been digested".
-    conn.execute("UPDATE inbox_emails SET digested = 1 WHERE COALESCE(digested, 0) = 0")
+@projector("InboxEmailFlagSet")
+def _on_inbox_email_flag_set(event: Event, conn) -> None:
+    flag = event.payload.get("flag", "notified")
+    if flag == "digested":
+        # Bulk op: mark all undigested rows as digested. aggregate_id carries
+        # the digest run id; we update every row where digested = 0 so the
+        # projection converges to "everything emitted before this event has
+        # been digested".
+        conn.execute("UPDATE inbox_emails SET digested = 1 WHERE COALESCE(digested, 0) = 0")
+    else:
+        conn.execute(
+            "UPDATE inbox_emails SET notified = 1 WHERE id = ?",
+            (event.aggregate_id,),
+        )
 
 
 # --- Timer projection (folded here to keep runtime_files zero-sum) ----------

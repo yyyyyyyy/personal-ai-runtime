@@ -69,7 +69,7 @@ async def test_create_goal_emits_capability_invoked(isolated_kernel):
     # Either way, a Capability* event MUST exist (gate was entered).
     cap_events = [
         e for e in isolated_kernel.read_events()
-        if e.type in {"CapabilityInvoked", "CapabilityDeferred", "CapabilityDenied"}
+        if e.type in {"CapabilityInvoked", "CapabilityDenied"}
     ]
     assert len(cap_events) >= 1, (
         "create_goal did not produce a Capability* event — the 3-gate was "
