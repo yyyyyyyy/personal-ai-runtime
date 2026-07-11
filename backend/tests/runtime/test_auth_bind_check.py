@@ -6,7 +6,7 @@ requirement; LAN IPs like 192.168.1.100 silently fell through to a warning.
 exposed.
 """
 
-from app.main import _is_localhost_bind
+from app.main import _is_localhost_bind, _path_requires_auth
 
 
 def test_loopback_ipv4_is_localhost():
@@ -43,3 +43,25 @@ def test_private_10_network_is_exposed():
 
 def test_public_ip_is_exposed():
     assert _is_localhost_bind("8.8.8.8") is False
+
+
+def test_exact_skip_paths_do_not_require_auth():
+    for path in ("/", "/api/system/health", "/api/system/live", "/docs", "/redoc", "/openapi.json"):
+        assert _path_requires_auth(path) is False
+
+
+def test_docs_static_prefix_skips_auth():
+    assert _path_requires_auth("/docs/oauth2-redirect") is False
+    assert _path_requires_auth("/redoc/") is False
+
+
+def test_docs_prefix_does_not_skip_lookalike_paths():
+    """Bare '/docs' as a prefix would incorrectly skip '/docsanything'."""
+    assert _path_requires_auth("/docsanything") is True
+    assert _path_requires_auth("/docsanything/x") is True
+    assert _path_requires_auth("/redocleak") is True
+
+
+def test_api_paths_require_auth():
+    assert _path_requires_auth("/api/chat") is True
+    assert _path_requires_auth("/api/system/status") is True

@@ -1,7 +1,7 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { screen, fireEvent, waitFor } from "@testing-library/react";
 import { renderWithRouter } from "../test-utils";
-import PortraitPage from "./Portrait";
+import { PortraitPanel } from "./Portrait";
 
 vi.mock("../api/portrait", () => ({
   getPortrait: vi.fn(),
@@ -13,7 +13,7 @@ import type { PortraitData } from "../api/portrait";
 const mockGetPortrait = vi.mocked(getPortrait);
 
 function renderPortrait() {
-  return renderWithRouter(<PortraitPage />);
+  return renderWithRouter(<PortraitPanel />);
 }
 
 function mockPortraitData(data: PortraitData) {

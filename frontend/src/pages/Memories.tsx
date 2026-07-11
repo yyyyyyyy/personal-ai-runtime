@@ -1,4 +1,5 @@
 import { useEffect, useState, useMemo, useRef } from "react";
+import { useSearchParams } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   createMemory,
@@ -18,8 +19,9 @@ import { useErrorStore } from "../stores/errorStore";
 import { useQuickChat } from "../hooks/useQuickChat";
 import { useMemoriesGroupedQuery } from "../hooks/useMemoriesQuery";
 import { queryKeys } from "../hooks/useWsInvalidationBridge";
+import { PortraitPanel } from "./Portrait";
 import Dialog from "../components/ui/Dialog";
-import { Network, List, Check, X, Edit3, FileText, History } from "lucide-react";
+import { Network, List, Check, X, Edit3, FileText, History, User } from "lucide-react";
 
 function timeAgoShort(dateStr: string): string {
   const d = new Date(dateStr);
@@ -36,11 +38,21 @@ function timeAgoShort(dateStr: string): string {
 
 export default function MemoriesPage() {
   const queryClient = useQueryClient();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const tabParam = searchParams.get("tab");
+  const viewMode: "list" | "graph" | "portrait" =
+    tabParam === "portrait" ? "portrait" : tabParam === "graph" ? "graph" : "list";
+  const setViewMode = (mode: "list" | "graph" | "portrait") => {
+    if (mode === "list") {
+      setSearchParams({}, { replace: true });
+    } else {
+      setSearchParams({ tab: mode }, { replace: true });
+    }
+  };
   const { data, isLoading: loading, error: loadError } = useMemoriesGroupedQuery();
   const memories = data?.memories ?? [];
   const [newContent, setNewContent] = useState("");
   const [deleteTarget, setDeleteTarget] = useState<MemoryRow | null>(null);
-  const [viewMode, setViewMode] = useState<"list" | "graph">("list");
   const [graphData, setGraphData] = useState<MemoryGraph | null>(null);
   const [graphLoading, setGraphLoading] = useState(false);
   const [editTarget, setEditTarget] = useState<MemoryRow | null>(null);
@@ -270,10 +282,23 @@ export default function MemoriesPage() {
               <Network size={14} />
               图谱
             </button>
+            <button
+              onClick={() => setViewMode("portrait")}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-sm transition-colors ${
+                viewMode === "portrait"
+                  ? "bg-gray-700 text-white"
+                  : "text-gray-400 hover:text-gray-200"
+              }`}
+            >
+              <User size={14} />
+              画像
+            </button>
           </div>
         </div>
 
-        {viewMode === "list" ? (
+        {viewMode === "portrait" ? (
+          <PortraitPanel compact />
+        ) : viewMode === "list" ? (
           <>
             <div className="flex gap-2">
               <input

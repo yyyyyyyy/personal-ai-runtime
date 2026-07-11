@@ -10,7 +10,7 @@
 
 - `settings.auth_token` 为空时直接放行（认证关闭）。
 - 启用时，从 `Authorization: Bearer <token>` 提取，`secrets.compare_digest` 比对；失败返回 401 JSON。
-- 跳过路径 `SKIP_AUTH_PATHS`（[`main.py`](../../backend/app/main.py)）：`/`、`/api/system/health`、`/api/system/live`、`/docs`、`/redoc`、`/openapi.json`（前缀匹配，`/` 精确匹配）。
+- 跳过路径（[`main.py`](../../backend/app/main.py)）：精确匹配 `SKIP_AUTH_EXACT`（`/`、`/api/system/health`、`/api/system/live`、`/docs`、`/redoc`、`/openapi.json`）；前缀仅 `/docs/`、`/redoc/`（Swagger 静态资源，避免 `/docsanything` 绕过）。
 - 启用时同时触发限流。
 
 ### 启动安全策略

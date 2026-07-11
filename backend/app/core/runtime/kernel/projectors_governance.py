@@ -29,6 +29,16 @@ CREATE INDEX IF NOT EXISTS idx_policy_events_status
 """
 
 
+def _invalidate_risk_cache() -> None:
+    """Policy table changed — drop CapabilityGovernance risk cache."""
+    try:
+        from app.core.runtime.capability_governance import capability_governance
+
+        capability_governance.invalidate_risk_cache()
+    except Exception:
+        pass
+
+
 # ── Policy projectors ───────────────────────────────────────────────────
 
 @projector("PolicyCreated")
@@ -46,6 +56,7 @@ def _on_policy_created(event: Event, conn) -> None:
             event.ts,
         ),
     )
+    _invalidate_risk_cache()
 
 
 @projector("PolicyUpdated")
@@ -55,6 +66,7 @@ def _on_policy_updated(event: Event, conn) -> None:
         "UPDATE policy_events SET risk_level = ?, updated_at = ? WHERE id = ?",
         (p.get("risk_level", "low"), event.ts, event.aggregate_id),
     )
+    _invalidate_risk_cache()
 
 
 @projector("PolicyRevoked")
@@ -63,3 +75,4 @@ def _on_policy_revoked(event: Event, conn) -> None:
         "UPDATE policy_events SET status = 'revoked', updated_at = ? WHERE id = ?",
         (event.ts, event.aggregate_id),
     )
+    _invalidate_risk_cache()

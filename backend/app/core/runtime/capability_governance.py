@@ -69,6 +69,10 @@ class CapabilityGovernance:
         # Invalidated by any policy mutation (seed/register/revoke).
         self._risk_cache: dict[tuple[str, bool], str] = {}
 
+    def invalidate_risk_cache(self) -> None:
+        """Drop cached risk lookups after policy_events mutations."""
+        self._risk_cache.clear()
+
     # ── Seed (startup) ─────────────────────────────────────────────
 
     def seed_from_json(self, kernel: Kernel) -> None:

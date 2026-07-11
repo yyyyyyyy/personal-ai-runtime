@@ -65,24 +65,26 @@ def get_request_id() -> str:
 
 # ── Auth middleware ──────────────────────────────────────────────────────────
 
-SKIP_AUTH_PATHS = frozenset({"/", "/api/system/health", "/api/system/live", "/docs", "/redoc", "/openapi.json"})
+SKIP_AUTH_EXACT = frozenset({
+    "/",
+    "/api/system/health",
+    "/api/system/live",
+    "/docs",
+    "/redoc",
+    "/openapi.json",
+})
+# Swagger UI static assets only — never use bare "/docs" as a prefix (would
+# skip auth for "/docsanything/...").
+SKIP_AUTH_PREFIXES = ("/docs/", "/redoc/")
 
 
 def _path_requires_auth(path: str) -> bool:
-    """Return True if the request path should go through auth middleware.
+    """Return True if the request path should go through auth middleware."""
+    if path in SKIP_AUTH_EXACT:
+        return False
+    return not any(path.startswith(prefix) for prefix in SKIP_AUTH_PREFIXES)
 
-    Uses prefix matching so that new paths under /docs/ (e.g. /docs/css/style.css)
-    and /api/system/health* variants are also skipped.
-    The root path "/" is matched exactly (otherwise it would match everything).
-    """
-    for prefix in SKIP_AUTH_PATHS:
-        if prefix == "/":
-            if path == "/":
-                return False
-            continue
-        if path == prefix or path.startswith(prefix.rstrip("/") + "/"):
-            return False
-    return True
+
 WS_AUTH_PREFIX = "auth."
 WS_AUTH_OK = "auth.ok"
 _LOCALHOST_HOSTS = frozenset({"127.0.0.1", "localhost", "::1"})

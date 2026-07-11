@@ -2,7 +2,7 @@
 
 全端点签名表。认证说明：所有端点（除标 `public`）在 `AUTH_TOKEN` 配置时经全局 `AuthMiddleware` Bearer 校验；**没有任何端点用 FastAPI Depends 式 AUTH_TOKEN 依赖**。
 
-跳过认证路径（`SKIP_AUTH_PATHS`，[`main.py`](../../backend/app/main.py)）：`/`、`/api/system/health`、`/api/system/live`、`/docs`、`/redoc`、`/openapi.json`。
+跳过认证路径（[`main.py`](../../backend/app/main.py)）：精确匹配 `/`、`/api/system/health`、`/api/system/live`、`/docs`、`/redoc`、`/openapi.json`；前缀仅 `/docs/`、`/redoc/`。
 
 ## chat — `/api/chat`（[`api/chat.py`](../../backend/app/api/chat.py)）
 

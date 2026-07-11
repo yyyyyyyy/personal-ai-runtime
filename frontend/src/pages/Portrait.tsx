@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { Navigate } from "react-router-dom";
 import {
   User,
   Heart,
@@ -31,7 +32,8 @@ function confidenceLevel(score: number): { color: string; label: string; pct: nu
   return { color: "bg-red-500", label: "低可信", pct };
 }
 
-export default function PortraitPage() {
+/** Portrait content — embedded as a Memories tab; also used by tests. */
+export function PortraitPanel({ compact = false }: { compact?: boolean }) {
   const [data, setData] = useState<PortraitData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -50,12 +52,12 @@ export default function PortraitPage() {
   };
 
   useEffect(() => {
-    fetchPortrait();
+    void fetchPortrait();
   }, []);
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-full">
+      <div className={`flex items-center justify-center ${compact ? "py-16" : "h-full"}`}>
         <div className="flex flex-col items-center gap-3 text-gray-400">
           <Loader2 size={32} className="animate-spin" />
           <p className="text-sm">正在生成你的 AI 画像…</p>
@@ -66,12 +68,12 @@ export default function PortraitPage() {
 
   if (error) {
     return (
-      <div className="flex items-center justify-center h-full">
+      <div className={`flex items-center justify-center ${compact ? "py-16" : "h-full"}`}>
         <div className="flex flex-col items-center gap-3 text-gray-400">
           <AlertCircle size={32} className="text-red-400" />
           <p className="text-sm">{error}</p>
           <button
-            onClick={fetchPortrait}
+            onClick={() => void fetchPortrait()}
             className="flex items-center gap-2 px-4 py-2 mt-2 text-sm bg-emerald-600/20 text-emerald-400 rounded-lg hover:bg-emerald-600/30 transition-colors"
           >
             <RefreshCw size={14} />
@@ -87,23 +89,26 @@ export default function PortraitPage() {
     profileEntries.length + (data?.habits?.length ?? 0) + (data?.goals?.length ?? 0);
 
   return (
-    <div className="h-full overflow-y-auto">
-      {/* 头部 */}
-      <div className="p-6 border-b border-gray-800">
-        <div className="flex items-center gap-3">
-          <div className="w-12 h-12 rounded-xl bg-emerald-600/20 flex items-center justify-center">
-            <User size={24} className="text-emerald-400" />
-          </div>
-          <div>
-            <h1 className="text-xl font-bold text-white">AI 画像</h1>
-            <p className="text-sm text-gray-400 mt-1">AI 对你的理解——包含 {totalItems} 项洞察</p>
+    <div className={compact ? "" : "h-full overflow-y-auto"}>
+      {!compact && (
+        <div className="p-6 border-b border-gray-800">
+          <div className="flex items-center gap-3">
+            <div className="w-12 h-12 rounded-xl bg-emerald-600/20 flex items-center justify-center">
+              <User size={24} className="text-emerald-400" />
+            </div>
+            <div>
+              <h1 className="text-xl font-bold text-white">AI 画像</h1>
+              <p className="text-sm text-gray-400 mt-1">AI 对你的理解——包含 {totalItems} 项洞察</p>
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
-      {/* 画像内容 */}
-      <div className="p-6 space-y-8">
-        {/* 提示横幅 —— 仅当画像为空时显示 */}
+      <div className={compact ? "space-y-8" : "p-6 space-y-8"}>
+        {compact && (
+          <p className="text-sm text-gray-500">AI 对你的理解——包含 {totalItems} 项洞察</p>
+        )}
+
         {totalItems === 0 && (
           <div className="flex items-start gap-3 p-4 rounded-xl bg-amber-500/10 border border-amber-500/20">
             <AlertCircle size={20} className="text-amber-400 shrink-0 mt-0.5" />
@@ -118,7 +123,6 @@ export default function PortraitPage() {
           </div>
         )}
 
-        {/* 用户画像维度 */}
         {profileEntries.length > 0 && (
           <section>
             <h2 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
@@ -155,7 +159,6 @@ export default function PortraitPage() {
                         <p className="text-xs text-gray-500">暂无数据</p>
                       )}
                     </div>
-                    {/* 置信度指示器 */}
                     <div className="mt-3 pt-3 border-t border-gray-700/50">
                       <div className="flex items-center gap-2">
                         <div className="flex-1 h-1.5 bg-gray-700 rounded-full overflow-hidden">
@@ -174,7 +177,6 @@ export default function PortraitPage() {
           </section>
         )}
 
-        {/* 习惯 */}
         {(data?.habits?.length ?? 0) > 0 && (
           <section>
             <h2 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
@@ -209,7 +211,6 @@ export default function PortraitPage() {
           </section>
         )}
 
-        {/* 目标 */}
         {(data?.goals?.length ?? 0) > 0 && (
           <section>
             <h2 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
@@ -247,4 +248,9 @@ export default function PortraitPage() {
       </div>
     </div>
   );
+}
+
+/** Legacy route — redirect into Memories portrait tab. */
+export default function PortraitPage() {
+  return <Navigate to="/memories?tab=portrait" replace />;
 }
