@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import {
-  exportData,
+  downloadExport,
   exportEncryptedData,
   importData,
   importEncryptedData,
@@ -124,16 +124,7 @@ export default function SettingsPage() {
   const handleExport = async () => {
     setExporting(true);
     try {
-      const data = await exportData();
-      const blob = new Blob([JSON.stringify(data, null, 2)], {
-        type: "application/json",
-      });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `personal-ai-backup-${new Date().toISOString().slice(0, 10)}.json`;
-      a.click();
-      URL.revokeObjectURL(url);
+      await downloadExport();
     } catch (err) {
       const msg = err instanceof ApiError ? err.message : "导出失败";
       addError(msg, "设置");

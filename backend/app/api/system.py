@@ -1,8 +1,10 @@
 """System API — health checks, LLM providers, data sovereignty, and system info."""
 
 import secrets
+from datetime import UTC, datetime
 
 from fastapi import APIRouter, HTTPException, Request
+from fastapi.responses import StreamingResponse
 
 from app.api.models import (
     EncryptedExportRequest,
@@ -120,15 +122,27 @@ async def mcp_status():
 
 @router.post("/export")
 async def export_all_data(body: ExportRequest | None = None):
-    """Export complete personal data snapshot as JSON."""
+    """Export complete personal data snapshot as streamed JSON.
+
+    Body is identical to ``kernel.snapshot()`` wire format so import/restore
+    stay compatible. Streaming avoids buffering the full serialized document
+    in the ASGI response layer.
+    """
     payload = body or ExportRequest()
     if payload.confirm != EXPORT_CONFIRM:
         raise HTTPException(
             status_code=400,
             detail=f"Set confirm='{EXPORT_CONFIRM}' to export",
         )
-    return kernel.snapshot()
-
+    filename = f"personal-ai-backup-{datetime.now(UTC).strftime('%Y-%m-%d')}.json"
+    return StreamingResponse(
+        kernel.iter_snapshot_json_chunks(),
+        media_type="application/json; charset=utf-8",
+        headers={
+            "Content-Disposition": f'attachment; filename="{filename}"',
+            "Cache-Control": "no-store",
+        },
+    )
 
 @router.post("/import")
 async def import_all_data(body: ImportRequest):

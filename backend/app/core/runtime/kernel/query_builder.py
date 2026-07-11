@@ -142,3 +142,90 @@ def fetch_chat_projection_dicts(
         ).fetchall()
     ]
     return conversations, messages
+
+
+def iter_event_log_json_objects(
+    conn: Any, *, batch_size: int = EVENT_LOG_EXPORT_BATCH
+) -> Iterable[str]:
+    """Yield JSON object strings for each event_log row (seq ascending)."""
+    import json
+
+    last_seq = 0
+    n = int(batch_size)
+    if n < 1:
+        n = 1
+    if n > MAX_LIMIT:
+        n = MAX_LIMIT
+    while True:
+        rows = conn.execute(
+            "SELECT * FROM event_log WHERE seq > ? ORDER BY seq ASC LIMIT ?",
+            (last_seq, n),
+        ).fetchall()
+        if not rows:
+            return
+        for r in rows:
+            yield json.dumps(dict(r), ensure_ascii=False)
+        last_seq = int(rows[-1]["seq"])
+        if len(rows) < n:
+            return
+
+
+def iter_snapshot_document_bytes(
+    conn: Any,
+    *,
+    snapshot_id: str,
+    exported_at: str,
+    export_format: str,
+    batch_size: int = EVENT_LOG_EXPORT_BATCH,
+) -> Iterable[bytes]:
+    """Stream a lossless snapshot JSON document on an open connection."""
+    import json
+
+    def _text() -> Iterable[str]:
+        yield "{"
+        yield f'"snapshot_id":{json.dumps(snapshot_id)},'
+        yield f'"exported_at":{json.dumps(exported_at)},'
+        yield f'"format":{json.dumps(export_format)},'
+        yield '"event_log":['
+        event_count = 0
+        first = True
+        for obj in iter_event_log_json_objects(conn, batch_size=batch_size):
+            if not first:
+                yield ","
+            first = False
+            yield obj
+            event_count += 1
+        conversations, messages = fetch_chat_projection_dicts(conn)
+        goals = int(
+            conn.execute(
+                "SELECT COUNT(*) AS c FROM work_items WHERE work_type = ?",
+                ("goal",),
+            ).fetchone()["c"]
+        )
+        memories = int(
+            conn.execute("SELECT COUNT(*) AS c FROM memories").fetchone()["c"]
+        )
+        notifications = int(
+            conn.execute("SELECT COUNT(*) AS c FROM notifications").fetchone()["c"]
+        )
+        yield "],"
+        yield '"conversations":'
+        yield json.dumps(conversations, ensure_ascii=False)
+        yield ',"messages":'
+        yield json.dumps(messages, ensure_ascii=False)
+        yield ',"counts":'
+        yield json.dumps(
+            {
+                "event_log": event_count,
+                "conversations": len(conversations),
+                "messages": len(messages),
+                "goals": goals,
+                "memories": memories,
+                "notifications": notifications,
+            },
+            ensure_ascii=False,
+        )
+        yield "}"
+
+    for chunk in _text():
+        yield chunk.encode("utf-8")

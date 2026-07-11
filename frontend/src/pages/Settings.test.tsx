@@ -85,6 +85,7 @@ vi.mock("../api/client", () => ({
     external_ingestion: ["web_search"],
   }),
   exportData: vi.fn().mockResolvedValue({ events: [] }),
+  downloadExport: vi.fn().mockResolvedValue(undefined),
   importData: vi.fn(),
   ApiError: class extends Error {
     status: number;

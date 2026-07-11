@@ -234,8 +234,8 @@ export default function DashboardPage() {
               <button
                 onClick={async () => {
                   try {
-                    const { exportData } = await import("../api/client");
-                    await exportData();
+                    const { downloadExport } = await import("../api/client");
+                    await downloadExport();
                     alert("数据导出成功");
                   } catch {
                     alert("导出失败，请在设置页面操作");

@@ -56,6 +56,7 @@ export {
   fetchSystemInfo,
   getLlmProviders,
   exportData,
+  downloadExport,
   exportEncryptedData,
   importData,
   importEncryptedData,

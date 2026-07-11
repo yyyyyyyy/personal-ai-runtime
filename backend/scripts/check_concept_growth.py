@@ -129,7 +129,7 @@ BASELINE = {
     "fragments": 10,                   # register.py
     "governed_tables": 14,             # unchanged
     "projector_files": 9,              # unchanged
-    "god_object_max_loc": 2004,        # invoke_capability → governance; export batched via query_builder (kernel.py 812→647)
+    "god_object_max_loc": 1989,        # streaming export via query_builder; snapshot() delegates to iter chunks
     "dead_code_files": 0,              # 已知死代码文件数
 }
 

@@ -26,7 +26,11 @@ from .constants import (
     MEMORY_INDEX_EVENT_TYPES,
     PROJECTION_SNAPSHOT_AGGREGATES,
 )
-from .query_builder import fetch_chat_projection_dicts, fetch_event_log_dicts
+from .query_builder import (
+    fetch_chat_projection_dicts,
+    fetch_event_log_dicts,
+    iter_snapshot_document_bytes,
+)
 
 EXPORT_FORMAT = "snapshot"
 
@@ -355,48 +359,29 @@ class SovereigntyMixin:  # type: ignore[attr-defined]  # mixed into Kernel which
 
     # ── Sovereignty operations (ex-DigitalLegacy, now kernel first-class) ─
 
-    def snapshot(self) -> dict[str, Any]:
-        """Export complete personal snapshot: event_log + conversations + messages.
+    def iter_snapshot_json_chunks(self):
+        """Yield UTF-8 chunks of a lossless snapshot JSON document.
 
-        Reads event_log and chat projections in one DB transaction for a
-        point-in-time view. Does not write projection checkpoints (those are
-        a rebuild concern, owned by ``save_projection_snapshots`` / timers).
+        Streams ``event_log`` row-by-row so the HTTP layer need not hold the
+        full serialized body. Wire format matches :meth:`snapshot`.
         """
         now = datetime.now(UTC).isoformat()
         snapshot_id = str(uuid.uuid4())
-
         with self._db.get_db() as conn:
-            event_log = self.export_event_log_rows(conn=conn)
-            conversations, messages = self.export_chat_rows(conn=conn)
-            goals = int(
-                conn.execute(
-                    "SELECT COUNT(*) AS c FROM work_items WHERE work_type = ?",
-                    ("goal",),
-                ).fetchone()["c"]
-            )
-            memories = int(
-                conn.execute("SELECT COUNT(*) AS c FROM memories").fetchone()["c"]
-            )
-            notifications = int(
-                conn.execute("SELECT COUNT(*) AS c FROM notifications").fetchone()["c"]
+            yield from iter_snapshot_document_bytes(
+                conn,
+                snapshot_id=snapshot_id,
+                exported_at=now,
+                export_format=EXPORT_FORMAT,
             )
 
-        return {
-            "snapshot_id": snapshot_id,
-            "exported_at": now,
-            "format": EXPORT_FORMAT,
-            "event_log": event_log,
-            "conversations": conversations,
-            "messages": messages,
-            "counts": {
-                "event_log": len(event_log),
-                "conversations": len(conversations),
-                "messages": len(messages),
-                "goals": goals,
-                "memories": memories,
-                "notifications": notifications,
-            },
-        }
+    def snapshot(self) -> dict[str, Any]:
+        """Export complete personal snapshot as a dict.
+
+        Prefer :meth:`iter_snapshot_json_chunks` for HTTP plaintext export.
+        Encrypted export and scripts still use this materialised form.
+        """
+        return json.loads(b"".join(self.iter_snapshot_json_chunks()))
 
     def restore(self, snapshot: dict, read_only: bool = True) -> dict[str, Any]:
         """Import snapshot. Write import requires read_only=False.

@@ -15,9 +15,32 @@ def test_export_with_confirm(client: TestClient):
         json={"confirm": "EXPORT_ALL_DATA"},
     )
     assert r.status_code == 200
+    assert "attachment" in r.headers.get("content-disposition", "")
     data = r.json()
     assert data["format"] == "snapshot"
     assert "event_log" in data
+
+
+def test_export_stream_matches_snapshot_wire_format(client: TestClient):
+    """Streamed plaintext export must parse to the same schema as snapshot()."""
+    from app.core.runtime.kernel_instance import kernel
+
+    kernel.emit_event(
+        "NotificationCreated",
+        "notification",
+        "exp_stream_1",
+        payload={"title": "stream-me"},
+    )
+    streamed = client.post(
+        "/api/system/export",
+        json={"confirm": "EXPORT_ALL_DATA"},
+    ).json()
+    snap = kernel.snapshot()
+    assert streamed["format"] == snap["format"]
+    assert streamed["counts"]["event_log"] == snap["counts"]["event_log"]
+    assert [e["id"] for e in streamed["event_log"]] == [e["id"] for e in snap["event_log"]]
+    assert len(streamed["conversations"]) == len(snap["conversations"])
+    assert len(streamed["messages"]) == len(snap["messages"])
 
 
 def test_import_read_only_validate(client: TestClient):
