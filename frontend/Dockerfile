@@ -17,11 +17,12 @@ FROM node:20-slim
 
 WORKDIR /app/frontend
 
+# Only the built artifacts are needed at runtime. node_modules is intentionally
+# omitted — `npx serve` fetches its own tiny runtime, and devDependencies
+# (eslint, vitest, playwright, testing-library, …) must not ship in the image.
 COPY --from=builder /app/frontend/dist ./dist
 COPY --from=builder /app/frontend/package.json ./
-COPY --from=builder /app/frontend/vite.config.ts ./
-COPY --from=builder /app/frontend/node_modules ./node_modules
 
 EXPOSE 5173
 
-CMD ["npx", "vite", "preview", "--host", "0.0.0.0", "--port", "5173"]
+CMD ["npx", "serve", "dist", "-l", "5173", "--no-clipboard"]
