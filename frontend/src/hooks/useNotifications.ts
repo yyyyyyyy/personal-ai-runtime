@@ -87,9 +87,14 @@ export function useNotifications() {
 
             if (raw.type !== "notification") return;
 
+            const category =
+              typeof (raw as { notification_type?: unknown }).notification_type === "string"
+                ? (raw as { notification_type: string }).notification_type
+                : "notification";
+
             const item: NotificationItem = {
               id: raw.id || `live-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-              type: raw.type,
+              type: category,
               title: raw.title || "通知",
               content: raw.content || "",
               created_at: raw.created_at || new Date().toISOString(),

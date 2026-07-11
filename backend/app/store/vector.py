@@ -76,20 +76,44 @@ class VectorStore:
 
     def search_memories(self, query: str, n_results: int = 5) -> list[dict]:
         """Semantic search for related memories."""
+        batch = self.search_memories_batch([query], n_results=n_results)
+        return batch[0] if batch else []
+
+    def search_memories_batch(
+        self, queries: list[str], n_results: int = 5
+    ) -> list[list[dict]]:
+        """Batch semantic search — one Chroma round-trip for many queries.
+
+        Returns a list aligned with ``queries``; each entry is the hit list
+        for that query (same shape as :meth:`search_memories`).
+        """
+        if not queries:
+            return []
         results = self.memory_collection.query(
-            query_texts=[query],
+            query_texts=queries,
             n_results=n_results,
         )
-        items = []
-        if results["ids"] and results["ids"][0]:
-            for i in range(len(results["ids"][0])):
-                items.append({
-                    "id": results["ids"][0][i],
-                    "content": results["documents"][0][i] if results["documents"] else "",
-                    "metadata": results["metadatas"][0][i] if results["metadatas"] else {},
-                    "distance": results["distances"][0][i] if results["distances"] else None,
-                })
-        return items
+        batches: list[list[dict]] = []
+        ids_by_q = results.get("ids") or []
+        docs_by_q = results.get("documents") or []
+        metas_by_q = results.get("metadatas") or []
+        dists_by_q = results.get("distances") or []
+        for q_idx in range(len(queries)):
+            items: list[dict] = []
+            if q_idx < len(ids_by_q) and ids_by_q[q_idx]:
+                for i in range(len(ids_by_q[q_idx])):
+                    items.append({
+                        "id": ids_by_q[q_idx][i],
+                        "content": docs_by_q[q_idx][i] if docs_by_q and docs_by_q[q_idx] else "",
+                        "metadata": (
+                            metas_by_q[q_idx][i] if metas_by_q and metas_by_q[q_idx] else {}
+                        ),
+                        "distance": (
+                            dists_by_q[q_idx][i] if dists_by_q and dists_by_q[q_idx] else None
+                        ),
+                    })
+            batches.append(items)
+        return batches
 
     def search_knowledge(self, query: str, n_results: int = 5) -> list[dict]:
         """Semantic search in the knowledge base."""

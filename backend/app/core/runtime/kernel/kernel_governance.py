@@ -69,12 +69,15 @@ class GovernanceMixin:  # type: ignore[attr-defined]  # mixed into Kernel which 
                 correlation_id=correlation_id,
             )
             return {"status": "approved", "approval_id": approval_id}
-        else:
-            return {
-                "status": "pending",
-                "approval_id": approval_id,
-                "reason": "needs_user_confirmation",
-            }
+
+        self._notify_approval_changed(
+            approval_id, status="pending", action=action, event_type="ApprovalRequested",
+        )
+        return {
+            "status": "pending",
+            "approval_id": approval_id,
+            "reason": "needs_user_confirmation",
+        }
 
     def expire_stale_approvals(self) -> int:
         """Expire all pending approvals whose expires_at has passed.
@@ -112,6 +115,9 @@ class GovernanceMixin:  # type: ignore[attr-defined]  # mixed into Kernel which 
                 payload={"action": action, "reason": "auto_expired"},
                 actor="kernel",
             )
+            self._notify_approval_changed(
+                approval_id, status="expired", action=action, event_type="ApprovalExpired",
+            )
         return len(expired_ids)
 
     def grant_approval(
@@ -131,6 +137,9 @@ class GovernanceMixin:  # type: ignore[attr-defined]  # mixed into Kernel which 
             actor=actor,
             correlation_id=correlation_id,
         )
+        self._notify_approval_changed(
+            approval_id, status="approved", action=action, event_type="ApprovalGranted",
+        )
 
     def deny_approval(
         self,
@@ -149,3 +158,25 @@ class GovernanceMixin:  # type: ignore[attr-defined]  # mixed into Kernel which 
             actor=actor,
             correlation_id=correlation_id,
         )
+        self._notify_approval_changed(
+            approval_id, status="denied", action=action, event_type="ApprovalDenied",
+        )
+
+    def _notify_approval_changed(
+        self,
+        approval_id: str,
+        *,
+        status: str,
+        action: str,
+        event_type: str,
+    ) -> None:
+        """Push a lightweight WS hint so Approvals / Trust caches refresh."""
+        from app.core.runtime.notification_bridge import broadcast_event
+
+        broadcast_event({
+            "type": "approval_changed",
+            "event_type": event_type,
+            "approval_id": approval_id,
+            "status": status,
+            "action": action,
+        })

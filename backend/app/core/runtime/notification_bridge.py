@@ -33,9 +33,18 @@ logger = logging.getLogger(__name__)
 
 
 def push_notification(notif_type: str, title: str, content: str) -> dict:
-    """Persist a notification row and broadcast it to WebSocket clients."""
+    """Persist a notification row and broadcast it to WebSocket clients.
+
+    The WS envelope always uses ``type="notification"`` so the frontend can
+    distinguish user-facing notifications from transport hints like
+    ``memory_changed``. The domain category is carried as ``notification_type``.
+    """
     notif = create_notification(notif_type, title, content)
-    broadcast_event({"type": "notification", **notif})
+    broadcast_event({
+        **notif,
+        "type": "notification",
+        "notification_type": notif.get("type", notif_type),
+    })
     return notif
 
 

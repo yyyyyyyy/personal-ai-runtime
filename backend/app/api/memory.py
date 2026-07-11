@@ -237,15 +237,15 @@ async def get_memory_graph(limit: int = 50):
     """Get memory graph with relationships based on semantic similarity.
 
     Returns nodes (memories) and edges (relationships between similar memories).
-    Edges are built by sampling up to _MAX_EDGE_QUERY_SOURCES memories as
-    vector-query sources to avoid N×1 ChromaDB round-trips.
+    Edges are built by sampling up to _MAX_EDGE_QUERY_SOURCES memories and
+    running a **single** batched Chroma query (not N round-trips).
     """
-    # Get all memories
+    import asyncio
+
     memories = memory_engine.list_memories(limit=limit)
     if not memories:
         return {"nodes": [], "edges": []}
 
-    # Build nodes
     nodes = [
         {
             "id": mem.get("id", ""),
@@ -256,50 +256,54 @@ async def get_memory_graph(limit: int = 50):
         for mem in memories
     ]
 
-    # Build edges based on semantic similarity
-    # Sample a subset of memories as query sources to bound ChromaDB calls
-    edges: list[dict] = []
-    edge_set: set[tuple[str, str]] = set()
+    # Longer memories tend to produce more meaningful similarity hits.
+    candidates = [m for m in memories if m.get("content")]
+    candidates.sort(key=lambda m: len(m["content"]), reverse=True)
+    sources = candidates[:_MAX_EDGE_QUERY_SOURCES]
 
     try:
-        from app.core.runtime.kernel_instance import kernel
-
-        # Pick memories with the most content as edge-query sources
-        # (longer memories tend to produce more meaningful similarity hits)
-        candidates = [m for m in memories if m.get("content")]
-        candidates.sort(key=lambda m: len(m["content"]), reverse=True)
-        sources = candidates[:_MAX_EDGE_QUERY_SOURCES]
-
-        for mem in sources:
-            mem_id = mem.get("id", "")
-            content = mem.get("content", "")
-
-            similar = kernel.recall_memory(content, k=5)
-            for hit in similar:
-                other_id = hit.get("id", "")
-                if other_id == mem_id or not other_id:
-                    continue
-
-                edge_key = tuple(sorted([mem_id, other_id]))
-                if edge_key in edge_set:
-                    continue
-                edge_set.add(edge_key)
-
-                distance = hit.get("distance", 1.0)
-                weight = max(0.1, 1.0 - distance)
-                edges.append({
-                    "source": mem_id,
-                    "target": other_id,
-                    "weight": round(weight, 2),
-                })
+        edges = await asyncio.to_thread(_build_memory_graph_edges, sources)
     except Exception:
         import logging
         logging.getLogger(__name__).warning(
             "Memory graph: vector search failed, returning nodes without edges",
             exc_info=True,
         )
-
-    edges.sort(key=lambda e: e["weight"], reverse=True)
-    edges = edges[:100]
+        edges = []
 
     return {"nodes": nodes, "edges": edges}
+
+
+def _build_memory_graph_edges(sources: list[dict]) -> list[dict]:
+    """Build similarity edges via one batched vector query (sync, for to_thread)."""
+    from app.store.vector import vector_store
+
+    if not sources:
+        return []
+
+    query_texts = [m.get("content", "") for m in sources]
+    batches = vector_store.search_memories_batch(query_texts, n_results=5)
+
+    edges: list[dict] = []
+    edge_set: set[tuple[str, str]] = set()
+
+    for mem, similar in zip(sources, batches, strict=False):
+        mem_id = mem.get("id", "")
+        for hit in similar:
+            other_id = hit.get("id", "")
+            if other_id == mem_id or not other_id:
+                continue
+            edge_key = tuple(sorted([mem_id, other_id]))
+            if edge_key in edge_set:
+                continue
+            edge_set.add(edge_key)
+            distance = hit.get("distance", 1.0) or 1.0
+            weight = max(0.1, 1.0 - float(distance))
+            edges.append({
+                "source": mem_id,
+                "target": other_id,
+                "weight": round(weight, 2),
+            })
+
+    edges.sort(key=lambda e: e["weight"], reverse=True)
+    return edges[:100]

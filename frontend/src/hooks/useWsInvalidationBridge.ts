@@ -6,7 +6,7 @@
  * WebSocket itself is owned by useNotifications; we subscribe to its
  * raw messages here via a small event-target shim.
  */
-import { useQueryClient } from "@tanstack/react-query";
+import { useQueryClient, type QueryClient } from "@tanstack/react-query";
 import { useEffect } from "react";
 
 // Keys are intentionally broad; concrete queries opt in via queryKey prefixes.
@@ -43,6 +43,44 @@ export function dispatchWsEvent(payload: unknown): void {
   }
 }
 
+function invalidate(qc: QueryClient, key: readonly unknown[]): void {
+  void qc.invalidateQueries({ queryKey: key });
+}
+
+/** Apply WS payload → Query invalidations. Exported for unit tests. */
+export function applyWsInvalidation(qc: QueryClient, raw: unknown): void {
+  if (!raw || typeof raw !== "object") return;
+  const evt = raw as { type?: string; notification_type?: string };
+  switch (evt.type) {
+    case "memory_changed":
+      invalidate(qc, queryKeys.memories);
+      invalidate(qc, queryKeys.dashboard);
+      invalidate(qc, queryKeys.portrait);
+      invalidate(qc, queryKeys.trustReport);
+      invalidate(qc, queryKeys.timeline);
+      break;
+    case "approval_changed":
+      invalidate(qc, queryKeys.approvals);
+      invalidate(qc, queryKeys.trustReport);
+      invalidate(qc, queryKeys.dashboard);
+      break;
+    case "notification": {
+      invalidate(qc, queryKeys.dashboard);
+      invalidate(qc, queryKeys.trustReport);
+      const ntype = (evt.notification_type || "").toLowerCase();
+      if (ntype.includes("inbox") || ntype.includes("email")) {
+        invalidate(qc, queryKeys.inbox);
+      }
+      if (ntype.includes("goal")) {
+        invalidate(qc, queryKeys.goals);
+      }
+      break;
+    }
+    default:
+      break;
+  }
+}
+
 /**
  * Hook: subscribe WS payloads to React Query invalidations.
  * Call once near the root (inside QueryClientProvider).
@@ -51,24 +89,7 @@ export function useWsInvalidationBridge(): void {
   const qc = useQueryClient();
 
   useEffect(() => {
-    const handler: Listener = (raw) => {
-      if (!raw || typeof raw !== "object") return;
-      const evt = raw as { type?: string };
-      switch (evt.type) {
-        case "memory_changed":
-          // Memories list / grouped view / dashboard counters depend on this.
-          void qc.invalidateQueries({ queryKey: queryKeys.memories });
-          void qc.invalidateQueries({ queryKey: queryKeys.dashboard });
-          break;
-        case "notification":
-          // Notifications arrive via toast; refresh dashboard counters.
-          void qc.invalidateQueries({ queryKey: queryKeys.dashboard });
-          break;
-        default:
-          // Unknown event types are ignored — explicit opt-in only.
-          break;
-      }
-    };
+    const handler: Listener = (raw) => applyWsInvalidation(qc, raw);
     listeners.add(handler);
     return () => {
       listeners.delete(handler);

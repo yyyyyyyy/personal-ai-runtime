@@ -74,9 +74,10 @@ class TestNotificationBridge:
         assert notif["type"] == "test"
         assert notif["title"] == "Title"
         assert notif["content"] == "Body"
-        # broadcast_event wraps with {"type": "notification", **notif}, so
-        # the broadcasted event has type="test" (notif keys override wrapper).
+        # Envelope type stays "notification"; domain category is notification_type.
         assert len(captured) == 1
+        assert captured[0]["type"] == "notification"
+        assert captured[0]["notification_type"] == "test"
         assert captured[0]["title"] == "Title"
 
     def test_broadcast_event_sync_path(self, monkeypatch):
