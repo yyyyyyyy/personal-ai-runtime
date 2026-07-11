@@ -307,7 +307,7 @@ Reaction 不再是一个"概念"，而是 `subscribe + invoke + produce` 的组�
 |---|---|---|
 | TimerEngine | `timer_engine.py` | **已删除** (v0.4.0) |
 | BackgroundWorker | `background_worker.py` | **已删除** (v0.4.0) |
-| Legacy Event Adapter | `legacy_event_adapter.py` | **已删除** (v0.4.0) → 替换为 `event_formatting.py` |
+| Legacy Event Adapter | `legacy_event_adapter.py` | **已删除** → 折叠进 `read_ports.py` |
 | Mixin Protocol | `kernel/_mixin_protocol.py` | **已删除** (v0.4.0) |
 | Execution Shadow Compare | `execution_shadow_compare.py` | 保留（验证工具，后续移到 tests/） |
 
