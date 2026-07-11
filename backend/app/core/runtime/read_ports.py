@@ -726,11 +726,16 @@ def goal_events(goal_id: str, *, limit: int = 20) -> list[dict]:
         aggregate_type="action", payload_goal_id=goal_id,
         order="desc", limit=limit,
     )
-    work_item_ev = kernel.read_events(
+    # work_item: the goal's own events (aggregate_id == goal_id) plus children
+    # linked via payload.parent_goal_id.
+    own_ev = kernel.read_events(
+        aggregate_type="work_item", aggregate_id=goal_id, order="desc", limit=limit,
+    )
+    child_ev = kernel.read_events(
         aggregate_type="work_item", payload_goal_id=goal_id,
         order="desc", limit=limit,
     )
-    combined = sorted(goal_ev + action_ev + work_item_ev, key=lambda e: e.seq or 0, reverse=True)[:limit]
+    combined = sorted(goal_ev + action_ev + own_ev + child_ev, key=lambda e: e.seq or 0, reverse=True)[:limit]
     return [to_legacy_dict(e) for e in combined]
 
 
