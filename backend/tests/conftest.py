@@ -90,8 +90,7 @@ def fake_brain(monkeypatch):
         )
 
         # —— INLINE HANDLER EXECUTION ——
-        from app.core.runtime.execution import execution_scope, identity_resolver
-        from app.core.runtime.execution import ExecutionContext
+        from app.core.runtime.execution import ExecutionContext, execution_scope, identity_resolver
         from app.core.runtime.handler_registry import get_handler
 
         handler = get_handler("ChatRequested")

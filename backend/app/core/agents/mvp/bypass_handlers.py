@@ -117,6 +117,8 @@ async def on_execute_requested(ctx: "ExecutionContext", event: "Event") -> None:
         return
 
     # Load action's executable plan
+    from app.core.runtime.kernel_instance import kernel
+
     action = read_ports.query_work_item(action_id)
     if not action:
         ctx.emit(

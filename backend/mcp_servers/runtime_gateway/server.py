@@ -40,10 +40,11 @@ BACKEND_ROOT = Path(__file__).resolve().parents[2]
 if str(BACKEND_ROOT) not in sys.path:
     sys.path.insert(0, str(BACKEND_ROOT))
 
-from app.version import VERSION
 import sys
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
+
+from app.version import VERSION
 
 BASE_URL = os.environ.get("PAR_BASE_URL", "http://localhost:8000").rstrip("/")
 AUTH_TOKEN = os.environ.get("PAR_AUTH_TOKEN", "")

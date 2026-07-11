@@ -21,7 +21,6 @@ from app.core.runtime import read_ports
 from app.core.runtime.kernel_instance import kernel
 from app.core.runtime.runtime_container import _LazyProxy, runtime
 
-
 # ── State Manager (folded from state_manager.py) ─────────────────────────
 
 class TaskStatus(str, Enum):

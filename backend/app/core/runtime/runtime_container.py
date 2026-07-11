@@ -31,8 +31,8 @@ if TYPE_CHECKING:
     from app.core.runtime.kernel.kernel import Kernel
     from app.core.runtime.runtime_config import RuntimeConfig
     from app.core.runtime.runtime_loop import RuntimeLoop
-    from app.core.runtime.task_engine import StateManager
     from app.core.runtime.taint import TaintRegistry
+    from app.core.runtime.task_engine import StateManager
     from app.core.telemetry.telemetry import Telemetry
     from app.store.database import Database
     from app.store.vector import VectorStore

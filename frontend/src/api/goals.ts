@@ -58,7 +58,10 @@ export async function updateGoal(
   goalId: string,
   body: Partial<Pick<Goal, "title" | "description" | "status" | "progress">>,
 ): Promise<Goal> {
-  const item = await updateWorkItem(goalId, body);
+  const item = await updateWorkItem(goalId, {
+    ...body,
+    description: body.description ?? undefined,
+  });
   return workItemToGoal(item);
 }
 

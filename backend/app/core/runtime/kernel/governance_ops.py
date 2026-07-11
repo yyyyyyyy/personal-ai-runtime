@@ -58,7 +58,7 @@ def request_approval(
         )
         return {"status": "approved", "approval_id": approval_id}
 
-    _notify_approval_changed(kernel, 
+    _notify_approval_changed(kernel,
         approval_id, status="pending", action=action, event_type="ApprovalRequested",
     )
     return {
@@ -103,7 +103,7 @@ def expire_stale_approvals(kernel) -> int:
             payload={"action": action, "reason": "auto_expired"},
             actor="kernel",
         )
-        _notify_approval_changed(kernel, 
+        _notify_approval_changed(kernel,
             approval_id, status="expired", action=action, event_type="ApprovalExpired",
         )
     return len(expired_ids)
@@ -125,7 +125,7 @@ def grant_approval(
         actor=actor,
         correlation_id=correlation_id,
     )
-    _notify_approval_changed(kernel, 
+    _notify_approval_changed(kernel,
         approval_id, status="approved", action=action, event_type="ApprovalGranted",
     )
 
@@ -146,7 +146,7 @@ def deny_approval(
         actor=actor,
         correlation_id=correlation_id,
     )
-    _notify_approval_changed(kernel, 
+    _notify_approval_changed(kernel,
         approval_id, status="denied", action=action, event_type="ApprovalDenied",
     )
 

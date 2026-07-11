@@ -15,7 +15,6 @@ from collections import Counter, defaultdict
 from datetime import UTC, datetime, timedelta
 
 from app.core.runtime import read_ports
-from app.core.runtime.kernel_instance import kernel
 from app.store.database import db
 
 

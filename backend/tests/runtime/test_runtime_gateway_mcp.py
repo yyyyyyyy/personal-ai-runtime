@@ -6,9 +6,6 @@ correctly to the HTTP @public endpoints (mocked).
 
 import io
 import json
-import sys
-
-import pytest
 
 from mcp_servers.runtime_gateway import server
 

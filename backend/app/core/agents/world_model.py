@@ -8,8 +8,8 @@ import json
 from datetime import UTC, datetime, timedelta
 
 from app.core.runtime import read_ports
-from app.core.runtime.read_ports import to_legacy_dict
 from app.core.runtime.kernel_instance import kernel
+from app.core.runtime.read_ports import to_legacy_dict
 
 
 class WorldModel:

@@ -125,8 +125,7 @@ async def approve(approval_id: str):
     context, the conversation is automatically resumed; otherwise the
     capability is still executed but no conversation reply is sent.
     """
-    from app.core.runtime.agent_scheduler import ensure_scheduler
-    from app.core.runtime.agent_scheduler import get_scheduler
+    from app.core.runtime.agent_scheduler import ensure_scheduler, get_scheduler
 
     approval = capability_governance.get_approval(kernel, approval_id)
     if not approval:
@@ -191,8 +190,7 @@ async def approve(approval_id: str):
 @router.post("/{approval_id}/reject")
 async def reject(approval_id: str, reason: str = ""):
     """Reject a pending approval through the standard handler pipeline."""
-    from app.core.runtime.agent_scheduler import ensure_scheduler
-    from app.core.runtime.agent_scheduler import get_scheduler
+    from app.core.runtime.agent_scheduler import ensure_scheduler, get_scheduler
 
     approval = capability_governance.get_approval(kernel, approval_id)
     if not approval:

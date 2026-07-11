@@ -59,6 +59,7 @@ def kernel_with_reaction(tmp_path, monkeypatch):
     # plain re-import is a no-op after the first test. Reload to re-run the
     # module body and re-register handlers against the freshly-reset registry.
     import importlib
+
     import app.core.runtime.builtin_reactions as _br
     importlib.reload(_br)
 

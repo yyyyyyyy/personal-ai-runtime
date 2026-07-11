@@ -28,7 +28,7 @@ from app.core.harness.builtin_tools.web_search import web_search_server
 from app.core.harness.mcp_hub import ToolDef
 
 if TYPE_CHECKING:
-    from app.core.harness.mcp_hub import MCPHub
+    pass
 
 
 def _register_all_tools(hub):

@@ -10,7 +10,7 @@ import pytest
 @pytest.fixture
 def kernel_with_goal_work_items(tmp_path):
     """Seed work_items with goal rows for filter testing."""
-    from datetime import datetime, timedelta, UTC
+    from datetime import UTC, datetime, timedelta
 
     from app.core.runtime.kernel import Kernel
     from app.store.database import Database

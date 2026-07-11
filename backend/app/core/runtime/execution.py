@@ -9,7 +9,7 @@ from __future__ import annotations
 import contextvars
 from contextlib import contextmanager
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Iterator, Any
+from typing import TYPE_CHECKING, Any, Iterator
 
 if TYPE_CHECKING:
     from .kernel.event import Event

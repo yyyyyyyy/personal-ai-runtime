@@ -385,8 +385,7 @@ class RuntimeLoop:
         maintenance tick. The completion event resolves the command future
         asynchronously via _dispatch, independent of this method returning.
         """
-        from app.core.runtime.agent_scheduler import ensure_scheduler
-        from app.core.runtime.agent_scheduler import get_scheduler
+        from app.core.runtime.agent_scheduler import ensure_scheduler, get_scheduler
         from app.core.runtime.kernel.constants import (
             AGGREGATE_BACKGROUND_TASK,
             EVENT_BG_TASK_STATUS_CHANGED,

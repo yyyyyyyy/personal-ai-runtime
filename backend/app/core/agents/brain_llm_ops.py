@@ -8,7 +8,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 from app.core.agents.llm_failover import llm_router
 from app.core.agents.tool_markup import strip_tool_markup

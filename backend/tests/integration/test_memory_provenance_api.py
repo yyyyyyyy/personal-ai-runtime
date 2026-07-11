@@ -4,7 +4,6 @@ Verifies that GET /api/memory/memories/{id}/provenance returns the full
 event chain for a memory, enabling the "explainable memory" UI.
 """
 
-import io
 
 from starlette.testclient import TestClient
 

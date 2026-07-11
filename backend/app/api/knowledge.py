@@ -4,11 +4,11 @@ Documents are persisted in the app_settings table (category='knowledge_docs')
 alongside ChromaDB embeddings, surviving backend restarts.
 """
 
+import asyncio
 import json
 import logging
 import re
 import uuid
-import asyncio
 from datetime import UTC, datetime
 from pathlib import Path
 

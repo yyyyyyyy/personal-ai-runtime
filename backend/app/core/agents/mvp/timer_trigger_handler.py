@@ -119,8 +119,7 @@ async def _run_inbox_poll():
     """
     import uuid
 
-    from app.core.runtime.agent_scheduler import ensure_scheduler
-    from app.core.runtime.agent_scheduler import get_scheduler
+    from app.core.runtime.agent_scheduler import ensure_scheduler, get_scheduler
     from app.core.runtime.kernel_instance import kernel
 
     await ensure_scheduler(kernel)

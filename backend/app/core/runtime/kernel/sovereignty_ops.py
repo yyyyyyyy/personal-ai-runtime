@@ -388,11 +388,11 @@ def _restore_from_snapshot(kernel, snapshot: dict) -> dict:
     conversations = snapshot.get("conversations", [])
     messages = snapshot.get("messages", [])
 
-    imported_events = import_event_log_rows(kernel, 
+    imported_events = import_event_log_rows(kernel,
         event_rows, rebuild_projections=True
     )
 
-    chat_bootstrapped = bootstrap_chat_from_snapshot(kernel, 
+    chat_bootstrapped = bootstrap_chat_from_snapshot(kernel,
         conversations, messages, event_rows
     )
 

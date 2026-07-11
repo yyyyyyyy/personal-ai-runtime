@@ -281,8 +281,7 @@ async def poll_inbox(limit: int = 20, *, execution_id: str | None = None) -> dic
     """Poll unread inbox via Execution chain (InboxPollRequested → handler)."""
     import uuid
 
-    from app.core.runtime.agent_scheduler import ensure_scheduler
-    from app.core.runtime.agent_scheduler import get_scheduler
+    from app.core.runtime.agent_scheduler import ensure_scheduler, get_scheduler
 
     if execution_id:
         cap = await kernel.invoke_capability(
