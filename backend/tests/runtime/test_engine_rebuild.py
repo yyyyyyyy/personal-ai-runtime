@@ -47,6 +47,7 @@ class TestEngineRebuildConsistency:
     def test_task_engine_rebuild(self, tmp_path, monkeypatch):
         k, db = make_kernel(tmp_path)
         monkeypatch.setattr("app.core.runtime.task_engine.kernel", k)
+        monkeypatch.setattr("app.core.runtime.kernel_instance.kernel", k)
 
         parent = create_task(name="Parent", description="root")
         child = create_task(name="Child", parent_task_id=parent["id"])

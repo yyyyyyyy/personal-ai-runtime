@@ -44,10 +44,8 @@ class TestRecallUnified:
         original_vs = vmod.vector_store
         vmod.vector_store = FakeVector()
 
-        # recall_unified uses the global kernel singleton for query_state;
-        # point it at the test kernel so the seeded memory is visible.
-        original_kernel = read_ports.kernel
-        monkeypatch.setattr(read_ports, "kernel", k)
+        # recall_unified uses _kernel() → kernel_instance; point it at the test kernel.
+        monkeypatch.setattr("app.core.runtime.kernel_instance.kernel", k)
 
         try:
             results = read_ports.recall_unified("dark mode", k_memories=3, k_knowledge=3)
@@ -103,7 +101,7 @@ class TestRecallUnified:
         import app.store.vector as vmod
         original_vs = vmod.vector_store
         vmod.vector_store = FakeVector()
-        monkeypatch.setattr(read_ports, "kernel", k)
+        monkeypatch.setattr("app.core.runtime.kernel_instance.kernel", k)
         try:
             results = read_ports.recall_unified("tea", k_memories=3, k_knowledge=3)
         finally:

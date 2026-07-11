@@ -57,7 +57,7 @@ async def test_governance_fragment_end_to_end(tmp_path, monkeypatch):
         ctx={"args": {"path": "/tmp/x"}}, actor="agent:test",
     )
     # Point read_ports' kernel reference at the isolated instance.
-    monkeypatch.setattr(read_ports, "kernel", k)
+    monkeypatch.setattr("app.core.runtime.kernel_instance.kernel", k)
     frag = GovernanceContextFragment()
     result = await frag.collect(RuntimeContext(user_message="hello"))
     assert "待审批操作: 1 项" in result.content

@@ -135,10 +135,9 @@ test.describe("Error handling", () => {
       .json("/api/system/health", { status: "ok", service: "personal-ai", auth_required: false })
       .json("/api/system/info", { conversations: 0, goals: 0, memories: 0, messages: 0 })
       .json("/api/goals", [])
+      .json("/api/work-items", [])
       .json("/api/memory/memories/grouped", { memories: [] })
       .json("/api/memory/memories/search", [])
-      .json("/api/notifications", [])
-      .json("/api/inbox", [])
       .json("/api/settings/llm", {
         config: { providers: [], default_provider: "deepseek", temperature: 0.7, max_tokens: 4096 },
       })
@@ -150,6 +149,12 @@ test.describe("Error handling", () => {
       .json("/api/system/mcp-status", { enabled: false, servers: [], total_tools: 0 })
       .handler("/api/chat/conversations", async (route) => {
         await route.fulfill({ json: [] });
+      })
+      .handler("/api/notifications", async (route) => {
+        await route.fulfill({ status: 500, body: "Internal Server Error" });
+      })
+      .handler("/api/dashboard", async (route) => {
+        await route.fulfill({ status: 500, body: "Internal Server Error" });
       })
       .handler("/api/telemetry/cost/summary", async (route) => {
         await route.fulfill({ status: 500, body: "Internal Server Error" });

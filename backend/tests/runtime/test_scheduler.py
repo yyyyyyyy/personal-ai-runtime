@@ -32,6 +32,7 @@ async def test_on_task_completed_starts_dependents(tmp_path, monkeypatch):
     k = Kernel(db=Database(db_path=str(tmp_path / "sched_task.db")))
     monkeypatch.setattr("app.core.runtime.cron_registry.kernel", k)
     monkeypatch.setattr("app.core.runtime.task_engine.kernel", k)
+    monkeypatch.setattr("app.core.runtime.kernel_instance.kernel", k)
 
     k.emit_event("WorkItemCreated", "work_item", "t1", payload={"title": "Dep"})
     k.emit_event(

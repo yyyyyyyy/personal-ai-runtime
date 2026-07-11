@@ -102,6 +102,28 @@ export function buildCommonMocks(): MockApiRouter {
         last_activity_at: "2026-06-15T00:00:00Z",
       },
     ])
+    .json("/api/work-items", [
+      {
+        id: "goal-1",
+        title: "学习 Rust",
+        description: "通过实践项目学习 Rust",
+        work_type: "goal",
+        parent_work_id: null,
+        parent_goal_id: null,
+        status: "active",
+        priority: 0,
+        dependencies_json: null,
+        executable_plan: null,
+        progress: 0.3,
+        importance: 0.5,
+        urgency: 0.5,
+        deadline: null,
+        created_at: "2026-06-01T00:00:00Z",
+        updated_at: "2026-06-15T00:00:00Z",
+        completed_at: null,
+        last_activity_at: "2026-06-15T00:00:00Z",
+      },
+    ])
     .handler(`/api/chat/conversations/${E2E_CONV_ID}/messages`, async (route) => {
       if (route.request().method() === "GET") {
         await route.fulfill({ json: [] });
