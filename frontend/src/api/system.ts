@@ -56,9 +56,7 @@ export async function downloadExport(filename?: string): Promise<void> {
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
-  a.download =
-    filename ??
-    `personal-ai-backup-${new Date().toISOString().slice(0, 10)}.json`;
+  a.download = filename ?? `personal-ai-backup-${new Date().toISOString().slice(0, 10)}.json`;
   a.click();
   URL.revokeObjectURL(url);
 }
@@ -98,8 +96,7 @@ export async function importEncryptedData(
 
 export async function destroyAllData(): Promise<Record<string, unknown>> {
   // Backend reads confirm from the query string (not JSON body).
-  return request(
-    `${API_BASE}/system/data?confirm=${encodeURIComponent("DESTROY_ALL_DATA")}`,
-    { method: "DELETE" },
-  );
+  return request(`${API_BASE}/system/data?confirm=${encodeURIComponent("DESTROY_ALL_DATA")}`, {
+    method: "DELETE",
+  });
 }

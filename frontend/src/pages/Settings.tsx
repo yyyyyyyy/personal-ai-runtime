@@ -633,7 +633,8 @@ export default function SettingsPage() {
         <Card>
           <h3 className="text-sm font-medium text-gray-300 mb-3">AI 能力与信任</h3>
           <p className="text-xs text-gray-500 mb-4">
-            工具风险分级来自 capability_policy.json（与运行时闸门同一来源）。需要确认的操作可在同一对话内选择信任后自动放行。
+            工具风险分级来自
+            capability_policy.json（与运行时闸门同一来源）。需要确认的操作可在同一对话内选择信任后自动放行。
           </p>
           <CapabilityTrustPanel />
         </Card>

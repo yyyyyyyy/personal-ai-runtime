@@ -10,11 +10,15 @@ import json
 import uuid
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
+from typing import TYPE_CHECKING
 
 from app.config import settings
 from app.core.agents.tool_markup import strip_tool_markup
 from app.core.runtime import read_ports
 from app.core.runtime.kernel_instance import kernel as default_kernel
+
+if TYPE_CHECKING:
+    from app.core.runtime.kernel.kernel import Kernel
 
 
 def _now() -> str:
@@ -26,7 +30,7 @@ class ConversationManager:
     """Manages conversation lifecycle, message persistence, and context window."""
 
     conversation_id: str
-    kernel: object = field(default=None, repr=False)
+    kernel: "Kernel | None" = field(default=None, repr=False)
 
     def _k(self):
         return self.kernel or default_kernel

@@ -21,7 +21,11 @@ function errMessage(err: unknown, fallback: string): string {
 }
 
 export default function KnowledgePage() {
-  const { data: documents = [], isLoading: loading, error: loadError } = useKnowledgeDocumentsQuery();
+  const {
+    data: documents = [],
+    isLoading: loading,
+    error: loadError,
+  } = useKnowledgeDocumentsQuery();
   const invalidateKnowledge = useInvalidateKnowledge();
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState("");

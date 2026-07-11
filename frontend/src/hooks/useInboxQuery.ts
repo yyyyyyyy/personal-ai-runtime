@@ -2,11 +2,7 @@
  * Inbox emails + digest. Poll/status mutations invalidate queryKeys.inbox.
  */
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import {
-  listInboxEmails,
-  getInboxDigest,
-  type InboxEmail,
-} from "../api/client";
+import { listInboxEmails, getInboxDigest, type InboxEmail } from "../api/client";
 import { queryKeys } from "./useWsInvalidationBridge";
 
 export interface InboxData {

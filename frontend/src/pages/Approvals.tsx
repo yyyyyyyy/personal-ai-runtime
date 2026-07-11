@@ -11,12 +11,7 @@ import {
   Calendar,
   Send,
 } from "lucide-react";
-import {
-  approveApproval,
-  rejectApproval,
-  ApiError,
-  type EnrichedApproval,
-} from "../api/client";
+import { approveApproval, rejectApproval, ApiError, type EnrichedApproval } from "../api/client";
 import { useErrorStore } from "../stores/errorStore";
 import { useApprovalsQuery, useInvalidateApprovals } from "../hooks/useApprovalsQuery";
 import Button from "../components/ui/Button";
@@ -47,7 +42,13 @@ const FLOW_TONE: Record<string, "info" | "success" | "warning" | "default" | "da
 };
 
 export default function ApprovalsPage() {
-  const { data: approvals = [], isLoading: loading, error, refetch, isFetching } = useApprovalsQuery();
+  const {
+    data: approvals = [],
+    isLoading: loading,
+    error,
+    refetch,
+    isFetching,
+  } = useApprovalsQuery();
   const invalidateApprovals = useInvalidateApprovals();
   const [resolving, setResolving] = useState<Set<string>>(new Set());
   const addError = useErrorStore((s) => s.addError);

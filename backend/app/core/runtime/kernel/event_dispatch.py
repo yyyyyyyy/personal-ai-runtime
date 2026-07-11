@@ -152,7 +152,7 @@ def dispatch(kernel: Any, event: "Event") -> None:
             task = loop.create_task(async_dispatcher(event))
             task.add_done_callback(log_dispatch_task_exception)
             if not hasattr(kernel, "_dispatch_tasks"):
-                kernel._dispatch_tasks: set[asyncio.Task] = set()
+                kernel._dispatch_tasks = set()
             task.add_done_callback(kernel._dispatch_tasks.discard)
             kernel._dispatch_tasks.add(task)
         except RuntimeError:

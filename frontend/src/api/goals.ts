@@ -8,12 +8,7 @@
 
 import { API_BASE, request } from "./core";
 import type { Goal, GoalAction, WorkItem } from "./types";
-import {
-  createWorkItem,
-  deleteWorkItem,
-  listWorkItems,
-  updateWorkItem,
-} from "./workItems";
+import { createWorkItem, deleteWorkItem, listWorkItems, updateWorkItem } from "./workItems";
 
 function workItemToGoal(item: WorkItem): Goal {
   return {
@@ -41,10 +36,7 @@ export async function getGoal(goalId: string): Promise<Goal> {
   return request<Goal>(`${API_BASE}/goals/${goalId}`);
 }
 
-export async function createGoal(body: {
-  title: string;
-  description?: string;
-}): Promise<Goal> {
+export async function createGoal(body: { title: string; description?: string }): Promise<Goal> {
   const item = await createWorkItem({
     title: body.title,
     description: body.description,

@@ -21,10 +21,7 @@ export interface TimelineResponse {
   icons: Record<string, string>;
 }
 
-export async function listTimelineEvents(
-  page = 1,
-  pageSize = 30,
-): Promise<TimelineResponse> {
+export async function listTimelineEvents(page = 1, pageSize = 30): Promise<TimelineResponse> {
   return request<TimelineResponse>(
     `${API_BASE}/timeline/events?page=${page}&page_size=${pageSize}`,
   );

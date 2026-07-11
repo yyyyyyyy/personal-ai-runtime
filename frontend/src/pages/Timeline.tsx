@@ -62,10 +62,7 @@ export default function TimelinePage() {
     refetch,
   } = useTimelineInfiniteQuery();
 
-  const events = useMemo(
-    () => data?.pages.flatMap((p) => p.items) ?? [],
-    [data],
-  );
+  const events = useMemo(() => data?.pages.flatMap((p) => p.items) ?? [], [data]);
   const icons = data?.pages[0]?.icons ?? {};
 
   const groupedEvents = groupByDay(events);

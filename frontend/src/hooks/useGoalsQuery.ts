@@ -22,7 +22,12 @@ export function useGoalQuery(goalId: string | undefined) {
     staleTime: 10_000,
     retry: (count, err) => {
       // Don't retry 404 — surface as not-found UI.
-      if (err && typeof err === "object" && "status" in err && (err as { status: number }).status === 404) {
+      if (
+        err &&
+        typeof err === "object" &&
+        "status" in err &&
+        (err as { status: number }).status === 404
+      ) {
         return false;
       }
       return count < 1;

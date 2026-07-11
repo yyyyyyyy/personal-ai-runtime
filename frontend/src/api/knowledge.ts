@@ -18,9 +18,7 @@ export interface KnowledgeSearchResult {
 }
 
 export async function listKnowledgeDocuments(): Promise<KnowledgeDocument[]> {
-  const data = await request<{ documents: KnowledgeDocument[] }>(
-    `${API_BASE}/knowledge/documents`,
-  );
+  const data = await request<{ documents: KnowledgeDocument[] }>(`${API_BASE}/knowledge/documents`);
   return data.documents ?? [];
 }
 

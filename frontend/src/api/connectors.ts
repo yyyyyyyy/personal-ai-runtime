@@ -10,15 +10,11 @@ export interface McpRegistryServer {
 }
 
 export async function listMcpRegistry(): Promise<McpRegistryServer[]> {
-  const data = await request<{ servers: McpRegistryServer[] }>(
-    `${API_BASE}/connectors/registry`,
-  );
+  const data = await request<{ servers: McpRegistryServer[] }>(`${API_BASE}/connectors/registry`);
   return data.servers ?? [];
 }
 
-export async function installMcpConnector(
-  name: string,
-): Promise<{ ok: boolean; message: string }> {
+export async function installMcpConnector(name: string): Promise<{ ok: boolean; message: string }> {
   return request(`${API_BASE}/connectors/install`, {
     method: "POST",
     body: JSON.stringify({ name }),

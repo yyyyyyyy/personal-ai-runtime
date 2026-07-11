@@ -34,7 +34,8 @@ function confidenceLevel(score: number): { color: string; label: string; pct: nu
 /** Portrait content — embedded as a Memories tab; also used by tests. */
 export function PortraitPanel({ compact = false }: { compact?: boolean }) {
   const { data, isLoading: loading, error: queryError, refetch } = usePortraitQuery();
-  const error = queryError instanceof Error ? queryError.message : queryError ? String(queryError) : null;
+  const error =
+    queryError instanceof Error ? queryError.message : queryError ? String(queryError) : null;
 
   if (loading) {
     return (

@@ -33,7 +33,9 @@ export function TrustReportPanel({ compact = false }: { compact?: boolean }) {
   const [retryingId, setRetryingId] = useState<number | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
 
-  const error = actionError ?? (queryError instanceof Error ? queryError.message : queryError ? String(queryError) : null);
+  const error =
+    actionError ??
+    (queryError instanceof Error ? queryError.message : queryError ? String(queryError) : null);
 
   const handleRetryRepair = async (repairId: number) => {
     setRetryingId(repairId);
