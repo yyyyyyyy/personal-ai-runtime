@@ -1,7 +1,7 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
-import { MemoryRouter } from "react-router-dom";
-import TrustReportPage from "./TrustReport";
+import { screen, fireEvent, waitFor } from "@testing-library/react";
+import { renderWithRouter } from "../test-utils";
+import { TrustReportPanel } from "./TrustReport";
 
 import { getTrustReport, type TrustReportData } from "../api/trustReport";
 import { retryMemoryIndexRepair } from "../api/telemetry";
@@ -47,14 +47,10 @@ const BASE: TrustReportData = {
 };
 
 function renderPage() {
-  return render(
-    <MemoryRouter>
-      <TrustReportPage />
-    </MemoryRouter>,
-  );
+  return renderWithRouter(<TrustReportPanel />);
 }
 
-describe("TrustReportPage", () => {
+describe("TrustReportPanel", () => {
   beforeEach(() => vi.clearAllMocks());
 
   it("shows loading state", () => {
@@ -66,9 +62,11 @@ describe("TrustReportPage", () => {
   it("shows error and retry", async () => {
     mockGetReport.mockRejectedValue(new Error("失败"));
     renderPage();
-    await waitFor(() => expect(screen.getByText("失败")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText("失败")).toBeInTheDocument(), {
+      timeout: 3000,
+    });
     fireEvent.click(screen.getByText("重试"));
-    expect(mockGetReport).toHaveBeenCalledTimes(2);
+    await waitFor(() => expect(mockGetReport.mock.calls.length).toBeGreaterThanOrEqual(2));
   });
 
   it("shows data location section", async () => {

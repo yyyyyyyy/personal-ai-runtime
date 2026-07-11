@@ -1,4 +1,5 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
+import { Navigate } from "react-router-dom";
 import {
   Shield,
   Database,
@@ -14,8 +15,8 @@ import {
   FileText,
   Download,
 } from "lucide-react";
-import { getTrustReport, type TrustReportData } from "../api/trustReport";
 import { retryMemoryIndexRepair } from "../api/telemetry";
+import { useTrustReportQuery, useInvalidateTrustReport } from "../hooks/useTrustReportQuery";
 
 const FLOW_LABELS: Record<string, { label: string; color: string }> = {
   对话: { label: "对话", color: "text-blue-400" },
@@ -25,35 +26,23 @@ const FLOW_LABELS: Record<string, { label: string; color: string }> = {
   系统: { label: "系统", color: "text-emerald-400" },
 };
 
-export default function TrustReportPage() {
-  const [data, setData] = useState<TrustReportData | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+/** Trust report content — embedded as a Dashboard tab; also used by tests. */
+export function TrustReportPanel({ compact = false }: { compact?: boolean }) {
+  const { data, isLoading: loading, error: queryError, refetch } = useTrustReportQuery();
+  const invalidate = useInvalidateTrustReport();
   const [retryingId, setRetryingId] = useState<number | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
 
-  const fetchReport = async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      setData(await getTrustReport());
-    } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : "获取信任报告失败");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchReport();
-  }, []);
+  const error = actionError ?? (queryError instanceof Error ? queryError.message : queryError ? String(queryError) : null);
 
   const handleRetryRepair = async (repairId: number) => {
     setRetryingId(repairId);
+    setActionError(null);
     try {
       await retryMemoryIndexRepair(repairId);
-      await fetchReport();
+      invalidate();
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : "重试索引修复失败");
+      setActionError(e instanceof Error ? e.message : "重试索引修复失败");
     } finally {
       setRetryingId(null);
     }
@@ -61,7 +50,7 @@ export default function TrustReportPage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-full">
+      <div className={`flex items-center justify-center ${compact ? "py-16" : "h-full"}`}>
         <div className="flex flex-col items-center gap-3 text-gray-400">
           <Loader2 size={32} className="animate-spin" />
           <p className="text-sm">正在生成信任报告…</p>
@@ -70,14 +59,17 @@ export default function TrustReportPage() {
     );
   }
 
-  if (error) {
+  if (error && !data) {
     return (
-      <div className="flex items-center justify-center h-full">
+      <div className={`flex items-center justify-center ${compact ? "py-16" : "h-full"}`}>
         <div className="flex flex-col items-center gap-3 text-gray-400">
           <AlertCircle size={32} className="text-red-400" />
           <p className="text-sm">{error}</p>
           <button
-            onClick={fetchReport}
+            onClick={() => {
+              setActionError(null);
+              void refetch();
+            }}
             className="flex items-center gap-2 px-4 py-2 mt-2 text-sm bg-emerald-600/20 text-emerald-400 rounded-lg hover:bg-emerald-600/30 transition-colors"
           >
             <RefreshCw size={14} />
@@ -100,22 +92,35 @@ export default function TrustReportPage() {
   const rate = tc > 0 ? Math.round(((tc - fc) / tc) * 100) : 100;
 
   return (
-    <div className="h-full overflow-y-auto">
-      <div className="p-6 border-b border-gray-800">
-        <div className="flex items-center gap-3">
-          <div className="w-12 h-12 rounded-xl bg-indigo-600/20 flex items-center justify-center">
-            <Shield size={24} className="text-indigo-400" />
-          </div>
-          <div>
-            <h1 className="text-xl font-bold text-white">信任报告</h1>
-            <p className="text-sm text-gray-400 mt-1">
-              了解 AI 如何使用你的数据，确保一切可审计、可追溯
-            </p>
+    <div className={compact ? "" : "h-full overflow-y-auto"}>
+      {!compact && (
+        <div className="p-6 border-b border-gray-800">
+          <div className="flex items-center gap-3">
+            <div className="w-12 h-12 rounded-xl bg-indigo-600/20 flex items-center justify-center">
+              <Shield size={24} className="text-indigo-400" />
+            </div>
+            <div>
+              <h1 className="text-xl font-bold text-white">信任报告</h1>
+              <p className="text-sm text-gray-400 mt-1">
+                了解 AI 如何使用你的数据，确保一切可审计、可追溯
+              </p>
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
-      <div className="p-6 space-y-8">
+      <div className={compact ? "space-y-8" : "p-6 space-y-8"}>
+        {compact && (
+          <p className="text-sm text-gray-500">了解 AI 如何使用你的数据，确保一切可审计、可追溯</p>
+        )}
+
+        {actionError && data && (
+          <div className="flex items-center gap-2 text-sm text-red-400 bg-red-950/20 border border-red-900/40 rounded-lg px-3 py-2">
+            <AlertCircle size={14} />
+            {actionError}
+          </div>
+        )}
+
         {/* 数据存储位置 */}
         <section>
           <h2 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
@@ -253,7 +258,7 @@ export default function TrustReportPage() {
                     type="button"
                     aria-label="重试索引"
                     disabled={retryingId === repair.id}
-                    onClick={() => handleRetryRepair(repair.id)}
+                    onClick={() => void handleRetryRepair(repair.id)}
                     className="shrink-0 px-3 py-1.5 text-xs bg-red-600/20 text-red-300 rounded-lg hover:bg-red-600/30 disabled:opacity-50"
                   >
                     {retryingId === repair.id ? "重试中…" : "重试索引"}
@@ -402,6 +407,11 @@ export default function TrustReportPage() {
       </div>
     </div>
   );
+}
+
+/** Legacy route — redirect into Dashboard trust tab. */
+export default function TrustReportPage() {
+  return <Navigate to="/dashboard?tab=trust" replace />;
 }
 
 function Kv({

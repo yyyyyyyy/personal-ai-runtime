@@ -16,6 +16,7 @@ export const queryKeys = {
   goals: ["goals"] as const,
   inbox: ["inbox"] as const,
   dashboard: ["dashboard"] as const,
+  trustReport: ["trustReport"] as const,
   approvals: ["approvals"] as const,
   knowledge: ["knowledge"] as const,
   timeline: ["timeline"] as const,

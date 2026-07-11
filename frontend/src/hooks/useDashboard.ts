@@ -1,4 +1,4 @@
-import { useCallback } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   getCostSummary,
@@ -106,13 +106,25 @@ export function useDashboard() {
     dashboard.error,
   ].filter(Boolean);
 
-  if (errors.length > 0 && !loading) {
-    const msg =
-      errors[0] instanceof Error
-        ? (errors[0] as Error).message
-        : "无法连接到后端服务，请确认后端已启动";
-    addError(msg, "仪表盘");
-  }
+  const firstErrorMsg =
+    !loading && errors.length > 0
+      ? errors[0] instanceof Error
+        ? errors[0].message
+        : "无法连接到后端服务，请确认后端已启动"
+      : null;
+
+  // Surface errors via the toast store outside render (React forbids
+  // setState-during-render on another component's store).
+  const lastErrorRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!firstErrorMsg) {
+      lastErrorRef.current = null;
+      return;
+    }
+    if (lastErrorRef.current === firstErrorMsg) return;
+    lastErrorRef.current = firstErrorMsg;
+    addError(firstErrorMsg, "仪表盘");
+  }, [firstErrorMsg, addError]);
 
   const refresh = useCallback(() => {
     cost.refetch();

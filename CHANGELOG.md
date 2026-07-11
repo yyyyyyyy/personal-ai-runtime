@@ -32,3 +32,4 @@ Format follows [Keep a Changelog](https://keepachangelog.com/). Version numbers 
 - Notifications store `related_id` in the projection column instead of content prefix hack
 - Frontend: empty-body `request()` handling, SSE `AbortSignal`, Goals/Inbox/Memories on TanStack Query
 - Approvals/Knowledge/Timeline on TanStack Query; Knowledge upload + MCP marketplace use shared auth API helpers
+- Product surface: Portrait → Memories tab; TrustReport → Dashboard tab; fix useDashboard render-time addError

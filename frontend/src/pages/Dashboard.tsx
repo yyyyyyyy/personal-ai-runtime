@@ -1,11 +1,12 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { type ToolSummaryItem, markNotificationRead, type Notification } from "../api/client";
 import { useDashboard } from "../hooks/useDashboard";
 import { useNotifications } from "../hooks/useNotifications";
 import { toolLabel } from "../utils/toolLabels";
 import NotificationDetailModal from "../components/notifications/NotificationDetailModal";
 import { notificationPreview } from "../utils/notificationUtils";
+import { TrustReportPanel } from "./TrustReport";
 import {
   MessageSquare,
   Mail,
@@ -18,6 +19,7 @@ import {
   Download,
   ChevronDown,
   ChevronRight,
+  LayoutDashboard,
 } from "lucide-react";
 
 function getDateString(): string {
@@ -26,14 +28,67 @@ function getDateString(): string {
   return `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日 ${weekdays[d.getDay()]}`;
 }
 
+function TabBar({
+  tab,
+  setTab,
+}: {
+  tab: "overview" | "trust";
+  setTab: (next: "overview" | "trust") => void;
+}) {
+  return (
+    <div className="flex gap-1 bg-gray-800 rounded-lg p-1 mb-6 w-fit">
+      <button
+        type="button"
+        onClick={() => setTab("overview")}
+        className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-sm transition-colors ${
+          tab === "overview" ? "bg-gray-700 text-white" : "text-gray-400 hover:text-gray-200"
+        }`}
+      >
+        <LayoutDashboard size={14} />
+        概览
+      </button>
+      <button
+        type="button"
+        onClick={() => setTab("trust")}
+        className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-sm transition-colors ${
+          tab === "trust" ? "bg-gray-700 text-white" : "text-gray-400 hover:text-gray-200"
+        }`}
+      >
+        <Shield size={14} />
+        信任
+      </button>
+    </div>
+  );
+}
+
 export default function DashboardPage() {
   const [selectedNotification, setSelectedNotification] = useState<Notification | null>(null);
   const [showDiagnostics, setShowDiagnostics] = useState(false);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const tab = searchParams.get("tab") === "trust" ? "trust" : "overview";
+  const setTab = (next: "overview" | "trust") => {
+    if (next === "overview") {
+      setSearchParams({}, { replace: true });
+    } else {
+      setSearchParams({ tab: "trust" }, { replace: true });
+    }
+  };
   const navigate = useNavigate();
 
   const { cost, tools, memory, health, notifications, dashboard, loading, error, refresh } =
     useDashboard();
   const { liveNotifications } = useNotifications();
+
+  if (tab === "trust") {
+    return (
+      <div className="flex-1 overflow-y-auto p-4 md:p-6">
+        <div className="max-w-4xl mx-auto">
+          <TabBar tab={tab} setTab={setTab} />
+          <TrustReportPanel compact />
+        </div>
+      </div>
+    );
+  }
 
   if (loading) {
     return (
@@ -92,8 +147,7 @@ export default function DashboardPage() {
   return (
     <div className="flex-1 overflow-y-auto p-4 md:p-6">
       <div className="max-w-3xl mx-auto">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center justify-between mb-4">
           <div>
             <h2 className="text-xl font-semibold text-gray-200">AI 概览</h2>
             <p className="text-sm text-gray-500 mt-0.5">{getDateString()}</p>
@@ -106,7 +160,8 @@ export default function DashboardPage() {
           </button>
         </div>
 
-        {/* 数据主权面板 —— 用户感知数据归属 */}
+        <TabBar tab={tab} setTab={setTab} />
+
         {dashboard?.data_sovereignty && (
           <div className="bg-gray-900 border border-gray-800 rounded-xl p-5 mb-6">
             <div className="flex items-center gap-2 mb-4">
@@ -143,7 +198,6 @@ export default function DashboardPage() {
                 <div className="text-xs text-gray-500 mt-1">个对话</div>
               </div>
             </div>
-            {/* 记忆来源分布 */}
             <div className="flex items-center gap-4 mb-3 text-xs text-gray-500">
               <span>
                 自我陈述:
@@ -168,7 +222,6 @@ export default function DashboardPage() {
                 </span>
               </span>
             </div>
-            {/* 最近反思时间 */}
             {dashboard.data_sovereignty.last_belief_reflection && (
               <div className="text-xs text-gray-600 mb-3">
                 最近一次 AI 反思：
@@ -177,7 +230,6 @@ export default function DashboardPage() {
                 )}
               </div>
             )}
-            {/* 导出按钮 */}
             {dashboard.data_sovereignty.export_supported && (
               <button
                 onClick={async () => {
@@ -198,7 +250,6 @@ export default function DashboardPage() {
           </div>
         )}
 
-        {/* 快捷入口 —— 以「让 AI 帮你」的口吻 */}
         <div className="flex flex-wrap gap-2 mb-6">
           <button
             onClick={() => navigate("/")}
@@ -223,7 +274,6 @@ export default function DashboardPage() {
           </button>
         </div>
 
-        {/* 记忆概览 —— 用户能感知的「AI 对你的理解」 */}
         <div className="bg-gray-900 border border-gray-800 rounded-xl p-5 mb-6">
           <div className="flex items-center gap-2 mb-4">
             <Brain size={16} className="text-indigo-400" />
@@ -264,7 +314,6 @@ export default function DashboardPage() {
           )}
         </div>
 
-        {/* 主动建议 & 通知 —— AI 主动发起的事项 */}
         <div className="bg-gray-900 border border-gray-800 rounded-xl p-5 mb-6">
           <div className="flex items-center gap-2 mb-3">
             <Zap size={15} className="text-amber-400" />
@@ -276,7 +325,7 @@ export default function DashboardPage() {
                 <button
                   key={n.id}
                   type="button"
-                  onClick={() => handleNotificationClick(n)}
+                  onClick={() => void handleNotificationClick(n)}
                   className={`w-full text-left p-3 bg-gray-800/50 rounded-lg hover:bg-gray-800 transition-colors ${
                     n.read ? "opacity-60" : ""
                   }`}
@@ -295,7 +344,6 @@ export default function DashboardPage() {
           )}
         </div>
 
-        {/* 系统诊断 —— 折叠区，默认隐藏 */}
         <div className="border-t border-gray-800 pt-4">
           <button
             onClick={() => setShowDiagnostics(!showDiagnostics)}
@@ -307,7 +355,6 @@ export default function DashboardPage() {
 
           {showDiagnostics && (
             <div className="mt-3 space-y-4">
-              {/* 系统指标 */}
               <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
                 <div className="bg-gray-900 border border-gray-800 rounded-lg p-3">
                   <div className="text-xs text-gray-500 mb-1">LLM 成功率</div>
@@ -337,7 +384,6 @@ export default function DashboardPage() {
                 </div>
               </div>
 
-              {/* Token 与成本 */}
               <div className="bg-gray-900 border border-gray-800 rounded-lg p-4">
                 <div className="text-xs text-gray-500 mb-3">Token 与成本 (7天)</div>
                 <div className="grid grid-cols-2 gap-3 text-sm">
@@ -364,7 +410,6 @@ export default function DashboardPage() {
                 </div>
               </div>
 
-              {/* 工具成功率 */}
               {tools.length > 0 && (
                 <div className="bg-gray-900 border border-gray-800 rounded-lg p-4">
                   <div className="text-xs text-gray-500 mb-2">工具调用 (7天)</div>

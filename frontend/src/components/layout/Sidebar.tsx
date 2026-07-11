@@ -14,20 +14,18 @@ import {
   FolderOpen,
   Clock,
   BookOpen,
-  Shield,
 } from "lucide-react";
 
 const PRIMARY_NAV = [{ path: "/", label: "对话", icon: MessageSquare, matchChat: true }];
 
 const DATA_NAV = [
-  { path: "/trust", label: "信任报告", icon: Shield },
+  { path: "/dashboard", label: "概览", icon: BarChart3 },
   { path: "/goals", label: "目标", icon: Target },
   { path: "/inbox", label: "收件箱", icon: Mail },
   { path: "/approvals", label: "审批", icon: ShieldCheck },
   { path: "/memories", label: "记忆", icon: Brain },
   { path: "/timeline", label: "时间线", icon: Clock },
   { path: "/knowledge", label: "知识库", icon: BookOpen },
-  { path: "/dashboard", label: "仪表盘", icon: BarChart3 },
 ];
 
 const SYSTEM_NAV = [{ path: "/settings", label: "设置", icon: Settings }];
