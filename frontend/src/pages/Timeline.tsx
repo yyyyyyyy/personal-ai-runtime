@@ -1,25 +1,7 @@
-import { useCallback, useEffect, useState } from "react";
+import { useMemo } from "react";
 import { Clock, Loader2 } from "lucide-react";
-import { API_BASE, request } from "../api/core";
-
-interface TimelineEvent {
-  id: string;
-  seq: number;
-  type: string;
-  description: string;
-  actor: string;
-  ts: string;
-  payload_snippet: Record<string, string>;
-}
-
-interface TimelineResponse {
-  items: TimelineEvent[];
-  total: number;
-  page: number;
-  page_size: number;
-  has_more: boolean;
-  icons: Record<string, string>;
-}
+import { useTimelineInfiniteQuery } from "../hooks/useTimelineQuery";
+import type { TimelineEvent } from "../api/timeline";
 
 const ICON_LABELS: Record<string, { icon: string; color: string }> = {
   target: { icon: "🎯", color: "text-amber-400" },
@@ -70,52 +52,21 @@ function groupByDay(events: TimelineEvent[]): Record<string, TimelineEvent[]> {
 }
 
 export default function TimelinePage() {
-  const [events, setEvents] = useState<TimelineEvent[]>([]);
-  const [icons, setIcons] = useState<Record<string, string>>({});
-  const [page, setPage] = useState(1);
-  const [hasMore, setHasMore] = useState(false);
-  const [loading, setLoading] = useState(true);
-  const [loadingMore, setLoadingMore] = useState(false);
-  const [error, setError] = useState("");
+  const {
+    data,
+    isLoading: loading,
+    isFetchingNextPage: loadingMore,
+    hasNextPage: hasMore,
+    fetchNextPage,
+    error,
+    refetch,
+  } = useTimelineInfiniteQuery();
 
-  const fetchEvents = useCallback(async (pageNum: number, append = false) => {
-    if (append) {
-      setLoadingMore(true);
-    } else {
-      setLoading(true);
-    }
-    setError("");
-
-    try {
-      const data = await request<TimelineResponse>(
-        `${API_BASE}/timeline/events?page=${pageNum}&page_size=30`,
-      );
-      if (append) {
-        setEvents((prev) => [...prev, ...data.items]);
-      } else {
-        setEvents(data.items);
-      }
-      setIcons(data.icons);
-      setHasMore(data.has_more);
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : "加载失败";
-      setError(msg);
-    } finally {
-      setLoading(false);
-      setLoadingMore(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    fetchEvents(1);
-  }, [fetchEvents]);
-
-  const loadMore = () => {
-    if (loadingMore || !hasMore) return;
-    const nextPage = page + 1;
-    setPage(nextPage);
-    fetchEvents(nextPage, true);
-  };
+  const events = useMemo(
+    () => data?.pages.flatMap((p) => p.items) ?? [],
+    [data],
+  );
+  const icons = data?.pages[0]?.icons ?? {};
 
   const groupedEvents = groupByDay(events);
   const dayKeys = Object.keys(groupedEvents);
@@ -129,15 +80,16 @@ export default function TimelinePage() {
   }
 
   if (error) {
+    const msg = error instanceof Error ? error.message : "加载失败";
     return (
       <div className="flex-1 flex items-center justify-center">
         <div className="text-center">
           <div className="text-gray-500 mb-2">
             <Clock size={32} className="mx-auto mb-2" />
           </div>
-          <div className="text-gray-400 mb-4">{error}</div>
+          <div className="text-gray-400 mb-4">{msg}</div>
           <button
-            onClick={() => fetchEvents(1)}
+            onClick={() => void refetch()}
             className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 rounded-lg text-sm transition-colors"
           >
             重试
@@ -213,7 +165,7 @@ export default function TimelinePage() {
         {hasMore && (
           <div className="flex justify-center py-6">
             <button
-              onClick={loadMore}
+              onClick={() => void fetchNextPage()}
               disabled={loadingMore}
               className="px-6 py-2 bg-gray-800 hover:bg-gray-700 text-gray-400 rounded-lg text-sm transition-colors disabled:opacity-50"
             >

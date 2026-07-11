@@ -3,14 +3,13 @@ import { screen, fireEvent, waitFor } from "@testing-library/react";
 import { renderWithRouter } from "../test-utils";
 import TimelinePage from "./Timeline";
 
-vi.mock("../api/core", () => ({
-  API_BASE: "/api",
-  request: vi.fn(),
+vi.mock("../api/timeline", () => ({
+  listTimelineEvents: vi.fn(),
 }));
 
-import { request } from "../api/core";
+import { listTimelineEvents } from "../api/timeline";
 
-const mockRequest = vi.mocked(request);
+const mockList = vi.mocked(listTimelineEvents);
 
 const makeEvent = (id: string, description: string, ts: string) => ({
   id,
@@ -28,13 +27,13 @@ describe("TimelinePage", () => {
   });
 
   it("shows loading initially", () => {
-    mockRequest.mockReturnValue(new Promise(() => {}));
+    mockList.mockReturnValue(new Promise(() => {}));
     renderWithRouter(<TimelinePage />);
     expect(document.querySelector(".animate-spin")).toBeTruthy();
   });
 
   it("renders events grouped by day", async () => {
-    mockRequest.mockResolvedValue({
+    mockList.mockResolvedValue({
       items: [
         makeEvent("e1", "创建了目标「学习 Rust」", "2026-06-28T08:00:00Z"),
         makeEvent("e2", "AI 记住了新信息", "2026-06-28T09:00:00Z"),
@@ -54,7 +53,7 @@ describe("TimelinePage", () => {
   });
 
   it("shows empty state", async () => {
-    mockRequest.mockResolvedValue({
+    mockList.mockResolvedValue({
       items: [],
       total: 0,
       page: 1,
@@ -69,7 +68,7 @@ describe("TimelinePage", () => {
   });
 
   it("loads more on button click", async () => {
-    mockRequest
+    mockList
       .mockResolvedValueOnce({
         items: [makeEvent("e1", "事件一", "2026-06-28T08:00:00Z")],
         total: 2,
@@ -91,17 +90,17 @@ describe("TimelinePage", () => {
     fireEvent.click(screen.getByText("加载更多"));
     await waitFor(() => {
       expect(screen.getByText("事件二")).toBeInTheDocument();
-      expect(mockRequest).toHaveBeenCalledTimes(2);
+      expect(mockList).toHaveBeenCalledTimes(2);
     });
   });
 
   it("shows error with retry", async () => {
-    mockRequest.mockRejectedValue(new Error("加载失败"));
+    mockList.mockRejectedValue(new Error("加载失败"));
     renderWithRouter(<TimelinePage />);
     await waitFor(() => {
       expect(screen.getByText("加载失败")).toBeInTheDocument();
     });
-    mockRequest.mockResolvedValue({
+    mockList.mockResolvedValue({
       items: [makeEvent("e1", "恢复成功", "2026-06-28T08:00:00Z")],
       total: 1,
       page: 1,

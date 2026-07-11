@@ -66,7 +66,7 @@ describe("ApprovalsPage", () => {
   });
 
   it("removes item after approve", async () => {
-    mockList.mockResolvedValue([sampleApproval]);
+    mockList.mockResolvedValueOnce([sampleApproval]).mockResolvedValue([]);
     mockApprove.mockResolvedValue({ id: "ap-1", status: "approved" });
     renderWithRouter(<ApprovalsPage />);
     await waitFor(() => expect(screen.getByText("批准")).toBeInTheDocument());
@@ -78,7 +78,7 @@ describe("ApprovalsPage", () => {
   });
 
   it("removes item after reject", async () => {
-    mockList.mockResolvedValue([sampleApproval]);
+    mockList.mockResolvedValueOnce([sampleApproval]).mockResolvedValue([]);
     mockReject.mockResolvedValue({ id: "ap-1", status: "rejected" });
     renderWithRouter(<ApprovalsPage />);
     await waitFor(() => expect(screen.getByText("拒绝")).toBeInTheDocument());

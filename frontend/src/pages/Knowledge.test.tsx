@@ -3,14 +3,24 @@ import { screen, fireEvent, waitFor } from "@testing-library/react";
 import { renderWithRouter } from "../test-utils";
 import KnowledgePage from "./Knowledge";
 
-vi.mock("../api/core", () => ({
-  API_BASE: "/api",
-  request: vi.fn(),
+vi.mock("../api/knowledge", () => ({
+  listKnowledgeDocuments: vi.fn(),
+  uploadKnowledgeDocument: vi.fn(),
+  deleteKnowledgeDocument: vi.fn(),
+  searchKnowledge: vi.fn(),
 }));
 
-import { request } from "../api/core";
+import {
+  listKnowledgeDocuments,
+  uploadKnowledgeDocument,
+  deleteKnowledgeDocument,
+  searchKnowledge,
+} from "../api/knowledge";
 
-const mockRequest = vi.mocked(request);
+const mockList = vi.mocked(listKnowledgeDocuments);
+const mockUpload = vi.mocked(uploadKnowledgeDocument);
+const mockDelete = vi.mocked(deleteKnowledgeDocument);
+const mockSearch = vi.mocked(searchKnowledge);
 
 const sampleDoc = {
   id: "doc-1",
@@ -23,7 +33,7 @@ const sampleDoc = {
 describe("KnowledgePage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockRequest.mockResolvedValue({ documents: [] });
+    mockList.mockResolvedValue([]);
   });
 
   it("shows loading then empty state", async () => {
@@ -34,7 +44,7 @@ describe("KnowledgePage", () => {
   });
 
   it("renders document list", async () => {
-    mockRequest.mockResolvedValue({ documents: [sampleDoc] });
+    mockList.mockResolvedValue([sampleDoc]);
     renderWithRouter(<KnowledgePage />);
     await waitFor(() => {
       expect(screen.getByText("架构设计.md")).toBeInTheDocument();
@@ -43,7 +53,7 @@ describe("KnowledgePage", () => {
   });
 
   it("shows error when fetch fails", async () => {
-    mockRequest.mockRejectedValue(new Error("网络错误"));
+    mockList.mockRejectedValue(new Error("网络错误"));
     renderWithRouter(<KnowledgePage />);
     await waitFor(() => {
       expect(screen.getByText("网络错误")).toBeInTheDocument();
@@ -51,29 +61,27 @@ describe("KnowledgePage", () => {
   });
 
   it("deletes document on trash click", async () => {
-    mockRequest.mockResolvedValueOnce({ documents: [sampleDoc] }).mockResolvedValueOnce(undefined);
+    mockList.mockResolvedValueOnce([sampleDoc]).mockResolvedValueOnce([]);
+    mockDelete.mockResolvedValue(undefined);
     renderWithRouter(<KnowledgePage />);
     await waitFor(() => expect(screen.getByText("架构设计.md")).toBeInTheDocument());
     fireEvent.click(screen.getByTitle("删除文档"));
     await waitFor(() => {
-      expect(mockRequest).toHaveBeenCalledWith("/api/knowledge/documents/doc-1", {
-        method: "DELETE",
-      });
+      expect(mockDelete).toHaveBeenCalledWith("doc-1");
       expect(screen.getByText("还没有上传任何文档")).toBeInTheDocument();
     });
   });
 
   it("searches knowledge base", async () => {
-    mockRequest.mockResolvedValueOnce({ documents: [] }).mockResolvedValueOnce({
-      results: [
-        {
-          id: "r1",
-          content: "Rust 所有权模型",
-          metadata: { source_file: "rust.md" },
-          distance: 0.12,
-        },
-      ],
-    });
+    mockList.mockResolvedValue([]);
+    mockSearch.mockResolvedValue([
+      {
+        id: "r1",
+        content: "Rust 所有权模型",
+        metadata: { source_file: "rust.md" },
+        distance: 0.12,
+      },
+    ]);
     renderWithRouter(<KnowledgePage />);
     await waitFor(() => expect(screen.getByPlaceholderText("在知识库中搜索…")).toBeInTheDocument());
     fireEvent.change(screen.getByPlaceholderText("在知识库中搜索…"), {
@@ -86,14 +94,9 @@ describe("KnowledgePage", () => {
     });
   });
 
-  it("uploads file via fetch", async () => {
-    mockRequest.mockResolvedValue({ documents: [] });
-    const fetchMock = vi.fn().mockResolvedValue({
-      ok: true,
-      json: async () => ({}),
-    });
-    vi.stubGlobal("fetch", fetchMock);
-
+  it("uploads file via knowledge API", async () => {
+    mockList.mockResolvedValue([]);
+    mockUpload.mockResolvedValue({});
     renderWithRouter(<KnowledgePage />);
     await waitFor(() => expect(screen.getByText("选择文件")).toBeInTheDocument());
 
@@ -102,11 +105,7 @@ describe("KnowledgePage", () => {
     fireEvent.change(input, { target: { files: [file] } });
 
     await waitFor(() => {
-      expect(fetchMock).toHaveBeenCalledWith(
-        "/api/knowledge/upload",
-        expect.objectContaining({ method: "POST" }),
-      );
+      expect(mockUpload).toHaveBeenCalledWith(file);
     });
-    vi.unstubAllGlobals();
   });
 });

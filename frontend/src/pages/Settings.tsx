@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useState } from "react";
-import { API_BASE } from "../api/core";
 import {
   getSystemHealth,
   exportData,
@@ -21,6 +20,7 @@ import {
   type LlmProviderConfig,
   type EmailSettingsResponse,
 } from "../api/client";
+import { listMcpRegistry, installMcpConnector } from "../api/connectors";
 import { useErrorStore } from "../stores/errorStore";
 import Card from "../components/ui/Card";
 import Button from "../components/ui/Button";
@@ -975,9 +975,8 @@ function McpMarketplace() {
   const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
-    fetch(`${API_BASE}/connectors/registry`)
-      .then((r) => r.json())
-      .then((data) => setServers(data.servers || []))
+    listMcpRegistry()
+      .then((list) => setServers(list))
       .catch(() => {})
       .finally(() => setLoaded(true));
   }, []);
@@ -985,15 +984,7 @@ function McpMarketplace() {
   const handleInstall = async (name: string) => {
     setInstalling(name);
     try {
-      const token = localStorage.getItem("auth_token");
-      const headers: Record<string, string> = { "Content-Type": "application/json" };
-      if (token) headers["Authorization"] = `Bearer ${token}`;
-      const res = await fetch(`${API_BASE}/connectors/install`, {
-        method: "POST",
-        headers,
-        body: JSON.stringify({ name }),
-      });
-      const data = await res.json();
+      const data = await installMcpConnector(name);
       if (data.ok) {
         alert(`"${name}" 已安装。重启后端后生效。`);
       } else {

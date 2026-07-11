@@ -3,7 +3,15 @@
  */
 
 // Core
-export { setAuthToken, getAuthToken, isAuthConfigured, request, ApiError } from "./core";
+export {
+  setAuthToken,
+  getAuthToken,
+  isAuthConfigured,
+  authHeaders,
+  request,
+  requestFormData,
+  ApiError,
+} from "./core";
 
 // Types
 export type {
@@ -133,3 +141,20 @@ export {
 
 // Notifications
 export { listNotifications, markNotificationRead, markAllNotificationsRead } from "./notifications";
+
+// Knowledge
+export {
+  listKnowledgeDocuments,
+  uploadKnowledgeDocument,
+  deleteKnowledgeDocument,
+  searchKnowledge,
+} from "./knowledge";
+export type { KnowledgeDocument, KnowledgeSearchResult } from "./knowledge";
+
+// Timeline
+export { listTimelineEvents } from "./timeline";
+export type { TimelineEvent, TimelineResponse } from "./timeline";
+
+// Connectors / MCP marketplace
+export { listMcpRegistry, installMcpConnector } from "./connectors";
+export type { McpRegistryServer } from "./connectors";

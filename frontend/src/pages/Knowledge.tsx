@@ -1,21 +1,13 @@
-import { useCallback, useEffect, useRef, useState } from "react";
-import { API_BASE, request } from "../api/core";
+import { useRef, useState } from "react";
+import { ApiError } from "../api/core";
+import {
+  uploadKnowledgeDocument,
+  deleteKnowledgeDocument,
+  searchKnowledge,
+  type KnowledgeSearchResult,
+} from "../api/knowledge";
+import { useKnowledgeDocumentsQuery, useInvalidateKnowledge } from "../hooks/useKnowledgeQuery";
 import { FileText, Upload, Trash2, Search, Loader2, BookOpen } from "lucide-react";
-
-interface KnowledgeDocument {
-  id: string;
-  filename: string;
-  size: number;
-  chunks: number;
-  uploaded_at: string;
-}
-
-interface SearchResult {
-  id: string;
-  content: string;
-  metadata: Record<string, unknown>;
-  distance: number;
-}
 
 function formatSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
@@ -23,33 +15,22 @@ function formatSize(bytes: number): string {
   return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
 }
 
+function errMessage(err: unknown, fallback: string): string {
+  if (err instanceof ApiError || err instanceof Error) return err.message;
+  return fallback;
+}
+
 export default function KnowledgePage() {
-  const [documents, setDocuments] = useState<KnowledgeDocument[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { data: documents = [], isLoading: loading, error: loadError } = useKnowledgeDocumentsQuery();
+  const invalidateKnowledge = useInvalidateKnowledge();
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
-  const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
+  const [searchResults, setSearchResults] = useState<KnowledgeSearchResult[]>([]);
   const [searching, setSearching] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const fetchDocuments = useCallback(async () => {
-    setLoading(true);
-    try {
-      const data = await request<{ documents: KnowledgeDocument[] }>(
-        `${API_BASE}/knowledge/documents`,
-      );
-      setDocuments(data.documents);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "加载失败");
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    fetchDocuments();
-  }, [fetchDocuments]);
+  const displayError = error || (loadError ? errMessage(loadError, "加载失败") : "");
 
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -58,25 +39,11 @@ export default function KnowledgePage() {
     setUploading(true);
     setError("");
     try {
-      const formData = new FormData();
-      formData.append("file", file);
-      const token = localStorage.getItem("auth_token");
-      const headers: Record<string, string> = {};
-      if (token) headers["Authorization"] = `Bearer ${token}`;
-
-      const res = await fetch(`${API_BASE}/knowledge/upload`, {
-        method: "POST",
-        headers,
-        body: formData,
-      });
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.detail || "上传失败");
-      }
-      await fetchDocuments();
+      await uploadKnowledgeDocument(file);
+      invalidateKnowledge();
       if (fileInputRef.current) fileInputRef.current.value = "";
     } catch (err) {
-      setError(err instanceof Error ? err.message : "上传失败");
+      setError(errMessage(err, "上传失败"));
     } finally {
       setUploading(false);
     }
@@ -84,23 +51,22 @@ export default function KnowledgePage() {
 
   const handleDelete = async (id: string) => {
     try {
-      await request(`${API_BASE}/knowledge/documents/${id}`, { method: "DELETE" });
-      setDocuments((prev) => prev.filter((d) => d.id !== id));
+      await deleteKnowledgeDocument(id);
+      invalidateKnowledge();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "删除失败");
+      setError(errMessage(e, "删除失败"));
     }
   };
 
   const handleSearch = async () => {
     if (!searchQuery.trim()) return;
     setSearching(true);
+    setError("");
     try {
-      const data = await request<{ results: SearchResult[] }>(
-        `${API_BASE}/knowledge/search?query=${encodeURIComponent(searchQuery)}&n_results=5`,
-      );
-      setSearchResults(data.results);
+      const results = await searchKnowledge(searchQuery, 5);
+      setSearchResults(results);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "搜索失败");
+      setError(errMessage(e, "搜索失败"));
     } finally {
       setSearching(false);
     }
@@ -116,9 +82,9 @@ export default function KnowledgePage() {
           </div>
         </div>
 
-        {error && (
+        {displayError && (
           <div className="bg-red-900/20 border border-red-700/50 rounded-lg p-3 mb-4 text-sm text-red-400">
-            {error}
+            {displayError}
             <button onClick={() => setError("")} className="ml-2 text-xs underline">
               关闭
             </button>

@@ -16,6 +16,10 @@ export const queryKeys = {
   goals: ["goals"] as const,
   inbox: ["inbox"] as const,
   dashboard: ["dashboard"] as const,
+  approvals: ["approvals"] as const,
+  knowledge: ["knowledge"] as const,
+  timeline: ["timeline"] as const,
+  mcpRegistry: ["mcpRegistry"] as const,
 } as const;
 
 // Lightweight pub/sub so useNotifications (which owns the WS) can forward

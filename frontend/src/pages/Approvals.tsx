@@ -12,13 +12,13 @@ import {
   Send,
 } from "lucide-react";
 import {
-  listEnrichedPendingApprovals,
   approveApproval,
   rejectApproval,
   ApiError,
   type EnrichedApproval,
 } from "../api/client";
 import { useErrorStore } from "../stores/errorStore";
+import { useApprovalsQuery, useInvalidateApprovals } from "../hooks/useApprovalsQuery";
 import Button from "../components/ui/Button";
 import Badge from "../components/ui/Badge";
 import Card from "../components/ui/Card";
@@ -47,33 +47,23 @@ const FLOW_TONE: Record<string, "info" | "success" | "warning" | "default" | "da
 };
 
 export default function ApprovalsPage() {
-  const [approvals, setApprovals] = useState<EnrichedApproval[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { data: approvals = [], isLoading: loading, error, refetch, isFetching } = useApprovalsQuery();
+  const invalidateApprovals = useInvalidateApprovals();
   const [resolving, setResolving] = useState<Set<string>>(new Set());
   const addError = useErrorStore((s) => s.addError);
 
-  const load = async () => {
-    setLoading(true);
-    try {
-      const items = await listEnrichedPendingApprovals();
-      setApprovals(items);
-    } catch (err) {
-      const msg = err instanceof ApiError ? err.message : "加载审批列表失败";
-      addError(msg, "审批");
-    } finally {
-      setLoading(false);
-    }
-  };
-
   useEffect(() => {
-    load();
-  }, []);
+    if (error) {
+      const msg = error instanceof ApiError ? error.message : "加载审批列表失败";
+      addError(msg, "审批");
+    }
+  }, [error, addError]);
 
   const handleApprove = async (id: string) => {
     setResolving((prev) => new Set(prev).add(id));
     try {
       await approveApproval(id);
-      setApprovals((prev) => prev.filter((a) => a.id !== id));
+      invalidateApprovals();
     } catch (err) {
       const msg = err instanceof ApiError ? err.message : "审批操作失败";
       addError(msg, "审批");
@@ -90,7 +80,7 @@ export default function ApprovalsPage() {
     setResolving((prev) => new Set(prev).add(id));
     try {
       await rejectApproval(id, "手动拒绝");
-      setApprovals((prev) => prev.filter((a) => a.id !== id));
+      invalidateApprovals();
     } catch (err) {
       const msg = err instanceof ApiError ? err.message : "拒绝操作失败";
       addError(msg, "审批");
@@ -139,6 +129,8 @@ export default function ApprovalsPage() {
     return JSON.stringify(p).slice(0, 80);
   };
 
+  const refreshing = loading || isFetching;
+
   return (
     <div className="flex-1 overflow-y-auto p-6">
       <div className="max-w-5xl mx-auto">
@@ -149,8 +141,13 @@ export default function ApprovalsPage() {
           </div>
           <div className="flex items-center gap-2">
             {approvals.length > 0 && <Badge tone="warning">{approvals.length} 条待处理</Badge>}
-            <Button variant="secondary" size="sm" onClick={load} disabled={loading}>
-              <RefreshCw size={14} className={`inline mr-1 ${loading ? "animate-spin" : ""}`} />
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => void refetch()}
+              disabled={refreshing}
+            >
+              <RefreshCw size={14} className={`inline mr-1 ${refreshing ? "animate-spin" : ""}`} />
               刷新
             </Button>
           </div>
