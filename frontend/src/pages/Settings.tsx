@@ -35,13 +35,6 @@ import Badge from "../components/ui/Badge";
 import { Input, PasswordInput } from "../components/ui/Input";
 import Spinner from "../components/ui/Spinner";
 
-const STATUS_LABELS: Record<string, string> = {
-  connected: "已连接",
-  lazy: "懒加载",
-  disconnected: "未连接",
-  unavailable: "不可用",
-};
-
 const MASKED_SECRET = "••••••••";
 
 function emptyProvider(id = ""): LlmProviderConfig {
@@ -638,14 +631,6 @@ export default function SettingsPage() {
               全部 {health.startup.checks.mcp.total} 个 MCP 服务已连接
             </p>
           )}
-          {health?.startup?.checks?.mcp && (
-            <p className="text-xs text-gray-600 mt-2">
-              状态码：
-              {Object.entries(STATUS_LABELS)
-                .map(([k, v]) => `${k}=${v}`)
-                .join(" / ")}
-            </p>
-          )}
         </Card>
 
         <Card>
@@ -775,12 +760,13 @@ function ToolChipList({
   tone,
 }: {
   tools: string[];
-  tone: "emerald" | "amber" | "red";
+  tone: "emerald" | "amber" | "red" | "cyan";
 }) {
   const styles = {
     emerald: "bg-emerald-900/20 text-emerald-400/70 border-emerald-700/20",
     amber: "bg-amber-900/20 text-amber-400/70 border-amber-700/20",
     red: "bg-red-900/20 text-red-400/70 border-red-700/20",
+    cyan: "bg-cyan-900/20 text-cyan-400/70 border-cyan-700/20",
   }[tone];
   if (tools.length === 0) {
     return <p className="text-xs text-gray-600">（无）</p>;
@@ -839,6 +825,16 @@ function CapabilityTrustPanel() {
         </div>
         <ToolChipList tools={data.needs_user} tone="amber" />
       </div>
+      {data.external_ingestion.length > 0 && (
+        <div>
+          <div className="flex items-center gap-2 mb-2">
+            <span className="w-2 h-2 rounded-full bg-cyan-500" />
+            <span className="text-xs font-medium text-cyan-400">外部内容摄入</span>
+            <span className="text-xs text-gray-500">— 会污染上下文链，后续写操作需确认</span>
+          </div>
+          <ToolChipList tools={data.external_ingestion} tone="cyan" />
+        </div>
+      )}
       {data.forbidden.length > 0 && (
         <div>
           <div className="flex items-center gap-2 mb-2">

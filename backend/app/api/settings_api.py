@@ -359,6 +359,7 @@ async def get_capability_policy():
         "auto_allow": list(data.get("auto_allow") or []),
         "needs_user": list(data.get("needs_user") or []),
         "forbidden": list(data.get("forbidden") or []),
+        "external_ingestion": list(data.get("external_ingestion") or []),
     }
 
 

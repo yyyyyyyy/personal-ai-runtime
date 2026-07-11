@@ -82,6 +82,7 @@ vi.mock("../api/client", () => ({
     auto_allow: ["read_file", "web_search"],
     needs_user: ["write_file", "send_email"],
     forbidden: [],
+    external_ingestion: ["web_search"],
   }),
   exportData: vi.fn().mockResolvedValue({ events: [] }),
   importData: vi.fn(),

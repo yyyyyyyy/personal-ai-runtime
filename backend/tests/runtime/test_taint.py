@@ -5,6 +5,7 @@ from pathlib import Path
 
 import pytest
 
+from app.config import settings
 from app.core.harness.mcp_hub import mcp_hub
 from app.core.runtime.kernel import Kernel
 from app.core.runtime.taint import (
@@ -14,7 +15,7 @@ from app.core.runtime.taint import (
 )
 from app.store.database import Database
 
-POLICY_PATH = Path(__file__).resolve().parents[2] / "capability_policy.json"
+POLICY_PATH = Path(settings.capability_policy_path)
 
 
 @pytest.fixture

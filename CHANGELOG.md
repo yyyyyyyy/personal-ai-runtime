@@ -34,3 +34,4 @@ Format follows [Keep a Changelog](https://keepachangelog.com/). Version numbers 
 - Approvals/Knowledge/Timeline on TanStack Query; Knowledge upload + MCP marketplace use shared auth API helpers
 - Product surface: Portrait → Memories tab; TrustReport → Dashboard tab; fix useDashboard render-time addError
 - Settings: Query migration, capability-policy API (trust UI from JSON), surface silent load errors
+- Follow-up: taint path = settings.capability_policy_path (fail-closed); Dashboard/Trust soft-fail; MCP mesh in startup_health

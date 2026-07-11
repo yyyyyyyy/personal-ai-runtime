@@ -82,3 +82,4 @@ def test_get_capability_policy(client: TestClient):
     assert "read_file" in data["auto_allow"]
     assert "write_file" in data["needs_user"]
     assert "send_email" in data["needs_user"]
+    assert "web_search" in data["external_ingestion"]

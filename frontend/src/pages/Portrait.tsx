@@ -47,7 +47,7 @@ export function PortraitPanel({ compact = false }: { compact?: boolean }) {
     );
   }
 
-  if (error) {
+  if (error && !data) {
     return (
       <div className={`flex items-center justify-center ${compact ? "py-16" : "h-full"}`}>
         <div className="flex flex-col items-center gap-3 text-gray-400">
@@ -88,6 +88,16 @@ export function PortraitPanel({ compact = false }: { compact?: boolean }) {
       <div className={compact ? "space-y-8" : "p-6 space-y-8"}>
         {compact && (
           <p className="text-sm text-gray-500">AI 对你的理解——包含 {totalItems} 项洞察</p>
+        )}
+
+        {error && data && (
+          <div className="flex items-center gap-2 text-sm text-amber-400 bg-amber-950/20 border border-amber-900/40 rounded-lg px-3 py-2">
+            <AlertCircle size={14} />
+            刷新失败：{error}
+            <button type="button" onClick={() => void refetch()} className="underline ml-auto">
+              重试
+            </button>
+          </div>
         )}
 
         {totalItems === 0 && (

@@ -138,6 +138,7 @@ export interface CapabilityPolicy {
   auto_allow: string[];
   needs_user: string[];
   forbidden: string[];
+  external_ingestion: string[];
 }
 
 export async function getCapabilityPolicy(): Promise<CapabilityPolicy> {

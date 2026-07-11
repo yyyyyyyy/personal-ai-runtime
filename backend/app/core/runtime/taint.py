@@ -4,8 +4,11 @@ When external content (inbox, web fetch, browser) enters the agent context,
 subsequent write-class capability invocations in the same correlation chain
 MUST require user approval.
 
-Tool classification is loaded from capability_policy.json (single source of
-truth): ``needs_user`` → write-class, ``external_ingestion`` → taint sources.
+Tool classification is loaded from ``settings.capability_policy_path`` (same
+source as Gate seeding and ``GET /api/settings/capability-policy``):
+``needs_user`` → write-class, ``external_ingestion`` → taint sources.
+
+Missing or empty policy fails closed (raises) — never silently disables taint.
 
 v0.2.1: Taint marks moved from contextvars.ContextVar to an instance-level dict
 with TTL-based expiry. ContextVar was async-task-local and broke under
@@ -16,23 +19,48 @@ that share the same correlation_id.
 from __future__ import annotations
 
 import json
+import logging
 import time
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from app.core.runtime.runtime_container import _LazyProxy, runtime
 
+logger = logging.getLogger(__name__)
+
 # TTL for taint marks in seconds (5 minutes).
 # After this duration, the mark is considered expired and cleaned up on next access.
 _TAINT_TTL_SECONDS = 300
 
-_POLICY_PATH = Path(__file__).resolve().parents[3] / "capability_policy.json"
+
+def _policy_path() -> Path:
+    from app.config import settings
+
+    return Path(settings.capability_policy_path)
 
 
 def _load_capability_policy() -> dict[str, Any]:
-    if not _POLICY_PATH.is_file():
-        return {}
-    return json.loads(_POLICY_PATH.read_text(encoding="utf-8"))
+    """Load capability_policy.json or raise (fail-closed)."""
+    path = _policy_path()
+    if not path.is_file():
+        msg = f"capability_policy.json missing at {path} — taint cannot start fail-open"
+        logger.critical(msg)
+        raise FileNotFoundError(msg)
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        msg = f"capability_policy.json unreadable at {path}: {exc}"
+        logger.critical(msg)
+        raise RuntimeError(msg) from exc
+    if not isinstance(data, dict):
+        raise RuntimeError(f"capability_policy.json must be an object at {path}")
+    needs_user = data.get("needs_user") or []
+    auto_allow = data.get("auto_allow") or []
+    if not needs_user and not auto_allow:
+        msg = f"capability_policy.json has empty auto_allow/needs_user at {path}"
+        logger.critical(msg)
+        raise RuntimeError(msg)
+    return data
 
 
 _policy = _load_capability_policy()

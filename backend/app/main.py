@@ -335,8 +335,16 @@ async def lifespan(app: FastAPI):
         startup_tools = await start_mcp_mesh()
         if startup_tools:
             logger.info("MCP mesh: %d tools ready at startup (lazy servers connect in background)", startup_tools)
-    except Exception:
+        if isinstance(app.state.startup_health, dict):
+            app.state.startup_health.setdefault("checks", {})["mcp_mesh"] = {
+                "status": "ok",
+                "tools": startup_tools or 0,
+            }
+    except Exception as exc:
         logger.exception("MCP mesh startup failed — continuing with builtin tools only")
+        app.state.startup_health = record_startup_failure(
+            app.state.startup_health, "mcp_mesh", exc
+        )
 
     app.state.startup_health = enrich_with_mcp_status(app.state.startup_health)
 

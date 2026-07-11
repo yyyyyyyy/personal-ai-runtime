@@ -23,6 +23,9 @@ import { queryKeys } from "./useWsInvalidationBridge";
  * Dashboard data — decomposed into independent TanStack Query hooks
  * so each subset is independently cached and invalidated by the
  * WebSocket invalidation bridge (useWsInvalidationBridge).
+ *
+ * Soft failures (telemetry / notifications) toast but do not blank the page.
+ * Full-page error only when we have no useful data after load settles.
  */
 
 const DASHBOARD_STALE_MS = 60_000; // 1-minute refetch interval
@@ -78,7 +81,7 @@ export function useDashboard() {
     retry: 1,
   });
 
-  const dashboard = useQuery<DashboardData | null>({
+  const dashboard = useQuery<DashboardData>({
     queryKey: queryKeys.dashboard,
     queryFn: getDashboard,
     refetchInterval: DASHBOARD_STALE_MS,
@@ -86,45 +89,39 @@ export function useDashboard() {
     retry: 1,
   });
 
-  // Aggregate loading/error states
-  const loading =
-    cost.isLoading ||
-    costByModel.isLoading ||
-    tools.isLoading ||
-    memory.isLoading ||
-    health.isLoading ||
-    notifications.isLoading ||
-    dashboard.isLoading;
+  const queries = [cost, costByModel, tools, memory, health, notifications, dashboard];
+  const anyLoading = queries.some((q) => q.isLoading);
+  const hasAnyData = queries.some((q) => q.data !== undefined);
+  const errors = queries.map((q) => q.error).filter(Boolean);
 
-  const errors = [
-    cost.error,
-    costByModel.error,
-    tools.error,
-    memory.error,
-    health.error,
-    notifications.error,
-    dashboard.error,
-  ].filter(Boolean);
+  // Initial spinner only until at least one subset arrives (or all settle empty).
+  const loading = anyLoading && !hasAnyData;
 
-  const firstErrorMsg =
-    !loading && errors.length > 0
+  // Full-page error only when every query failed and nothing rendered.
+  const fatalError =
+    !loading && !hasAnyData && errors.length > 0
       ? errors[0] instanceof Error
         ? errors[0].message
         : "无法连接到后端服务，请确认后端已启动"
       : null;
 
-  // Surface errors via the toast store outside render (React forbids
-  // setState-during-render on another component's store).
+  const softErrorMsg =
+    !loading && hasAnyData && errors.length > 0
+      ? errors[0] instanceof Error
+        ? errors[0].message
+        : "部分仪表盘数据加载失败"
+      : fatalError;
+
   const lastErrorRef = useRef<string | null>(null);
   useEffect(() => {
-    if (!firstErrorMsg) {
+    if (!softErrorMsg) {
       lastErrorRef.current = null;
       return;
     }
-    if (lastErrorRef.current === firstErrorMsg) return;
-    lastErrorRef.current = firstErrorMsg;
-    addError(firstErrorMsg, "仪表盘");
-  }, [firstErrorMsg, addError]);
+    if (lastErrorRef.current === softErrorMsg) return;
+    lastErrorRef.current = softErrorMsg;
+    addError(softErrorMsg, "仪表盘");
+  }, [softErrorMsg, addError]);
 
   const refresh = useCallback(() => {
     cost.refetch();
@@ -145,7 +142,7 @@ export function useDashboard() {
     notifications: notifications.data ?? [],
     dashboard: dashboard.data ?? null,
     loading,
-    error: errors.length > 0 ? String(errors[0]) : "",
+    error: fatalError ?? "",
     refresh,
   };
 }
