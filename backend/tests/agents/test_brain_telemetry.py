@@ -1,8 +1,8 @@
-"""Tests for brain_telemetry.record_llm_call — usage precedence, event-sourced.
+"""Tests for brain_telemetry.record_llm_call — event-sourced telemetry writes.
 
-v0.3.0: record_llm_call now emits LLMCallRecorded events via the Kernel
-instead of calling telemetry.record_llm_call(LLMCallRecord(...)). The tests
-verify the event payload rather than a Telemetry singleton side effect.
+Verifies that ``record_llm_call`` emits ``LLMCallRecorded`` events via the
+Kernel (the single source of truth for the governed ``llm_calls`` projection),
+asserting on the event payload rather than a Telemetry singleton side effect.
 """
 from __future__ import annotations
 

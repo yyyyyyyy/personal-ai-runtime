@@ -1,22 +1,20 @@
-"""Reaction Registry — declarative event→action bindings replacing TriggerEngine.
+"""Reaction Registry — declarative periodic actions.
 
 v0.6.0: Imperative TriggerEngine replaced by @reaction declarations.
-A Reaction is a pure composition of Runtime Algebra primitives:
-    Reaction = subscribe(Event) + invoke(Capability) + produce(Work)
+v0.11.0: removed unused event-driven ``on_event``/``_check_threshold`` path
+         (it was never wired into Kernel._dispatch). ``evaluate_cycle`` is
+         now the only firing mechanism.
 
-Usage:
-    @reaction(
-        when=Event(type="InboxEmailRecorded", count_gte=50, window_days=1),
-        then=Notification(template="收件箱积压 {count} 封"),
-    )
-    def email_backlog(event, ctx):
-        ...
+A Reaction is registered with declarative metadata (``ReactionWhen``) and a
+handler. The runtime invokes ``evaluate_cycle`` periodically (via
+RuntimeLoop._maintenance); handlers receive the Kernel and must perform their
+own condition checks internally — ``ReactionWhen`` fields are surfaced via
+``list_reactions`` and the Triggers API but do NOT gate firing.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any, Callable
 
 if TYPE_CHECKING:
@@ -72,53 +70,26 @@ class Reaction:
 
 
 class ReactionRegistry:
-    """Manages declared Reactions and evaluates them on events."""
+    """Manages declared Reactions and evaluates them periodically.
+
+    Only ``evaluate_cycle`` is wired into the runtime (via
+    ``RuntimeLoop._maintenance``). It unconditionally invokes every Reaction
+    whose ``count_gte > 0`` and which has a handler, passing the Kernel as
+    the sole argument. ``ReactionWhen`` fields (``event_type``, ``window_days``,
+    ``payload_check``…) are declarative metadata surfaced via ``list_reactions``
+    and the Triggers API, but are NOT consulted by the evaluator — handlers
+    must perform their own condition checks internally.
+
+    An earlier ``on_event`` event-driven path existed but was never wired into
+    Kernel._dispatch; it was removed to avoid giving the impression that
+    ``ReactionWhen`` fields drive firing.
+    """
 
     def __init__(self):
         self._reactions: dict[str, Reaction] = {}
-        self._counters: dict[str, tuple[int, str]] = {}  # name → (count, last_reset_iso)
 
     def register(self, reaction: Reaction) -> None:
         self._reactions[reaction.name] = reaction
-
-    def on_event(self, event: "Event") -> None:
-        """Called on every emitted event to evaluate matching Reactions."""
-        for reaction in self._reactions.values():
-            if not reaction.matches(event):
-                continue
-            if reaction.when.count_gte > 0:
-                if not self._check_threshold(reaction, event):
-                    continue
-            # Fire the reaction
-            if reaction.handler:
-                try:
-                    reaction.handler(event)
-                except Exception:
-                    import logging
-                    logging.getLogger(__name__).warning(
-                        "Reaction handler failed for %s", reaction.name, exc_info=True
-                    )
-
-    def _check_threshold(self, reaction: Reaction, event: "Event") -> bool:
-        """Track rolling counter per reaction; return True when threshold met."""
-        key = f"react_cnt_{reaction.name}"
-        now_iso = datetime.now(UTC).isoformat()
-        count, last_reset = self._counters.get(key, (0, now_iso))
-
-        try:
-            last_dt = datetime.fromisoformat(last_reset)
-            if (datetime.now(UTC) - last_dt).total_seconds() > reaction.when.window_days * 86400:
-                count = 0
-                last_reset = now_iso
-        except (ValueError, TypeError):
-            count = 0
-            last_reset = now_iso
-
-        count += 1
-        self._counters[key] = (count, last_reset)
-
-        # Only fire at exact threshold, not every event above it
-        return count == reaction.when.count_gte
 
     def evaluate_cycle(self, kernel: "Kernel") -> int:
         """Called periodically by RuntimeLoop to process timer-based reactions.
@@ -165,10 +136,10 @@ def reaction(
 
     Example:
         @reaction(
-            when=ReactionWhen(event_type="InboxEmailRecorded", count_gte=50, window_days=1),
-            then=ReactionThen(notification_template="收件箱积压 {count} 封"),
+            when=ReactionWhen(count_gte=1),
+            then=ReactionThen(notification_template="..."),
         )
-        def email_backlog(event_or_kernel=None):
+        def my_check(kernel=None):
             ...
     """
     def decorator(handler):
@@ -183,11 +154,10 @@ def get_reaction_registry() -> ReactionRegistry:
 
 
 def reset_reactions() -> None:
-    """Clear all registered reactions and counters — for test isolation.
+    """Clear all registered reactions — for test isolation.
 
     Called by RuntimeContainer.reset() so tests do not leak reactions into
     each other. Module-level registry is rebuilt lazily on the next @reaction
     decoration or import of builtin_reactions.
     """
     _reaction_registry._reactions.clear()
-    _reaction_registry._counters.clear()

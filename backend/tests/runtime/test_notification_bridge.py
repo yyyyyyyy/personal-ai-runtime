@@ -111,7 +111,7 @@ async def test_push_notification_uses_broadcast_event(monkeypatch):
     captured: list[dict] = []
     monkeypatch.setattr(nb, "broadcast_event", lambda ev: captured.append(ev))
 
-    def fake_create(t, title, content):
+    def fake_create(t, title, content, **kwargs):
         return {"id": "x", "type": t, "title": title, "content": content}
 
     monkeypatch.setattr(nb, "create_notification", fake_create)

@@ -26,20 +26,35 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from typing import TYPE_CHECKING
 
 from app.product.notifications import create_notification
+
+if TYPE_CHECKING:
+    from app.core.runtime.kernel import Kernel
 
 logger = logging.getLogger(__name__)
 
 
-def push_notification(notif_type: str, title: str, content: str) -> dict:
+def push_notification(
+    notif_type: str,
+    title: str,
+    content: str,
+    *,
+    kernel: "Kernel | None" = None,
+) -> dict:
     """Persist a notification row and broadcast it to WebSocket clients.
 
     The WS envelope always uses ``type="notification"`` so the frontend can
     distinguish user-facing notifications from transport hints like
     ``memory_changed``. The domain category is carried as ``notification_type``.
+
+    ``kernel`` lets callers that already hold a Kernel instance (e.g.
+    reactions invoked via ``evaluate_cycle``) avoid the module-level default,
+    which may point at a stale reference in tests that monkeypatch
+    ``kernel_instance.kernel`` after this module was imported.
     """
-    notif = create_notification(notif_type, title, content)
+    notif = create_notification(notif_type, title, content, kernel=kernel)
     broadcast_event({
         **notif,
         "type": "notification",

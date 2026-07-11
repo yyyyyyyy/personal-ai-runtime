@@ -97,6 +97,17 @@ class CapabilityGovernance:
     def _ensure_policy(self, kernel: Kernel, capability: str, risk: str) -> None:
         existing = kernel.query_state("policy_events", capability=capability, limit=1)
         if existing:
+            # Reconcile: if the seed JSON risk tier changed since the DB was
+            # last seeded, emit PolicyUpdated so the projection tracks the
+            # current policy file. Without this, tightening a capability in
+            # capability_policy.json has no effect on already-initialised
+            # databases (the stale low-risk row wins every risk_for lookup).
+            if existing[0].get("risk_level") != risk:
+                kernel.emit_event(
+                    "PolicyUpdated", "policy", f"policy_{capability}",
+                    payload={"capability": capability, "risk_level": risk},
+                    actor="kernel",
+                )
             return
         kernel.emit_event(
             "PolicyCreated", "policy", f"policy_{capability}",

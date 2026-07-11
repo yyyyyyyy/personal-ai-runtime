@@ -1,11 +1,14 @@
-"""Telemetry — observability data collection for LLM calls, tool calls, and system health.
+"""Telemetry — observability views over LLM calls, tool calls, and system health.
 
-Records every LLM inference and tool invocation for cost tracking, debugging, and dashboards.
+v0.11.0: removed the legacy ``record_llm_call`` / ``record_tool_call`` direct
+INSERT methods and their ``LLMCallRecord`` / ``ToolCallRecord`` data classes.
+Telemetry writes now flow exclusively through the Kernel as
+``LLMCallRecorded`` / ``CapabilityInvoked`` events (see
+``brain_telemetry.record_llm_call`` and ``projectors_telemetry``). This module
+retains only the read-side aggregations consumed by the Telemetry API.
 """
 
-import uuid
 from collections import Counter
-from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 
 from app.core.runtime.kernel_instance import kernel
@@ -22,69 +25,8 @@ def _parse_utc_datetime(value: str) -> datetime | None:
     return dt.astimezone(UTC)
 
 
-@dataclass
-class LLMCallRecord:
-    """Complete record of a single LLM API call."""
-    provider: str
-    model: str
-    prompt_tokens: int = 0
-    completion_tokens: int = 0
-    latency_ms: float = 0
-    cost: float = 0
-    success: bool = True
-    error_message: str | None = None
-
-
-@dataclass
-class ToolCallRecord:
-    """Complete record of a single tool invocation."""
-    tool_name: str
-    success: bool = True
-    latency_ms: float = 0
-    error_message: str | None = None
-
-
 class Telemetry:
-    """Records LLM and tool call data for observability."""
-
-    def record_llm_call(self, record: LLMCallRecord) -> str:
-        call_id = str(uuid.uuid4())
-        with db.get_db() as conn:
-            conn.execute(
-                """INSERT INTO llm_calls (id, provider, model, prompt_tokens, completion_tokens,
-                   latency_ms, cost, success, error_message, created_at)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-                (
-                    call_id,
-                    record.provider,
-                    record.model,
-                    record.prompt_tokens,
-                    record.completion_tokens,
-                    record.latency_ms,
-                    record.cost,
-                    1 if record.success else 0,
-                    record.error_message,
-                    datetime.now(UTC).isoformat(),
-                ),
-            )
-        return call_id
-
-    def record_tool_call(self, record: ToolCallRecord) -> str:
-        call_id = str(uuid.uuid4())
-        with db.get_db() as conn:
-            conn.execute(
-                """INSERT INTO tool_calls (id, tool_name, success, latency_ms, error_message, created_at)
-                   VALUES (?, ?, ?, ?, ?, ?)""",
-                (
-                    call_id,
-                    record.tool_name,
-                    1 if record.success else 0,
-                    record.latency_ms,
-                    record.error_message,
-                    datetime.now(UTC).isoformat(),
-                ),
-            )
-        return call_id
+    """Read-only aggregations over the governed telemetry projections."""
 
     def get_llm_summary(self, days: int = 7) -> dict:
         """Get cost/token/latency summary for recent LLM calls."""
