@@ -2,22 +2,23 @@
 
 import os
 import uuid
+from typing import Any
 
 # Suppress ChromaDB telemetry before the chromadb import touches posthog
 os.environ.setdefault("ANONYMIZED_TELEMETRY", "False")
 os.environ.setdefault("CHROMA_TELEMETRY_IMPL", "none")
 os.environ.setdefault("CHROMA_TELEMETRY_ENABLED", "false")
 
-# Monkey-patch posthog to prevent capture() signature incompatibility
-import posthog  # noqa: E402
+# Optional: older Chroma builds pulled posthog; patch capture if present.
+try:
+    import posthog  # noqa: E402
+except ImportError:
+    posthog = None  # type: ignore[assignment]
+else:
+    def _safe_capture(*args: Any, **kwargs: Any) -> None:
+        return None
 
-
-# Monkey-patch posthog to prevent capture() from breaking tests/CI (signature bugs, recursion).
-def _safe_capture(*args, **kwargs):
-    return None
-
-
-posthog.capture = _safe_capture
+    posthog.capture = _safe_capture
 
 import chromadb  # noqa: E402
 from chromadb.config import Settings as ChromaSettings  # noqa: E402
@@ -27,7 +28,9 @@ from app.config import settings  # noqa: E402
 
 # Pin the same default ONNX MiniLM L6 v2 path Chroma 0.5.x / 1.x ships so
 # upgrades do not silently switch embedding models or dimensions.
-_EMBEDDING_FUNCTION = DefaultEmbeddingFunction()
+# Typed as Any: chromadb stubs expect a broader EmbeddingFunction protocol than
+# DefaultEmbeddingFunction declares.
+_EMBEDDING_FUNCTION: Any = DefaultEmbeddingFunction()
 
 
 class VectorStore:

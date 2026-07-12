@@ -47,6 +47,13 @@ PLATFORM_ONLY_LOCK_BLOCKS = {
     #   -r requirements.txt
     #   uvicorn
 """,
+    # humanfriendly (via coloredlogs → onnxruntime/chromadb) pulls this on
+    # Windows only; pip-compile on macOS/Linux omits it and --require-hashes
+    # then fails when pip resolves the unpinned transitive wheel.
+    "pyreadline3": """pyreadline3==3.5.6 ; sys_platform == "win32" \\
+    --hash=sha256:8449b734232e42a5dcd74048e39b60db2839a4c38cf3ae2bf7707d58b5389c0d
+    # via humanfriendly
+""",
 }
 
 
