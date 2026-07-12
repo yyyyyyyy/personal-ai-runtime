@@ -53,6 +53,25 @@ class ExecutionPolicy:
         return cls()
 
 
+def policy_for_event(event_type: str) -> ExecutionPolicy:
+    """Choose an ExecutionPolicy for a newly enqueued event.
+
+    ChatRequested runs multi-step LLM + tool loops that routinely exceed the
+    default 30s WorkItem timeout (while total_tool_loop_timeout is 300s).
+    Align the handler budget with the tool-loop ceiling so the scheduler does
+    not kill mid-turn and re-append duplicate messages on retry.
+    """
+    if event_type == "ChatRequested":
+        from app.config import settings
+
+        return ExecutionPolicy(
+            timeout_seconds=float(settings.total_tool_loop_timeout),
+            max_retries=1,
+            retry_delay_seconds=2.0,
+        )
+    return ExecutionPolicy.default()
+
+
 @dataclass
 class WorkItem:
     """One invocation of a handler for a specific event.

@@ -224,7 +224,7 @@ class Scheduler:
         execution identity derived from the event stream.
         """
         from .handler_registry import get_handler
-        from .work_item import ExecutionPolicy, WorkItem
+        from .work_item import WorkItem, policy_for_event
 
         handler = get_handler(event.type)
         if handler is None:
@@ -237,7 +237,7 @@ class Scheduler:
             handler_name=handler.__name__,
             instance_id=instance_id,
             correlation_id=event.correlation_id or "",
-            policy=policy or ExecutionPolicy.default(),
+            policy=policy if policy is not None else policy_for_event(event.type),
             _event=event,
         )
         self._pending.append(item)

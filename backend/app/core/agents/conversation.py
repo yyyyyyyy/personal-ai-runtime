@@ -137,7 +137,48 @@ class ConversationManager:
         }
 
     def save_user_message(self, content: str) -> dict:
+        """Persist the user turn. Idempotent per correlation_id.
+
+        Chat handler retries (scheduler timeout) re-enter chat_stream with the
+        same correlation_id; without this guard the user message is duplicated.
+        """
+        if self.correlation_id:
+            existing = self._existing_user_message_for_turn()
+            if existing is not None:
+                return existing
         return self.save_message(role="user", content=content)
+
+    def _existing_user_message_for_turn(self) -> dict | None:
+        """Return the first user MessageAppended for this turn, if any."""
+        if not self.correlation_id:
+            return None
+        events = self._k().read_events(
+            aggregate_type="conversation",
+            aggregate_id=self.conversation_id,
+            type="MessageAppended",
+            correlation_id=self.correlation_id,
+            limit=50,
+        )
+        for ev in events:
+            if ev.payload.get("role") != "user":
+                continue
+            msg_id = ev.payload.get("message_id")
+            if not msg_id:
+                continue
+            if self.kernel is not None:
+                rows = self.kernel.query_state("messages", id=msg_id)
+                row = rows[0] if rows else None
+            else:
+                row = read_ports.query_message(msg_id)
+            if row:
+                return row
+            return {
+                "id": msg_id,
+                "conversation_id": self.conversation_id,
+                "role": "user",
+                "content": ev.payload.get("content", ""),
+            }
+        return None
 
     def save_assistant_message(
         self, content: str, tool_calls: list | None = None, sources: list | None = None

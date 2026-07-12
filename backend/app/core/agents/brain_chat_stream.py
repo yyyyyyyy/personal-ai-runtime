@@ -56,7 +56,6 @@ async def chat_stream(
 
     # Step 3: Run the LLM → tool call loop
     full_content = ""
-    canned_response_done = False
     tool_iterations = 0
     cumulative_prompt_tokens = 0
     loop_start = time.time()
@@ -216,7 +215,6 @@ async def chat_stream(
         summary = canned_summary(tool_calls_data, iteration_tool_results)
         if summary:
             full_content = summary
-            canned_response_done = True
             yield {"type": "text_delta", "content": full_content}
             break
 
@@ -241,8 +239,10 @@ async def chat_stream(
                 }
             break
 
-    # Step 4: Save + conversation episode
-    if full_content and not canned_response_done:
+    # Step 4: Persist final assistant text — including canned summaries.
+    # Intermediate tool-call turns are already saved above; this writes the
+    # user-visible reply so history reload matches the live SSE stream.
+    if full_content:
         try:
             sources = get_sources(conversation.conversation_id)
         except Exception:

@@ -80,3 +80,32 @@ def test_save_message_explicit_overrides(kernel):
     assert len(events) == 1
     assert events[0].actor == "custom-actor"
     assert events[0].correlation_id == "corr-override"
+
+
+def test_save_user_message_idempotent_by_correlation(kernel):
+    mgr = ConversationManager(
+        conversation_id="conv-actor",
+        kernel=kernel,
+        correlation_id="chat_retry_corr",
+    )
+    first = mgr.save_user_message("hi again")
+    second = mgr.save_user_message("hi again")
+    assert first["id"] == second["id"]
+    events = kernel.read_events(
+        aggregate_type="conversation",
+        aggregate_id="conv-actor",
+        type="MessageAppended",
+        correlation_id="chat_retry_corr",
+    )
+    user_events = [e for e in events if e.payload.get("role") == "user"]
+    assert len(user_events) == 1
+
+
+def test_policy_for_chat_requested_matches_tool_loop_budget():
+    from app.config import settings
+    from app.core.runtime.work_item import ExecutionPolicy, policy_for_event
+
+    chat = policy_for_event("ChatRequested")
+    assert chat.timeout_seconds == float(settings.total_tool_loop_timeout)
+    assert chat.max_retries == 1
+    assert policy_for_event("TimerFired") == ExecutionPolicy.default()
