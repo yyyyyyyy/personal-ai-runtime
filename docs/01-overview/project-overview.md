@@ -81,8 +81,8 @@ personal-ai-runtime/
 
 代码中可观察到的、文档需明确标注的现状：
 
-- `desktop/preload.js` 通过 `contextBridge.exposeInMainWorld('electronAPI', ...)` 暴露了 `getBackendUrl`、`sendNotification`、`platform`，但在 `frontend/src/` 中未观察到任何对这些绑定的消费代码。代码库中证据不足：当前前端不使用这些 IPC 绑定。
-- `backend/app/version.py` 标注 `VERSION = "0.2.0"`，但其他模块 docstring 中出现 `v0.3.0`/`v0.4.0`/`v0.5.0` 等子系统版本号；这些是子系统演进标记，与项目整体版本不同步。
+- `desktop/preload.js` 不再向渲染进程暴露任何 IPC 绑定（早期 `electronAPI` 桥接无前端消费方，已移除）。渲染进程通过 HTTP/SSE/WebSocket 直连后端；桌面原生行为（托盘、全局快捷键、WebSocket→系统通知）由 main 进程处理（[`desktop/main.js`](../../desktop/main.js)）。
+- `backend/app/version.py` 标注 `VERSION = "0.2.0"`。其他模块/docstring 中出现的 `v0.3.0`…`v1.1` 是**子系统演进阶段标记**（见 [02-concepts/runtime-algebra.md](../02-concepts/runtime-algebra.md) §5.3），不是产品版本号，与项目整体版本不冲突。
 
 ## 下一步
 

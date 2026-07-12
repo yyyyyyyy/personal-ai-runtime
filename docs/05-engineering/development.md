@@ -87,6 +87,36 @@ make demo         # LLM_API_KEY=${LLM_API_KEY:-demo-seed} python3 scripts/seed_d
 
 [`scripts/seed_demo.py`](../../backend/scripts/seed_demo.py) 幂等：检查目标 `【Demo】完成用户验证访谈` 是否已存在，不存在则播种 2 个目标 + 2 条记忆 + 1 个对话 + 1 条消息。
 
+## 开发期自用检查（dogfood）
+
+项目当前处于开发期，未上生产。为保证核心闭环真实可用（而非仅靠 CI 不变量背书），每周至少跑通下表一次。目标不是覆盖所有功能，而是验证「自己每天能用」的最小路径。
+
+| 闭环 | 通过标准（开发期） | 状态标记 |
+|------|-------------------|---------|
+| Chat | 真实 LLM 多轮对话 + 至少 1 次工具审批弹窗并放行 | `pass` / `fail` |
+| Memory | 对话触发记忆抽取 → Memories 页可见 → 后续对话能召回该记忆 | `pass` / `fail` |
+| Work items | 创建/分解/完成至少一条 work item（goal/task） | `pass` / `fail` |
+| Desktop | `make desktop` 托盘运行，WebSocket 推送时收到系统通知 | `pass` / `fail` |
+| Inbox | Gmail 拉取可见邮件；**未接 Gmail 时记 `blocked`，不假装通过** | `pass` / `fail` / `blocked` |
+
+记录方式：在本地笔记或 PR 描述里记一行 `2026-WW Chat:pass Memory:fail Work:pass Desktop:pass Inbox:blocked`，无需入库。连续两周某项 `fail` 应优先排进下周计划。
+
+辅助工具：[`scripts/soak_dogfood_report.py`](../../scripts/soak_dogfood_report.py)（见 [testing.md](testing.md) 开发期 soak 段）对当前 `backend/data/personal_ai.db` 输出只读计数报告，用于核对上面的主观判断是否与库内数据一致。
+
+### 当前基线快照（2026-07-12，工具与文档里程碑，非闭环 pass）
+
+本轮巩固计划交付的是 **tag / IPC 收口 / dogfood 工具与闸门文档**，**尚未**把下表跑成 pass。以 `python scripts/soak_dogfood_report.py` 对本地库的只读计数为准（会随日用变化）：
+
+| 闭环 | 当时证据 | 建议标记 |
+|------|---------|---------|
+| Chat | `messages` 极少、`CapabilityInvoked=0`、approval 多 pending 且无 approve | `fail` |
+| Memory | 有 `MemoryDerived`/`memories` 行，但缺「后续对话可召回」的人工验证 | `fail`（待日用验证） |
+| Work items | 库内有 completed work items | 可标 `pass`（若你确认是真实操作而非纯测试种子） |
+| Desktop | 需人工托盘 + 通知验证 | 未测 |
+| Inbox | `inbox_emails=0` | `blocked` |
+
+下一步优先：真实跑通 Chat（含一次工具审批）→ Memory 召回，再用 soak 报告核对，不要用「报告脚本更完善」替代闭环 pass。
+
 ## 质量门
 
 ### Lint

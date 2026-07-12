@@ -57,14 +57,6 @@ describe("Electron main process", () => {
     expect(source).toContain("globalShortcut.register");
   });
 
-  it("handles IPC for get-backend-url", () => {
-    expect(source).toContain("get-backend-url");
-  });
-
-  it("handles IPC for send-notification", () => {
-    expect(source).toContain("send-notification");
-  });
-
   it("sets login item settings for auto-start", () => {
     expect(source).toContain("setLoginItemSettings");
   });

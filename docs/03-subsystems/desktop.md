@@ -15,9 +15,9 @@
 
 | 文件 | 行数 | 职责 |
 |---|---|---|
-| [`desktop/main.js`](../../desktop/main.js) | 438 | 主进程 |
-| [`desktop/preload.js`](../../desktop/preload.js) | 13 | contextBridge preload |
-| [`desktop/main.test.js`](../../desktop/main.test.js) | 72 | vitest smoke 测试 |
+| [`desktop/main.js`](../../desktop/main.js) | 704 | 主进程 |
+| [`desktop/preload.js`](../../desktop/preload.js) | 9 | preload（无 IPC 暴露） |
+| [`desktop/main.test.js`](../../desktop/main.test.js) | 105 | vitest smoke 测试 |
 | [`desktop/package.json`](../../desktop/package.json) | — | scripts + electron-builder 配置 |
 | [`desktop/vitest.config.js`](../../desktop/vitest.config.js) | — | vitest 配置 |
 | [`desktop/generate_icon.py`](../../desktop/generate_icon.py) | — | `postinstall` 时生成 `icon.png` |
@@ -91,28 +91,13 @@ stdio = ["ignore", "pipe", "pipe"]
 
 ## WebSocket
 
-`connectWebSocket()`（[`main.js:395-427`](../../desktop/main.js)）：用 `ws` 包，连接 `BACKEND_URL.replace(/^http/,'ws') + "/ws"`。若 `AUTH_TOKEN` 设置，用子协议 `[`auth.${AUTH_TOKEN}`, "auth.ok"]`。监听 `{type:"notification"}` payload 并调 `showNotification`。关闭 5s / 错误 10s 自动重连。
+`connectWebSocket()`（[`desktop/main.js`](../../desktop/main.js)）：用 `ws` 包，连接 `BACKEND_URL.replace(/^http/,'ws') + "/ws"`。若 `AUTH_TOKEN` 设置，用子协议 `[`auth.${AUTH_TOKEN}`, "auth.ok"]`。监听 `{type:"notification"}` payload 并调 `showNotification`。关闭 5s / 错误 10s 自动重连。
 
-## IPC
+## Preload / IPC
 
-[`main.js:431-437`](../../desktop/main.js)：
+[`desktop/preload.js`](../../desktop/preload.js) 不向渲染进程暴露任何 IPC 绑定；main 进程亦无 `ipcMain.handle` 面向渲染器的通道。渲染进程（前端 SPA）通过 HTTP/SSE/WebSocket 直连后端。桌面原生行为（托盘、全局快捷键、WebSocket→系统通知）由 main 进程处理（见上节 WebSocket）。
 
-```
-ipcMain.handle("get-backend-url", () => BACKEND_URL);
-ipcMain.handle("send-notification", (_event, { title, body }) => {
-  showNotification(title, body);
-});
-```
-
-## Preload
-
-[`desktop/preload.js`](../../desktop/preload.js) 通过 `contextBridge.exposeInMainWorld('electronAPI', ...)` 暴露：
-
-- `getBackendUrl()` → `ipcRenderer.invoke('get-backend-url')`
-- `sendNotification(title, body)` → `ipcRenderer.invoke('send-notification', { title, body })`
-- `platform` → 同步 `process.platform`
-
-> 在 `frontend/src/` 中未观察到对 `window.electronAPI` 的消费代码。代码库中证据不足：当前前端不使用这些 IPC 绑定，应为预留。
+> 历史：早期版本通过 `contextBridge.exposeInMainWorld('electronAPI', ...)` 暴露 `getBackendUrl`/`sendNotification`/`platform`，并有对应 `ipcMain.handle`；`frontend/src/` 中无消费方，已移除以收窄 Electron 可信边界。
 
 ## Smoke 测试
 
@@ -122,7 +107,6 @@ ipcMain.handle("send-notification", (_event, { title, body }) => {
 - 常量 `WEB_URL`、`BACKEND_URL`、`AUTH_TOKEN` 存在。
 - 函数 `createMainWindow`、`createTray`、`connectWebSocket` 存在。
 - 调用 `globalShortcut.register`、`setLoginItemSettings`。
-- IPC 通道 `get-backend-url` 与 `send-notification` 存在。
 
 ## 构建配置
 

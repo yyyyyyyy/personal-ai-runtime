@@ -159,7 +159,6 @@ vitest，**不需要 Electron 已安装**。读 `main.js` 源码，字符串 `to
 - 常量 `WEB_URL`/`BACKEND_URL`/`AUTH_TOKEN` 存在。
 - 函数 `createMainWindow`/`createTray`/`connectWebSocket` 存在。
 - 调用 `globalShortcut.register`、`setLoginItemSettings`。
-- IPC 通道 `get-backend-url`/`send-notification` 存在。
 
 运行：`make desktop-test`（`make ci-local` 与 GitHub Actions 的 desktop job 均执行）。
 
@@ -176,6 +175,26 @@ vitest，**不需要 Electron 已安装**。读 `main.js` 源码，字符串 `to
 | [`soak_recovery.py`](../../scripts/soak_recovery.py) | 四阶段崩溃/重启模拟：spawn soak agent + 阻塞 handler → 入队 N 个 work item → scheduler 接手 → 停 scheduler 并强 emit `ExecutionStarted`（模拟崩溃）→ 验证 item 卡在 running → 新 Scheduler `_recover()` → 验证 `ExecutionRetried(reason=interrupted)` 全存在、无 item 卡 running、shadow-compare 0 mismatch、`rebuild("execution")` 后 `handler_executions` 字节一致 |
 | [`soak_trigger.py`](../../scripts/soak_trigger.py) | 累积执行：注册 no-op handler，每 7 批用 30% 失败率演练重试 + shadow compare；发 N 个 `SoakTrigger` 事件走真实 `emit → AgentBus → Scheduler → _persist_emit_verify` 循环 |
 | [`soak_stats.py`](../../scripts/soak_stats.py) | 只读报告：`handler_executions` 状态分布、完成数（基线 100）、`ExecutionRetried(interrupted)` 计数、事件类型分布 |
+| [`soak_dogfood_report.py`](../../scripts/soak_dogfood_report.py) | **开发期 dogfood**：对当前 `personal_ai.db` 输出只读计数报告，核对 chat/memory/work/approval/inbox 是否真的被日用。不进 CI |
+
+## 开发期 dogfood soak
+
+上述 soak 脚本针对**空库**跑架构不变量（崩溃恢复、批量执行）。开发期还需要一个针对**真实个人数据**的只读报告，回答「我是否真的每天在用它」。
+
+[`scripts/soak_dogfood_report.py`](../../scripts/soak_dogfood_report.py) 以 `mode=ro` 打开 `backend/data/personal_ai.db`，输出：
+
+- 核心表计数（event_log / conversations / messages / memories / work_items / approvals / inbox_emails ...）
+- Chat 闭环证据：approvals 状态分布、`CapabilityInvoked` 事件数
+- Memory 闭环证据：`MemoryDerived`/`MemoryUpdated` 事件数
+- Work items 状态分布
+- 异常信号：如 conversations 远多于 messages（提示对话多但真实聊天少）
+
+```bash
+python scripts/soak_dogfood_report.py
+python scripts/soak_dogfood_report.py --db path/to/other.db
+```
+
+**不进 CI**：报告读的是个人真实数据，把个人库绑进流水线无意义。建议连续 3–7 天日用后本地跑一次，对照 [development.md](development.md)「开发期自用检查」表填写本周状态。阈值人工判断，脚本不返回非零退出码。
 
 ## 覆盖率
 

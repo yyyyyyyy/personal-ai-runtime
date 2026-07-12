@@ -699,12 +699,6 @@ function connectWebSocket() {
   }
 }
 
-// ── IPC ──────────────────────────────────────────────────────────────
-
-const { ipcMain } = require("electron");
-
-ipcMain.handle("get-backend-url", () => BACKEND_URL);
-
-ipcMain.handle("send-notification", (_event, { title, body }) => {
-  showNotification(title, body);
-});
+// No renderer-facing IPC handlers: the renderer talks to the backend directly
+// over HTTP/SSE/WebSocket, and desktop-native concerns (tray, global shortcuts,
+// system notifications on WebSocket events) are handled in this main process.

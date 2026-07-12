@@ -1,12 +1,9 @@
 /**
  * Preload script for Personal AI Runtime Desktop.
- * Exposes safe IPC methods to the renderer process.
+ *
+ * The renderer (loaded via app:// or http) talks to the backend directly over
+ * HTTP/SSE/WebSocket. No privileged IPC bridge is exposed to the renderer.
+ *
+ * Desktop-native concerns (system notifications on WebSocket events, tray,
+ * global shortcuts) are handled entirely in the main process (see main.js).
  */
-
-const { contextBridge, ipcRenderer } = require('electron');
-
-contextBridge.exposeInMainWorld('electronAPI', {
-  getBackendUrl: () => ipcRenderer.invoke('get-backend-url'),
-  sendNotification: (title, body) => ipcRenderer.invoke('send-notification', { title, body }),
-  platform: process.platform,
-});
