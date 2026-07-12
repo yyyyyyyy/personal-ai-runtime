@@ -32,6 +32,8 @@ def test_canned_summary_for_inbox_only():
 
 
 def test_prompt_hints_when_tools_available():
-    hints = build_prompt_hints({"check_inbox", "read_inbox_email"})
+    hints = build_prompt_hints({"check_inbox", "read_inbox_email", "mark_inbox_email_read"})
     assert "check_inbox" in hints or "read_inbox_email" in hints
+    assert "mark_inbox_email_read" in hints
+    assert "Summarizing N emails" in hints
     assert build_prompt_hints(set()) == ""

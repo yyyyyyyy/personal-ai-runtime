@@ -1,6 +1,8 @@
 """Unit tests for email MCP server helpers."""
 
 import email
+import json
+from types import SimpleNamespace
 
 from app.core.harness.builtin_tools.email import (
     EmailServer,
@@ -60,3 +62,41 @@ def test_check_inbox_unread_only_includes_all_unread_message_ids(monkeypatch):
     data = __import__("json").loads(server.check_inbox(limit=1, unread_only=True))
     assert data["count"] == 1
     assert set(data["all_unread_message_ids"]) == {"<id-1@example.com>", "<id-2@example.com>"}
+
+
+def test_mark_inbox_email_read_by_message_id(monkeypatch):
+    server = EmailServer()
+    store_calls: list[tuple] = []
+
+    mail = SimpleNamespace(
+        store=lambda seq, op, flags: store_calls.append((seq, op, flags)) or ("OK", [b"OK"]),
+        logout=lambda: None,
+    )
+    monkeypatch.setattr(server, "_connect_inbox", lambda: mail)
+    monkeypatch.setattr(
+        server,
+        "_fetch_sorted_emails_connected",
+        lambda _mail, limit, unread_only, body_max=0: [
+            {
+                "seq_num": 42,
+                "message_id": "<msg-1@example.com>",
+                "from": "alice@example.com",
+                "subject": "Hello",
+                "date": "2026-06-10 14:38",
+                "preview": "preview",
+            }
+        ],
+    )
+
+    data = json.loads(
+        server.mark_inbox_email_read(message_id="<msg-1@example.com>")
+    )
+    assert data["success"] is True
+    assert data["message_id"] == "<msg-1@example.com>"
+    assert store_calls == [("42", "+FLAGS", "\\Seen")]
+
+
+def test_mark_inbox_email_read_requires_selector():
+    server = EmailServer()
+    data = json.loads(server.mark_inbox_email_read())
+    assert "error" in data

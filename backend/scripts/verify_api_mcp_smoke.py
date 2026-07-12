@@ -26,6 +26,7 @@ EXPECTED_TOOLS = {
     "get_upcoming_events",
     "check_inbox",
     "read_inbox_email",
+    "mark_inbox_email_read",
     "send_email",
     "open_web_page",
     "search_and_extract",

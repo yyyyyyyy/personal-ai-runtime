@@ -125,6 +125,19 @@ export default function MessageItem({ message }: Props) {
 
   if (isSystem || isTool) return null;
 
+  // Tool-loop intermediate turns: empty assistant text with no toolCalls —
+  // skip the hollow avatar+bubble (content may still stream later).
+  const hasTools = Boolean(message.toolCalls && message.toolCalls.length > 0);
+  if (
+    isAssistant &&
+    !message.isStreaming &&
+    !displayContent.trim() &&
+    !hasTools &&
+    !(message.sources && message.sources.length > 0)
+  ) {
+    return null;
+  }
+
   return (
     <div className={`flex gap-3 ${isUser ? "justify-end" : "justify-start"}`}>
       {isAssistant && (

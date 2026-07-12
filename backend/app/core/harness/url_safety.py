@@ -182,12 +182,19 @@ class SSRFSafeTransport(httpx.AsyncBaseTransport):
         body_bytes = await request.aread()
 
         pinned_url = _pin_url_to_ip(url, pinned_ip)
+        # When the URL host is an IP literal, TLS must still use the original
+        # hostname for SNI + certificate verification — otherwise OpenSSL
+        # checks the cert against the IP and fails with
+        # "certificate is not valid for '<ip>'".
+        extensions = dict(request.extensions)
+        if parsed.scheme == "https":
+            extensions["sni_hostname"] = hostname
         pinned_request = request.__class__(
             method=request.method,
             url=pinned_url,
             headers=request.headers,
-            params=request.url.params,
             content=body_bytes,
+            extensions=extensions,
         )
         _restore_host_header(pinned_request, original_host)
         return await self._inner.handle_async_request(pinned_request)

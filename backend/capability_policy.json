@@ -10,6 +10,7 @@
     "get_upcoming_events",
     "check_inbox",
     "read_inbox_email",
+    "mark_inbox_email_read",
     "open_web_page",
     "search_and_extract",
     "get_clipboard",

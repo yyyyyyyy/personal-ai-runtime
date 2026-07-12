@@ -103,6 +103,8 @@ def test_transport_pins_request_to_resolved_ip():
         assert str(sent_request.url.host) == "93.184.216.34"
         # Host header preserved for SNI / vhost routing.
         assert sent_request.headers["Host"] == "example.com"
+        # TLS SNI must use the original hostname, not the pinned IP.
+        assert sent_request.extensions["sni_hostname"] == "example.com"
 
 
 def test_transport_preserves_port_in_host_header():

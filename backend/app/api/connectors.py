@@ -19,6 +19,11 @@ from app.core.runtime import read_ports
 router = APIRouter(tags=["connectors"])
 logger = logging.getLogger(__name__)
 
+# Static paths must be declared before /{connector_name} or FastAPI will treat
+# "registry" / "install" as connector names.
+_REGISTRY_PATH = _Path(__file__).resolve().parent.parent.parent / "mcp_registry.json"
+MCP_CONFIG_PATH = _Path(__file__).resolve().parent.parent.parent / "mcp_config.json"
+
 
 def _get_connector_status(config: ExternalMCPServerConfig) -> dict:
     """Build status info for a connector."""
@@ -52,6 +57,34 @@ def _get_connector_description(name: str) -> str:
     return descriptions.get(name, f"外部连接器: {name}")
 
 
+def _load_registry() -> list[dict]:
+    if not _REGISTRY_PATH.exists():
+        return []
+    try:
+        return _json.loads(_REGISTRY_PATH.read_text(encoding="utf-8"))
+    except Exception:
+        logger.warning("Failed to load connector registry from %s", _REGISTRY_PATH, exc_info=True)
+        return []
+
+
+def _get_builtin_tools(name: str) -> list[dict]:
+    """Get tools for built-in connectors."""
+    if name == "mail":
+        return [
+            {"name": "check_inbox", "description": "检查收件箱新邮件"},
+            {"name": "read_inbox_email", "description": "读取邮件详情"},
+            {"name": "mark_inbox_email_read", "description": "标记邮件为已读"},
+            {"name": "send_email", "description": "发送邮件"},
+        ]
+    if name == "calendar":
+        return [
+            {"name": "list_calendar_events", "description": "列出日历事件"},
+            {"name": "add_calendar_event", "description": "创建日历事件"},
+            {"name": "get_upcoming_events", "description": "获取即将到来的事件"},
+        ]
+    return []
+
+
 @router.get("/")
 async def list_connectors():
     """List all available connectors with their status."""
@@ -73,7 +106,7 @@ async def list_connectors():
             "enabled": True,
             "available": True,
             "connected": True,
-            "tool_count": 3,
+            "tool_count": 4,
             "has_credentials": True,
             "required_env": [],
             "description": "邮件收发管理",
@@ -93,95 +126,6 @@ async def list_connectors():
     ]
 
     return {"connectors": builtin + connectors}
-
-
-@router.get("/{connector_name}")
-async def get_connector(connector_name: str):
-    """Get detailed info for a specific connector."""
-    configs = load_external_server_configs()
-
-    # Check built-in connectors
-    if connector_name in ("mail", "calendar"):
-        return {
-            "name": connector_name,
-            "enabled": True,
-            "available": True,
-            "connected": True,
-            "tool_count": 3,
-            "has_credentials": True,
-            "required_env": [],
-            "description": _get_connector_description(connector_name),
-            "builtin": True,
-            "tools": _get_builtin_tools(connector_name),
-        }
-
-    # Check external connectors
-    for config in configs:
-        if config.name == connector_name:
-            status = _get_connector_status(config)
-            tools = read_ports.get_mcp_server_tools(config.name)
-            if tools:
-                status["tools"] = tools[:20]
-            return status
-
-    raise HTTPException(status_code=404, detail=f"Connector '{connector_name}' not found")
-
-
-def _get_builtin_tools(name: str) -> list[dict]:
-    """Get tools for built-in connectors."""
-    if name == "mail":
-        return [
-            {"name": "check_inbox", "description": "检查收件箱新邮件"},
-            {"name": "send_email", "description": "发送邮件"},
-            {"name": "read_inbox_email", "description": "读取邮件详情"},
-        ]
-    if name == "calendar":
-        return [
-            {"name": "list_calendar_events", "description": "列出日历事件"},
-            {"name": "add_calendar_event", "description": "创建日历事件"},
-            {"name": "get_upcoming_events", "description": "获取即将到来的事件"},
-        ]
-    return []
-
-
-@router.post("/{connector_name}/test")
-async def test_connector(connector_name: str):
-    """Test connection to a connector."""
-    configs = load_external_server_configs()
-
-    # Built-in connectors are always working
-    if connector_name in ("mail", "calendar"):
-        return {"status": "ok", "message": "内置连接器运行正常"}
-
-    for config in configs:
-        if config.name == connector_name:
-            if not config.is_available():
-                return {
-                    "status": "error",
-                    "message": f"连接器不可用: 缺少必要的环境变量 {config.required_env}",
-                }
-
-            # Try to connect via read_ports
-            result = read_ports.test_mcp_connection(config.name)
-            return result
-
-    raise HTTPException(status_code=404, detail=f"Connector '{connector_name}' not found")
-
-
-# ── MCP Registry APIs (community marketplace) ────────────────────────────
-
-_REGISTRY_PATH = _Path(__file__).resolve().parent.parent.parent / "mcp_registry.json"
-MCP_CONFIG_PATH = _Path(__file__).resolve().parent.parent.parent / "mcp_config.json"
-
-
-def _load_registry() -> list[dict]:
-    if not _REGISTRY_PATH.exists():
-        return []
-    try:
-        return _json.loads(_REGISTRY_PATH.read_text(encoding="utf-8"))
-    except Exception:
-        logger.warning("Failed to load connector registry from %s", _REGISTRY_PATH, exc_info=True)
-        return []
 
 
 @router.get("/registry")
@@ -234,3 +178,59 @@ async def uninstall_connector(body: dict):
     existing["external_servers"] = filtered
     MCP_CONFIG_PATH.write_text(_json.dumps(existing, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
     return {"ok": True, "message": f"'{server_name}' uninstalled. Restart the backend to apply."}
+
+
+@router.get("/{connector_name}")
+async def get_connector(connector_name: str):
+    """Get detailed info for a specific connector."""
+    configs = load_external_server_configs()
+
+    # Check built-in connectors
+    if connector_name in ("mail", "calendar"):
+        return {
+            "name": connector_name,
+            "enabled": True,
+            "available": True,
+            "connected": True,
+            "tool_count": 3,
+            "has_credentials": True,
+            "required_env": [],
+            "description": _get_connector_description(connector_name),
+            "builtin": True,
+            "tools": _get_builtin_tools(connector_name),
+        }
+
+    # Check external connectors
+    for config in configs:
+        if config.name == connector_name:
+            status = _get_connector_status(config)
+            tools = read_ports.get_mcp_server_tools(config.name)
+            if tools:
+                status["tools"] = tools[:20]
+            return status
+
+    raise HTTPException(status_code=404, detail=f"Connector '{connector_name}' not found")
+
+
+@router.post("/{connector_name}/test")
+async def test_connector(connector_name: str):
+    """Test connection to a connector."""
+    configs = load_external_server_configs()
+
+    # Built-in connectors are always working
+    if connector_name in ("mail", "calendar"):
+        return {"status": "ok", "message": "内置连接器运行正常"}
+
+    for config in configs:
+        if config.name == connector_name:
+            if not config.is_available():
+                return {
+                    "status": "error",
+                    "message": f"连接器不可用: 缺少必要的环境变量 {config.required_env}",
+                }
+
+            # Try to connect via read_ports
+            result = read_ports.test_mcp_connection(config.name)
+            return result
+
+    raise HTTPException(status_code=404, detail=f"Connector '{connector_name}' not found")

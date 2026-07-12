@@ -25,12 +25,28 @@ def _now() -> str:
     return datetime.now(UTC).isoformat()
 
 
+# Role → event_log actor for MessageAppended. Matches brain telemetry convention
+# (assistant/tool turns are produced by the brain loop, not the human user).
+_ROLE_ACTORS: dict[str, str] = {
+    "user": "user",
+    "assistant": "brain",
+    "tool": "brain",
+    "system": "system",
+}
+
+
+def _actor_for_role(role: str) -> str:
+    return _ROLE_ACTORS.get(role, "system")
+
+
 @dataclass
 class ConversationManager:
     """Manages conversation lifecycle, message persistence, and context window."""
 
     conversation_id: str
     kernel: "Kernel | None" = field(default=None, repr=False)
+    # Default correlation_id for subsequent MessageAppended emits (chat turn).
+    correlation_id: str | None = field(default=None, repr=False)
 
     def _k(self):
         return self.kernel or default_kernel
@@ -76,8 +92,15 @@ class ConversationManager:
         tool_calls: list | None = None,
         tool_call_id: str | None = None,
         sources: list | None = None,
+        *,
+        actor: str | None = None,
+        correlation_id: str | None = None,
     ) -> dict:
-        """Persist a message via MessageAppended event."""
+        """Persist a message via MessageAppended event.
+
+        actor defaults from role (user/brain/system). correlation_id defaults to
+        the manager's turn-scoped correlation_id when set.
+        """
         if role == "assistant" and content:
             content = strip_tool_markup(content)
         msg_id = str(uuid.uuid4())
@@ -92,12 +115,14 @@ class ConversationManager:
         }
         if sources:
             payload["sources"] = sources
+        corr = correlation_id if correlation_id is not None else self.correlation_id
         self._k().emit_event(
             "MessageAppended",
             "conversation",
             self.conversation_id,
             payload=payload,
-            actor="user",
+            actor=actor or _actor_for_role(role),
+            correlation_id=corr or None,
         )
         if self.kernel is not None:
             rows = self.kernel.query_state("messages", id=msg_id)

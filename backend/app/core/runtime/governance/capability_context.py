@@ -76,6 +76,7 @@ _TOOL_TO_CAPABILITY: dict[str, str] = {
     # communication
     "check_inbox": COMMUNICATION,
     "read_inbox_email": COMMUNICATION,
+    "mark_inbox_email_read": COMMUNICATION,
     "send_email": COMMUNICATION,
     "telegram_send": COMMUNICATION,
     "telegram_updates": COMMUNICATION,

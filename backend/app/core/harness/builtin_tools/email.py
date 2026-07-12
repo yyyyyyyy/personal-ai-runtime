@@ -235,6 +235,7 @@ class EmailServer:
         for c in top_candidates:
             body = body_map.get(c["seq_num"], "")
             results.append({
+                "seq_num": c["seq_num"],  # IMAP sequence; strip before LLM-facing payloads
                 "message_id": c["message_id"],
                 "from": c["from"],
                 "subject": c["subject"],
@@ -281,7 +282,7 @@ class EmailServer:
                     pass
 
             slim = [
-                {k: v for k, v in em.items() if k != "body"}
+                {k: v for k, v in em.items() if k not in ("body", "seq_num")}
                 for em in emails
             ]
             payload: dict = {
@@ -321,8 +322,80 @@ class EmailServer:
                 "from": em["from"],
                 "subject": em["subject"],
                 "date": em["date"],
+                "message_id": em.get("message_id", ""),
                 "body": em.get("body") or em.get("preview", ""),
             }, ensure_ascii=False)
+        except imaplib.IMAP4.error as e:
+            return json.dumps({"error": f"IMAP login failed: {str(e)}"})
+        except ValueError as e:
+            return json.dumps({"error": str(e)})
+        except Exception as e:
+            return json.dumps({"error": str(e)})
+
+    def mark_inbox_email_read(
+        self,
+        index: int | None = None,
+        message_id: str | None = None,
+        limit: int = 30,
+        unread_only: bool = True,
+    ) -> str:
+        """Mark one inbox message as read (IMAP \\Seen).
+
+        Prefer ``message_id`` when known; otherwise ``index`` (1=newest) within
+        the same listing window used by check_inbox/read_inbox_email.
+        """
+        mid = (message_id or "").strip()
+        if not mid and index is None:
+            return json.dumps({
+                "error": "Provide message_id or index (1=newest among recent mail)",
+            })
+        try:
+            mail = self._connect_inbox()
+            try:
+                emails = self._fetch_sorted_emails_connected(
+                    mail, limit, unread_only, body_max=0
+                )
+                if not emails:
+                    return json.dumps({"error": "收件箱中没有可标记的邮件"})
+
+                target = None
+                if mid:
+                    for em in emails:
+                        if em.get("message_id") == mid:
+                            target = em
+                            break
+                    if target is None:
+                        return json.dumps({
+                            "error": f"未在最近 {limit} 封中找到 message_id={mid}",
+                        })
+                else:
+                    assert index is not None
+                    if index < 1 or index > len(emails):
+                        return json.dumps({
+                            "error": f"序号 {index} 超出范围，当前共 {len(emails)} 封（1=最新）",
+                        })
+                    target = emails[index - 1]
+
+                seq = target.get("seq_num")
+                if not seq:
+                    return json.dumps({"error": "Internal error: missing IMAP sequence"})
+
+                status, _data = mail.store(str(seq), "+FLAGS", "\\Seen")
+                if status != "OK":
+                    return json.dumps({"error": f"IMAP STORE failed: {status}"})
+
+                return json.dumps({
+                    "success": True,
+                    "message_id": target.get("message_id", ""),
+                    "from": target.get("from", ""),
+                    "subject": target.get("subject", ""),
+                    "index": index,
+                }, ensure_ascii=False)
+            finally:
+                try:
+                    mail.logout()
+                except Exception:
+                    pass
         except imaplib.IMAP4.error as e:
             return json.dumps({"error": f"IMAP login failed: {str(e)}"})
         except ValueError as e:

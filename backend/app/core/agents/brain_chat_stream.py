@@ -45,6 +45,8 @@ async def chat_stream(
     if not correlation_id:
         correlation_id = f"chat-{uuid.uuid4().hex[:16]}"
     taint_registry.clear(correlation_id)
+    # Propagate turn correlation onto MessageAppended (and tool-result saves).
+    conversation.correlation_id = correlation_id
 
     # Step 1: Build the messages array
     messages = brain._build_messages(conversation, user_message, system_prompt=system_prompt)

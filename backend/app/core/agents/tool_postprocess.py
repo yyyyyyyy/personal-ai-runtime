@@ -103,13 +103,24 @@ def _inbox_prompt_hint() -> str:
         "Use unread_only=true only when the user explicitly asks for 未读邮件.\n\n"
         "Email walkthrough: when the user says 继续, 下一封, or 第N封 after viewing inbox, call read_inbox_email "
         "with the correct index (1=newest). Track which index you last showed and increment for 继续/下一封. "
-        "Do not call check_inbox again during the same walkthrough."
+        "Do not call check_inbox again during the same walkthrough.\n\n"
+        "Summarizing N emails: call read_inbox_email for each needed index in one tool loop, then write one "
+        "combined summary. Do not stop after a partial set and ask the user to retry.\n\n"
+        "Mark as read: use mark_inbox_email_read with message_id (preferred) or index when the user asks "
+        "标记已读 / mark as read."
     )
 
 
 def _read_inbox_email_hint() -> str:
     return (
         "Use read_inbox_email to open a single message by index when the user asks to read or continue through mail."
+    )
+
+
+def _mark_inbox_email_read_hint() -> str:
+    return (
+        "Use mark_inbox_email_read after the user asks to mark mail as read. Prefer message_id from the "
+        "latest check_inbox/read_inbox_email result."
     )
 
 
@@ -124,4 +135,8 @@ register_rule(
 register_rule(
     "read_inbox_email",
     ToolPostprocessRule(prompt_hint=_read_inbox_email_hint),
+)
+register_rule(
+    "mark_inbox_email_read",
+    ToolPostprocessRule(prompt_hint=_mark_inbox_email_read_hint),
 )

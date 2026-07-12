@@ -77,7 +77,10 @@ async def on_approve_requested(ctx: "ExecutionContext", event: "Event") -> None:
         from app.core.agents.brain import Brain
         from app.core.agents.conversation import ConversationManager
 
-        conversation = ConversationManager(conversation_id=conv_id)
+        conversation = ConversationManager(
+            conversation_id=conv_id,
+            correlation_id=ctx.correlation_id or None,
+        )
         conversation.save_tool_result(result_str, tool_call_id)
         brain = Brain()
         try:

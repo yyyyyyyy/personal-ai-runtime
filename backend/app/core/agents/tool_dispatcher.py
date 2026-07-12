@@ -61,7 +61,7 @@ class ToolDispatcher:
             cap_result = await self._kernel.invoke_capability(
                 name=tool_name,
                 args=tool_args,
-                actor="user",
+                actor="brain",
                 correlation_id=correlation_id,
                 execution_id=exec_id,
             )

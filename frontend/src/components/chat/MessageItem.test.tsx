@@ -42,4 +42,31 @@ describe("MessageItem", () => {
     );
     expect(container.textContent).toBe("");
   });
+
+  it("skips empty non-streaming assistant bubbles without tools", () => {
+    const { container } = render(
+      <MessageItem
+        message={{
+          id: "m4",
+          role: "assistant",
+          content: "   ",
+        }}
+      />,
+    );
+    expect(container.textContent).toBe("");
+  });
+
+  it("still renders empty assistant while streaming", () => {
+    render(
+      <MessageItem
+        message={{
+          id: "m5",
+          role: "assistant",
+          content: "",
+          isStreaming: true,
+        }}
+      />,
+    );
+    expect(screen.getByText("🧠")).toBeInTheDocument();
+  });
 });
