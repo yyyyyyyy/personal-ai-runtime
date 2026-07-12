@@ -15,13 +15,13 @@ _GOVERNANCE_ROOT = _APP_ROOT / "core" / "runtime" / "governance"
 
 # Known compilation entrypoints: file (relative to app/) → expected stage
 _POLICY_COVERAGE_MATRIX: dict[str, str] = {
-    "core/agents/mvp/chat_handler.py": "chat",
+    "core/agents/handlers/chat_handler.py": "chat",
     "core/agents/brain_llm_ops.py": "post_tool",
 }
 
 # PromptCompiler is the LLM-facing compile facade for chat stages
 _PROMPT_COMPILER_ENTRYPOINTS = frozenset({
-    "core/agents/mvp/chat_handler.py",
+    "core/agents/handlers/chat_handler.py",
     "core/agents/brain_llm_ops.py",
 })
 

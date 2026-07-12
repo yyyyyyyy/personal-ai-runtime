@@ -54,7 +54,7 @@ async def handle_your_event(ctx: ExecutionContext, event: Event) -> None:
     ...
 ```
 
-Handler 签名 `(ExecutionContext, Event) → None`。`ExecutionContext` 暴露 `instance_id`、`actor`、`correlation_id`、`_kernel`、`principal`、`execution_id`、`emit()`。模块须在启动时被 import（如 `mvp/__init__.py`）才能注册。
+Handler 签名 `(ExecutionContext, Event) → None`。`ExecutionContext` 暴露 `instance_id`、`actor`、`correlation_id`、`_kernel`、`principal`、`execution_id`、`emit()`。模块须在启动时被 import（如 `handlers/__init__.py`）才能注册。
 
 ## Context Fragment
 

@@ -437,7 +437,7 @@ def reset_scheduler() -> None:
 
 
 # ── Agent bootstrap (folded from agent_bootstrap.py) ─────────────────────
-import app.core.agents.mvp  # noqa: E402,F401 — registers @subscribe handlers
+import app.core.agents.handlers  # noqa: E402,F401 — registers @subscribe handlers
 
 _started = False
 

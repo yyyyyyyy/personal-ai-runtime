@@ -136,19 +136,19 @@ cron 表达式解析 `_next_cron_fire(cron_expr, from_ts)`（[`runtime_loop.py`]
 
 Runtime 在 v0.4.0 移除了多 Agent 抽象（`AgentDefinition`/`AgentInstance`/`AgentRegistry` 已删），改为单一持久 agent。`agent:primary` 字符串直接由 [`agent_scheduler.py`](../../backend/app/core/runtime/agent_scheduler.py) 内联使用，作为 `ensure_scheduler(kernel)` 内部的 actor 标识。所有事件路由都通过 Scheduler + `@subscribe` handler 注册机制（详见 [02-concepts/runtime-algebra.md](../02-concepts/runtime-algebra.md) §4.5）。
 
-### MVP Agent
+### Chat Handlers
 
-[`backend/app/core/agents/mvp/__init__.py`](../../backend/app/core/agents/mvp/__init__.py) 定义 `CHAT_DEFINITION`：`agent_id=chat_v1`、`tools=["*"]`、订阅 `ChatRequested`/`ApproveRequested`/`ExecuteRequested`/`BackgroundTaskRequested`/`InboxPollRequested`/`TimerFired`。
+[`backend/app/core/agents/handlers/__init__.py`](../../backend/app/core/agents/handlers/__init__.py) 在 import 时触发各 handler 模块的 `@subscribe` 注册。
 
-Handlers（[`mvp/`](../../backend/app/core/agents/mvp/)）：
+Handlers（[`handlers/`](../../backend/app/core/agents/handlers/)）：
 
 | Handler | 订阅事件 | 行为 |
 |---|---|---|
 | `chat_handler.py` | `ChatRequested` | 编译 prompt（`prompt_compiler`），跑 `Brain.chat_stream`，把 `text_delta`/`tool_call_start`/`tool_result` 推到 SSE 队列（不进 event_log——频率太高），emit `ChatCompleted` + `ChatDone` |
-| `bypass_handlers.py` | `ApproveRequested` | 解决审批，可能经 `brain.continue_after_tool_result` 续接对话 |
-| `bypass_handlers.py` | `ExecuteRequested` | 执行 action 的 `executable_plan` 步骤 |
-| `bypass_handlers.py` | `BackgroundTaskRequested` | 跑 plan 步骤，附状态进度 |
-| `bypass_handlers.py` | `InboxPollRequested` | 经 capability 拉未读邮件 |
+| `capability_handlers.py` | `ApproveRequested` | 解决审批，可能经 `brain.continue_after_tool_result` 续接对话 |
+| `capability_handlers.py` | `ExecuteRequested` | 执行 action 的 `executable_plan` 步骤 |
+| `capability_handlers.py` | `BackgroundTaskRequested` | 跑 plan 步骤，附状态进度 |
+| `capability_handlers.py` | `InboxPollRequested` | 经 capability 拉未读邮件 |
 | `timer_trigger_handler.py` | `TimerFired` | 按 `handler_name` 分派到 product 函数：`deadline_alert`/`trigger_evaluation`/`memory_decay`/`world_model_snapshot`/`projection_snapshots`/`inbox_poll`/`inbox_digest`/`morning_brief` |
 
 ## Scheduler — WorkItem 执行引擎

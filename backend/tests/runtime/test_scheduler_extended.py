@@ -11,7 +11,7 @@ os.environ.setdefault("LLM_API_KEY", "test-key")
 @pytest.mark.asyncio
 @patch("app.core.runtime.cron_registry.run_memory_decay")
 async def test_run_memory_decay(mock_decay):
-    from app.core.agents.mvp.timer_trigger_handler import _call_product
+    from app.core.agents.handlers.timer_trigger_handler import _call_product
 
     await _call_product("memory_decay")
     mock_decay.assert_called_once()
@@ -20,7 +20,7 @@ async def test_run_memory_decay(mock_decay):
 @pytest.mark.asyncio
 @patch("app.core.agents.world_model.world_model.refresh_snapshot")
 async def test_run_world_model_snapshot(mock_refresh):
-    from app.core.agents.mvp.timer_trigger_handler import _call_product
+    from app.core.agents.handlers.timer_trigger_handler import _call_product
 
     await _call_product("world_model_snapshot")
     mock_refresh.assert_called_once()
@@ -29,7 +29,7 @@ async def test_run_world_model_snapshot(mock_refresh):
 @pytest.mark.asyncio
 @patch("app.product.inbox.generate_inbox_digest")
 async def test_run_inbox_digest(mock_digest):
-    from app.core.agents.mvp.timer_trigger_handler import _call_product
+    from app.core.agents.handlers.timer_trigger_handler import _call_product
 
     await _call_product("inbox_digest")
     mock_digest.assert_called_once()
@@ -40,7 +40,7 @@ async def test_run_inbox_digest(mock_digest):
 async def test_run_projection_snapshots(mock_save):
     mock_save.return_value = [{"aggregate_type": "goal"}]
 
-    from app.core.agents.mvp.timer_trigger_handler import _call_product
+    from app.core.agents.handlers.timer_trigger_handler import _call_product
 
     await _call_product("projection_snapshots")
     mock_save.assert_called_once()
@@ -55,7 +55,7 @@ async def test_run_deadline_alert_creates_notifications(mock_query):
     mock_query.return_value = [{"id": "g1", "title": "Due Soon", "deadline": deadline}]
 
     with patch("app.product.notifications.create_notification") as create:
-        from app.core.agents.mvp.timer_trigger_handler import _call_product
+        from app.core.agents.handlers.timer_trigger_handler import _call_product
 
         await _call_product("deadline_alert")
         create.assert_called_once()
@@ -64,7 +64,7 @@ async def test_run_deadline_alert_creates_notifications(mock_query):
 @pytest.mark.asyncio
 async def test_call_product_unknown_handler():
     """Unknown handler name must not crash — should log warning and return."""
-    from app.core.agents.mvp.timer_trigger_handler import _call_product
+    from app.core.agents.handlers.timer_trigger_handler import _call_product
 
     result = await _call_product("nonexistent_handler")
     # Unknown handler path logs warning and returns None (no-op)

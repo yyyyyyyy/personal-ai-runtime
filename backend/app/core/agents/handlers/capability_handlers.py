@@ -1,7 +1,7 @@
-"""Unified handlers for ADR Runtime Unification.
+"""Capability execution handlers — run inside the Scheduler → Handler chain.
 
-Each handler was previously a direct invoke_capability bypass. Now they
-run inside the Scheduler → Handler chain.
+Each handler resolves a capability-related event (approval, execute,
+background task, inbox poll) via kernel.invoke_capability under governance.
 """
 
 from __future__ import annotations
