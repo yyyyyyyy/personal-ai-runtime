@@ -21,8 +21,13 @@ posthog.capture = _safe_capture
 
 import chromadb  # noqa: E402
 from chromadb.config import Settings as ChromaSettings  # noqa: E402
+from chromadb.utils.embedding_functions import DefaultEmbeddingFunction  # noqa: E402
 
 from app.config import settings  # noqa: E402
+
+# Pin the same default ONNX MiniLM L6 v2 path Chroma 0.5.x / 1.x ships so
+# upgrades do not silently switch embedding models or dimensions.
+_EMBEDDING_FUNCTION = DefaultEmbeddingFunction()
 
 
 class VectorStore:
@@ -39,10 +44,12 @@ class VectorStore:
         """Create collections if they don't exist."""
         self.memory_collection = self.client.get_or_create_collection(
             name="memories",
+            embedding_function=_EMBEDDING_FUNCTION,
             metadata={"description": "Long-term user memories and preferences"},
         )
         self.knowledge_collection = self.client.get_or_create_collection(
             name="knowledge",
+            embedding_function=_EMBEDDING_FUNCTION,
             metadata={"description": "Imported documents and knowledge fragments"},
         )
 

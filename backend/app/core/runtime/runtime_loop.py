@@ -312,6 +312,15 @@ class RuntimeLoop:
                         continue
                     content = str(mem.get("content", ""))
                     if not content:
+                        # Active-but-empty projection must not keep a stale vector.
+                        try:
+                            kernel._memory_index.delete_memory(aggregate_id)
+                        except Exception:
+                            logger.debug(
+                                "Empty-memory vector delete failed for %s",
+                                aggregate_id,
+                                exc_info=True,
+                            )
                         with db.get_db() as conn:
                             conn.execute(
                                 "DELETE FROM memory_index_repairs WHERE id = ?",

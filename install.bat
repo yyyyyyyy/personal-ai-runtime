@@ -29,8 +29,18 @@ echo Using: %PY_CMD%
 
 echo.
 echo [1/3] Installing backend dependencies...
-%PY_CMD% -m pip install -r backend\requirements.txt
-if %ERRORLEVEL% neq 0 exit /b 1
+pushd backend
+%PY_CMD% scripts\check_dependency_sync.py
+if %ERRORLEVEL% neq 0 (
+  popd
+  exit /b 1
+)
+%PY_CMD% -m pip install --require-hashes -r requirements.lock
+if %ERRORLEVEL% neq 0 (
+  popd
+  exit /b 1
+)
+popd
 
 echo.
 echo [2/3] Installing frontend dependencies...

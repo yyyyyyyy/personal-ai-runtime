@@ -49,6 +49,7 @@ logger = logging.getLogger(__name__)
 
 # WebSocket connection manager for real-time notifications
 _ws_connections: list[WebSocket] = []
+_ws_reserved_slots = 0  # pending accept + accepted; caps concurrency
 _ws_lock = Lock()
 _WS_MAX_GLOBAL_CONNECTIONS = 64  # hard cap for all authenticated / loopback clients
 _WS_MAX_NOAUTH_CONNECTIONS = 8  # burst rate when exposed without auth token
@@ -136,23 +137,43 @@ async def _reserve_ws_connection(
     *,
     exposed_without_auth: bool,
 ) -> bool:
-    """Atomically check connection limits and reserve one active slot."""
+    """Atomically reserve one connection slot (before accept).
+
+    The WebSocket is *not* added to the broadcast list until
+    :func:`_register_ws_connection` runs after a successful accept.
+    """
+    del websocket  # slot only — broadcast list is separate
+    global _ws_reserved_slots
     async with _ws_lock:
-        if len(_ws_connections) >= _WS_MAX_GLOBAL_CONNECTIONS:
+        if _ws_reserved_slots >= _WS_MAX_GLOBAL_CONNECTIONS:
             return False
         if exposed_without_auth:
-            if len(_ws_connections) >= _WS_MAX_NOAUTH_CONCURRENT:
+            if _ws_reserved_slots >= _WS_MAX_NOAUTH_CONCURRENT:
                 return False
             if not _ws_connection_allowed():
                 return False
-        _ws_connections.append(websocket)
+        _ws_reserved_slots += 1
         return True
 
 
-async def _release_ws_connection(websocket: WebSocket) -> None:
+async def _register_ws_connection(websocket: WebSocket) -> None:
+    """Add an accepted WebSocket to the broadcast registry."""
     async with _ws_lock:
-        if websocket in _ws_connections:
+        _ws_connections.append(websocket)
+
+
+async def _release_ws_connection(
+    websocket: WebSocket | None,
+    *,
+    registered: bool = True,
+) -> None:
+    """Release a reserved slot and optionally remove from the broadcast list."""
+    global _ws_reserved_slots
+    async with _ws_lock:
+        if registered and websocket is not None and websocket in _ws_connections:
             _ws_connections.remove(websocket)
+        if _ws_reserved_slots > 0:
+            _ws_reserved_slots -= 1
 
 
 class AuthMiddleware:
@@ -429,6 +450,7 @@ async def lifespan(app: FastAPI):
 
     await runtime_loop.stop()
 
+    global _ws_reserved_slots
     async with _ws_lock:
         for ws in _ws_connections:
             try:
@@ -436,6 +458,7 @@ async def lifespan(app: FastAPI):
             except Exception:
                 logging.getLogger(__name__).warning("Error during WebSocket shutdown", exc_info=True)
         _ws_connections.clear()
+        _ws_reserved_slots = 0
 
 
 # ── App ──────────────────────────────────────────────────────────────────────
@@ -506,6 +529,15 @@ class SafeErrorMiddleware:
             )
             if started:
                 # Response already streaming — cannot safely inject a JSON 500.
+                # Best-effort terminate the body so clients are not left hanging.
+                try:
+                    await send({
+                        "type": "http.response.body",
+                        "body": b"",
+                        "more_body": False,
+                    })
+                except Exception:
+                    pass
                 return
             body = json.dumps({
                 "detail": "Internal server error",
@@ -586,6 +618,7 @@ async def websocket_endpoint(websocket: WebSocket):
         await websocket.close(code=4403, reason="Connection limit reached")
         return
 
+    registered = False
     try:
         if expected:
             # Echo a fixed subprotocol — never return the raw token to the client.
@@ -598,6 +631,8 @@ async def websocket_endpoint(websocket: WebSocket):
                     settings.host,
                 )
             await websocket.accept()
+        await _register_ws_connection(websocket)
+        registered = True
 
         while True:
             data = await websocket.receive_text()
@@ -606,7 +641,7 @@ async def websocket_endpoint(websocket: WebSocket):
     except WebSocketDisconnect:
         pass
     finally:
-        await _release_ws_connection(websocket)
+        await _release_ws_connection(websocket, registered=registered)
 
 
 async def broadcast_notification(event: dict) -> None:

@@ -171,7 +171,7 @@ async def destroy_all_data(confirm: str = ""):
             status_code=400,
             detail=f"Query parameter confirm must be '{DESTROY_CONFIRM}'",
         )
-    return kernel.erase()
+    return await asyncio.to_thread(kernel.erase)
 
 
 # --- Encrypted Sync (Phase 2) ---

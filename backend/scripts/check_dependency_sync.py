@@ -23,11 +23,16 @@ DEV_REQUIREMENTS_PATH = BACKEND_DIR / "requirements-dev.txt"
 LOCK_PATH = BACKEND_DIR / "requirements.lock"
 PYPROJECT_PATH = BACKEND_DIR / "pyproject.toml"
 EXACT_REQUIREMENT = re.compile(
-    r"^(?P<name>[A-Za-z0-9][A-Za-z0-9._-]*)(?:\[[A-Za-z0-9._,-]+\])?"
-    r"==(?P<version>[^<>=!~;\s]+)(?:\s*;\s*.+)?$"
+    r"^(?P<name>[A-Za-z0-9][A-Za-z0-9._-]*)"
+    r"(?:\[(?P<extras>[A-Za-z0-9._,-]+)\])?"
+    r"==(?P<version>[^<>=!~;\s]+)"
+    r"(?:\s*;\s*(?P<marker>.+))?$"
 )
 LOCK_PACKAGE = re.compile(
-    r"^(?P<name>[A-Za-z0-9][A-Za-z0-9._-]*)(?:\[[^\]]+\])?==(?P<version>[^\s\\;]+)",
+    r"^(?P<name>[A-Za-z0-9][A-Za-z0-9._-]*)"
+    r"(?:\[(?P<extras>[^\]]+)\])?"
+    r"==(?P<version>[^\s\\;]+)"
+    r"(?:\s*;\s*(?P<marker>.+?))?\s*(?:\\)?$",
     re.IGNORECASE,
 )
 INPUT_HASH_PREFIX = "# input-sha256 "
@@ -49,6 +54,20 @@ def _normalize_name(name: str) -> str:
     return re.sub(r"[-_.]+", "-", name).lower()
 
 
+def _normalize_extras(extras: str | None) -> tuple[str, ...]:
+    if not extras:
+        return ()
+    return tuple(sorted(part.strip().lower() for part in extras.split(",") if part.strip()))
+
+
+def _normalize_marker(marker: str | None) -> str:
+    if not marker:
+        return ""
+    # pip-compile rewrites quote style; compare on a quote-insensitive form.
+    normalized = " ".join(marker.strip().rstrip("\\").split())
+    return normalized.replace('"', "'")
+
+
 def _requirements_dependencies(path: Path) -> list[str]:
     return [
         line.strip()
@@ -66,13 +85,19 @@ def _pyproject_dependencies() -> list[str]:
     return list(pyproject["project"]["dependencies"])
 
 
-def _lock_packages() -> dict[str, str]:
-    """Map normalized package name → pinned version from requirements.lock."""
-    packages: dict[str, str] = {}
+def _lock_packages() -> dict[str, dict[str, object]]:
+    """Map normalized package name → version/extras/marker from requirements.lock."""
+    packages: dict[str, dict[str, object]] = {}
     for line in LOCK_PATH.read_text(encoding="utf-8").splitlines():
         match = LOCK_PACKAGE.match(line.strip())
-        if match:
-            packages[_normalize_name(match.group("name"))] = match.group("version")
+        if not match:
+            continue
+        name = _normalize_name(match.group("name"))
+        packages[name] = {
+            "version": match.group("version"),
+            "extras": _normalize_extras(match.group("extras")),
+            "marker": _normalize_marker(match.group("marker")),
+        }
     return packages
 
 
@@ -169,12 +194,26 @@ def main(argv: list[str] | None = None) -> int:
                     continue
                 name = _normalize_name(match.group("name"))
                 version = match.group("version")
+                extras = _normalize_extras(match.group("extras"))
+                marker = _normalize_marker(match.group("marker"))
                 locked = lock_packages.get(name)
                 if locked is None:
                     errors.append(f"requirements.lock missing package {name}=={version}")
-                elif locked != version:
+                    continue
+                if locked["version"] != version:
                     errors.append(
-                        f"requirements.lock has {name}=={locked}, expected {version}"
+                        f"requirements.lock has {name}=={locked['version']}, "
+                        f"expected {version}"
+                    )
+                if locked["extras"] != extras:
+                    errors.append(
+                        f"requirements.lock extras for {name} are "
+                        f"{locked['extras']!r}, expected {extras!r} — run 'make lockfile'"
+                    )
+                if locked["marker"] != marker:
+                    errors.append(
+                        f"requirements.lock marker for {name} is "
+                        f"{locked['marker']!r}, expected {marker!r} — run 'make lockfile'"
                     )
 
     if errors:

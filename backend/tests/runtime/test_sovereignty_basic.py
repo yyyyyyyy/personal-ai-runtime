@@ -162,6 +162,30 @@ def test_streamed_snapshot_excludes_writes_after_first_chunk(kernel):
     assert "after-stream-start" not in ids
 
 
+def test_streamed_snapshot_early_close_does_not_sticky_read(kernel):
+    """Closing an export mid-stream must not leave a stale read txn behind."""
+    k = kernel
+    k.emit_event(
+        "NotificationCreated",
+        "notification",
+        "before-close",
+        payload={"title": "before"},
+    )
+    chunks = k.iter_snapshot_json_chunks()
+    next(chunks)
+    chunks.close()
+
+    k.emit_event(
+        "NotificationCreated",
+        "notification",
+        "after-close",
+        payload={"title": "after"},
+    )
+    rows = k.export_event_log_rows()
+    ids = {row["aggregate_id"] for row in rows}
+    assert "after-close" in ids
+
+
 # ── Atomic restore tests ──────────────────────────────────────────────────
 
 

@@ -279,11 +279,33 @@ test.describe("Real backend E2E — SSE chat + approval flow", () => {
     );
     expect(resolve.status()).toBe(200);
     const body = await resolve.json();
-    expect(["ok", "approved", "executed", "success"]).toContain(String(body.status || "ok"));
+    expect(body.status).toBe("success");
     expect(String(body.assistant_message || "").length).toBeGreaterThan(0);
     expect(String(body.result || "")).toContain('"success": true');
     expect(fs.existsSync(writeTarget), JSON.stringify(body)).toBe(true);
     expect(fs.readFileSync(writeTarget, "utf8")).toContain("hello from e2e");
+
+    const pendingAfter = await request.get(
+      `http://127.0.0.1:${backendPort}/api/approvals/?pending_only=true`,
+      { headers: { Authorization: "Bearer e2e-secret" } },
+    );
+    expect(pendingAfter.status()).toBe(200);
+    const pendingList = await pendingAfter.json();
+    expect(pendingList.some((a: { id: string }) => a.id === approvalId)).toBe(false);
+
+    const resolveAgain = await request.post(
+      `http://127.0.0.1:${backendPort}/api/chat/approvals/${approvalId}/resolve`,
+      {
+        headers: { Authorization: "Bearer e2e-secret", "Content-Type": "application/json" },
+        data: {
+          decision: "approve",
+          tool_name: "write_file",
+          conv_id: convId,
+          tool_call_id: toolCallId,
+        },
+      },
+    );
+    expect(resolveAgain.status()).toBe(409);
 
     const messages = await request.get(
       `http://127.0.0.1:${backendPort}/api/chat/conversations/${convId}/messages`,

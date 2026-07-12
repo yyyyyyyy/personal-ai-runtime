@@ -571,10 +571,19 @@ def rebuild(
     return replayed if checkpoint else len(events)
 
 def rebuild_all(kernel) -> dict[str, int]:
-    """Rebuild all registered aggregate types."""
+    """Rebuild all registered aggregate types.
+
+    After projection replay, run a full Chroma ↔ SQLite reconcile so callers
+    that deferred rebuild via ``import_event_log_rows(..., rebuild_projections=False)``
+    still purge orphan vectors that event replay alone would miss.
+    """
+    from .memory_index_sync import memory_index_operation_lock
+
     result = {}
     for at in list(projectors._OWNED_TABLES):
         result[at] = rebuild(kernel, at)
+    with memory_index_operation_lock:
+        _reconcile_memory_index_after_restore(kernel)
     return result
 
 def iter_snapshot_json_chunks(kernel):
@@ -582,13 +591,16 @@ def iter_snapshot_json_chunks(kernel):
 
     Streams ``event_log`` row-by-row so the HTTP layer need not hold the
     full serialized body. Wire format matches :meth:`snapshot`.
+
+    Uses a dedicated connection (not the TLS pool) so a mid-stream client
+    disconnect cannot leave a sticky ``BEGIN`` on a reused worker connection.
     """
     now = datetime.now(UTC).isoformat()
     snapshot_id = str(uuid.uuid4())
-    with kernel._db.get_db() as conn:
-        # Python's sqlite3 does not open a persistent read transaction for a
-        # plain SELECT. Explicit BEGIN keeps all streamed batches and counts on
-        # one WAL snapshot until the generator finishes or is closed.
+    conn = kernel._db.get_raw_connection()
+    try:
+        # Explicit BEGIN keeps all streamed batches and counts on one WAL
+        # snapshot until the generator finishes or is closed.
         conn.execute("BEGIN")
         conn.execute("SELECT 1 FROM event_log LIMIT 1").fetchone()
         yield from iter_snapshot_document_bytes(
@@ -597,6 +609,15 @@ def iter_snapshot_json_chunks(kernel):
             exported_at=now,
             export_format=EXPORT_FORMAT,
         )
+        conn.commit()
+    except BaseException:
+        try:
+            conn.rollback()
+        except Exception:
+            pass
+        raise
+    finally:
+        conn.close()
 
 def snapshot(kernel) -> dict[str, Any]:
     """Export complete personal snapshot as a dict.

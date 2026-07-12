@@ -184,7 +184,7 @@ make lockfile
 
 该目标固定使用 `pip-tools==7.5.3`，从 `requirements-dev.txt` 生成 [`backend/requirements.lock`](../../backend/requirements.lock)，并在 lock 头部写入两个依赖输入文件的 SHA-256。安装前同步检查会验证这些摘要，因此新增、修改或删除依赖后未重新生成 lock 都会失败。CI、本地 `make install` 和 `install.sh` 均使用 `python3 -m pip install --require-hashes -r requirements.lock`，因此运行时、测试、覆盖率、lint 和类型检查工具共享同一套可校验安装结果。
 
-Chroma 使用 `chromadb==1.5.9`（自带 Windows/macOS/Linux 二进制包，不再依赖 `chroma-hnswlib` 编译）。Windows 专用条件依赖（如 `colorama`、跳过 `uvloop`）由权威输入 + stamp 合并进同一份 lock；CI 的 `dependency-platforms` job 会在 ubuntu/macOS/Windows 上实际安装验证。
+Chroma 使用 `chromadb==1.5.9`（自带 Windows/macOS/Linux 二进制包，不再依赖 `chroma-hnswlib` 编译），并在 [`vector.py`](../../backend/app/store/vector.py) 显式钉死 `DefaultEmbeddingFunction`（ONNX MiniLM L6 v2，384 维），避免升级时静默换模型。若从 `0.5.x` 升级后出现维度/打开失败：备份 `VECTOR_DIR`，删除向量目录后重启以重建索引，或执行一次完整 restore/`rebuild_all` 触发全量 reconcile。Windows 专用条件依赖（如 `colorama`、跳过 `uvloop`）由权威输入 + stamp 合并进同一份 lock；CI 的 `dependency-platforms` job 会在 ubuntu/macOS/Windows 上安装并做 import 冒烟。
 
 修改运行时依赖时应同步更新 `requirements.txt` 与 `pyproject.toml`，然后运行：
 

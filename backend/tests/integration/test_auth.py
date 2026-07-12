@@ -125,6 +125,7 @@ async def test_websocket_connection_slot_is_reserved_atomically(monkeypatch):
 
     monkeypatch.setattr(main, "_WS_MAX_GLOBAL_CONNECTIONS", 1)
     main._ws_connections.clear()
+    main._ws_reserved_slots = 0
     first = object()
     second = object()
 
@@ -134,6 +135,7 @@ async def test_websocket_connection_slot_is_reserved_atomically(monkeypatch):
     )
 
     assert results.count(True) == 1
-    assert len(main._ws_connections) == 1
-    reserved = first if results[0] else second
-    await main._release_ws_connection(reserved)
+    assert main._ws_reserved_slots == 1
+    assert main._ws_connections == []  # not registered until accept
+    await main._release_ws_connection(None, registered=False)
+    assert main._ws_reserved_slots == 0

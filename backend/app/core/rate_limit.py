@@ -22,6 +22,8 @@ _RATE_LIMITS: list[tuple[str, int, float]] = [
     ("/api/system/export", 3, 60),
     # Plaintext and encrypted restore share this prefix/bucket.
     ("/api/system/import", 1, 300),
+    # Irreversible erase — same cadence as restore.
+    ("/api/system/data", 1, 300),
 ]
 
 _BUCKETS: dict[tuple[str, str], list[float]] = defaultdict(list)

@@ -92,6 +92,15 @@ class Database:
             logger.exception("Database transaction rolled back")
             conn.rollback()
             raise
+        except BaseException:
+            # GeneratorExit / KeyboardInterrupt are not Exception subclasses.
+            # Still rollback so a TLS connection does not keep a sticky BEGIN
+            # and serve a stale WAL snapshot on later reuse.
+            try:
+                conn.rollback()
+            except Exception:
+                pass
+            raise
         # Connection is kept open for reuse; closed only on explicit close().
 
     def get_raw_connection(self) -> sqlite3.Connection:

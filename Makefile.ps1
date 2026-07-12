@@ -36,7 +36,8 @@ switch ($Task) {
     "help" {
         Write-Host @"
 Available tasks:
-  install          Install backend, frontend, desktop dependencies
+  install          Install backend, frontend, desktop dependencies (hash lock)
+  dependency-sync  Verify requirements / pyproject / lock stamps
   install-hooks    Install git hooks (or run: .\install-hooks.cmd)
   dev              Start backend + frontend (manual; run in separate terminals)
   test-backend     Run backend pytest
@@ -57,6 +58,9 @@ Available tasks:
         Pop-Location
         Push-Location $Frontend; npm ci; Pop-Location
         Push-Location $Desktop; npm ci; Pop-Location
+    }
+    "dependency-sync" {
+        Invoke-Backend @("scripts/check_dependency_sync.py")
     }
     "install-hooks" {
         $hookScript = Join-Path $Root "scripts\install_hooks.ps1"
