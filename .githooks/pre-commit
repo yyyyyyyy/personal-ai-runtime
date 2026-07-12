@@ -1,0 +1,19 @@
+#!/usr/bin/env sh
+# Run ruff + mypy on staged backend Python changes.
+
+set -eu
+
+ROOT="$(git rev-parse --show-toplevel)"
+cd "$ROOT/backend"
+
+STAGED=$(git diff --cached --name-only --diff-filter=ACM | grep '^backend/.*\.py$' | sed 's|^backend/||' || true)
+
+if [ -z "$STAGED" ]; then
+  exit 0
+fi
+
+echo "pre-commit: ruff check on staged backend files"
+echo "$STAGED" | xargs ruff check
+
+echo "pre-commit: mypy"
+mypy app/ scripts/ --ignore-missing-imports

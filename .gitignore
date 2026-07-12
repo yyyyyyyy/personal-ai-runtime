@@ -42,9 +42,6 @@ backend/.e2e-write-*.txt
 *.swo
 *~
 
-# Git hooks (local development)
-.githooks/
-
 # OS
 .DS_Store
 Thumbs.db

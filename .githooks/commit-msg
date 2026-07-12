@@ -1,0 +1,22 @@
+#!/usr/bin/env sh
+# Enforce Conventional Commits on the first line of the commit message.
+
+set -eu
+
+MSG_FILE="$1"
+SUBJECT=$(head -n 1 "$MSG_FILE")
+
+PATTERN='^(feat|fix|docs|style|refactor|perf|test|chore|revert)(\([a-zA-Z0-9._/-]+\))?: .{2,100}$'
+
+if ! printf '%s\n' "$SUBJECT" | grep -Eq "$PATTERN"; then
+  echo "commit-msg: invalid format"
+  echo "Expected: <type>(<scope>): <subject>"
+  echo "Example:  feat(backend): add agent cleanup"
+  echo "Got:       $SUBJECT"
+  exit 1
+fi
+
+if printf '%s\n' "$SUBJECT" | grep -Eq '\.$'; then
+  echo "commit-msg: subject must not end with a period"
+  exit 1
+fi
