@@ -51,9 +51,7 @@ export default function MemoryListItem({
         {m.created_at && (
           <span className="text-xs text-gray-600">{timeAgoShort(m.created_at)}</span>
         )}
-        {m.origin === "claim" && (
-          <span className="text-xs text-indigo-500/60">对话推断</span>
-        )}
+        {m.origin === "claim" && <span className="text-xs text-indigo-500/60">对话推断</span>}
         {m.origin === "self_report" && (
           <span className="text-xs text-emerald-500/60">你告诉我的</span>
         )}
@@ -68,9 +66,7 @@ export default function MemoryListItem({
           </span>
         )}
         {m.claim_status === "rejected" && (
-          <span className="text-xs bg-red-500/20 text-red-400 px-1.5 py-0.5 rounded">
-            已拒绝
-          </span>
+          <span className="text-xs bg-red-500/20 text-red-400 px-1.5 py-0.5 rounded">已拒绝</span>
         )}
         {m.claim_status === "contested" && (
           <span className="text-xs bg-purple-500/20 text-purple-400 px-1.5 py-0.5 rounded">

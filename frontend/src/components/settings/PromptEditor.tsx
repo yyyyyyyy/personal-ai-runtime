@@ -1,9 +1,6 @@
 import { useEffect, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import {
-  getPromptConfig,
-  updatePromptConfig,
-} from "../../api/client";
+import { getPromptConfig, updatePromptConfig } from "../../api/client";
 import { useErrorStore } from "../../stores/errorStore";
 import { usePromptConfigQuery } from "../../hooks/useSettingsQuery";
 import { queryKeys } from "../../hooks/useWsInvalidationBridge";

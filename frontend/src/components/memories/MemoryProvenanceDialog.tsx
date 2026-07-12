@@ -1,5 +1,10 @@
 import { useEffect, useState } from "react";
-import { getMemoryProvenance, ApiError, type MemoryRow, type MemoryProvenance } from "../../api/client";
+import {
+  getMemoryProvenance,
+  ApiError,
+  type MemoryRow,
+  type MemoryProvenance,
+} from "../../api/client";
 import { useErrorStore } from "../../stores/errorStore";
 import { timeAgoShort } from "../../utils/timeUtils";
 import { eventTypeLabel, eventDescription } from "./provenanceFormatting";

@@ -134,9 +134,7 @@ export default function DataSovereigntyCard({ onAfterImport }: Props) {
     <Card>
       <h3 className="text-sm font-medium text-gray-300 mb-3">数据主权</h3>
       <p className="text-sm text-gray-500 mb-4">导出完整个人数据快照，或从备份文件导入。</p>
-      {statusMessage && (
-        <p className="text-xs text-emerald-400 mb-3">{statusMessage}</p>
-      )}
+      {statusMessage && <p className="text-xs text-emerald-400 mb-3">{statusMessage}</p>}
       <div className="flex flex-wrap gap-3 items-center">
         <Button onClick={handleExport} disabled={exporting}>
           {exporting ? "导出中…" : "导出全部数据"}
@@ -190,10 +188,7 @@ export default function DataSovereigntyCard({ onAfterImport }: Props) {
             placeholder="输入加密密码"
             className="flex-1 text-xs"
           />
-          <Button
-            onClick={handleEncryptedExport}
-            disabled={encryptExporting || !encryptPassword}
-          >
+          <Button onClick={handleEncryptedExport} disabled={encryptExporting || !encryptPassword}>
             {encryptExporting ? "加密导出中…" : "加密导出"}
           </Button>
           <label className="inline-block">
@@ -222,9 +217,7 @@ export default function DataSovereigntyCard({ onAfterImport }: Props) {
         >
           {destroying ? "销毁中…" : "销毁全部数据"}
         </Button>
-        <p className="text-xs text-gray-600 mt-1">
-          永久删除所有对话、记忆、目标和事件。不可恢复。
-        </p>
+        <p className="text-xs text-gray-600 mt-1">永久删除所有对话、记忆、目标和事件。不可恢复。</p>
       </div>
     </Card>
   );

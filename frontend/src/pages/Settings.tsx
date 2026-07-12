@@ -1,9 +1,6 @@
 import { useEffect, useState } from "react";
 import { useErrorStore } from "../stores/errorStore";
-import {
-  useSettingsCoreQuery,
-  useSettingsHealthQuery,
-} from "../hooks/useSettingsQuery";
+import { useSettingsCoreQuery, useSettingsHealthQuery } from "../hooks/useSettingsQuery";
 import type { LlmSettingsResponse, EmailSettingsResponse } from "../api/client";
 import Card from "../components/ui/Card";
 import Button from "../components/ui/Button";

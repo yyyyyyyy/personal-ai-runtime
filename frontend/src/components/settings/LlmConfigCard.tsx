@@ -250,9 +250,7 @@ export default function LlmConfigCard({ llm, onSaved }: Props) {
                     )}
                     onChange={(e) => updateProvider(index, { api_key: e.target.value })}
                     placeholder={
-                      provider.type === "ollama"
-                        ? "ollama（可留空）"
-                        : "留空则使用 .env 中的密钥"
+                      provider.type === "ollama" ? "ollama（可留空）" : "留空则使用 .env 中的密钥"
                     }
                   />
                   {provider.has_api_key && provider.api_key === MASKED_SECRET && (
