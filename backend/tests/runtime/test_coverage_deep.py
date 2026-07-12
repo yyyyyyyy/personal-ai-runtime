@@ -70,8 +70,13 @@ class TestTimerEngineScan:
 
     @pytest.mark.asyncio
     async def test_next_cron_fire_edge_cases(self, isolated_kernel):
-        """_next_cron_fire handles various cron expressions correctly (was TimerEngine test)."""
+        """_next_cron_fire returns a valid future ISO timestamp (was TimerEngine test)."""
+        from datetime import UTC, datetime
+
         from app.core.runtime.runtime_loop import RuntimeLoop
-        result = RuntimeLoop._next_cron_fire("minute=*/15")
+        now = datetime.now(UTC)
+        result = RuntimeLoop._next_cron_fire("minute=*/15", from_ts=now)
         assert result is not None
-        assert "T" in result
+        parsed = datetime.fromisoformat(result)
+        assert parsed.tzinfo is not None, "next fire time must carry tzinfo"
+        assert parsed > now, "next fire time must be in the future"

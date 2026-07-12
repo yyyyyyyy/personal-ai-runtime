@@ -122,7 +122,7 @@ def count_dead_code_files() -> int:
 # the table in docs/02-concepts/runtime-algebra.md §4.6.
 
 BASELINE = {
-    "runtime_files": 45,               # concept compression merges
+    "runtime_files": 44,               # concept compression merges (capability_context removed)
     "event_types": 50,                # event type compression                 # unchanged
     "query_state_selectors": 10,       # dropped goals/timer/background/user_profile
     "fragments": 10,                   # register.py

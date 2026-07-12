@@ -89,7 +89,7 @@ make desktop-build   # cd desktop && npm run build  (electron-builder)
   - Linux：`AppImage`、`deb`（category `Office`）
 - `postinstall`：`python3 generate_icon.py` 生成 `icon.png`。
 
-> 代码库中证据不足：当前 electron-builder 配置未显式嵌入前端构建产物。打包后运行需另行通过 `WEB_URL` 指向前端构建服务，或打包时一同嵌入——后者配置未见。
+> 前端构建产物通过 [`desktop/prebuild.js`](../../desktop/prebuild.js) 在 `npm run prebuild` 阶段复制到 `desktop/frontend-dist/`，并在 electron-builder 配置的 `files` 中以 `"frontend-dist/**/*"` 显式嵌入（见 [`desktop/package.json`](../../desktop/package.json)）。打包后 `main.js` 通过 `app://` 协议加载本地前端，生产模式无需独立前端服务。
 
 ## 发布
 

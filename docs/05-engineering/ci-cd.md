@@ -42,7 +42,7 @@ tag `v*.*.*` 触发：
 3. `softprops/action-gh-release@v3` 创建 GitHub Release。
 4. tag 含 `-` 标记为 prerelease。
 
-> 代码库中证据不足：`CHANGELOG.md` 在当前仓库未观察到。release 工作流依赖该文件，若缺失切版本段落会失败。
+> `CHANGELOG.md` 位于仓库根目录（Keep a Changelog 格式），由 [`release.yml`](../../.github/workflows/release.yml) 切版本段落生成 GitHub Release notes。
 
 ## Dependabot
 

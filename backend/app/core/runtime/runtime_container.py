@@ -297,13 +297,6 @@ class RuntimeContainer:
             self._register("telemetry", "app.core.telemetry.telemetry", "Telemetry")
         return self._telemetry
 
-    # ── Legacy (not in inventory, backward compat only) ───────────────
-
-    @property
-    def trigger_engine(self):
-        from app.core.runtime.reaction_registry import get_reaction_registry
-        return get_reaction_registry()  # v0.6.0: ReactionRegistry replaces TriggerEngine
-
     # ── Lifecycle ──────────────────────────────────────────────────────
 
     # Property attribute names that hold cached singleton instances. Adding

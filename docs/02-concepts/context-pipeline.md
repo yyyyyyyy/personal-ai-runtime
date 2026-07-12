@@ -94,9 +94,9 @@ flowchart LR
 
 Stage 变体：`_select_post_tool`（memory + conversation_state + scenario）、`_select_brief`（goals + world + calendar）。
 
-### CapabilityContext
+### CapabilityContext（已删除）
 
-[`governance/capability_context.py`](../../backend/app/core/runtime/governance/capability_context.py) 提供能力感知治理快照，把工具名映射到抽象能力（`SCHEDULING`、`COMMUNICATION`、`TASK_MANAGEMENT`、`KNOWLEDGE_RETRIEVAL`、`PLANNING`、`MEMORY`）。运行时模式（`normal` / `restricted` / `offline` / `maintenance`）会抑制某些能力集合。`CapabilityContextProvider.build()` 是**唯一被授权读取工具注册表的策略组件**。
+原 `governance/capability_context` 模块（dormant，零生产调用方）已删除。它原本设计为把工具名映射到抽象能力（`SCHEDULING`、`COMMUNICATION`、`TASK_MANAGEMENT` 等）并提供运行时模式快照，但 `DefaultContextPolicy.evaluate` 从未消费该快照——见 [`runtime-algebra.md` §4.3](runtime-algebra.md) 的概念清单。
 
 ## 组装：ContextAssembler
 

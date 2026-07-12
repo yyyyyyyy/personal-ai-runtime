@@ -84,8 +84,7 @@ Available tasks:
     "typecheck" {
         $agents = @(
             "app/core/agents/brain.py", "app/core/agents/conversation.py",
-            "app/core/agents/planner.py", "app/core/agents/critic.py",
-            "app/core/agents/llm_router.py", "app/core/agents/memory_engine.py",
+            "app/core/agents/llm_failover.py", "app/core/agents/memory_engine.py",
             "app/core/agents/memory_extractor.py"
         )
         Push-Location $Backend

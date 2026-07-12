@@ -22,10 +22,10 @@
 | `/goals` | `pages/Goals.tsx` | 目标列表 + 详情 |
 | `/goals/:goalId` | `pages/Goals.tsx` | 目标详情 |
 | `/inbox` | `pages/Inbox.tsx` | 邮件分拣 |
-| `/memories` | `pages/Memories.tsx` | 记忆列表 + 图谱 |
-| `/portrait` | `pages/Portrait.tsx` | AI 用户画像 |
-| `/trust` | `pages/TrustReport.tsx` | 信任报告 / 数据主权 |
-| `/dashboard` | `pages/Dashboard.tsx` | 总览仪表盘 |
+| `/memories` | `pages/Memories.tsx` | 记忆列表 + 图谱（含 `?tab=portrait` 画像面板） |
+| `/portrait` | — | **redirect** → `/memories?tab=portrait`（画像已折叠进 Memories） |
+| `/trust` | — | **redirect** → `/dashboard?tab=trust`（信任报告已折叠进 Dashboard） |
+| `/dashboard` | `pages/Dashboard.tsx` | 总览仪表盘（含 `?tab=trust` 信任报告面板） |
 | `/settings` | `pages/Settings.tsx` | LLM/邮件/MCP/数据设置 |
 | `/approvals` | `pages/Approvals.tsx` | 审批队列 |
 | `/timeline` | `pages/Timeline.tsx` | 人生事件时间线 |
@@ -133,7 +133,7 @@ types.ts       ← 共享 TS 接口
 侧栏导航模型（[`Sidebar.tsx:22-37`](../../frontend/src/components/layout/Sidebar.tsx)）：
 
 - `PRIMARY_NAV`：`/`「对话」
-- `DATA_NAV`（折叠在「我的数据」组下）：`/portrait`「画像」、`/trust`「信任报告」、`/demo`「模型切换 Demo」、`/goals`「目标」、`/inbox`「收件箱」、`/approvals`「审批」、`/memories`「记忆」、`/timeline`「时间线」、`/knowledge`「知识库」、`/dashboard`「仪表盘」
+- `DATA_NAV`（折叠在「我的数据」组下）：`/memories`「记忆」（含画像 tab）、`/dashboard`「仪表盘」（含信任报告 tab）、`/goals`「目标」、`/inbox`「收件箱」、`/approvals`「审批」、`/timeline`「时间线」、`/knowledge`「知识库」
 - `SYSTEM_NAV`：`/settings`「设置」
 
 会话列表只在 chat 路由显示。

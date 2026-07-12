@@ -1,9 +1,10 @@
 """Runtime governance — context policy, query analysis, fragment selection, assembly.
 
 Active production components only.
-Archived: capability_context, execution_context (snapshot builders no longer consumed
-          by DefaultContextPolicy), GovernancePolicy, GovernancePolicyEngine
+Archived: execution_context (snapshot builder no longer consumed by
+          DefaultContextPolicy), GovernancePolicy, GovernancePolicyEngine
           → archive/governance_phase12/
+Removed: capability_context (dormant since declared, zero production callers).
 """
 
 from app.core.runtime.governance.context_pipeline import ContextPipeline, context_pipeline
