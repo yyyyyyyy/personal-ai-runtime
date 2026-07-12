@@ -8,6 +8,7 @@
 const fs = require("fs");
 const path = require("path");
 const https = require("https");
+const crypto = require("crypto");
 const { execFileSync, spawnSync } = require("child_process");
 const { createWriteStream } = require("fs");
 
@@ -16,7 +17,8 @@ const ARCH = process.arch === "x64" ? "amd64" : "win32";
 const REPO_ROOT = path.resolve(__dirname, "..");
 const OUTPUT_DIR = path.join(__dirname, "bundled-python");
 const CACHE_DIR = path.join(__dirname, ".cache");
-const REQUIREMENTS = path.join(REPO_ROOT, "backend", "requirements.txt");
+const REQUIREMENTS_LOCK = path.join(REPO_ROOT, "backend", "requirements.lock");
+const LOCK_DIGEST_FILE = path.join(OUTPUT_DIR, ".requirements-lock.sha256");
 const ZIP_NAME = `python-${PYTHON_VERSION}-embed-${ARCH}.zip`;
 const ZIP_URL = `https://www.python.org/ftp/python/${PYTHON_VERSION}/${ZIP_NAME}`;
 
@@ -58,16 +60,23 @@ async function main() {
   }
 
   const pythonExe = path.join(OUTPUT_DIR, "python.exe");
+  const lockDigest = crypto
+    .createHash("sha256")
+    .update(fs.readFileSync(REQUIREMENTS_LOCK))
+    .digest("hex");
   if (fs.existsSync(pythonExe)) {
+    const cachedDigest = fs.existsSync(LOCK_DIGEST_FILE)
+      ? fs.readFileSync(LOCK_DIGEST_FILE, "utf8").trim()
+      : "";
     const probe = spawnSync(pythonExe, ["-c", "import uvicorn, chromadb"], {
       cwd: path.join(REPO_ROOT, "backend"),
       stdio: "pipe",
     });
-    if (probe.status === 0) {
+    if (probe.status === 0 && cachedDigest === lockDigest) {
       console.log("[bundle-python] Existing bundle looks healthy, skipping rebuild.");
       return;
     }
-    console.log("[bundle-python] Existing bundle incomplete, rebuilding...");
+    console.log("[bundle-python] Existing bundle incomplete or stale, rebuilding...");
     fs.rmSync(OUTPUT_DIR, { recursive: true, force: true });
   }
 
@@ -110,8 +119,9 @@ async function main() {
     "pip",
     "install",
     "--no-warn-script-location",
+    "--require-hashes",
     "-r",
-    REQUIREMENTS,
+    REQUIREMENTS_LOCK,
   ], { cwd: OUTPUT_DIR });
 
   const verify = spawnSync(
@@ -125,6 +135,7 @@ async function main() {
   if (verify.status !== 0) {
     throw new Error("Bundled python failed import verification");
   }
+  fs.writeFileSync(LOCK_DIGEST_FILE, `${lockDigest}\n`, "utf8");
 
   console.log("[bundle-python] Bundle ready at", OUTPUT_DIR);
 }

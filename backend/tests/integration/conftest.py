@@ -36,11 +36,13 @@ def _make_client(tmp_path, monkeypatch, auth_token: str | None = None):
     import app.api.system
     import app.config
     import app.main
+    from app.core.rate_limit import reset_rate_limits
     from app.core.startup_health import enrich_with_mcp_status, run_startup_checks
 
     app.config.reset_settings()
     importlib.reload(app.api.system)
     importlib.reload(app.main)
+    reset_rate_limits()
 
     app = app.main.app
     app.state.startup_health = enrich_with_mcp_status(run_startup_checks())

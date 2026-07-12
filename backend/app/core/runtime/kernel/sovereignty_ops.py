@@ -9,6 +9,7 @@ LOC budget can shrink. Functions take a Kernel-like object (``_db``,
 from __future__ import annotations
 
 import json
+import logging
 import shutil
 import uuid
 from datetime import UTC, datetime
@@ -18,7 +19,6 @@ from typing import Any
 from . import projectors_registry as projectors
 from .constants import (
     CHAT_EVENT_TYPES,
-    MEMORY_INDEX_EVENT_TYPES,
     PROJECTION_SNAPSHOT_AGGREGATES,
 )
 from .query_builder import (
@@ -27,14 +27,29 @@ from .query_builder import (
     iter_snapshot_document_bytes,
 )
 
+logger = logging.getLogger(__name__)
+
 EXPORT_FORMAT = "snapshot"
 
 
-def all_projection_tables() -> set[str]:
-    result: set[str] = set()
+def _ordered_projection_tables() -> list[str]:
+    """Return projection tables in safe DELETE order (children before parents).
+
+    Tables with foreign keys to other projection tables must be cleared first.
+    """
+    all_tables: set[str] = set()
     for tables in projectors._OWNED_TABLES.values():
-        result.update(tables)
-    return result
+        all_tables.update(tables)
+    # FK: messages.conversation_id → conversations.id
+    # FK (in data): handler_executions may reference event_log seqs (by convention)
+    child_before_parent = ["messages", "handler_executions", "background_tasks", "timer_events"]
+    ordered = []
+    for child in child_before_parent:
+        if child in all_tables:
+            ordered.append(child)
+            all_tables.discard(child)
+    ordered.extend(sorted(all_tables))
+    return ordered
 
 
 
@@ -71,21 +86,45 @@ def import_event_log_rows(
     *,
     rebuild_projections: bool = True,
 ) -> int:
+    """Import while excluding concurrent vector sync and repair operations."""
+    from .memory_index_sync import memory_index_operation_lock
+
+    with memory_index_operation_lock:
+        return _import_event_log_rows_locked(
+            kernel,
+            rows,
+            rebuild_projections=rebuild_projections,
+        )
+
+
+def _import_event_log_rows_locked(
+    kernel,
+    rows: list[dict[str, Any]],
+    *,
+    rebuild_projections: bool = True,
+) -> int:
     """Bulk-import events preserving seq/id; optionally rebuild all projections.
 
-    DESTRUCTIVE OPERATION: This drops event_log guards, clears event_log
-    and all projection tables, then rewrites them. If rebuild_projections
-    fails mid-way, some projection tables may be left empty. Callers
-    should take a file-level backup before invoking this method.
+    The entire SQLite operation (clear event_log + projection tables + repair
+    queue, insert rows, rebuild projections) runs in a single transaction.
+    If any step fails the transaction is rolled back.
 
-    For atomic import+rebuild, wrap in a single connection context
-    (TODO: Phase 3 architectural improvement).
+    Chroma (external to SQLite) is reconciled *after* commit via a full
+    projection↔index sync; failures fall back to the durable repair queue.
     """
-    with kernel._db.get_db() as conn:
+    conn = kernel._db.get_raw_connection()
+    try:
+        conn.execute("BEGIN IMMEDIATE")
         _drop_event_log_guards(kernel, conn)
-        for table in all_projection_tables():
+        for table in _ordered_projection_tables():
             conn.execute(f"DELETE FROM {table}")
+        # Checkpoints and snapshot blobs belong to the old event-log generation
+        # even when projection replay is intentionally deferred.
+        conn.execute("DELETE FROM projection_checkpoints")
         conn.execute("DELETE FROM event_log")
+        # Drop stale repair jobs so pre-restore MemoryDeleted tasks cannot
+        # delete memories that the restored snapshot reintroduces.
+        conn.execute("DELETE FROM memory_index_repairs")
 
         for row in sorted(rows, key=lambda r: int(r["seq"])):
             payload = row.get("payload")
@@ -106,7 +145,7 @@ def import_event_log_rows(
                     payload,
                     row.get("caused_by"),
                     row.get("correlation_id"),
-                    row["ts"],
+                    row.get("ts"),
                 ),
             )
 
@@ -119,11 +158,214 @@ def import_event_log_rows(
             )
         _ensure_event_log_guards(kernel, conn)
 
+        if rebuild_projections:
+            _rebuild_all_on_conn(kernel, conn)
+
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+
     if rebuild_projections:
-        rebuild_all(kernel)
-        for event in kernel.read_events(types=list(MEMORY_INDEX_EVENT_TYPES)):
-            kernel._sync_memory_index(event)
+        _reconcile_memory_index_after_restore(kernel)
+
     return len(rows)
+
+
+def _rebuild_all_on_conn(kernel, conn) -> dict[str, int]:
+    """Rebuild all projections using the supplied connection (within a txn)."""
+    result = {}
+    for at in list(projectors._OWNED_TABLES):
+        result[at] = _rebuild_aggregate_on_conn(kernel, conn, at)
+    return result
+
+
+def _rebuild_aggregate_on_conn(kernel, conn, aggregate_type: str) -> int:
+    """Rebuild one aggregate's projections on the given connection."""
+    tables = projectors.owned_tables(aggregate_type)
+    delete_order = list(reversed(tables))
+    for table in delete_order:
+        conn.execute(f"DELETE FROM {table}")
+    # Clear any checkpoint so the rebuild is from scratch.
+    conn.execute(
+        "DELETE FROM projection_checkpoints WHERE aggregate_type = ?",
+        (aggregate_type,),
+    )
+    # Read events directly from the same connection.
+    rows = conn.execute(
+        "SELECT * FROM event_log WHERE aggregate_type = ? ORDER BY seq",
+        (aggregate_type,),
+    ).fetchall()
+    from .event import Event
+    replayed = 0
+    for row in rows:
+        event = Event(
+            seq=int(row["seq"]),
+            id=row["id"],
+            type=row["type"],
+            aggregate_type=str(row["aggregate_type"]),
+            aggregate_id=row["aggregate_id"],
+            actor=row["actor"],
+            payload=json.loads(row["payload"]) if row["payload"] else {},
+            caused_by=row["caused_by"],
+            correlation_id=row["correlation_id"],
+            ts=row["ts"],
+        )
+        projectors.apply(event, conn)
+        replayed += 1
+    return replayed
+
+
+def _reconcile_memory_index_after_restore(kernel) -> bool:
+    """Full Chroma ↔ SQLite memories reconciliation after restore commit.
+
+    Deletes vector entries not present in the restored projection and
+    upserts every active memory. Failures are recorded in the durable
+    repair queue for RuntimeLoop to retry. Returns False only when the full
+    index could not be enumerated and a durable full-reconcile retry is needed.
+    """
+    from .memory_index_sync import (
+        MEMORY_INDEX_RECONCILE_AGGREGATE,
+        MEMORY_INDEX_RECONCILE_EVENT,
+        persist_memory_index_repair,
+    )
+
+    if kernel._memory_index is None:
+        return True
+
+    with kernel._db.get_db() as conn:
+        rows = conn.execute(
+            """SELECT id, content, category, source, status
+               FROM memories
+               WHERE COALESCE(status, 'active') NOT IN ('deleted', 'decayed')"""
+        ).fetchall()
+    desired = {str(r["id"]): dict(r) for r in rows}
+
+    try:
+        existing_ids = set(kernel._memory_index.list_memory_ids())
+    except Exception as exc:
+        logger.warning("Could not list memory index IDs after restore: %s", exc)
+        existing_ids = set()
+        persist_memory_index_repair(
+            kernel._db,
+            MEMORY_INDEX_RECONCILE_AGGREGATE,
+            MEMORY_INDEX_RECONCILE_EVENT,
+            0,
+            f"list_memory_ids failed during restore: {exc}",
+        )
+        for mid in desired:
+            persist_memory_index_repair(
+                kernel._db, mid, "MemoryDerived", 0,
+                f"list_memory_ids failed during restore: {exc}",
+            )
+        return False
+
+    for mid in existing_ids - set(desired):
+        try:
+            kernel._memory_index.delete_memory(mid)
+        except Exception as exc:
+            persist_memory_index_repair(
+                kernel._db, mid, "MemoryDeleted", 0, str(exc),
+            )
+
+    for mid, row in desired.items():
+        content = str(row.get("content") or "")
+        if not content:
+            # An active-but-empty projection must not retain an older document
+            # under the same Chroma ID.
+            try:
+                kernel._memory_index.delete_memory(mid)
+            except Exception as exc:
+                persist_memory_index_repair(
+                    kernel._db, mid, "MemoryDeleted", 0, str(exc),
+                )
+            continue
+        try:
+            kernel._memory_index.index_memory(
+                content=content,
+                metadata={
+                    "category": str(row.get("category") or "general"),
+                    "source": str(row.get("source") or ""),
+                },
+                memory_id=mid,
+            )
+        except Exception as exc:
+            persist_memory_index_repair(
+                kernel._db, mid, "MemoryDerived", 0, str(exc),
+            )
+    return True
+
+
+def _legacy_chat_bootstrap_event_rows(
+    conversations: list[dict[str, Any]],
+    messages: list[dict[str, Any]],
+    event_rows: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Convert legacy chat projections into synthetic event_log rows.
+
+    Returns [] when the snapshot already has chat events. Synthetic rows use
+    seq values continuing after the imported max so they can be imported in
+    the same atomic transaction as the rest of the snapshot.
+    """
+    if any(r.get("type") in CHAT_EVENT_TYPES for r in event_rows):
+        return []
+    if not conversations and not messages:
+        return []
+
+    max_seq = max((int(r["seq"]) for r in event_rows), default=0)
+    now = datetime.now(UTC).isoformat()
+    out: list[dict[str, Any]] = []
+
+    for conv in conversations:
+        max_seq += 1
+        out.append({
+            "seq": max_seq,
+            "id": f"evt_bootstrap_conv_{conv['id']}",
+            "type": "ConversationCreated",
+            "aggregate_type": "conversation",
+            "aggregate_id": conv["id"],
+            "actor": "import",
+            "payload": {
+                "title": conv.get("title", "New Conversation"),
+                "summary": conv.get("summary"),
+                "created_at": conv.get("created_at"),
+            },
+            "caused_by": None,
+            "correlation_id": None,
+            "ts": conv.get("created_at") or now,
+        })
+
+    for msg in messages:
+        max_seq += 1
+        tool_calls = msg.get("tool_calls")
+        if tool_calls is not None and isinstance(tool_calls, str):
+            try:
+                tool_calls = json.loads(tool_calls)
+            except json.JSONDecodeError:
+                pass
+        out.append({
+            "seq": max_seq,
+            "id": f"evt_bootstrap_msg_{msg['id']}",
+            "type": "MessageAppended",
+            "aggregate_type": "conversation",
+            "aggregate_id": msg["conversation_id"],
+            "actor": "import",
+            "payload": {
+                "message_id": msg["id"],
+                "role": msg["role"],
+                "content": msg.get("content", ""),
+                "tool_calls": tool_calls,
+                "tool_call_id": msg.get("tool_call_id"),
+                "created_at": msg.get("created_at"),
+            },
+            "caused_by": None,
+            "correlation_id": None,
+            "ts": msg.get("created_at") or now,
+        })
+    return out
+
 
 def table_counts(kernel, tables: tuple[str, ...]) -> dict[str, int]:
     """Kernel-space row counts for sovereignty verification.
@@ -344,6 +586,11 @@ def iter_snapshot_json_chunks(kernel):
     now = datetime.now(UTC).isoformat()
     snapshot_id = str(uuid.uuid4())
     with kernel._db.get_db() as conn:
+        # Python's sqlite3 does not open a persistent read transaction for a
+        # plain SELECT. Explicit BEGIN keeps all streamed batches and counts on
+        # one WAL snapshot until the generator finishes or is closed.
+        conn.execute("BEGIN")
+        conn.execute("SELECT 1 FROM event_log LIMIT 1").fetchone()
         yield from iter_snapshot_document_bytes(
             conn,
             snapshot_id=snapshot_id,
@@ -383,24 +630,34 @@ def restore(kernel, snapshot: dict, read_only: bool = True) -> dict[str, Any]:
     return _import_legacy_goals_memories(kernel, snapshot)
 
 def _restore_from_snapshot(kernel, snapshot: dict) -> dict:
-    """Restore from event_log-based snapshot."""
-    event_rows = snapshot.get("event_log", [])
+    """Restore from event_log-based snapshot.
+
+    Legacy chat projections (conversations/messages without chat events) are
+    converted into synthetic event rows and imported in the same SQLite
+    transaction as the rest of the snapshot — no post-commit bootstrap.
+    """
+    event_rows = list(snapshot.get("event_log", []))
     conversations = snapshot.get("conversations", [])
     messages = snapshot.get("messages", [])
 
-    imported_events = import_event_log_rows(kernel,
-        event_rows, rebuild_projections=True
+    bootstrap_rows = _legacy_chat_bootstrap_event_rows(
+        conversations, messages, event_rows,
     )
+    all_rows = event_rows + bootstrap_rows
 
-    chat_bootstrapped = bootstrap_chat_from_snapshot(kernel,
-        conversations, messages, event_rows
+    imported_events = import_event_log_rows(
+        kernel, all_rows, rebuild_projections=True,
     )
 
     return {
         "format": EXPORT_FORMAT,
         "events_imported": imported_events,
-        "conversations_imported": chat_bootstrapped.get("conversations", 0),
-        "messages_imported": chat_bootstrapped.get("messages", 0),
+        "conversations_imported": sum(
+            1 for r in bootstrap_rows if r["type"] == "ConversationCreated"
+        ),
+        "messages_imported": sum(
+            1 for r in bootstrap_rows if r["type"] == "MessageAppended"
+        ),
     }
 
 def _import_legacy_goals_memories(kernel, snapshot: dict) -> dict[str, Any]:

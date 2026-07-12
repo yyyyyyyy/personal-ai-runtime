@@ -20,6 +20,8 @@ _RATE_LIMITS: list[tuple[str, int, float]] = [
     ("/api/settings/email/test", 5, 60),
     ("/api/inbox/poll", 10, 60),
     ("/api/system/export", 3, 60),
+    # Plaintext and encrypted restore share this prefix/bucket.
+    ("/api/system/import", 1, 300),
 ]
 
 _BUCKETS: dict[tuple[str, str], list[float]] = defaultdict(list)
@@ -32,16 +34,22 @@ def _clean_expired(bucket: list[float], window: float) -> None:
         bucket.pop(0)
 
 
-def check_rate_limit(path: str, token: str = "") -> bool:
+def check_rate_limit(path: str, key: str = "anonymous") -> bool:
     """Return True if the request is allowed, False if rate-limited."""
     for pattern, max_req, window in _RATE_LIMITS:
         if path.startswith(pattern):
-            key = (pattern, token or "anonymous")
+            bucket_key = (pattern, key)
             with _BUCKETS_LOCK:
-                bucket = _BUCKETS[key]
+                bucket = _BUCKETS[bucket_key]
                 _clean_expired(bucket, window)
                 if len(bucket) >= max_req:
                     return False
                 bucket.append(time.monotonic())
             return True
     return True
+
+
+def reset_rate_limits() -> None:
+    """Clear all in-memory rate-limit state. For test use only."""
+    with _BUCKETS_LOCK:
+        _BUCKETS.clear()

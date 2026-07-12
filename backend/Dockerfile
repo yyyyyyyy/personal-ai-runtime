@@ -7,8 +7,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
-COPY backend/requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+COPY backend/requirements.lock .
+RUN python -m pip install --no-cache-dir --require-hashes -r requirements.lock
 
 COPY backend/ .
 

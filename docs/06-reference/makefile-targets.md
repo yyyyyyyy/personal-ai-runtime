@@ -6,7 +6,7 @@
 
 | 目标 | 命令 | 说明 |
 |---|---|---|
-| `install` | `Makefile:8-13` | `pip install -r backend/requirements.txt` + `npm ci`（frontend+desktop）+ `python3 generate_icon.py`（desktop）+ `alembic upgrade head`（失败容错） |
+| `install` | `Makefile` | 先运行 `dependency-sync`，再以 `--require-hashes` 安装 backend lock，执行 frontend/desktop `npm ci` 与数据库迁移 |
 | `setup` | `Makefile:16-17` | `bash install.sh`（交互式完整安装） |
 | `init-db` | `Makefile:19-20` | `alembic upgrade head`（失败容错，提示首次运行 auto-init） |
 | `install-hooks` | `Makefile:22-23` | `bash scripts/install_hooks.sh`（设 `core.hooksPath=.githooks`） |
@@ -27,8 +27,11 @@
 |---|---|---|
 | `test` | `Makefile:38` | = `test-backend test-frontend` |
 | `test-backend` | `Makefile:40-41` | `pytest tests/ -q -m "not live_llm"` |
+| `test-backend-coverage` | `Makefile` | CI coverage 测试，并执行 runtime ≥75%、API ≥50% 门限 |
 | `test-frontend` | `Makefile:43-44` | `tsc --noEmit && npm test` |
 | `test-e2e` | `Makefile:46-47` | `npx playwright install chromium && npm run test:e2e` |
+| `test-e2e-real` | `Makefile` | 真实 backend + fake LLM 的 SSE/审批 Playwright |
+| `desktop-test` | `Makefile` | 运行 desktop vitest smoke，不构建安装包 |
 
 ## 质量门
 
@@ -36,7 +39,11 @@
 |---|---|---|
 | `lint` | `Makefile:49-50` | `ruff check app/` |
 | `typecheck` | `Makefile:54-55` | `mypy app/ scripts/ --ignore-missing-imports` |
-| `ci-local` | `Makefile:57-58` | 聚合：`lint typecheck test-backend test-frontend test-e2e boundary execution-ownership projection-provenance conversation-rebuild export-roundtrip-verify` |
+| `dependency-sync` | `Makefile` | 检查 `pyproject.toml` dependencies 与权威 `requirements.txt` 完全一致 |
+| `backend-compileall` | `Makefile` | `python3 -m compileall app/ -q` |
+| `backend-smoke` | [`verify_api_mcp_smoke.py`](../../backend/scripts/verify_api_mcp_smoke.py) | 验证核心 API 路由与 MCP 工具/安全标志 |
+| `backend-ci-core` | `Makefile` | GitHub Actions 与本地共用的唯一后端核心门禁入口 |
+| `ci-local` | `Makefile` | `backend-ci-core` + frontend 单测/E2E/real-E2E + desktop smoke |
 
 ## 架构不变量验证
 
@@ -49,14 +56,22 @@
 | `execution-ownership-inventory` | 同上 `--inventory` | 列全部 |
 | `execution-ownership-strict` | 同上 `--strict` | 连 bypass 债也失败 |
 | `projection-provenance` | [`check_projection_provenance.py`](../../backend/scripts/check_projection_provenance.py) | 投影行有对应 event_log 事件 |
+| `docs-links` | [`check_doc_links.py`](../../backend/scripts/check_doc_links.py) | 文档相对链接与路径存在 |
+| `docs-table-sync` | [`check_doc_table_sync.py`](../../backend/scripts/check_doc_table_sync.py) | 文档表清单与 registry 同步 |
+| `docs-line-refs` | [`check_doc_line_refs.py`](../../backend/scripts/check_doc_line_refs.py) | 禁止易漂移的 Python 行号引用 |
+| `policy-consistency` | [`check_capability_policy_consistency.py`](../../backend/scripts/check_capability_policy_consistency.py) | capability policy 与运行时声明一致 |
 | `conversation-rebuild` | [`verify_conversation_rebuild.py`](../../backend/scripts/verify_conversation_rebuild.py) | 对话消息可重建且可溯源 |
 | `goal-rebuild` | [`verify_goal_rebuild.py`](../../backend/scripts/verify_goal_rebuild.py) | 目标 parent_id/progress 重建后保留 |
+| `work-items-goal-rebuild` | [`verify_work_items_goal_rebuild.py`](../../backend/scripts/verify_work_items_goal_rebuild.py) | work_items 目标字段与进度可重建 |
 | `rebuild-verify` | [`verify_rebuild.py`](../../backend/scripts/verify_rebuild.py) | 旗舰：全量重建字节一致 |
 | `export-roundtrip-verify` | [`verify_export_roundtrip.py`](../../backend/scripts/verify_export_roundtrip.py) | export → import 无损 |
 | `snapshot-verify` | [`verify_snapshot_rebuild.py`](../../backend/scripts/verify_snapshot_rebuild.py) | 增量重建 + checkpoint 不回退 |
+| `memory-lifecycle-verify` | [`verify_memory_lifecycle.py`](../../backend/scripts/verify_memory_lifecycle.py) | memory 更新、删除与重建生命周期 |
+| `inbox-audit-verify` | [`verify_inbox_audit.py`](../../backend/scripts/verify_inbox_audit.py) | inbox caused_by 审计链 |
 | `egress-verify` | [`verify_egress.py`](../../backend/scripts/verify_egress.py) | LLM 出口审计 |
 | `vector-consistency-verify` | [`verify_vector_consistency.py`](../../backend/scripts/verify_vector_consistency.py) | SQLite memories vs Chroma 对账 |
 | `connector-verify` | [`verify_connector.py`](../../backend/scripts/verify_connector.py) | 日历连接器审计 |
+| `memory-repair-verify` | [`verify_memory_index_repairs.py`](../../backend/scripts/verify_memory_index_repairs.py) | durable repair queue 自测 |
 | `alembic-verify` | [`verify_alembic.py`](../../backend/scripts/verify_alembic.py) | 19 张必需表存在 + PRAGMA foreign_keys |
 
 ## 容器
@@ -70,7 +85,7 @@
 
 | 目标 | 命令 | 说明 |
 |---|---|---|
-| `lockfile` | `Makefile:123-126` | `pip-compile --generate-hashes --output-file requirements.lock requirements.txt`（生成带哈希锁文件，提交后 CI 安装相同版本） |
+| `lockfile` | `Makefile` | 固定 `pip-tools==7.5.3`，生成带包哈希和输入文件 SHA-256 的 `requirements.lock` |
 | `secrets-scan` | `Makefile:130-132` | `gitleaks detect --config .gitleaks.toml --source . --no-banner --redact`（未装则提示安装链接） |
 
 ## Makefile.ps1（Windows 子集）

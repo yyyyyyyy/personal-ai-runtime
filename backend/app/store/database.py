@@ -94,6 +94,20 @@ class Database:
             raise
         # Connection is kept open for reuse; closed only on explicit close().
 
+    def get_raw_connection(self) -> sqlite3.Connection:
+        """Return a **new**, independent connection (not from the TLS pool).
+
+        Callers are responsible for calling .commit(), .rollback(), and
+        .close() on the returned connection.  This is intended for
+        long-running atomic operations that must not share the thread-local
+        transaction scope (e.g. import_event_log_rows).
+        """
+        conn = sqlite3.connect(self.db_path, timeout=30.0)
+        conn.row_factory = sqlite3.Row
+        conn.execute("PRAGMA foreign_keys=ON")
+        conn.execute("PRAGMA busy_timeout=5000")
+        return conn
+
     # --- WAL checkpoint — call periodically to keep the WAL file bounded ---
 
     def wal_checkpoint(self, mode: str = "PASSIVE") -> None:

@@ -9,6 +9,7 @@ Verifies that:
 """
 
 import os
+import threading
 
 os.environ.setdefault("LLM_API_KEY", "test-key")
 
@@ -54,6 +55,37 @@ class _HealthyIndex:
 
     def search_memories(self, *_args, **_kwargs):
         return []
+
+
+class _FlakyListingIndex(_HealthyIndex):
+    """Fails the first full listing, then exposes a stale vector entry."""
+
+    def __init__(self):
+        self.fail_listing = True
+        self.ids = {"stale-memory"}
+
+    def list_memory_ids(self):
+        if self.fail_listing:
+            raise RuntimeError("listing unavailable")
+        return list(self.ids)
+
+    def delete_memory(self, memory_id):
+        self.ids.discard(memory_id)
+
+
+class _StatefulIndex(_HealthyIndex):
+    def __init__(self, ids=()):
+        self.ids = set(ids)
+
+    def list_memory_ids(self):
+        return list(self.ids)
+
+    def index_memory(self, *, memory_id, **_kwargs):
+        self.ids.add(memory_id)
+        return memory_id
+
+    def delete_memory(self, memory_id):
+        self.ids.discard(memory_id)
 
 
 def _count_repairs(db, status=None):
@@ -152,6 +184,100 @@ def test_drain_repairs_succeeds_and_deletes_row(tmp_path):
         ki.kernel = original_instance_kernel
 
     assert _count_repairs(db) == [], "row should be deleted after successful repair"
+
+
+def test_full_reconcile_is_retried_after_listing_failure(tmp_path):
+    """A transient list failure must not leave stale Chroma IDs permanently."""
+    from app.core.runtime.kernel.memory_index_sync import (
+        MEMORY_INDEX_RECONCILE_EVENT,
+    )
+    from app.core.runtime.kernel.sovereignty_ops import (
+        _reconcile_memory_index_after_restore,
+    )
+    from app.core.runtime.runtime_loop import RuntimeLoop
+
+    index = _FlakyListingIndex()
+    k = _fresh_kernel(tmp_path, memory_index=index)
+
+    assert _reconcile_memory_index_after_restore(k) is False
+    rows = _count_repairs(k._db)
+    assert any(row["event_type"] == MEMORY_INDEX_RECONCILE_EVENT for row in rows)
+
+    index.fail_listing = False
+    import app.core.runtime.runtime_loop as rl_mod
+    original_kernel = rl_mod.kernel
+    rl_mod.kernel = k
+    try:
+        RuntimeLoop()._drain_memory_index_repairs()
+    finally:
+        rl_mod.kernel = original_kernel
+
+    assert index.ids == set()
+    assert _count_repairs(k._db) == []
+
+
+def test_restore_excludes_old_repair_worker_delete(tmp_path):
+    """A queued pre-restore delete cannot run after the restored upsert."""
+    import app.core.runtime.runtime_loop as rl_mod
+    from app.core.runtime.kernel.memory_index_sync import (
+        memory_index_operation_lock,
+        persist_memory_index_repair,
+    )
+    from app.core.runtime.runtime_loop import RuntimeLoop
+
+    k = _fresh_kernel(tmp_path)
+    k.emit_event(
+        "MemoryDerived",
+        "memory",
+        "restored-memory",
+        payload={"content": "keep me", "category": "general"},
+        actor="test",
+    )
+    rows = k.export_event_log_rows()
+    index = _StatefulIndex()
+    k._memory_index = index
+    persist_memory_index_repair(
+        k._db,
+        "restored-memory",
+        "MemoryDeleted",
+        99,
+        "old failure",
+    )
+
+    original_kernel = rl_mod.kernel
+    rl_mod.kernel = k
+    worker = threading.Thread(target=RuntimeLoop()._drain_memory_index_repairs)
+    try:
+        with memory_index_operation_lock:
+            worker.start()
+            k.import_event_log_rows(rows, rebuild_projections=True)
+        worker.join(timeout=5)
+    finally:
+        rl_mod.kernel = original_kernel
+
+    assert not worker.is_alive()
+    assert index.ids == {"restored-memory"}
+    assert _count_repairs(k._db) == []
+
+
+def test_reconcile_deletes_old_vector_for_empty_active_memory(tmp_path):
+    from app.core.runtime.kernel.sovereignty_ops import (
+        _reconcile_memory_index_after_restore,
+    )
+
+    k = _fresh_kernel(tmp_path)
+    k.emit_event(
+        "MemoryDerived",
+        "memory",
+        "empty-memory",
+        payload={"content": "", "category": "general"},
+        actor="test",
+    )
+    index = _StatefulIndex({"empty-memory"})
+    k._memory_index = index
+
+    assert _reconcile_memory_index_after_restore(k) is True
+    assert index.ids == set()
 
 
 def test_drain_repairs_marks_permanent_after_max_retries(tmp_path):

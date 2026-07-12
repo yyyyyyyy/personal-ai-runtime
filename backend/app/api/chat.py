@@ -38,7 +38,7 @@ def _yield_completion_extras(result: dict, conv_id: str) -> list[str]:
         lines.append(f"data: {json.dumps({'type': 'sources', 'sources': sources})}\n\n")
     if result.get("pending"):
         lines.append(
-            f"data: {json.dumps({'type': 'confirmation_required', 'tool_name': result.get('tool_name', ''), 'tool_args': result.get('tool_args', {}), 'approval_id': result.get('approval_id', '')})}\n\n"
+            f"data: {json.dumps({'type': 'confirmation_required', 'tool_name': result.get('tool_name', ''), 'tool_args': result.get('tool_args', {}), 'tool_call_id': result.get('tool_call_id', ''), 'approval_id': result.get('approval_id', '')})}\n\n"
         )
     return lines
 

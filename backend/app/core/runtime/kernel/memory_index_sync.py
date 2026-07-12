@@ -8,6 +8,7 @@ registry). Kernel Space still owns this module.
 from __future__ import annotations
 
 import logging
+import threading
 from collections import deque
 from typing import TYPE_CHECKING, Any, Protocol
 
@@ -17,6 +18,12 @@ if TYPE_CHECKING:
     from .event import Event
 
 logger = logging.getLogger(__name__)
+
+MEMORY_INDEX_RECONCILE_EVENT = "MemoryIndexReconcile"
+MEMORY_INDEX_RECONCILE_AGGREGATE = "__full_reconcile__"
+# Serializes restore/reconcile, normal post-commit memory sync, and repair
+# draining so an old repair cannot overwrite a newly restored vector state.
+memory_index_operation_lock = threading.RLock()
 
 # In-process queue of memory events whose Chroma index sync failed.
 # Kept as an in-memory mirror of the durable `memory_index_repairs` table for
@@ -90,6 +97,12 @@ def persist_memory_index_repair(
 
 
 def sync_memory_index(kernel: Any, event: "Event") -> None:
+    """Synchronise one event while excluding restore and repair operations."""
+    with memory_index_operation_lock:
+        _sync_memory_index_locked(kernel, event)
+
+
+def _sync_memory_index_locked(kernel: Any, event: "Event") -> None:
     """Synchronise memory events with the MemoryIndexPort (if configured).
 
     Post-commit vector index sync. Called after emit_event has durably
@@ -177,4 +190,8 @@ class MemoryIndexPort(Protocol):
 
     def delete_memory(self, memory_id: str) -> None:
         """Remove a memory from the vector index."""
+        ...
+
+    def list_memory_ids(self) -> list[str]:
+        """Return all memory IDs currently present in the vector index."""
         ...

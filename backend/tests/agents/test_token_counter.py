@@ -28,3 +28,32 @@ def test_count_message_tokens_fallback_without_tiktoken(monkeypatch):
     )
     messages = [{"role": "user", "content": "abcd" * 10}]
     assert count_message_tokens(messages) == 10
+
+
+def test_get_encoding_swallows_network_errors(monkeypatch):
+    """tiktoken download failures must not raise into chat handlers."""
+    import builtins
+
+    import app.core.agents.token_counter as tc
+
+    class FakeTiktoken:
+        @staticmethod
+        def encoding_for_model(_model):
+            raise OSError("DNS failed")
+
+        @staticmethod
+        def get_encoding(_name):
+            raise OSError("DNS failed")
+
+    real_import = builtins.__import__
+
+    def import_hook(name, *args, **kwargs):
+        if name == "tiktoken":
+            return FakeTiktoken()
+        return real_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", import_hook)
+    tc._get_encoding.cache_clear()
+    assert tc._get_encoding("gpt-4") is None
+    assert tc.count_text_tokens("hello") == len("hello") // 4
+    tc._get_encoding.cache_clear()

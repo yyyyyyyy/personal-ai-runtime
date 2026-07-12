@@ -85,7 +85,7 @@ CI 报告用 `--cov-report=term-missing` 让缺失部分可见，开发者按需
 
 ## 层 2：架构不变量脚本
 
-16 个独立脚本（[`backend/scripts/`](../../backend/scripts/)），每个验证一个不变量。全部接入 `make ci-local` 与 GitHub Actions。
+独立脚本位于 [`backend/scripts/`](../../backend/scripts/)，每个验证一个不变量。它们通过 Makefile 的 `backend-ci-core` 单一入口同时接入 `make ci-local` 与 GitHub Actions，清单由 `BACKEND_CI_TARGETS` 统一维护。
 
 ### 边界 / 归属 / 溯源
 
@@ -103,6 +103,7 @@ CI 报告用 `--cov-report=term-missing` 让缺失部分可见，开发者按需
 | [`verify_snapshot_rebuild.py`](../../backend/scripts/verify_snapshot_rebuild.py) | 增量重建：`save_projection_snapshot("goal")` 后发 2 个事件，`rebuild("goal")`，验证只重放 2 个事件；再发 `GoalUpdated` 后 export，验证 checkpoint 的 `last_applied_seq` 严格前进 |
 | [`verify_conversation_rebuild.py`](../../backend/scripts/verify_conversation_rebuild.py) | 发 ConversationCreated + 2 MessageAppended，rebuild，验证 2 条消息且 `source_event_id` 可溯源 |
 | [`verify_goal_rebuild.py`](../../backend/scripts/verify_goal_rebuild.py) | 父子目标 + GoalUpdated，验证 `parent_id`/`progress` 重建后保留 |
+| [`verify_work_items_goal_rebuild.py`](../../backend/scripts/verify_work_items_goal_rebuild.py) | work_items 中 goal 字段、子任务派生进度在重建后字节一致 |
 | [`verify_memory_lifecycle.py`](../../backend/scripts/verify_memory_lifecycle.py) | MemoryDerived → Updated(0.7→0.9) → rebuild → 验证 0.9 保留 → Deleted → 验证消失 |
 
 ### 数据主权
@@ -124,6 +125,7 @@ CI 报告用 `--cov-report=term-missing` 让缺失部分可见，开发者按需
 | 脚本 | 验证 |
 |---|---|
 | [`verify_vector_consistency.py`](../../backend/scripts/verify_vector_consistency.py) | 自测：发 2 个 MemoryDerived，比对 SQLite `memories` id 集合 vs Chroma `memories` collection；可选 `--db`/`--vector-dir`/`--check-default` 对账真实数据目录 |
+| [`verify_memory_index_repairs.py`](../../backend/scripts/verify_memory_index_repairs.py) | 强制索引失败，验证 durable repair queue 落盘且重试未过早进入永久失败 |
 | [`verify_alembic.py`](../../backend/scripts/verify_alembic.py) | 开 db 单例，查 `sqlite_master`，验证 19 张 `REQUIRED_TABLES` 存在 + `PRAGMA foreign_keys=1` |
 
 ### 演示
@@ -147,6 +149,8 @@ CI 报告用 `--cov-report=term-missing` 让缺失部分可见，开发者按需
 
 运行：`make test-e2e`（先 `npx playwright install chromium`）。
 
+真实 backend SSE + 审批闭环：`make test-e2e-real`（启动 fake LLM，不走真实供应商）。默认 `make test-e2e` 会忽略 `real-backend.spec.ts`。
+
 ### Desktop smoke（[`desktop/main.test.js`](../../desktop/main.test.js)）
 
 vitest，**不需要 Electron 已安装**。读 `main.js` 源码，字符串 `toContain` 断言：
@@ -157,7 +161,7 @@ vitest，**不需要 Electron 已安装**。读 `main.js` 源码，字符串 `to
 - 调用 `globalShortcut.register`、`setLoginItemSettings`。
 - IPC 通道 `get-backend-url`/`send-notification` 存在。
 
-运行：`cd desktop && npm test`。
+运行：`make desktop-test`（`make ci-local` 与 GitHub Actions 的 desktop job 均执行）。
 
 ### 前端单元（vitest）
 

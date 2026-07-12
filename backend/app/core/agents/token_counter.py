@@ -20,7 +20,15 @@ def _get_encoding(model: str):
     try:
         return tiktoken.encoding_for_model(model)
     except KeyError:
-        return tiktoken.get_encoding(_DEFAULT_ENCODING)
+        try:
+            return tiktoken.get_encoding(_DEFAULT_ENCODING)
+        except Exception as exc:
+            logger.warning("tiktoken default encoding unavailable: %s", exc)
+            return None
+    except Exception as exc:
+        # Network / cache failures must not block chat — fall back to char estimate.
+        logger.warning("tiktoken encoding unavailable for %s: %s", model, exc)
+        return None
 
 
 def _text_content(value: object) -> str:

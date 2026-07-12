@@ -6,18 +6,17 @@
 
 ### `workflows/ci.yml`
 
-push/PR 到 `main` 时触发，三个 job：
+push/PR 到 `main` 时触发，四个 job：
 
 **`secrets-scan` job**：`gitleaks/gitleaks-action@v3`，配置 [`.gitleaks.toml`](../../.gitleaks.toml)，`fetch-depth: 0`。
 
 **`backend` job**（Python 3.12）：
 
-1. `pip install -r requirements.txt` + pytest/ruff/mypy/coverage 工具。
-2. `compileall app/`（字节编译检查）。
-3. `ruff check app/`。
-4. `mypy app/ scripts/`。
-5. `pytest tests/ -v --cov=app/core/runtime --cov=app/core/harness --cov=app/api -m "not live_llm"`，两个 `--fail-under` 门：`app/core/runtime/*` ≥75%、`app/api/*` ≥50%。
-6. 顺序跑：`verify_alembic.py` → 内联 MCP 工具存在性检查（26 个命名内建工具 + confirmation/async 标志）→ 内联 API 路由加载检查（14 个端点前缀）→ `verify_rebuild.py`、`verify_export_roundtrip.py`、`verify_snapshot_rebuild.py`、`check_boundary.py`、`check_execution_ownership.py`、`check_projection_provenance.py`、`verify_conversation_rebuild.py`、`verify_goal_rebuild.py`、`verify_memory_lifecycle.py`、`verify_inbox_audit.py`、`verify_egress.py`、`verify_connector.py`、`verify_vector_consistency.py`。
+1. 在安装任何包之前运行 `scripts/check_dependency_sync.py`，确保 `pyproject.toml` 运行时依赖与权威 `requirements.txt` 完全一致，并验证 lock 中记录的依赖输入 SHA-256，拒绝新增、修改或删除依赖后的陈旧 lock。
+2. `python -m pip install --require-hashes -r requirements.lock`；锁文件同时覆盖运行时依赖和 `requirements-dev.txt` 中 exact-pinned 的 pytest/ruff/mypy/coverage 工具。
+3. 运行唯一的后端核心入口 `make backend-ci-core`。检查清单由 Makefile 的 `BACKEND_CI_TARGETS` 维护，`make ci-local` 复用同一目标，避免本地与 Actions 各自维护门禁列表。该入口再次执行轻量的 dependency sync，并覆盖 compileall、ruff、mypy、pytest coverage、Alembic、API/MCP smoke、version、policy、文档、架构与全部 rebuild/export/egress/connector/vector/repair verify。
+
+**`dependency-platforms` job**：在 `ubuntu-latest` / `macos-latest` / `windows-latest` 上执行依赖同步检查与 `--require-hashes` 安装，确保同一份 lock 可在三大平台安装（含 Windows 条件依赖与 Chroma 二进制包）。
 
 **`frontend` job**（Node 20）：
 
@@ -28,6 +27,11 @@ push/PR 到 `main` 时触发，三个 job：
 5. `npm run build`（`tsc -b && vite build`）。
 6. `npx playwright install chromium`。
 7. `npm run test:e2e`。
+
+**`desktop` job**（Node 20）：
+
+1. `npm ci --ignore-scripts`，跳过 Electron binary 下载等 smoke 不需要的安装脚本。
+2. `make desktop-test`，运行现有 vitest Electron main-process smoke；测试只解析和检查源码，不打包 Electron，因此无需执行重量级 desktop build。
 
 ### `workflows/release.yml`
 
@@ -73,7 +77,7 @@ tag `v*.*.*` 触发：
 make ci-local
 ```
 
-聚合（[`Makefile:57-58`](../../Makefile)）：`lint typecheck test-backend test-frontend test-e2e boundary execution-ownership projection-provenance conversation-rebuild export-roundtrip-verify`。完成打印「ci-local checks passed」。
+`ci-local` 复用 CI 调用的 `backend-ci-core`，并追加 frontend 单测/E2E、real-backend E2E 与 desktop smoke。后端清单只有 Makefile 的 `BACKEND_CI_TARGETS` 一个维护点；完成打印「ci-local checks passed」。
 
 ## Windows 支持
 

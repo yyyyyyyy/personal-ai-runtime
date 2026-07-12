@@ -4,6 +4,7 @@ import asyncio
 import json
 import logging
 import secrets
+import time
 import uuid
 from asyncio import Lock
 from collections.abc import MutableMapping
@@ -49,6 +50,11 @@ logger = logging.getLogger(__name__)
 # WebSocket connection manager for real-time notifications
 _ws_connections: list[WebSocket] = []
 _ws_lock = Lock()
+_WS_MAX_GLOBAL_CONNECTIONS = 64  # hard cap for all authenticated / loopback clients
+_WS_MAX_NOAUTH_CONNECTIONS = 8  # burst rate when exposed without auth token
+_WS_MAX_NOAUTH_CONCURRENT = 16  # concurrent limit when exposed without auth
+_WS_NOAUTH_CONNECTION_WINDOW = 10.0  # seconds — burst window for exposed WS
+_WS_NOAUTH_CONNECTION_TIMESTAMPS: list[float] = []  # under _ws_lock
 
 # ── Request ID context ─────────────────────────────────────────────────────
 # Populated by RequestIDMiddleware on every HTTP request so structured logs
@@ -112,6 +118,43 @@ def _extract_ws_token(websocket: WebSocket) -> str:
     return ""
 
 
+def _ws_connection_allowed() -> bool:
+    """Return False when exposed-noauth WebSocket connection rate is exceeded."""
+    now = time.monotonic()
+    # Prune timestamps outside the window.
+    cutoff = now - _WS_NOAUTH_CONNECTION_WINDOW
+    while _WS_NOAUTH_CONNECTION_TIMESTAMPS and _WS_NOAUTH_CONNECTION_TIMESTAMPS[0] < cutoff:
+        _WS_NOAUTH_CONNECTION_TIMESTAMPS.pop(0)
+    if len(_WS_NOAUTH_CONNECTION_TIMESTAMPS) >= _WS_MAX_NOAUTH_CONNECTIONS:
+        return False
+    _WS_NOAUTH_CONNECTION_TIMESTAMPS.append(now)
+    return True
+
+
+async def _reserve_ws_connection(
+    websocket: WebSocket,
+    *,
+    exposed_without_auth: bool,
+) -> bool:
+    """Atomically check connection limits and reserve one active slot."""
+    async with _ws_lock:
+        if len(_ws_connections) >= _WS_MAX_GLOBAL_CONNECTIONS:
+            return False
+        if exposed_without_auth:
+            if len(_ws_connections) >= _WS_MAX_NOAUTH_CONCURRENT:
+                return False
+            if not _ws_connection_allowed():
+                return False
+        _ws_connections.append(websocket)
+        return True
+
+
+async def _release_ws_connection(websocket: WebSocket) -> None:
+    async with _ws_lock:
+        if websocket in _ws_connections:
+            _ws_connections.remove(websocket)
+
+
 class AuthMiddleware:
     """Pure ASGI Bearer Token middleware for local-first API protection.
 
@@ -136,20 +179,32 @@ class AuthMiddleware:
             await self.app(scope, receive, send)
             return
 
+        # Rate limiting is always active for protected paths — independent of
+        # whether AUTH_TOKEN is set. The loopback-default, no-token experience
+        # is preserved but cannot be abused at high frequency.
+        from app.core.rate_limit import check_rate_limit
+
         expected = settings.auth_token
         if not expected:
+            # No auth configured — use common anonymous bucket for everyone.
+            if not check_rate_limit(path, key="anonymous"):
+                await self._too_many_requests(send)
+                return
             await self.app(scope, receive, send)
-            return
-
-        # Rate limiting for sensitive endpoints (only when auth is enabled)
-        from app.core.rate_limit import check_rate_limit
-        if not check_rate_limit(path):
-            await self._too_many_requests(send)
             return
 
         token = self._extract_bearer(scope)
         if not _tokens_match(token, expected):
+            # Invalid token — rate-limit under a separate "bad-auth" key so
+            # attackers cannot exhaust the legitimate bucket.
+            if not check_rate_limit(path, key="bad-auth"):
+                await self._too_many_requests(send)
+                return
             await self._unauthorized(send)
+            return
+
+        if not check_rate_limit(path, key=token):
+            await self._too_many_requests(send)
             return
 
         await self.app(scope, receive, send)
@@ -410,6 +465,67 @@ for setup and usage instructions.""",
 
 app.add_middleware(AuthMiddleware)
 
+
+class SafeErrorMiddleware:
+    """Catch-all ASGI middleware — converts unhandled exceptions to JSON 500.
+
+    Must be placed *inside* RequestIDMiddleware so request_id is still set when
+    an error is logged.  This is the outermost *inner* middleware.
+
+    Only sends an error response when the downstream app has NOT yet started
+    sending a response.  If the response has already begun (e.g. a streaming
+    SSE endpoint that raises mid-stream), the middleware closes the connection
+    and logs — a second ``http.response.start`` would violate the ASGI spec.
+    """
+
+    def __init__(self, app: ASGIApp) -> None:
+        self.app = app
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        started = False
+
+        async def _send(message):
+            nonlocal started
+            if message["type"] == "http.response.start":
+                started = True
+            await send(message)
+
+        try:
+            await self.app(scope, receive, _send)
+        except Exception:  # exc_info=True in the logger call below uses sys.exc_info()
+            if scope["type"] != "http":
+                raise
+            rid = scope.get("request_id") or get_request_id() or ""
+            logger.error(
+                "Unhandled exception in request path=%s method=%s request_id=%s started=%s",
+                scope.get("path", "?"),
+                scope.get("method", "?"),
+                rid,
+                started,
+                exc_info=True,
+            )
+            if started:
+                # Response already streaming — cannot safely inject a JSON 500.
+                return
+            body = json.dumps({
+                "detail": "Internal server error",
+                "request_id": rid or None,
+            }).encode("utf-8")
+            await send({
+                "type": "http.response.start",
+                "status": 500,
+                "headers": [
+                    (b"content-type", b"application/json"),
+                    (b"content-length", str(len(body)).encode("ascii")),
+                ],
+            })
+            await send({"type": "http.response.body", "body": body})
+
+
+app.add_middleware(SafeErrorMiddleware)
+
+# Starlette's latest-added middleware is outermost. Keep request IDs and CORS
+# outside SafeError so generated 500 responses receive both response wrappers.
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins.split(","),
@@ -418,10 +534,8 @@ app.add_middleware(
     allow_headers=["Authorization", "Content-Type", "X-Request-ID"],
     expose_headers=["X-Request-ID"],
 )
-
-# RequestIDMiddleware is added last so it wraps everything else (outermost):
-# the request id must be available before AuthMiddleware logs anything.
 app.add_middleware(RequestIDMiddleware)
+
 
 # Register routers
 app.include_router(chat.router, prefix="/api/chat")
@@ -464,13 +578,27 @@ async def websocket_endpoint(websocket: WebSocket):
         if not _tokens_match(token, expected):
             await websocket.close(code=4401, reason="Unauthorized")
             return
-        # Echo a fixed subprotocol — never return the raw token to the client.
-        await websocket.accept(subprotocol=WS_AUTH_OK)
-    else:
-        await websocket.accept()
-    async with _ws_lock:
-        _ws_connections.append(websocket)
+    exposed_without_auth = not expected and not _is_localhost_bind(settings.host)
+    if not await _reserve_ws_connection(
+        websocket,
+        exposed_without_auth=exposed_without_auth,
+    ):
+        await websocket.close(code=4403, reason="Connection limit reached")
+        return
+
     try:
+        if expected:
+            # Echo a fixed subprotocol — never return the raw token to the client.
+            await websocket.accept(subprotocol=WS_AUTH_OK)
+        else:
+            if exposed_without_auth:
+                logger.warning(
+                    "WebSocket accepted on exposed bind (%s) without AUTH_TOKEN. "
+                    "Set AUTH_TOKEN in .env for production security.",
+                    settings.host,
+                )
+            await websocket.accept()
+
         while True:
             data = await websocket.receive_text()
             if data == "ping":
@@ -478,9 +606,7 @@ async def websocket_endpoint(websocket: WebSocket):
     except WebSocketDisconnect:
         pass
     finally:
-        async with _ws_lock:
-            if websocket in _ws_connections:
-                _ws_connections.remove(websocket)
+        await _release_ws_connection(websocket)
 
 
 async def broadcast_notification(event: dict) -> None:

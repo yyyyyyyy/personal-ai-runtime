@@ -148,6 +148,11 @@ class VectorStore:
         """Delete a memory by its ID."""
         self.memory_collection.delete(ids=[memory_id])
 
+    def list_memory_ids(self) -> list[str]:
+        """Return all memory IDs currently in the vector index."""
+        result = self.memory_collection.get(include=[])
+        return list(result.get("ids") or [])
+
     def delete_knowledge_chunks(self, chunk_ids: list[str]):
         """Delete knowledge chunks by their IDs."""
         if chunk_ids:

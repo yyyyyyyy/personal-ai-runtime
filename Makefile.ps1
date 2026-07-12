@@ -49,7 +49,12 @@ Available tasks:
 "@
     }
     "install" {
-        Push-Location $Backend; pip install -r requirements.txt; Pop-Location
+        Push-Location $Backend
+        python scripts/check_dependency_sync.py
+        if ($LASTEXITCODE -ne 0) { Pop-Location; exit $LASTEXITCODE }
+        python -m pip install --require-hashes -r requirements.lock
+        if ($LASTEXITCODE -ne 0) { Pop-Location; exit $LASTEXITCODE }
+        Pop-Location
         Push-Location $Frontend; npm ci; Pop-Location
         Push-Location $Desktop; npm ci; Pop-Location
     }

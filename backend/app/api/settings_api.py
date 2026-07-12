@@ -1,5 +1,6 @@
 """Settings API — runtime LLM and email configuration."""
 
+import logging
 import time
 
 from fastapi import APIRouter, HTTPException
@@ -180,11 +181,13 @@ async def test_llm_connection(body: TestLlmRequest | None = None):
             "latency_ms": round(latency_ms, 1),
         }
     except Exception as exc:
+        logger = logging.getLogger("app.api.settings_api")
+        logger.warning("LLM connection test failed for provider=%s: %s", provider_id, exc)
         return {
             "ok": False,
             "provider": provider_id,
             "model": p.get("model"),
-            "error": str(exc),
+            "error": "Connection test failed — check provider URL and credentials",
         }
 
 
@@ -241,7 +244,8 @@ async def test_email_connection(body: TestEmailRequest | None = None):
         mail.logout()
         imap_ok = True
     except Exception as exc:
-        errors.append(f"IMAP: {exc}")
+        logging.getLogger("app.api.settings_api").warning("IMAP test failed: %s", exc)
+        errors.append("IMAP connection failed — check host and credentials")
 
     try:
         server = smtplib.SMTP_SSL(smtp_host, smtp_port, timeout=15)
@@ -249,7 +253,8 @@ async def test_email_connection(body: TestEmailRequest | None = None):
         server.quit()
         smtp_ok = True
     except Exception as exc:
-        errors.append(f"SMTP: {exc}")
+        logging.getLogger("app.api.settings_api").warning("SMTP test failed: %s", exc)
+        errors.append("SMTP connection failed — check host, port and credentials")
 
     return {
         "ok": imap_ok and smtp_ok,
@@ -354,7 +359,8 @@ async def get_capability_policy():
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
-        raise HTTPException(status_code=500, detail=f"failed to read policy: {exc}") from exc
+        logging.getLogger("app.api.settings_api").exception("Failed to read capability_policy.json")
+        raise HTTPException(status_code=500, detail="Failed to read capability policy") from exc
     return {
         "auto_allow": list(data.get("auto_allow") or []),
         "needs_user": list(data.get("needs_user") or []),

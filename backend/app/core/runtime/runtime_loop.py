@@ -238,6 +238,15 @@ class RuntimeLoop:
             logger.exception("Memory index repair worker failed")
 
     def _drain_memory_index_repairs(self) -> None:
+        """Drain repairs while excluding restore and normal vector sync."""
+        from app.core.runtime.kernel.memory_index_sync import (
+            memory_index_operation_lock,
+        )
+
+        with memory_index_operation_lock:
+            self._drain_memory_index_repairs_locked()
+
+    def _drain_memory_index_repairs_locked(self) -> None:
         """Re-attempt ChromaDB index syncs that previously failed.
 
         Pulls a bounded batch of pending rows from memory_index_repairs,
@@ -252,6 +261,9 @@ class RuntimeLoop:
         from app.core.runtime.kernel.constants import (
             EVENT_MEMORY_INDEX_REPAIR_FAILED,
             EVENT_MEMORY_UPDATED,
+        )
+        from app.core.runtime.kernel.memory_index_sync import (
+            MEMORY_INDEX_RECONCILE_EVENT,
         )
 
         if kernel._memory_index is None:
@@ -278,7 +290,14 @@ class RuntimeLoop:
 
             # MemoryDeleted repairs only need a delete; everything else needs re-index.
             try:
-                if event_type == "MemoryDeleted":
+                if event_type == MEMORY_INDEX_RECONCILE_EVENT:
+                    from app.core.runtime.kernel.sovereignty_ops import (
+                        _reconcile_memory_index_after_restore,
+                    )
+
+                    if not _reconcile_memory_index_after_restore(kernel):
+                        raise RuntimeError("full memory-index reconcile is still unavailable")
+                elif event_type == "MemoryDeleted":
                     kernel._memory_index.delete_memory(aggregate_id)
                 else:
                     # Pull current memory content from projection.

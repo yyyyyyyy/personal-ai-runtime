@@ -1,12 +1,12 @@
-.PHONY: install setup init-db dev demo screenshots test test-backend test-frontend test-e2e ci-local lint typecheck desktop desktop-build boundary docs-links policy-consistency rebuild-verify export-roundtrip-verify snapshot-verify egress-verify connector-verify alembic-verify vector-consistency-verify architecture-check architecture-check-strict architecture-snapshot architecture-record dashboard dashboard-write docker-up docker-down projection-provenance conversation-rebuild goal-rebuild lockfile secrets-scan
+.PHONY: install setup init-db dev demo screenshots test test-backend test-backend-coverage test-frontend test-e2e test-e2e-real ci-local backend-ci-core backend-compileall backend-smoke lint typecheck dependency-sync desktop desktop-test desktop-build boundary docs-links docs-table-sync docs-line-refs policy-consistency rebuild-verify export-roundtrip-verify snapshot-verify egress-verify connector-verify alembic-verify vector-consistency-verify memory-repair-verify architecture-check architecture-check-strict architecture-snapshot architecture-record dashboard dashboard-write docker-up docker-down projection-provenance conversation-rebuild goal-rebuild work-items-goal-rebuild memory-lifecycle-verify inbox-audit-verify lockfile secrets-scan
 
 # Backend
 BACKEND_DIR := backend
 FRONTEND_DIR := frontend
 DESKTOP_DIR := desktop
 
-install:
-	cd $(BACKEND_DIR) && pip install -r requirements.txt
+install: dependency-sync
+	cd $(BACKEND_DIR) && python3 -m pip install --require-hashes -r requirements.lock
 	cd $(FRONTEND_DIR) && npm ci
 	cd $(DESKTOP_DIR) && npm ci
 	cd $(DESKTOP_DIR) && python3 generate_icon.py
@@ -40,6 +40,11 @@ test: test-backend test-frontend
 test-backend:
 	cd $(BACKEND_DIR) && python3 -m pytest tests/ -q -m "not live_llm"
 
+test-backend-coverage:
+	cd $(BACKEND_DIR) && python3 -m pytest tests/ -v --cov=app/core/runtime --cov=app/core/harness --cov=app/api --cov-report=term-missing -m "not live_llm"
+	cd $(BACKEND_DIR) && python3 -m coverage report --include='app/core/runtime/*' --fail-under=75
+	cd $(BACKEND_DIR) && python3 -m coverage report --include='app/api/*' --fail-under=50
+
 test-frontend:
 	cd $(FRONTEND_DIR) && npx tsc --noEmit && npm test
 
@@ -54,11 +59,36 @@ AGENTS_MYPY := app/core/agents/brain.py app/core/agents/conversation.py app/core
 typecheck:
 	cd $(BACKEND_DIR) && mypy app/ scripts/ --ignore-missing-imports
 
-ci-local: lint typecheck test-backend test-frontend test-e2e boundary docs-links policy-consistency version-sync execution-ownership projection-provenance conversation-rebuild export-roundtrip-verify architecture-check
+dependency-sync:
+	cd $(BACKEND_DIR) && python3 scripts/check_dependency_sync.py
+
+BACKEND_CI_TARGETS := dependency-sync backend-compileall lint typecheck test-backend-coverage \
+	alembic-verify backend-smoke version-sync policy-consistency docs-links docs-table-sync \
+	docs-line-refs boundary execution-ownership architecture-check projection-provenance \
+	rebuild-verify snapshot-verify conversation-rebuild goal-rebuild work-items-goal-rebuild \
+	export-roundtrip-verify memory-lifecycle-verify inbox-audit-verify egress-verify \
+	connector-verify vector-consistency-verify memory-repair-verify
+
+backend-ci-core: $(BACKEND_CI_TARGETS)
+	@echo "backend-ci-core checks passed"
+
+ci-local: backend-ci-core test-frontend test-e2e test-e2e-real desktop-test
 	@echo "ci-local checks passed"
+
+test-e2e-real:
+	cd $(FRONTEND_DIR) && npx playwright install chromium && npm run test:e2e:real
+
+backend-compileall:
+	cd $(BACKEND_DIR) && python3 -m compileall app/ -q
+
+backend-smoke:
+	cd $(BACKEND_DIR) && python3 scripts/verify_api_mcp_smoke.py
 
 desktop:
 	cd $(DESKTOP_DIR) && npm start
+
+desktop-test:
+	cd $(DESKTOP_DIR) && npm test
 
 desktop-build:
 	cd $(DESKTOP_DIR) && npm run build
@@ -68,6 +98,12 @@ boundary:
 
 docs-links:
 	cd $(BACKEND_DIR) && python3 scripts/check_doc_links.py
+
+docs-table-sync:
+	cd $(BACKEND_DIR) && python3 scripts/check_doc_table_sync.py
+
+docs-line-refs:
+	cd $(BACKEND_DIR) && python3 scripts/check_doc_line_refs.py
 
 policy-consistency:
 	cd $(BACKEND_DIR) && python3 scripts/check_capability_policy_consistency.py
@@ -120,6 +156,9 @@ conversation-rebuild:
 goal-rebuild:
 	cd $(BACKEND_DIR) && python3 scripts/verify_goal_rebuild.py
 
+work-items-goal-rebuild:
+	cd $(BACKEND_DIR) && python3 scripts/verify_work_items_goal_rebuild.py
+
 rebuild-verify:
 	cd $(BACKEND_DIR) && python3 scripts/verify_rebuild.py
 
@@ -138,6 +177,15 @@ vector-consistency-verify:
 connector-verify:
 	cd $(BACKEND_DIR) && python3 scripts/verify_connector.py
 
+memory-lifecycle-verify:
+	cd $(BACKEND_DIR) && python3 scripts/verify_memory_lifecycle.py
+
+inbox-audit-verify:
+	cd $(BACKEND_DIR) && python3 scripts/verify_inbox_audit.py
+
+memory-repair-verify:
+	cd $(BACKEND_DIR) && python3 scripts/verify_memory_index_repairs.py
+
 # Alembic schema migration
 alembic-verify:
 	cd $(BACKEND_DIR) && python3 scripts/verify_alembic.py
@@ -148,11 +196,12 @@ docker-up:
 docker-down:
 	docker compose down
 
-# Generate a pinned, hash-verified lockfile from requirements.txt.
+# Generate a pinned, hash-verified lockfile from runtime and development inputs.
 # Commit backend/requirements.lock so CI installs exactly the same versions.
 lockfile:
-	cd $(BACKEND_DIR) && pip install --user pip-tools 2>/dev/null || pip install pip-tools
-	cd $(BACKEND_DIR) && pip-compile --generate-hashes --output-file requirements.lock requirements.txt
+	cd $(BACKEND_DIR) && python3 -c "import piptools" 2>/dev/null || python3 -m pip install --user pip-tools==7.5.3
+	cd $(BACKEND_DIR) && python3 -m piptools compile --generate-hashes --output-file requirements.lock requirements-dev.txt
+	cd $(BACKEND_DIR) && python3 scripts/check_dependency_sync.py --stamp-lock
 	@echo "Created backend/requirements.lock — commit it for reproducible installs."
 
 # Scan the working tree for leaked secrets using gitleaks.

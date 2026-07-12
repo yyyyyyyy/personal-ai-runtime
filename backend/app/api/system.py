@@ -1,5 +1,6 @@
 """System API — health checks, LLM providers, data sovereignty, and system info."""
 
+import asyncio
 import secrets
 from datetime import UTC, datetime
 
@@ -153,7 +154,11 @@ async def import_all_data(body: ImportRequest):
             status_code=400,
             detail=f"Set confirm='{IMPORT_CONFIRM}' for write import",
         )
-    return kernel.restore(body.data, read_only=read_only)
+    return await asyncio.to_thread(
+        kernel.restore,
+        body.data,
+        read_only=read_only,
+    )
 
 
 @router.delete("/data")
@@ -196,8 +201,8 @@ async def export_encrypted(body: EncryptedExportRequest):
 
     try:
         blob = await encrypt_snapshot(snapshot, body.password)
-    except EncryptedSyncError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except EncryptedSyncError:
+        raise HTTPException(status_code=400, detail="Encryption failed — check password and data integrity")
 
     return {"format": BLOB_FORMAT, "data": blob, "size_bytes": len(blob)}
 
@@ -220,10 +225,10 @@ async def import_encrypted(body: EncryptedImportRequest):
 
     try:
         snapshot = await decrypt_snapshot(body.data, body.password)
-    except EncryptedSyncError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except EncryptedSyncError:
+        raise HTTPException(status_code=400, detail="Decryption failed — check password and data integrity")
 
-    result = kernel.restore(snapshot, read_only=False)
+    result = await asyncio.to_thread(kernel.restore, snapshot, read_only=False)
     return {"status": "ok", "events_imported": result.get("events_imported", 0)}
 
 

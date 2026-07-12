@@ -38,7 +38,7 @@ bash install.sh
 make install
 ```
 
-等价于：`pip install -r backend/requirements.txt` + `npm ci`（frontend + desktop）+ `python3 generate_icon.py`（desktop）+ `alembic upgrade head`（失败容错）。
+等价于：先检查后端依赖元数据同步，再执行 `pip install --require-hashes -r backend/requirements.lock` + `npm ci`（frontend + desktop）+ `python3 generate_icon.py`（desktop）+ `alembic upgrade head`（失败容错）。锁文件同时包含运行时依赖和 pytest/ruff/mypy 等开发工具。
 
 ## 环境配置
 
@@ -113,7 +113,7 @@ mypy 配置：`python_version = "3.12"`、`ignore_missing_imports = true`、`che
 make ci-local
 ```
 
-聚合（[`Makefile:57-58`](../../Makefile)）：`lint typecheck test-backend test-frontend test-e2e boundary execution-ownership projection-provenance conversation-rebuild export-roundtrip-verify`。
+聚合任务复用 GitHub Actions 调用的 `make backend-ci-core`，再执行 frontend 单测/E2E 与 desktop smoke。后端清单只在 Makefile 的 `BACKEND_CI_TARGETS` 维护，包含 dependency sync、compileall、lint、typecheck、coverage 测试和全部架构不变量。`dependency-sync` 强制 [`backend/pyproject.toml`](../../backend/pyproject.toml) 的 `[project].dependencies` 与权威文件 [`backend/requirements.txt`](../../backend/requirements.txt) 完全一致（包括顺序和 exact pins）。
 
 ## 测试矩阵
 
@@ -125,6 +125,7 @@ make ci-local
 | `make test-backend` | `pytest tests/ -q -m "not live_llm"` |
 | `make test-frontend` | `tsc --noEmit && npm test` |
 | `make test-e2e` | Playwright（先 `npx playwright install chromium`） |
+| `make test-e2e-real` | 真实 backend + fake LLM 的 SSE/审批 Playwright |
 
 ## 不变量验证
 
@@ -175,11 +176,22 @@ structlog + stdlib（[`backend/app/core/logging_config.py`](../../backend/app/co
 
 ## 锁文件
 
+运行时直接依赖以 [`backend/requirements.txt`](../../backend/requirements.txt) 为权威；[`backend/requirements-dev.txt`](../../backend/requirements-dev.txt) 在其上追加最小 CI/开发工具集。两者都使用 exact pins。
+
 ```bash
 make lockfile
 ```
 
-[`Makefile:121-126`](../../Makefile)：`pip-compile --generate-hashes --output-file requirements.lock requirements.txt`。生成带哈希的锁定文件，提交后 CI 安装完全相同版本。
+该目标固定使用 `pip-tools==7.5.3`，从 `requirements-dev.txt` 生成 [`backend/requirements.lock`](../../backend/requirements.lock)，并在 lock 头部写入两个依赖输入文件的 SHA-256。安装前同步检查会验证这些摘要，因此新增、修改或删除依赖后未重新生成 lock 都会失败。CI、本地 `make install` 和 `install.sh` 均使用 `python3 -m pip install --require-hashes -r requirements.lock`，因此运行时、测试、覆盖率、lint 和类型检查工具共享同一套可校验安装结果。
+
+Chroma 使用 `chromadb==1.5.9`（自带 Windows/macOS/Linux 二进制包，不再依赖 `chroma-hnswlib` 编译）。Windows 专用条件依赖（如 `colorama`、跳过 `uvloop`）由权威输入 + stamp 合并进同一份 lock；CI 的 `dependency-platforms` job 会在 ubuntu/macOS/Windows 上实际安装验证。
+
+修改运行时依赖时应同步更新 `requirements.txt` 与 `pyproject.toml`，然后运行：
+
+```bash
+make dependency-sync
+make lockfile
+```
 
 ## 密钥扫描
 

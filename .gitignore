@@ -33,6 +33,7 @@ desktop/.cache/
 *.tsbuildinfo
 frontend/test-results/
 frontend/playwright-report/
+backend/.e2e-write-*.txt
 
 # IDE
 .vscode/
