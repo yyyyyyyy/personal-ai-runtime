@@ -1,4 +1,4 @@
-.PHONY: install setup init-db dev demo screenshots test test-backend test-frontend test-e2e ci-local lint typecheck desktop desktop-build boundary rebuild-verify export-roundtrip-verify snapshot-verify egress-verify connector-verify alembic-verify vector-consistency-verify architecture-check architecture-check-strict architecture-snapshot architecture-record dashboard dashboard-write docker-up docker-down projection-provenance conversation-rebuild goal-rebuild lockfile secrets-scan
+.PHONY: install setup init-db dev demo screenshots test test-backend test-frontend test-e2e ci-local lint typecheck desktop desktop-build boundary docs-links policy-consistency rebuild-verify export-roundtrip-verify snapshot-verify egress-verify connector-verify alembic-verify vector-consistency-verify architecture-check architecture-check-strict architecture-snapshot architecture-record dashboard dashboard-write docker-up docker-down projection-provenance conversation-rebuild goal-rebuild lockfile secrets-scan
 
 # Backend
 BACKEND_DIR := backend
@@ -54,7 +54,7 @@ AGENTS_MYPY := app/core/agents/brain.py app/core/agents/conversation.py app/core
 typecheck:
 	cd $(BACKEND_DIR) && mypy app/ scripts/ --ignore-missing-imports
 
-ci-local: lint typecheck test-backend test-frontend test-e2e boundary version-sync execution-ownership projection-provenance conversation-rebuild export-roundtrip-verify architecture-check
+ci-local: lint typecheck test-backend test-frontend test-e2e boundary docs-links policy-consistency version-sync execution-ownership projection-provenance conversation-rebuild export-roundtrip-verify architecture-check
 	@echo "ci-local checks passed"
 
 desktop:
@@ -65,6 +65,12 @@ desktop-build:
 
 boundary:
 	cd $(BACKEND_DIR) && python3 scripts/check_boundary.py
+
+docs-links:
+	cd $(BACKEND_DIR) && python3 scripts/check_doc_links.py
+
+policy-consistency:
+	cd $(BACKEND_DIR) && python3 scripts/check_capability_policy_consistency.py
 
 version-sync:
 	cd $(BACKEND_DIR) && python3 scripts/check_version_sync.py

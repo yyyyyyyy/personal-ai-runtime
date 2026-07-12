@@ -2,10 +2,11 @@
 
 import json
 import sys
+from pathlib import Path
 
 import pytest
 
-from app.core.harness.builtin_tools.shell import shell_server
+from app.core.harness.builtin_tools.shell import ShellServer, shell_server
 
 
 def _error(result: str) -> str:
@@ -76,22 +77,76 @@ def test_privilege_escalation_substring_not_false_positive():
 
 
 def test_rm_rf_blocked_with_extra_whitespace():
-    """rm -rf must be rejected even when extra spaces would defeat substring matching."""
-    assert "Blocked pattern" in _error(shell_server.execute("rm  -rf /tmp/x"))
-    assert "Blocked pattern" in _error(shell_server.execute("rm\t-rf /tmp/x"))
+    """rm -rf must be rejected even when extra spaces would defeat substring matching.
+
+    rm is an extended command; this test enables it to verify the
+    destructive-pattern defence still catches -rf regardless of whitespace.
+    """
+    server = ShellServer()
+    server._effective_whitelist.add("rm")
+    assert "Blocked pattern" in _error(server.execute("rm  -rf /tmp/x"))
+    assert "Blocked pattern" in _error(server.execute("rm\t-rf /tmp/x"))
 
 
 def test_rm_rf_blocked_with_reordered_flags():
     """rm -rf reordered (rm /tmp/x -rf) must still be detected at argv level."""
-    assert "Blocked pattern" in _error(shell_server.execute("rm /tmp/x -rf"))
+    server = ShellServer()
+    server._effective_whitelist.add("rm")
+    assert "Blocked pattern" in _error(server.execute("rm /tmp/x -rf"))
 
 
 def test_rm_fr_variant_blocked():
-    assert "Blocked pattern" in _error(shell_server.execute("rm -fr /tmp/x"))
+    server = ShellServer()
+    server._effective_whitelist.add("rm")
+    assert "Blocked pattern" in _error(server.execute("rm -fr /tmp/x"))
 
 
 def test_chmod_777_blocked():
-    assert "Blocked pattern" in _error(shell_server.execute("chmod 777 /tmp/x"))
+    server = ShellServer()
+    server._effective_whitelist.add("chmod")
+    assert "Blocked pattern" in _error(server.execute("chmod 777 /tmp/x"))
+
+
+def test_rm_denied_by_default():
+    """rm is high-risk: disabled unless explicitly enabled via SHELL_EXTRA_COMMANDS."""
+    assert "not in whitelist" in _error(shell_server.execute("rm /tmp/x"))
+
+
+def test_ssh_denied_by_default():
+    """ssh exposes remote shells / key material: disabled by default."""
+    assert "not in whitelist" in _error(shell_server.execute("ssh host"))
+
+
+def test_gpg_denied_by_default():
+    assert "not in whitelist" in _error(shell_server.execute("gpg --list-keys"))
+
+
+def test_brew_denied_by_default():
+    assert "not in whitelist" in _error(shell_server.execute("brew list"))
+
+
+def test_kill_denied_by_default():
+    assert "not in whitelist" in _error(shell_server.execute("kill 1234"))
+
+
+def test_extended_commands_enabled_via_env(monkeypatch):
+    """SHELL_EXTRA_COMMANDS enables extended commands, but only those in the set."""
+    monkeypatch.setattr(
+        "app.core.harness.builtin_tools.shell.settings.shell_extra_commands",
+        "rm",
+    )
+    from app.core.harness.builtin_tools.shell import ShellServer
+
+    server = ShellServer()
+    # rm is now enabled, but rm -rf is still blocked by the destructive defence.
+    assert "Blocked pattern" in _error(server.execute("rm -rf /tmp/x"))
+    # Arbitrary names in the env var are ignored — only _EXTENDED_COMMANDS honoured.
+    monkeypatch.setattr(
+        "app.core.harness.builtin_tools.shell.settings.shell_extra_commands",
+        "rm,arbitrary_malware",
+    )
+    server2 = ShellServer()
+    assert "not in whitelist" in _error(server2.execute("arbitrary_malware foo"))
 
 
 def test_docker_blocked():
@@ -127,3 +182,37 @@ def test_allowed_whoami_executes():
     assert "error" not in result
     assert result["exit_code"] == 0
     assert result["output"].strip()
+
+
+def test_cwd_outside_allowed_rejected(tmp_path):
+    """cwd must be within the allowed directories (default: project root)."""
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    result = json.loads(shell_server.execute("pwd", cwd=str(outside)))
+    assert "error" in result
+    assert "cwd" in result["error"].lower()
+
+
+def test_cwd_inside_allowed_accepted(tmp_path, monkeypatch):
+    """When SHELL_ALLOWED_CWD is set, cwd within it is honoured."""
+    work = tmp_path / "work"
+    work.mkdir()
+    monkeypatch.setattr(
+        "app.core.harness.builtin_tools.shell.settings.shell_allowed_cwd",
+        str(work),
+    )
+    from app.core.harness.builtin_tools.shell import ShellServer
+
+    server = ShellServer()
+    result = json.loads(server.execute("pwd", cwd=str(work)))
+    assert "error" not in result, result
+    assert result["exit_code"] == 0
+
+
+def test_default_cwd_is_project_root():
+    """With no cwd passed, the command runs under BASE_DIR (not process cwd)."""
+    result = json.loads(shell_server.execute("pwd"))
+    assert "error" not in result, result
+    # BASE_DIR is the repo root; pwd should resolve under it.
+    from app.config import BASE_DIR
+    assert str(Path(BASE_DIR).resolve()) in result["output"] or result["exit_code"] == 0

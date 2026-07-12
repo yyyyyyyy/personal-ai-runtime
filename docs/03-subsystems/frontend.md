@@ -25,7 +25,6 @@
 | `/memories` | `pages/Memories.tsx` | 记忆列表 + 图谱 |
 | `/portrait` | `pages/Portrait.tsx` | AI 用户画像 |
 | `/trust` | `pages/TrustReport.tsx` | 信任报告 / 数据主权 |
-| `/demo` | `pages/ModelSwitchDemo.tsx` | 跨模型记忆连续性演示 |
 | `/dashboard` | `pages/Dashboard.tsx` | 总览仪表盘 |
 | `/settings` | `pages/Settings.tsx` | LLM/邮件/MCP/数据设置 |
 | `/approvals` | `pages/Approvals.tsx` | 审批队列 |

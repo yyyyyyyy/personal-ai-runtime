@@ -99,9 +99,15 @@ class Settings(BaseSettings):
 
     # --- Filesystem (agent coding) ---
     filesystem_allowed_dirs: str = ""
-    """Comma-separated allowed roots for read/write tools. Default: project root + home. Requires backend restart."""
+    """Comma-separated allowed roots for read/write tools. Default: project root. Requires backend restart."""
     filesystem_protected_paths: str = ""
     """Extra comma-separated paths appended to default governance write blocklist. Requires backend restart."""
+
+    # --- Shell (agent coding) ---
+    shell_extra_commands: str = ""
+    """Comma-separated high-risk commands (rm, chmod, ssh, gpg, brew, apt, …) to enable on top of the safe default whitelist. Leave empty for the hardened default. Requires backend restart."""
+    shell_allowed_cwd: str = ""
+    """Comma-separated directories the shell tool may run commands in. Default: project root. Requires backend restart."""
 
     # --- Conversation ---
     max_recent_messages: int = 50

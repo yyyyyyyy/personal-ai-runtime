@@ -33,7 +33,7 @@ flowchart LR
     C --> D["3. _sync_memory_index(event)<br/>ChromaDB 索引同步"]
     D --> E["4. _dispatch(event)"]
     E --> F["sync subscribers"]
-    E --> G["agent_bus.publish<br/>fire-and-forget"]
+    E --> G["async dispatcher<br/>(Scheduler) fire-and-forget"]
     E --> H["resolve submit_command futures"]
 ```
 
@@ -49,7 +49,7 @@ Kernel 提供两类读 API：
 
 - **拉取式** `read_events(...)`（[`kernel.py`](../../backend/app/core/runtime/kernel/kernel.py)）— 支持按类型、聚合、时间、actor 等过滤的事件日志读取。
 - **订阅式** `subscribe_events(handler, type, aggregate_type)`（[`kernel.py`](../../backend/app/core/runtime/kernel/kernel.py)）— 注册回调，返回反订阅函数。
-- **状态查询** `query_state(selector, **filters)`（[`kernel_query_state.py`](../../backend/app/core/runtime/kernel_query_state.py)）— 从投影表读取当前状态。支持的选择器：`work_items`、`approvals`、`memories`、`notifications`、`policy_events`、`messages`、`conversations`、`inbox_emails`、`tool_calls`、`llm_calls`（timer/background/user_profile 经 `read_ports` → `query_builder`）。
+- **状态查询** `query_state(selector, **filters)`（[`kernel_query_state.py`](../../backend/app/core/runtime/kernel/kernel_query_state.py)）— 从投影表读取当前状态。支持的选择器：`work_items`、`approvals`、`memories`、`notifications`、`policy_events`、`messages`、`conversations`、`inbox_emails`、`tool_calls`、`llm_calls`（timer/background/user_profile 经 `read_ports` → `query_builder`）。
 
 ## 投影器
 
@@ -65,9 +65,8 @@ def project_work_item_created(event, conn):
 
 | 文件 | 投影内容 |
 |---|---|
-| `projectors_work_items.py` | WorkItem（含 goal/task/action） |
-| `projectors_chat.py` | Conversation / Message |
-| `projectors_aux.py` | Memory（写入 `embedding_id`） |
+| `projectors_core.py` | work_items（含 goal/task/action）、memories（含 `embedding_id` 回填）、approvals、notifications、claims、user_profile |
+| `projectors_chat.py` | conversations / messages |
 | `projectors_execution.py` | `handler_executions` + `background_tasks` |
 | `projectors_governance.py` | `policy_events` + tool_calls / llm_calls |
 | `projectors_inbox.py` | inbox_emails + timer_events |
@@ -92,7 +91,7 @@ State 是 Event Log 的纯投影，可随时清空并从日志重放重建。Ker
 代码中可观察到的简化：
 
 - **同步投影**：投影在 `emit_event` 事务内同步完成，而非异步 fan-out。优势是一致性；代价是 emit 延迟包含投影开销。
-- **AgentBus 在事件日志之上**：AgentBus 不是独立消息代理，而是订阅 `event_log` 事件的内存 fan-out 层（[`backend/app/core/runtime/agent_bus.py`](../../backend/app/core/runtime/agent_bus.py)）。订阅规则支持 `event_type` / `aggregate_type` / `source_agent` / `correlation_match`，用 `fnmatch` 模式匹配。
+- **异步派发器在事件日志之上**：Scheduler 通过 `kernel.set_async_dispatcher()`（[`kernel.py`](../../backend/app/core/runtime/kernel/kernel.py)）注册一个 fire-and-forget 派发器，在 `emit_event` 提交后把每个事件投递给 [`agent_scheduler.py`](../../backend/app/core/runtime/agent_scheduler.py) 的 `_dispatch_to_scheduler`，后者按 [`handler_registry.get_handler(event.type)`](../../backend/app/core/runtime/handler_registry.py) 路由——匹配则 `enqueue` 一个 WorkItem 给 Scheduler 执行，不匹配则跳过。这不是独立消息代理，event_log 才是唯一真相。
 - **混合存储**：并非所有表都是 governed 投影。`activity_log`、`app_settings`、`memory_index_repairs` 等是 APP_STORAGE，可直访（见 [kernel-boundary.md](kernel-boundary.md)）。
 
 ## 相关验证脚本

@@ -101,7 +101,7 @@ flowchart LR
 
 | 字段 | 默认 | 环境变量 |
 |---|---|---|
-| `filesystem_allowed_dirs` | `""` | `FILESYSTEM_ALLOWED_DIRS`（逗号分隔；空为默认：项目根 + 家目录） |
+| `filesystem_allowed_dirs` | `""` | `FILESYSTEM_ALLOWED_DIRS`（逗号分隔；空为默认：仅项目根，不含家目录） |
 | `filesystem_protected_paths` | `""` | `FILESYSTEM_PROTECTED_PATHS`（额外保护路径，追加到默认） |
 
 默认保护路径含 `kernel/`、`policy`、`taint.py`、`.env*`、`.git/`（见 [`coding_rules.md`](../../backend/prompts/coding_rules.md)）。变更需重启后端生效。

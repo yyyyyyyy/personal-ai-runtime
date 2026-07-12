@@ -57,9 +57,11 @@ flowchart TB
 1. **静态策略种子** — [`backend/capability_policy.json`](../../backend/capability_policy.json) 在启动时由 `capability_governance.seed_from_json(kernel)` 注入为 `PolicyCreated` 事件（[`main.py`](../../backend/app/main.py)）。该 JSON 仅是种子，投影表 `policy_events` 才是权威。
 
    当前策略：
-   - **auto_allow**（28 个只读/搜索/观察工具）：`read_file`、`web_search`、`list_calendar_events`、`check_inbox`、`git_status`/`log`/`diff`、`computer_screenshot`/`move`/`scroll`、`voice_tts`/`stt` 等。
-   - **needs_user**（9 个变更工具，需审批）：`apply_patch`、`write_file`、`add_calendar_event`、`send_email`、`shell_exec`、`telegram_send`、`computer_click`/`type`/`key`。
+   - **auto_allow**（只读/搜索/观察工具）：`read_file`、`web_search`、`list_calendar_events`、`check_inbox`、`git_status`/`log`/`diff`、`computer_screen_size`、`voice_tts`/`stt` 等。
+   - **needs_user**（变更工具，需审批）：`apply_patch`、`write_file`、`add_calendar_event`、`send_email`、`shell_exec`、`telegram_send`、全部 `computer_*` 控制类工具（click/type/move/scroll/key/screenshot）。
    - **forbidden**：空。
+
+   > **权威性**：`policy_events` 是 3-gate 治理查询的唯一事实来源；`ToolDef.requires_confirmation`（[`mcp_hub.py`](../../backend/app/core/harness/mcp_hub.py)）仅是缺少策略行时的兜底默认。两者一致性由 [`scripts/check_capability_policy_consistency.py`](../../backend/scripts/check_capability_policy_consistency.py) 在 CI 中强制。
 
 2. **外部 MCP 工具** — `register_external_tool(name, risk)` 在工具发现时发出 `PolicyCreated`/`Updated`；`clear_external_tools()` 发出 `PolicyRevoked`。MCP 工具的默认风险由 [`backend/mcp_config.json`](../../backend/mcp_config.json) 的 `policy_default` 字段决定。
 
@@ -90,7 +92,7 @@ flowchart TB
 
 ## 敏感操作路由
 
-[`backend/app/core/runtime/sensitive_router.py`](../../backend/app/core/runtime/sensitive_router.py) 用启发式判定敏感操作：写工具永远敏感；正则匹配 password/api_key/secret/token、`.pem`/`.key`/`.env` 文件、家目录路径。`sensitive_router.elevated_risk(name, args)` 返回 `"high"` 或空。
+[`backend/app/core/runtime/capability_governance.py`](../../backend/app/core/runtime/capability_governance.py) 末尾的 `SensitiveRouter` 用启发式判定敏感操作：写工具永远敏感；正则匹配 password/api_key/secret/token、`.pem`/`.key`/`.env` 文件、家目录路径。`sensitive_router.elevated_risk(name, args)` 返回 `"high"` 或空（由原 `sensitive_router.py` 折叠而来）。
 
 ## 身份与执行归属
 

@@ -13,9 +13,17 @@ def _parse_path_list(raw: str, default: list[str]) -> list[str]:
 
 
 def default_allowed_dirs() -> list[str]:
+    """Default read/write root.
+
+    Previously this included ``Path.home()`` so the model could roam the
+    entire user directory by default. That expanded the readable surface to
+    include any file under ``$HOME`` (browser profiles, dotfiles, …) once a
+    user confirmed a single request. Reads of user files should be opt-in:
+    set ``FILESYSTEM_ALLOWED_DIRS`` to add directories explicitly.
+    """
     return _parse_path_list(
         settings.filesystem_allowed_dirs,
-        [str(BASE_DIR.resolve()), str(Path.home())],
+        [str(BASE_DIR.resolve())],
     )
 
 
@@ -187,10 +195,26 @@ class FilesystemServer:
                 })
         return None
 
-    def read_file(self, path: str, max_lines: int = 500) -> str:
-        """Read a text file with safety check."""
+    def _read_denied(self, path: str) -> str | None:
+        """Return an error JSON string if ``path`` must not be read, else None.
+
+        Read paths are gated by BOTH the allowed-dirs boundary (``_is_safe``)
+        and the protected set (``_is_protected``). Previously reads only
+        checked ``_is_safe``, which — combined with ``Path.home()`` being in
+        the default allowed list — meant a single user confirmation could let
+        the model read ``~/.ssh/id_rsa`` or ``.env`` files.
+        """
         if not self._is_safe(path):
             return json.dumps({"error": "Access denied: path outside allowed directories"})
+        if self._is_protected(path):
+            return json.dumps({"error": "Access denied: protected path"})
+        return None
+
+    def read_file(self, path: str, max_lines: int = 500) -> str:
+        """Read a text file with safety check."""
+        denied = self._read_denied(path)
+        if denied:
+            return denied
 
         p = Path(path).expanduser().resolve()
         if not p.exists():
@@ -285,8 +309,9 @@ class FilesystemServer:
 
     def list_directory(self, path: str, pattern: str | None = None) -> str:
         """List directory contents with optional glob pattern."""
-        if not self._is_safe(path):
-            return json.dumps({"error": "Access denied: path outside allowed directories"})
+        denied = self._read_denied(path)
+        if denied:
+            return denied
 
         p = Path(path).expanduser().resolve()
         if not p.exists():
@@ -302,6 +327,10 @@ class FilesystemServer:
 
             items = []
             for item in sorted(items_iter):
+                # Skip protected entries so the model cannot enumerate
+                # sensitive locations (e.g. ~/.ssh contents).
+                if self._is_protected(str(item)):
+                    continue
                 try:
                     stat = item.stat()
                     items.append({
@@ -323,8 +352,9 @@ class FilesystemServer:
 
     def search_files(self, path: str, query: str) -> str:
         """Search for files matching a name query."""
-        if not self._is_safe(path):
-            return json.dumps({"error": "Access denied: path outside allowed directories"})
+        denied = self._read_denied(path)
+        if denied:
+            return denied
 
         p = Path(path).expanduser().resolve()
         if not p.is_dir():
@@ -333,6 +363,8 @@ class FilesystemServer:
         results: list[dict[str, str]] = []
         try:
             for item in p.rglob(f"*{query}*"):
+                if self._is_protected(str(item)):
+                    continue
                 if len(results) >= 50:
                     break
                 results.append({

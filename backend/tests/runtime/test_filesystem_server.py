@@ -245,3 +245,103 @@ def test_write_to_normal_file_under_allowed_still_works(
     target = allowed / "normal.txt"
     result = json.loads(fs_server.write_file(str(target), "ok"))
     assert result["success"] is True
+
+
+def test_read_protected_path_rejected(fs_server: FilesystemServer, tmp_path: Path):
+    """read_file must refuse protected paths, not just out-of-bounds paths.
+
+    Previously read_file only checked _is_safe, so a protected file inside an
+    allowed dir (e.g. ~/.ssh/id_rsa when home was allowed) was readable.
+    """
+    allowed = tmp_path / "allowed"
+    secret_dir = allowed / "secrets"
+    secret_dir.mkdir()
+    secret = secret_dir / "id_rsa"
+    secret.write_text("PRIVATE", encoding="utf-8")
+
+    server = FilesystemServer(
+        allowed_dirs=[str(allowed)],
+        protected_paths=[str(secret_dir)],
+    )
+    result = json.loads(server.read_file(str(secret)))
+    assert "error" in result
+    assert "protected" in result["error"].lower()
+
+
+def test_read_env_file_rejected(fs_server: FilesystemServer, tmp_path: Path):
+    """.env files are protected on read as well as write (any directory)."""
+    allowed = tmp_path / "allowed"
+    env = allowed / ".env"
+    env.write_text("SECRET=1", encoding="utf-8")
+
+    # Default protected_paths includes _is_env_secret_file for .env in any dir.
+    server = FilesystemServer(allowed_dirs=[str(allowed)])
+    result = json.loads(server.read_file(str(env)))
+    assert "error" in result
+    assert "protected" in result["error"].lower()
+
+
+def test_list_directory_skips_protected_entries(
+    fs_server: FilesystemServer, tmp_path: Path,
+):
+    """list_directory must not enumerate contents of a protected subdir."""
+    allowed = tmp_path / "allowed"
+    ssh_dir = allowed / ".ssh"
+    ssh_dir.mkdir()
+    (ssh_dir / "id_rsa").write_text("PRIVATE", encoding="utf-8")
+    normal = allowed / "ok.txt"
+    normal.write_text("hi", encoding="utf-8")
+
+    server = FilesystemServer(
+        allowed_dirs=[str(allowed)],
+        protected_paths=[str(ssh_dir)],
+    )
+    result = json.loads(server.list_directory(str(allowed)))
+    names = [item["name"] for item in result["items"]]
+    assert "ok.txt" in names
+    assert ".ssh" not in names, "protected subdir must be hidden from listing"
+
+
+def test_search_files_skips_protected_entries(
+    fs_server: FilesystemServer, tmp_path: Path,
+):
+    """search_files must not return protected files."""
+    allowed = tmp_path / "allowed"
+    ssh_dir = allowed / ".ssh"
+    ssh_dir.mkdir()
+    key = ssh_dir / "id_rsa"
+    key.write_text("PRIVATE", encoding="utf-8")
+    normal = allowed / "id_rsa_template.txt"
+    normal.write_text("template", encoding="utf-8")
+
+    server = FilesystemServer(
+        allowed_dirs=[str(allowed)],
+        protected_paths=[str(ssh_dir)],
+    )
+    result = json.loads(server.search_files(str(allowed), "id_rsa"))
+    paths = [r["name"] for r in result["results"]]
+    assert "id_rsa_template.txt" in paths
+    assert "id_rsa" not in paths, "protected file must be hidden from search"
+
+
+def test_default_allowed_dirs_excludes_home(monkeypatch):
+    """The default allowed_dirs no longer includes Path.home().
+
+    Previously home was included by default, exposing dotfiles/secrets. Now
+    only the project root is allowed unless FILESYSTEM_ALLOWED_DIRS is set.
+    """
+    monkeypatch.setattr(
+        "app.core.harness.builtin_tools.filesystem.settings.filesystem_allowed_dirs",
+        "",
+    )
+    from pathlib import Path as _Path
+
+    from app.config import BASE_DIR
+    from app.core.harness.builtin_tools.filesystem import default_allowed_dirs
+
+    dirs = default_allowed_dirs()
+    assert str(_Path(BASE_DIR).resolve()) in [_Path(d).resolve().as_posix() for d in dirs] or \
+           str(_Path(BASE_DIR).resolve()) in dirs
+    home = str(_Path.home().resolve())
+    assert home not in [_Path(d).resolve().as_posix() for d in dirs], \
+        "home directory must NOT be in the default allowed list"

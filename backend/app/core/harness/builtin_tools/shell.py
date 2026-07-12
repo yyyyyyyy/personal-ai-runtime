@@ -7,24 +7,36 @@ import re
 import shlex
 import subprocess
 import sys
+from pathlib import Path
 
+from app.config import BASE_DIR, settings
 from app.core.harness.url_safety import UnsafeUrlError, validate_http_url
 
 
 class ShellServer:
-    """Safe shell command execution with whitelist enforcement."""
+    """Safe shell command execution with whitelist enforcement.
+
+    Two tiers of commands keep the default attack surface small while letting
+    operators opt into riskier tools:
+
+    * ``ALLOWED_COMMANDS`` — read-only / development commands enabled by
+      default (ls, cat, git, python, npm, …).
+    * ``_EXTENDED_COMMANDS`` — high-risk commands (rm, chmod, ssh, gpg,
+      package managers, process killers, mount, …) that require explicit
+      opt-in via ``settings.shell_extra_commands``.
+    """
 
     ALLOWED_COMMANDS = [
         # System info
         "echo", "date", "whoami", "hostname", "uname",
-        # Shell basics
+        # Shell basics (read-heavy; rm/chmod/chown are extended)
         "ls", "dir", "pwd", "cd", "cat", "head", "tail", "wc", "touch",
-        "mkdir", "cp", "mv", "rm", "chmod", "chown", "ln",
-        # Process management
-        "ps", "top", "kill", "killall", "pgrep", "pkill", "lsof",
-        # Disk & memory
-        "df", "du", "free", "vm_stat", "mount", "umount",
-        # Network
+        "mkdir", "cp", "mv", "ln",
+        # Process inspection (kill/killall/pkill are extended)
+        "ps", "top", "pgrep", "lsof",
+        # Disk & memory (read-only; mount/umount are extended)
+        "df", "du", "free", "vm_stat",
+        # Network inspection
         "ping", "traceroute", "ifconfig", "ipconfig", "ss", "netstat",
         "dig", "nslookup", "host", "whois",
         # Python
@@ -33,8 +45,6 @@ class ShellServer:
         "node", "npm", "npx", "yarn", "pnpm",
         # Git
         "git",
-        # System package managers
-        "brew", "apt", "apt-get", "dpkg", "rpm", "snap",
         # Compression
         "tar", "gzip", "gunzip", "zip", "unzip",
         # Text processing
@@ -44,9 +54,21 @@ class ShellServer:
         "jq", "yq",
         # System state
         "env", "export", "source", "which", "type",
-        # GPG / SSH
-        "gpg", "ssh", "ssh-keygen", "ssh-add",
     ]
+
+    # High-risk commands — only enabled when listed in SHELL_EXTRA_COMMANDS.
+    _EXTENDED_COMMANDS = frozenset({
+        # Destructive file ops
+        "rm", "chmod", "chown",
+        # Process management
+        "kill", "killall", "pkill",
+        # Filesystem mount
+        "mount", "umount",
+        # System package managers (can install anything)
+        "brew", "apt", "apt-get", "dpkg", "rpm", "snap",
+        # Crypto / remote access (key material, remote shells)
+        "gpg", "ssh", "ssh-keygen", "ssh-add",
+    })
 
     # Shell metacharacters — never pass to a shell.
     # && is handled separately by _split_and_execute; all other metacharacters
@@ -56,6 +78,52 @@ class ShellServer:
     # Commands that escalate privileges — rejected at argv level (not substring
     # matching, which would false-positive on "pseudo", "subl", "summarize").
     _PRIVILEGE_ESCALATION_COMMANDS = frozenset({"sudo", "su", "doas"})
+
+    def __init__(self) -> None:
+        # Effective whitelist = safe default + opt-in extended commands.
+        # Only commands that are actually in _EXTENDED_COMMANDS are honoured,
+        # so the env var cannot smuggle in arbitrary names.
+        enabled_extra = self._parse_extra_commands(settings.shell_extra_commands)
+        self._effective_whitelist = set(self.ALLOWED_COMMANDS) | (
+            self._EXTENDED_COMMANDS & enabled_extra
+        )
+        # Directories the shell tool may use as cwd. Default to the project
+        # root so commands cannot roam the filesystem by setting cwd.
+        self.allowed_cwd_dirs = self._parse_cwd_dirs(settings.shell_allowed_cwd)
+
+    @staticmethod
+    def _parse_extra_commands(raw: str) -> set[str]:
+        if not raw.strip():
+            return set()
+        return {c.strip() for c in raw.split(",") if c.strip()}
+
+    @staticmethod
+    def _parse_cwd_dirs(raw: str) -> list[str]:
+        if not raw.strip():
+            return [str(Path(BASE_DIR).resolve())]
+        dirs: list[str] = []
+        for item in raw.split(","):
+            item = item.strip()
+            if item:
+                dirs.append(str(Path(item).expanduser().resolve()))
+        return dirs
+
+    def _validate_cwd(self, cwd: str) -> str | None:
+        """Return error message if ``cwd`` is outside the allowed directories."""
+        if not cwd:
+            return None  # caller will fall back to BASE_DIR
+        try:
+            target = Path(cwd).expanduser().resolve()
+        except Exception:
+            return f"Invalid cwd: {cwd}"
+        for allowed in self.allowed_cwd_dirs:
+            base = Path(allowed).resolve()
+            if target == base or target.is_relative_to(base):
+                return None
+        return (
+            f"Access denied: cwd '{cwd}' outside allowed directories. "
+            f"Allowed: {', '.join(self.allowed_cwd_dirs)}"
+        )
 
     def _split_chained_commands(self, command: str) -> list[str]:
         """Split a chained command (cmd1 && cmd2) into individual commands."""
@@ -121,10 +189,10 @@ class ShellServer:
         if destructive:
             return f"Blocked pattern detected: '{destructive}'"
 
-        if cmd_name not in self.ALLOWED_COMMANDS:
+        if cmd_name not in self._effective_whitelist:
             return (
                 f"Command '{cmd_name}' not in whitelist. "
-                f"Allowed: {', '.join(self.ALLOWED_COMMANDS[:10])}..."
+                f"Allowed: {', '.join(sorted(self._effective_whitelist)[:10])}..."
             )
 
         dangerous = self.DANGEROUS_FLAGS.get(cmd_name)
@@ -212,6 +280,13 @@ class ShellServer:
         if err:
             return json.dumps({"error": err})
 
+        # Constrain cwd to the allowed directories; default to BASE_DIR when
+        # unset so commands cannot run in an arbitrary location.
+        cwd_err = self._validate_cwd(cwd)
+        if cwd_err:
+            return json.dumps({"error": cwd_err})
+        effective_cwd = cwd or self.allowed_cwd_dirs[0]
+
         try:
             result = subprocess.run(
                 parsed,
@@ -219,7 +294,7 @@ class ShellServer:
                 capture_output=True,
                 text=True,
                 timeout=timeout_seconds,
-                cwd=cwd or None,
+                cwd=effective_cwd,
             )
             output = result.stdout or result.stderr
             return json.dumps({
@@ -236,8 +311,8 @@ class ShellServer:
             return json.dumps({"error": str(e)})
 
     def get_allowed_commands(self) -> str:
-        """List all allowed shell commands."""
-        return json.dumps({"allowed_commands": self.ALLOWED_COMMANDS})
+        """List all allowed shell commands (safe default + opted-in extended)."""
+        return json.dumps({"allowed_commands": sorted(self._effective_whitelist)})
 
 
 shell_server = ShellServer()
