@@ -216,8 +216,8 @@ def app(tmp_path, monkeypatch):
     # modules that carry @subscribe to force re-registration.
     import app.core.agents.handlers.chat_handler as _ch
     importlib.reload(_ch)
-    import app.core.agents.handlers as _mvp
-    importlib.reload(_mvp)
+    import app.core.agents.handlers as _handlers
+    importlib.reload(_handlers)
     importlib.reload(app.core.runtime.agent_scheduler)
     importlib.reload(app.main)
 

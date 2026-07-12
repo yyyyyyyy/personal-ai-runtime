@@ -46,7 +46,7 @@ from app.core.runtime.work_item import ExecutionPolicy  # noqa: E402
 
 _fail_rates: dict[str, float] = {}
 
-# 用一个独特的 event type，避免和 mvp/planner_agent 的 TaskCreated 冲突。
+# 用一个独特的 event type，避免和其他 handler 的 TaskCreated 冲突。
 # 但 Scheduler 只认 handler_registry 里的注册，所以我们用自己的 type。
 SOAK_EVENT_TYPE = "SoakTrigger"
 

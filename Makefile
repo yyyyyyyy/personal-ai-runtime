@@ -54,8 +54,6 @@ test-e2e:
 lint:
 	cd $(BACKEND_DIR) && ruff check app/
 
-AGENTS_MYPY := app/core/agents/brain.py app/core/agents/conversation.py app/core/agents/llm_failover.py app/core/agents/memory_engine.py app/core/agents/memory_extractor.py
-
 typecheck:
 	cd $(BACKEND_DIR) && mypy app/ scripts/ --ignore-missing-imports
 

@@ -266,7 +266,7 @@ async def on_bg_task_requested(ctx: "ExecutionContext", event: "Event") -> None:
 
 @subscribe("InboxPollRequested")
 async def on_inbox_poll_requested(ctx: "ExecutionContext", event: "Event") -> None:
-    """Poll unread inbox via Scheduler (was direct invoke_capability bypass)."""
+    """Poll unread inbox via Scheduler under capability governance."""
     from app.core.runtime.kernel_instance import kernel
 
     limit = event.payload.get("limit", 20)
