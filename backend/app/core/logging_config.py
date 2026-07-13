@@ -17,7 +17,7 @@ def configure_logging(level: int = logging.INFO) -> None:
             structlog.contextvars.merge_contextvars,
             _request_id_processor,
             structlog.processors.add_log_level,
-            structlog.processors.TimeStamper(fmt="iso"),
+            structlog.processors.TimeStamper(fmt="iso", utc=False),
             structlog.processors.StackInfoRenderer(),
             structlog.processors.format_exc_info,
             structlog.dev.ConsoleRenderer(),
@@ -29,7 +29,8 @@ def configure_logging(level: int = logging.INFO) -> None:
     )
 
     logging.basicConfig(
-        format="%(message)s",
+        format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+        datefmt="%Y-%m-%dT%H:%M:%S",
         stream=sys.stderr,
         level=level,
     )
