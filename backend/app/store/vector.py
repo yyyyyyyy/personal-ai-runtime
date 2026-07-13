@@ -18,7 +18,7 @@ else:
     def _safe_capture(*args: Any, **kwargs: Any) -> None:
         return None
 
-    posthog.capture = _safe_capture
+    posthog.capture = _safe_capture  # type: ignore[assignment]
 
 import chromadb  # noqa: E402
 from chromadb.config import Settings as ChromaSettings  # noqa: E402

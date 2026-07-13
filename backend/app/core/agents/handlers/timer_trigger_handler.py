@@ -22,10 +22,10 @@ async def _call_product(
 ) -> None:
     """Dispatch timer handler_name to the appropriate product function."""
     payload = payload or {}
-    from datetime import UTC, datetime, timedelta
+    from datetime import UTC, datetime, timedelta, tzinfo
     from zoneinfo import ZoneInfo
     try:
-        tz = ZoneInfo(settings.timezone)
+        tz: tzinfo = ZoneInfo(settings.timezone)
     except Exception:
         tz = UTC
 

@@ -73,9 +73,10 @@ def _on_task_completed(event):
 
 def _deadline_target_dates() -> set:
     """Return the set of dates (local) that trigger deadline alerts."""
+    from datetime import tzinfo
     from zoneinfo import ZoneInfo
     try:
-        tz = ZoneInfo(settings.timezone)
+        tz: tzinfo = ZoneInfo(settings.timezone)
     except Exception:
         tz = UTC
     today = datetime.now(tz).date()

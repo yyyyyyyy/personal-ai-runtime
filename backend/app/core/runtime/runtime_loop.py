@@ -169,11 +169,11 @@ class RuntimeLoop:
     @staticmethod
     def _next_cron_fire(cron_expr: str, from_ts=None) -> str:
         """Calculate the next fire time for a cron expression."""
-        from datetime import UTC, datetime, timedelta
+        from datetime import UTC, datetime, timedelta, tzinfo
         from zoneinfo import ZoneInfo
 
         try:
-            tz = ZoneInfo(settings.timezone)
+            tz: tzinfo = ZoneInfo(settings.timezone)
         except Exception:
             tz = UTC
 
