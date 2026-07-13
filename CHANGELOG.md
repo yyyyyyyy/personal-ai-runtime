@@ -4,6 +4,19 @@ All notable changes to Personal AI Runtime are documented here.
 
 Format follows [Keep a Changelog](https://keepachangelog.com/). Version numbers match [`backend/app/version.py`](backend/app/version.py).
 
+## [Unreleased]
+
+### Changed
+
+- Split `read_ports.py` into a domain-scoped `read_ports/` package (backward-compatible re-exports)
+- Knowledge API no longer imports `app.store` directly; document CRUD/search lives in `product/knowledge.py`
+- Boundary guard: fail if `app/api/` imports `app.store`
+- `VectorStore` reads `settings.vector_dir` at construction time so `reset_settings()` in tests takes effect
+
+### Fixed
+
+- Remove root-level debug dump `full_chat.txt` from the working tree
+
 ## [0.2.0]
 
 ### Added

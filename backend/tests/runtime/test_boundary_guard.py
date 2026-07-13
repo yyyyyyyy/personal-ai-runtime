@@ -77,6 +77,23 @@ class TestBoundaryGuard:
         finally:
             sys.path.pop(0)
 
+    def test_violation_detected_api_store_import(self, tmp_path):
+        fake_app = tmp_path / "app" / "api"
+        fake_app.mkdir(parents=True)
+        bad_file = fake_app / "leak.py"
+        bad_file.write_text("from app.store.vector import vector_store\n", encoding="utf-8")
+
+        sys.path.insert(0, str(BACKEND))
+        try:
+            from scripts.check_boundary import scan_app_root
+
+            violations = scan_app_root(tmp_path / "app")
+            assert len(violations) == 1
+            assert violations[0][3] == "app.store"
+            assert violations[0][4] == "api_store_import"
+        finally:
+            sys.path.pop(0)
+
     def test_violation_detected_dml_write(self, tmp_path):
         fake_app = tmp_path / "app" / "api" / "evil"
         fake_app.mkdir(parents=True)

@@ -74,6 +74,7 @@ class TestRecallUnified:
         import app.store.vector as vmod
         original = vmod.vector_store
         vmod.vector_store = FakeVector()
+        monkeypatch.setattr("app.core.runtime.kernel_instance.kernel", k)
         try:
             results = read_ports.recall_unified("ownership", k_memories=3, k_knowledge=3)
         finally:
@@ -115,6 +116,7 @@ class TestRecallUnified:
 
     def test_empty_results_when_nothing_matches(self, tmp_path, monkeypatch):
         k, _ = make_kernel(tmp_path)
+        monkeypatch.setattr("app.core.runtime.kernel_instance.kernel", k)
 
         import app.store.vector as vmod
         original = vmod.vector_store
@@ -132,6 +134,7 @@ class TestRecallUnified:
     def test_tolerates_vector_store_failure(self, tmp_path, monkeypatch):
         """If one collection throws, the other's results still surface."""
         k, _ = make_kernel(tmp_path)
+        monkeypatch.setattr("app.core.runtime.kernel_instance.kernel", k)
 
         class FlakeyVector:
             def search_memories(self, query, n_results=5):

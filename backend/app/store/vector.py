@@ -24,8 +24,6 @@ import chromadb  # noqa: E402
 from chromadb.config import Settings as ChromaSettings  # noqa: E402
 from chromadb.utils.embedding_functions import DefaultEmbeddingFunction  # noqa: E402
 
-from app.config import settings  # noqa: E402
-
 # Pin the same default ONNX MiniLM L6 v2 path Chroma 0.5.x / 1.x ships so
 # upgrades do not silently switch embedding models or dimensions.
 # Typed as Any: chromadb stubs expect a broader EmbeddingFunction protocol than
@@ -37,6 +35,9 @@ class VectorStore:
     """Manages ChromaDB collections for memory and knowledge embeddings."""
 
     def __init__(self):
+        # Resolve settings at call time so test reset_settings() takes effect.
+        from app.config import settings
+
         self.client = chromadb.PersistentClient(
             path=settings.vector_dir,
             settings=ChromaSettings(anonymized_telemetry=False),

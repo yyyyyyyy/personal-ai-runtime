@@ -23,6 +23,10 @@ backend/backend/
 *.sqlite3
 *.sqlite
 
+# Local debug dumps
+full_chat.txt
+*.chat.txt
+
 # Node
 node_modules/
 frontend/dist/

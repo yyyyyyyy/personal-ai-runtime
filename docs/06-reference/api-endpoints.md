@@ -155,7 +155,7 @@
 
 ## knowledge — `/api/knowledge`（[`api/knowledge.py`](../../backend/app/api/knowledge.py)）
 
-`MAX_FILE_SIZE=10MB`，`ALLOWED_EXTENSIONS={.pdf,.md,.txt,.markdown,.json,.csv}`（[`knowledge.py`](../../backend/app/api/knowledge.py)）。元数据存 `app_settings`（`category='knowledge_docs'`），向量化入 ChromaDB。
+`MAX_FILE_SIZE=10MB`，`ALLOWED_EXTENSIONS={.pdf,.md,.txt,.markdown,.json,.csv,.docx}`（[`product/knowledge.py`](../../backend/app/product/knowledge.py)）。元数据存 `app_settings`（`category='knowledge_docs'`），向量化入 ChromaDB。
 
 | 方法 | 路径 | 行 | 请求 | 响应 | 副作用 |
 |---|---|---|---|---|---|

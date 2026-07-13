@@ -266,7 +266,7 @@ async def get_memory_graph(limit: int = 50):
     sources = candidates[:_MAX_EDGE_QUERY_SOURCES]
 
     try:
-        edges = await asyncio.to_thread(_build_memory_graph_edges, sources)
+        edges = await asyncio.to_thread(read_ports.build_memory_graph_edges, sources)
     except Exception:
         import logging
         logging.getLogger(__name__).warning(
@@ -276,38 +276,3 @@ async def get_memory_graph(limit: int = 50):
         edges = []
 
     return {"nodes": nodes, "edges": edges}
-
-
-def _build_memory_graph_edges(sources: list[dict]) -> list[dict]:
-    """Build similarity edges via one batched vector query (sync, for to_thread)."""
-    from app.store.vector import vector_store
-
-    if not sources:
-        return []
-
-    query_texts = [m.get("content", "") for m in sources]
-    batches = vector_store.search_memories_batch(query_texts, n_results=5)
-
-    edges: list[dict] = []
-    edge_set: set[tuple[str, str]] = set()
-
-    for mem, similar in zip(sources, batches, strict=False):
-        mem_id = mem.get("id", "")
-        for hit in similar:
-            other_id = hit.get("id", "")
-            if other_id == mem_id or not other_id:
-                continue
-            edge_key = tuple(sorted([mem_id, other_id]))
-            if edge_key in edge_set:
-                continue
-            edge_set.add(edge_key)
-            distance = hit.get("distance", 1.0) or 1.0
-            weight = max(0.1, 1.0 - float(distance))
-            edges.append({
-                "source": mem_id,
-                "target": other_id,
-                "weight": round(weight, 2),
-            })
-
-    edges.sort(key=lambda e: e["weight"], reverse=True)
-    return edges[:100]

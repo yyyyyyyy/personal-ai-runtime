@@ -120,7 +120,7 @@ connectors, timeline, knowledge, work_items
 
 绝大多数 router 通过 Kernel ABI。例外（直访 `db.get_db()` 或文件，但都在 APP_STORAGE 范围）：
 
-- [`knowledge.py`](../../backend/app/api/knowledge.py) — 文件 + ChromaDB + `app_settings`
+- [`knowledge.py`](../../backend/app/product/knowledge.py) — 文档注册表 + Chroma；[`api/knowledge.py`](../../backend/app/api/knowledge.py) 仅做 HTTP 适配
 - [`connectors.py`](../../backend/app/api/connectors.py) 的 install/uninstall — 写 [`mcp_config.json`](../../backend/mcp_config.json)
 - [`inbox.py`](../../backend/app/api/inbox.py) 内部 `product/inbox.py` — 直访 `inbox_emails`（APP_STORAGE）
 

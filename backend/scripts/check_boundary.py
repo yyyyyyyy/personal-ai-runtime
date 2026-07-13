@@ -5,6 +5,7 @@ Scans Python files under app/ (User Space) and fails if code bypasses Kernel:
   - INSERT/UPDATE/DELETE on governed projection tables
   - SELECT from governed projection tables
   - imports app.core.harness.mcp_hub (except Kernel + harness)
+  - app/api/ imports of app.store (must go through product/ or read_ports)
 
 Known historical violations are allowlisted so CI blocks *new* bypasses only.
 Shrink the allowlist as violations are fixed (target: empty).
@@ -47,6 +48,10 @@ MCP_HUB_IMPORT_PATTERN = re.compile(
     r"^\s*(?:from\s+app\.core\.harness\.mcp_hub\s+import|import\s+app\.core\.harness\.mcp_hub)\b",
     re.MULTILINE,
 )
+API_STORE_IMPORT_PATTERN = re.compile(
+    r"^\s*(?:from\s+app\.store(?:\.\w+)*\s+import|import\s+app\.store(?:\.\w+)*)\b",
+    re.MULTILINE,
+)
 
 # Violation key: (posix path under app/, line number, kind, target table/module)
 ViolationKey = tuple[str, int, str, str]
@@ -68,12 +73,13 @@ def _capability_subsystem_file(rel: Path) -> bool:
     """Files allowed to import mcp_hub."""
     if _is_kernel_space(rel) or _is_harness(rel):
         return True
+    if rel.parts[:2] == ("core", "runtime") and rel.parts[2:3] == ("read_ports",):
+        return True  # Fragment-facing read abstractions (package)
     return rel in {
         Path("core/runtime/capability_governance.py"),  # includes SensitiveRouter
         Path("core/runtime/capability_decision.py"),  # ADR-0007 Step 9: CapabilityGateway (deprecated v0.4.0)
         Path("core/runtime/capability_governance.py"),  # v0.4.0: merged governance
         Path("core/runtime/runtime_container.py"),  # v0.5.0: DI container for all subsystems
-        Path("core/runtime/read_ports.py"),  # Fragment-facing read abstractions
     }
 
 
@@ -99,6 +105,10 @@ def _in_scan_scope(rel: Path) -> bool:
     return not _is_kernel_space(rel) and not _is_store_layer(rel) and not _is_app_storage_file(rel)
 
 
+def _is_api_layer(rel: Path) -> bool:
+    return rel.parts[:1] == ("api",)
+
+
 def scan_app_root(app_root: Path) -> list[tuple[Path, int, str, str, str]]:
     """Return violations as (path, line_no, line, target, kind)."""
     violations: list[tuple[Path, int, str, str, str]] = []
@@ -116,6 +126,12 @@ def scan_app_root(app_root: Path) -> list[tuple[Path, int, str, str, str]]:
                 line_no = text.count("\n", 0, match.start()) + 1
                 line = text.splitlines()[line_no - 1].strip()
                 violations.append((rel, line_no, line, "mcp_hub", "import"))
+
+        if _is_api_layer(rel) and API_STORE_IMPORT_PATTERN.search(text):
+            for match in API_STORE_IMPORT_PATTERN.finditer(text):
+                line_no = text.count("\n", 0, match.start()) + 1
+                line = text.splitlines()[line_no - 1].strip()
+                violations.append((rel, line_no, line, "app.store", "api_store_import"))
 
         for lineno, line in enumerate(text.splitlines(), start=1):
             write_match = DML_WRITE_PATTERN.search(line)
