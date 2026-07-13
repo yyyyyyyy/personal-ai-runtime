@@ -12,7 +12,7 @@ def test_list_empty_documents(client: TestClient):
 
 
 def test_search_empty(client: TestClient):
-    r = client.post("/api/knowledge/search?query=test&n_results=3", content="")
+    r = client.get("/api/knowledge/search?query=test&n_results=3")
     assert r.status_code == 200
     data = r.json()
     assert "results" in data
@@ -75,7 +75,7 @@ def test_search_with_results(client: TestClient):
     client.post("/api/knowledge/upload", files={
         "file": ("search_test.txt", io.BytesIO(b"Machine learning is a subset of artificial intelligence."), "text/plain"),
     })
-    r = client.post("/api/knowledge/search?query=machine+learning&n_results=3", content="")
+    r = client.get("/api/knowledge/search?query=machine+learning&n_results=3")
     assert r.status_code == 200
     data = r.json()
     assert data["total"] >= 1

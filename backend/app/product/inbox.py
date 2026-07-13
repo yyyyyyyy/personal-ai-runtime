@@ -310,10 +310,14 @@ async def mark_inbox_email_status(email_id: str, status: str) -> dict | None:
     # Sync to IMAP when marking as read/handled. Fail closed so the next poll
     # does not flip a local "read" back to pending after a failed IMAP STORE.
     if status in ("read", "handled") and row.get("status") == "pending":
+        from app.core.runtime.execution import get_current_execution_id
+
         try:
             cap_res = await kernel.invoke_capability(
                 "mark_inbox_email_read",
                 {"message_id": email_id},
+                actor="user",
+                execution_id=get_current_execution_id(),
             )
         except Exception as exc:
             logger.warning("Failed to sync read status to IMAP for %s: %s", email_id, exc)

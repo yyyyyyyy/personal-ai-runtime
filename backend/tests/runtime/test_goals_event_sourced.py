@@ -49,9 +49,8 @@ class TestGoalsEventSourced:
         assert by_id_before["g1"]["title"] == "Task A2"
         assert by_id_before["g1"]["progress"] == 0.5
         assert by_id_before["g2"]["status"] == "completed"  # v1.0: WorkItemCreated with status=completed writes directly
-        # v1.0: progress derived from children; standalone goals start at 0 unless
-        # children are completed. The test goal has no children, so progress=0.
-        assert by_id_before["g2"]["progress"] == 0.0
+        # v1.0: completing a goal sets progress=1.0 via the status projector.
+        assert by_id_before["g2"]["progress"] == 1.0
 
         # ---- Rebuild & verify byte-identical State ----
         replayed = k.rebuild("work_item")  # v1.0: goal→work_item unification

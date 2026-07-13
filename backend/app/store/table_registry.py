@@ -102,7 +102,7 @@ GOVERNED_SCHEMA: dict[str, frozenset[str]] = {
     }),
     "timer_events": frozenset({
         "id", "handler_name", "schedule_type", "cron_expr", "delay_seconds",
-        "fire_at", "status", "created_at", "fired_at",
+        "fire_at", "status", "payload_json", "created_at", "fired_at",
     }),
     "policy_events": frozenset({
         "id", "capability", "risk_level", "status", "created_at", "updated_at",
