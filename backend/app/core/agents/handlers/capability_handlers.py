@@ -272,7 +272,7 @@ async def on_inbox_poll_requested(ctx: "ExecutionContext", event: "Event") -> No
     limit = event.payload.get("limit", 20)
     cap = await kernel.invoke_capability(
         "check_inbox",
-        {"unread_only": True, "limit": max(limit, 50)},
+        {"unread_only": True, "limit": max(limit, 100)},
         actor="scheduler",
         execution_id=ctx.execution_id,
         correlation_id=ctx.correlation_id,

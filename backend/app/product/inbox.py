@@ -146,19 +146,27 @@ def _classification_by_id(classified: list[dict]) -> dict[str, dict]:
 
 def _unread_ids_from_poll_payload(payload: dict) -> set[str]:
     """Full IMAP UNSEEN ids for read-sync; fall back to returned emails when absent."""
-    explicit = payload.get("all_unread_message_ids")
+    explicit = payload.get("all_unread_emails")
     if explicit is not None:
-        return {mid for mid in explicit if mid}
+        return {e["message_id"] for e in explicit if isinstance(e, dict) and e.get("message_id")}
+
+    # Compatibility with old all_unread_message_ids
+    legacy = payload.get("all_unread_message_ids")
+    if legacy is not None:
+        return {mid for mid in legacy if mid}
+
     emails = payload.get("emails") or []
     return {e["message_id"] for e in emails if e.get("message_id")}
 
 
-def _sync_read_status(unread_ids: set[str]) -> int:
-    """Mark pending emails as read when they no longer appear in IMAP UNSEEN.
+def _sync_unread_status(unread_ids: set[str]) -> int:
+    """Synchronize local status with IMAP UNSEEN.
 
-    v0.3.0: emits InboxEmailStatusChanged(status='read') instead of UPDATE.
+    1. pending -> read: If local is pending but not in UNSEEN.
+    2. read -> pending: If local is read but IS in UNSEEN (e.g. mistakenly marked read).
     """
     updated = 0
+    # 1. pending -> read
     pending = read_ports.query_pending_inbox_emails(limit=5000)
     for row in pending:
         email_id = row["id"]
@@ -168,6 +176,22 @@ def _sync_read_status(unread_ids: set[str]) -> int:
                 constants.AGGREGATE_INBOX_EMAIL,
                 email_id,
                 payload={"status": "read"},
+                actor="inbox",
+            )
+            updated += 1
+
+    # 2. read -> pending
+    # We only check the most recent 500 "read" emails to avoid massive queries.
+    # "handled" is an internal terminal state, we don't sync it back to pending.
+    read_emails = read_ports.query_inbox_emails(status="read", limit=500)
+    for row in read_emails:
+        email_id = row["id"]
+        if email_id in unread_ids:
+            kernel.emit_event(
+                constants.EVENT_INBOX_EMAIL_STATUS_CHANGED,
+                constants.AGGREGATE_INBOX_EMAIL,
+                email_id,
+                payload={"status": "pending"},
                 actor="inbox",
             )
             updated += 1
@@ -190,22 +214,36 @@ async def apply_inbox_poll_payload(payload: dict, *, execution_id: str | None = 
         return {"status": "error", "error": raw_error, "new_count": 0}
 
     emails = payload.get("emails") or []
+    unread_metadata = payload.get("all_unread_emails") or []
     unread_ids = _unread_ids_from_poll_payload(payload)
-    synced_read = _sync_read_status(unread_ids)
+    synced_read = _sync_unread_status(unread_ids)
     known = _existing_message_ids()
 
-    new_emails = [e for e in emails if e.get("message_id") and e["message_id"] not in known]
-    if not new_emails:
+    # Identify all emails that should be in our DB but aren't
+    # 1. Start with the "top" emails (with bodies/previews)
+    to_record = {e["message_id"]: e for e in emails if e.get("message_id") and e["message_id"] not in known}
+
+    # 2. Add any other unread emails (from all_unread_emails) if they aren't known
+    for ue in unread_metadata:
+        mid = ue.get("message_id")
+        if mid and mid not in known and mid not in to_record:
+            to_record[mid] = ue
+
+    if not to_record:
         return {"status": "ok", "new_count": 0, "notified": 0, "synced_read": synced_read}
 
-    classified = await _classify_emails(new_emails)
+    new_emails_list = list(to_record.values())
+    # Only classify the ones that have previews/bodies if there are many,
+    # but for now we try all because they are few usually.
+    # Actually, we should only classify the ones from 'emails' because others have no preview yet.
+    # Or just classify all and let them have empty reason if no body.
+    classified = await _classify_emails(new_emails_list)
     by_id = _classification_by_id(classified)
     now = datetime.now(UTC).isoformat()
     notified = 0
     stored: list[dict] = []
 
-    for em in new_emails:
-        mid = em["message_id"]
+    for mid, em in to_record.items():
         meta = by_id.get(mid, {})
         category = meta.get("category", "actionable")
         if category not in ("important", "actionable", "ignorable"):
@@ -262,12 +300,43 @@ async def apply_inbox_poll_payload(payload: dict, *, execution_id: str | None = 
     return {"status": "ok", "new_count": len(stored), "notified": notified, "synced_read": synced_read}
 
 
-def mark_inbox_email_status(email_id: str, status: str) -> dict | None:
+async def mark_inbox_email_status(email_id: str, status: str) -> dict | None:
     if status not in ("pending", "read", "handled"):
         raise ValueError(f"Invalid status: {status}")
     row = read_ports.query_inbox_email(email_id)
     if not row:
         return None
+
+    # Sync to IMAP when marking as read/handled. Fail closed so the next poll
+    # does not flip a local "read" back to pending after a failed IMAP STORE.
+    if status in ("read", "handled") and row.get("status") == "pending":
+        try:
+            cap_res = await kernel.invoke_capability(
+                "mark_inbox_email_read",
+                {"message_id": email_id},
+            )
+        except Exception as exc:
+            logger.warning("Failed to sync read status to IMAP for %s: %s", email_id, exc)
+            raise ValueError(f"IMAP 标记已读失败: {exc}") from exc
+
+        imap_ok = cap_res.get("status") == "success"
+        result_raw = cap_res.get("result")
+        if imap_ok and isinstance(result_raw, str):
+            try:
+                import json as _json
+                parsed = _json.loads(result_raw)
+                if parsed.get("error"):
+                    imap_ok = False
+                    cap_res = {**cap_res, "error": parsed["error"]}
+                elif not parsed.get("success", True):
+                    imap_ok = False
+            except Exception:
+                pass
+        if not imap_ok:
+            err = cap_res.get("error") or "unknown"
+            logger.warning("IMAP mark_read failed for %s: %s", email_id, err)
+            raise ValueError(f"IMAP 标记已读失败: {err}")
+
     kernel.emit_event(
         constants.EVENT_INBOX_EMAIL_STATUS_CHANGED,
         constants.AGGREGATE_INBOX_EMAIL,
@@ -287,7 +356,7 @@ async def poll_inbox(limit: int = 20, *, execution_id: str | None = None) -> dic
     if execution_id:
         cap = await kernel.invoke_capability(
             "check_inbox",
-            {"unread_only": True, "limit": max(limit, 50)},
+            {"unread_only": True, "limit": max(limit, 100)},
             actor="scheduler",
             execution_id=execution_id,
         )

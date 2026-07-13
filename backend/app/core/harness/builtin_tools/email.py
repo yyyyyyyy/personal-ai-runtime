@@ -120,14 +120,14 @@ class EmailServer:
         date_raw = msg.get("Date")
         return _stable_message_id(msg, from_raw, subject, date_raw)
 
-    def _fetch_unread_message_ids_connected(self, mail: imaplib.IMAP4_SSL) -> set[str]:
-        """Stable message_id for every UNSEEN message (header-only fetch)."""
+    def _fetch_unread_emails_connected(self, mail: imaplib.IMAP4_SSL) -> list[dict]:
+        """Fetch metadata (headers) for every UNSEEN message."""
         _status, message_ids = mail.search(None, "UNSEEN")
         ids = message_ids[0].split() if message_ids[0] else []
         if not ids:
-            return set()
+            return []
 
-        result: set[str] = set()
+        result: list[dict] = []
         # Batch fetch in chunks to avoid extremely long command lines
         for i in range(0, len(ids), 100):
             chunk = ids[i : i + 100]
@@ -136,10 +136,25 @@ class EmailServer:
                 id_range,
                 "(BODY.PEEK[HEADER.FIELDS (MESSAGE-ID FROM SUBJECT DATE)])",
             )
-            for response_part in msg_data:
-                if isinstance(response_part, tuple) and response_part[1]:
-                    result.add(self._message_id_from_header_bytes(response_part[1]))
+            for part in msg_data:
+                if isinstance(part, tuple) and part[1]:
+                    header_content = part[1]
+                    msg = email.message_from_bytes(header_content)
+                    from_raw = _decode_mime_header(msg.get("From"))
+                    subject = _decode_mime_header(msg.get("Subject")) or "(无主题)"
+                    date_raw = msg.get("Date")
+                    result.append({
+                        "message_id": _stable_message_id(msg, from_raw, subject, date_raw),
+                        "from": from_raw,
+                        "subject": subject,
+                        "date": _format_date(date_raw),
+                    })
         return result
+
+    def _normalize_mid(self, mid: str | None) -> str:
+        if not mid:
+            return ""
+        return mid.strip("<>").strip()
 
     def _fetch_sorted_emails_connected(
         self,
@@ -267,11 +282,9 @@ class EmailServer:
         try:
             mail = self._connect_inbox()
             try:
-                all_unread_message_ids: list[str] | None = None
+                all_unread_emails: list[dict] | None = None
                 if unread_only:
-                    all_unread_message_ids = sorted(
-                        self._fetch_unread_message_ids_connected(mail)
-                    )
+                    all_unread_emails = self._fetch_unread_emails_connected(mail)
                 emails = self._fetch_sorted_emails_connected(
                     mail, limit, unread_only, body_max=300
                 )
@@ -290,8 +303,8 @@ class EmailServer:
                 "unread_only": unread_only,
                 "emails": slim,
             }
-            if all_unread_message_ids is not None:
-                payload["all_unread_message_ids"] = all_unread_message_ids
+            if all_unread_emails is not None:
+                payload["all_unread_emails"] = all_unread_emails
             return json.dumps(payload, ensure_ascii=False)
         except imaplib.IMAP4.error as e:
             return json.dumps({"error": f"IMAP login failed: {str(e)}"})
@@ -338,35 +351,61 @@ class EmailServer:
         message_id: str | None = None,
         limit: int = 30,
         unread_only: bool = True,
+        mid: str | None = None,
     ) -> str:
         """Mark one inbox message as read (IMAP \\Seen).
 
         Prefer ``message_id`` when known; otherwise ``index`` (1=newest) within
         the same listing window used by check_inbox/read_inbox_email.
         """
-        mid = (message_id or "").strip()
-        if not mid and index is None:
+        actual_mid = (message_id or mid or "").strip()
+        if not actual_mid and index is None:
             return json.dumps({
                 "error": "Provide message_id or index (1=newest among recent mail)",
             })
+
         try:
             mail = self._connect_inbox()
             try:
+                # v1.1 Optimization: Try efficient SEARCH by Message-ID first
+                if actual_mid:
+                    # Some IMAP servers are picky about <> or quoting.
+                    # We try exact match with HEADER Message-ID.
+                    status, search_res = mail.search(None, f'HEADER Message-ID "{actual_mid}"')
+                    if status == "OK" and search_res[0]:
+                        ids = search_res[0].split()
+                        if ids:
+                            seq = ids[-1].decode()
+                            mail.store(seq, "+FLAGS", "\\Seen")
+                            return json.dumps({
+                                "success": True,
+                                "message_id": actual_mid,
+                                "method": "imap_search"
+                            }, ensure_ascii=False)
+
+                # Fallback to sorted listing (needed for index-based or if SEARCH failed)
+                search_limit = limit
+                search_unread_only = unread_only
+                if actual_mid:
+                    search_limit = max(limit, 300)
+                    search_unread_only = False
+
                 emails = self._fetch_sorted_emails_connected(
-                    mail, limit, unread_only, body_max=0
+                    mail, search_limit, search_unread_only, body_max=0
                 )
                 if not emails:
                     return json.dumps({"error": "收件箱中没有可标记的邮件"})
 
                 target = None
-                if mid:
+                if actual_mid:
+                    mid_norm = self._normalize_mid(actual_mid)
                     for em in emails:
-                        if em.get("message_id") == mid:
+                        if self._normalize_mid(em.get("message_id")) == mid_norm:
                             target = em
                             break
                     if target is None:
                         return json.dumps({
-                            "error": f"未在最近 {limit} 封中找到 message_id={mid}",
+                            "error": f"未在最近搜索范围（{search_limit} 封）中找到 message_id={actual_mid}",
                         })
                 else:
                     assert index is not None
@@ -390,6 +429,7 @@ class EmailServer:
                     "from": target.get("from", ""),
                     "subject": target.get("subject", ""),
                     "index": index,
+                    "method": "list_scan"
                 }, ensure_ascii=False)
             finally:
                 try:

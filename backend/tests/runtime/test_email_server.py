@@ -37,13 +37,16 @@ def test_message_id_from_header_bytes_matches_full_message():
     assert from_header == from_full
 
 
-def test_check_inbox_unread_only_includes_all_unread_message_ids(monkeypatch):
+def test_check_inbox_unread_only_includes_all_unread_emails(monkeypatch):
     server = EmailServer()
     monkeypatch.setattr(server, "_connect_inbox", lambda: object())
     monkeypatch.setattr(
         server,
-        "_fetch_unread_message_ids_connected",
-        lambda _mail: {"<id-1@example.com>", "<id-2@example.com>"},
+        "_fetch_unread_emails_connected",
+        lambda _mail: [
+            {"message_id": "<id-1@example.com>", "from": "u1", "subject": "s1", "date": "d1"},
+            {"message_id": "<id-2@example.com>", "from": "u2", "subject": "s2", "date": "d2"},
+        ],
     )
     monkeypatch.setattr(
         server,
@@ -61,7 +64,8 @@ def test_check_inbox_unread_only_includes_all_unread_message_ids(monkeypatch):
 
     data = __import__("json").loads(server.check_inbox(limit=1, unread_only=True))
     assert data["count"] == 1
-    assert set(data["all_unread_message_ids"]) == {"<id-1@example.com>", "<id-2@example.com>"}
+    mids = {e["message_id"] for e in data["all_unread_emails"]}
+    assert mids == {"<id-1@example.com>", "<id-2@example.com>"}
 
 
 def test_mark_inbox_email_read_by_message_id(monkeypatch):
@@ -69,6 +73,7 @@ def test_mark_inbox_email_read_by_message_id(monkeypatch):
     store_calls: list[tuple] = []
 
     mail = SimpleNamespace(
+        search=lambda charset, criterion: ("OK", [b""]), # Return empty to test fallback
         store=lambda seq, op, flags: store_calls.append((seq, op, flags)) or ("OK", [b"OK"]),
         logout=lambda: None,
     )
@@ -100,3 +105,21 @@ def test_mark_inbox_email_read_requires_selector():
     server = EmailServer()
     data = json.loads(server.mark_inbox_email_read())
     assert "error" in data
+
+
+def test_mark_inbox_email_read_by_mid_alias(monkeypatch):
+    server = EmailServer()
+    store_calls: list[tuple] = []
+
+    mail = SimpleNamespace(
+        search=lambda charset, criterion: ("OK", [b"100"]),
+        store=lambda seq, op, flags: store_calls.append((seq, op, flags)) or ("OK", [b"OK"]),
+        logout=lambda: None,
+    )
+    monkeypatch.setattr(server, "_connect_inbox", lambda: mail)
+
+    # Use 'mid' instead of 'message_id' to test alias and search logic
+    data = json.loads(server.mark_inbox_email_read(mid="<msg-1@example.com>"))
+    assert data["success"] is True
+    assert data.get("method") == "imap_search"
+    assert store_calls == [("100", "+FLAGS", "\\Seen")]

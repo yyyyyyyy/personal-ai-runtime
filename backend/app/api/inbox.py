@@ -49,7 +49,7 @@ async def trigger_digest():
 @router.patch("/{email_id}/status")
 async def update_inbox_status(email_id: str, body: UpdateInboxStatusRequest):
     try:
-        result = mark_inbox_email_status(email_id, body.status)
+        result = await mark_inbox_email_status(email_id, body.status)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     if result is None:
