@@ -198,7 +198,7 @@ async def delete_document(document_id: str):
     return {"ok": True}
 
 
-@router.post("/search")
+@router.get("/search")
 async def search_knowledge(
     query: str = Query(..., description="搜索查询"),
     n_results: int = Query(5, ge=1, le=20),
