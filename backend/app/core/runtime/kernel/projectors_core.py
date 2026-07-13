@@ -228,6 +228,8 @@ def _on_work_item_status_changed(event: Event, conn) -> None:
     if status == "completed":
         extra.append("completed_at = ?")
         vals.append(event.ts)
+        # v1.0 fix: ensure progress is 1.0 when a goal/task is completed.
+        extra.append("progress = 1.0")
     completed_clause = ", " + ", ".join(extra) if extra else ""
     vals.append(event.aggregate_id)
     conn.execute(

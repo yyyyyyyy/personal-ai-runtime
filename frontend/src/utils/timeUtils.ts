@@ -28,7 +28,8 @@ export function timeAgoShort(dateStr: string): string {
   return "刚刚";
 }
 
-export function isStagnant(lastActivity: string | null, days: number = 3): boolean {
-  if (!lastActivity) return true;
-  return Date.now() - new Date(lastActivity).getTime() > days * 86400000;
+export function isStagnant(lastActivity: string | null, createdAt?: string, days: number = 3): boolean {
+  const referenceTime = lastActivity || createdAt;
+  if (!referenceTime) return false;
+  return Date.now() - new Date(referenceTime).getTime() > days * 86400000;
 }

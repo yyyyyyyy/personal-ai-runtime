@@ -105,6 +105,13 @@ def _on_action_completed(goal_id: str, action_id: str, action_title: str) -> Non
     """Notify + memory side-effects when a goal's child action completes."""
     try:
         all_items = read_ports.query_work_items_by_parent_goal(goal_id, limit=500)
+
+        # Ensure the just-completed action is counted even if a concurrent
+        # read races the projector (emit is sync, but belt-and-suspenders).
+        for item in all_items:
+            if item["id"] == action_id:
+                item["status"] = "completed"
+
         completed = sum(1 for a in all_items if a.get("status") == "completed") if all_items else 0
 
         from app.product.notifications import create_notification
@@ -355,6 +362,12 @@ async def update_status(item_id: str, body: dict):
                 payload={"status": new_status},
                 actor="user",
             )
+
+        parent_goal_id = item.get("parent_goal_id")
+        if parent_goal_id and new_status == "completed":
+            bump_parent_activity(parent_goal_id)
+            _on_action_completed(parent_goal_id, item_id, item.get("title", ""))
+
         return _get_work_item(item_id)
 
     updated = _update_work_item_status(item_id, new_status)

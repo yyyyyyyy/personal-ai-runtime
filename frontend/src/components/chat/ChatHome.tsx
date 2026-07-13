@@ -64,7 +64,7 @@ export default function ChatHome() {
   };
 
   const stagnantGoals = goals.filter(
-    (g) => g.status === "active" && isStagnant(g.last_activity_at),
+    (g) => g.status === "active" && isStagnant(g.last_activity_at, g.created_at),
   );
   const activeGoals = goals.filter((g) => g.status === "active");
   const unreadInbox = inbox.length;
@@ -96,7 +96,7 @@ export default function ChatHome() {
       icon: "🎯",
       message:
         stagnantGoals.length === 1
-          ? `「${names}」已经 ${Math.round((Date.now() - new Date(stagnantGoals[0].last_activity_at!).getTime()) / 86400000)} 天没有进展了`
+          ? `「${names}」已经 ${Math.round((Date.now() - new Date(stagnantGoals[0].last_activity_at || stagnantGoals[0].created_at).getTime()) / 86400000)} 天没有进展了`
           : `你有 ${stagnantGoals.length} 个目标停滞了，包括：${names}`,
       action: "聊聊怎么推进",
       prompt: `我的目标「${names}」停滞了一段时间，帮我分析原因并建议下一步行动`,

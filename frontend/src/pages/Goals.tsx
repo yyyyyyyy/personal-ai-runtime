@@ -232,7 +232,7 @@ export default function GoalsPage() {
                       : goal.status === "completed"
                         ? "bg-blue-500"
                         : "bg-gray-500"
-                  } ${isStagnant(goal.last_activity_at) && goal.status === "active" ? "ring-2 ring-amber-500" : ""}`}
+                  } ${isStagnant(goal.last_activity_at, goal.created_at) && goal.status === "active" ? "ring-2 ring-amber-500" : ""}`}
                 />
                 <span className="text-sm font-medium truncate flex-1">{goal.title}</span>
               </div>
@@ -297,7 +297,7 @@ export default function GoalsPage() {
                   >
                     {statusLabels[selectedGoal.status] || selectedGoal.status}
                   </Badge>
-                  {isStagnant(selectedGoal.last_activity_at) &&
+                  {isStagnant(selectedGoal.last_activity_at, selectedGoal.created_at) &&
                     selectedGoal.status === "active" && <Badge tone="warning">已停滞</Badge>}
                 </div>
                 <div className="mt-3 h-2 bg-gray-800 rounded-full overflow-hidden max-w-xs">

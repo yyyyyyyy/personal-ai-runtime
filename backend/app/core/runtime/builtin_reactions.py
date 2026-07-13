@@ -105,7 +105,17 @@ def _check_stagnant_goals(kernel=None) -> None:
     for goal in stagnant:
         goal_id = goal.get("id", "")
         title = goal.get("title", "")
-        last_activity = goal.get("last_activity_at") or goal.get("created_at", "")
+        created_at = goal.get("created_at", "")
+        last_activity = goal.get("last_activity_at") or created_at
+
+        # v1.0 Grace period: do not notify for goals created within the last 3 days
+        # if they have no activity yet. last_activity_at is only set on updates.
+        try:
+            created_dt = datetime.fromisoformat(created_at)
+            if (datetime.now(UTC) - created_dt).days < 3:
+                continue
+        except (ValueError, TypeError):
+            pass
 
         existing = kern.query_state(
             "notifications", related_id=goal_id,
