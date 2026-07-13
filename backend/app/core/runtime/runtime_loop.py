@@ -131,7 +131,7 @@ class RuntimeLoop:
                 cron_expr = row.get("cron_expr", "")
                 schedule_type = row.get("schedule_type", "cron")
                 payload_json = row.get("payload_json") or "{}"
-                
+
                 try:
                     payload = json.loads(payload_json)
                 except Exception:
@@ -226,7 +226,7 @@ class RuntimeLoop:
                 target = target.replace(day=1)
             else:
                 target += timedelta(days=1)
-        
+
         # Always return as UTC ISO8601 for consistent string comparison in DB
         return target.astimezone(UTC).isoformat().replace("+00:00", "Z")
 
