@@ -10,6 +10,8 @@ guarantee 1:1 correspondence because the INSERT path no longer exists outside
 the Kernel.
 """
 
+import json
+
 from .constants import AGGREGATE_TIMER
 from .event import Event
 from .projectors_registry import _OWNED_TABLES, projector
@@ -76,6 +78,7 @@ CREATE TABLE IF NOT EXISTS timer_events (
     delay_seconds    REAL NOT NULL DEFAULT 0,
     fire_at          TEXT NOT NULL DEFAULT '',
     status           TEXT NOT NULL DEFAULT 'active',
+    payload_json     TEXT DEFAULT '{}',
     created_at       TEXT NOT NULL,
     fired_at         TEXT NOT NULL DEFAULT ''
 );
@@ -90,8 +93,8 @@ def _on_timer_created(event: Event, conn) -> None:
     conn.execute(
         """INSERT OR REPLACE INTO timer_events
            (id, handler_name, schedule_type, cron_expr, delay_seconds, fire_at,
-            status, created_at)
-           VALUES (?, ?, ?, ?, ?, ?, 'active', ?)""",
+            payload_json, status, created_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, 'active', ?)""",
         (
             event.aggregate_id,
             p.get("handler_name", ""),
@@ -99,6 +102,7 @@ def _on_timer_created(event: Event, conn) -> None:
             p.get("cron_expr", ""),
             float(p.get("delay_seconds", 0)),
             p.get("fire_at", ""),
+            json.dumps(p.get("payload", {}), ensure_ascii=False),
             event.ts,
         ),
     )

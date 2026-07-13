@@ -22,7 +22,8 @@
     "list_active_goals",
     "computer_screen_size",
     "voice_tts",
-    "voice_stt"
+    "voice_stt",
+    "set_timer"
   ],
   "needs_user": [
     "apply_patch",

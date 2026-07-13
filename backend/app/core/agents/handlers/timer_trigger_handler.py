@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
+from app.config import settings
 from app.core.runtime.handler_registry import subscribe
 
 if TYPE_CHECKING:
@@ -14,9 +15,19 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-async def _call_product(handler_name: str) -> None:
+async def _call_product(
+    handler_name: str,
+    payload: dict | None = None,
+    timer_id: str | None = None,
+) -> None:
     """Dispatch timer handler_name to the appropriate product function."""
+    payload = payload or {}
     from datetime import UTC, datetime, timedelta
+    from zoneinfo import ZoneInfo
+    try:
+        tz = ZoneInfo(settings.timezone)
+    except Exception:
+        tz = UTC
 
     try:
         if handler_name == "deadline_alert":
@@ -24,21 +35,29 @@ async def _call_product(handler_name: str) -> None:
 
             # v1.0 Phase 4: goals table retired
             candidates = read_ports.query_goals_with_deadline(limit=500)
-            today_utc = datetime.now(UTC).date()
-            target_dates = {today_utc + timedelta(days=offset) for offset in (1, 3)}
+            now_local = datetime.now(tz)
+            today = now_local.date()
+            target_dates = {today + timedelta(days=offset) for offset in (1, 3)}
             for goal in candidates:
                 if not goal.get("deadline"):
                     continue
                 try:
-                    deadline_date = datetime.fromisoformat(goal["deadline"]).date()
+                    deadline_dt = datetime.fromisoformat(goal["deadline"])
+                    if deadline_dt.tzinfo is None:
+                        deadline_dt = deadline_dt.replace(tzinfo=UTC)
+                    deadline_local = deadline_dt.astimezone(tz)
+                    deadline_date = deadline_local.date()
                 except ValueError:
                     continue
                 if deadline_date in target_dates:
-                    delta = datetime.fromisoformat(goal["deadline"]) - datetime.now(UTC)
-                    days_left = delta.days
+                    days_left = (deadline_local.date() - today).days
                     from app.product.notifications import create_notification
 
-                    create_notification("alert", "Deadline 预警", f"目标「{goal['title']}」还有 {days_left} 天截止")
+                    create_notification(
+                        "alert",
+                        "Deadline 预警",
+                        f"目标「{goal['title']}」还有 {days_left} 天截止",
+                    )
         elif handler_name == "memory_decay":
             from app.core.runtime.cron_registry import run_memory_decay
 
@@ -69,7 +88,7 @@ async def _call_product(handler_name: str) -> None:
             from app.core.runtime import read_ports
             from app.core.runtime.notification_channel import notification_router
 
-            now = datetime.now(UTC)
+            now_local = datetime.now(tz)
             # Get today's calendar events
             try:
                 calendar_items = read_ports.query_active_timers(limit=50)
@@ -92,7 +111,7 @@ async def _call_product(handler_name: str) -> None:
                 inbox_count = 0
 
             brief = (
-                f"早安！{now.strftime('%Y年%m月%d日')} 简报\n\n"
+                f"早安！{now_local.strftime('%Y年%m月%d日')} 简报\n\n"
                 f"📋 进行中的目标:\n{goal_lines}\n\n"
                 f"📧 未读邮件: {inbox_count} 封\n\n"
                 f"⏰ 活跃定时任务: {len(calendar_items)} 个\n\n"
@@ -103,6 +122,19 @@ async def _call_product(handler_name: str) -> None:
             create_notification("morning_brief", "早安简报", brief)
             # Push via all notification channels (desktop, webhook, ntfy)
             await notification_router.notify("早安简报", brief, type_="morning_brief", priority="normal")
+        elif handler_name == "reminder":
+            from app.core.runtime.notification_channel import notification_router
+            from app.product.notifications import create_notification
+
+            message = payload.get("message", "时间到！")
+            title = f"提醒: {message}" if len(message) < 20 else "提醒"
+            # Include timer_id so create_notification idempotency doesn't collapse
+            # consecutive reminders with the same message text.
+            if timer_id:
+                title = f"{title} ({timer_id})"
+
+            create_notification("reminder", title, message)
+            await notification_router.notify(title, message, type_="reminder", priority="high")
         else:
             logger.warning("Unknown timer handler: %s", handler_name)
     except Exception as e:
@@ -138,7 +170,9 @@ async def _run_inbox_poll():
 async def on_timer_fired(ctx: "ExecutionContext", event: "Event") -> None:
     """TimerFired → execute product function in Execution context."""
     handler_name = event.payload.get("handler_name", "")
+    payload = event.payload.get("payload", {})
+    timer_id = event.aggregate_id
     if not handler_name:
         logger.warning("TimerFired without handler_name: %s", event.id)
         return
-    await _call_product(handler_name)
+    await _call_product(handler_name, payload, timer_id)

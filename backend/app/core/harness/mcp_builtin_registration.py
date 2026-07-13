@@ -24,6 +24,7 @@ from app.core.harness.builtin_tools.goals import (
 )
 from app.core.harness.builtin_tools.shell import shell_server
 from app.core.harness.builtin_tools.telegram_bot import telegram_bot_server
+from app.core.harness.builtin_tools.timer import _writer_set_timer
 from app.core.harness.builtin_tools.web_search import web_search_server
 from app.core.harness.mcp_hub import ToolDef
 
@@ -92,6 +93,22 @@ def _register_time_tools(hub):
             },
         },
         handler=handle_get_current_time,
+    ))
+
+    hub.register_tool(ToolDef(
+        name="set_timer",
+        description="Set a one-time reminder after a specified delay in minutes/hours.",
+        parameters={
+            "type": "object",
+            "properties": {
+                "minutes": {"type": "number", "description": "Minutes to wait before firing."},
+                "hours": {"type": "number", "description": "Hours to wait before firing."},
+                "message": {"type": "string", "description": "The reminder message to show."},
+            },
+            "required": ["message"],
+        },
+        handler=_writer_set_timer,
+        requires_confirmation=False,
     ))
 
 def _register_filesystem_tools(hub):

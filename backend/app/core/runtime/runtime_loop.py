@@ -17,6 +17,7 @@ autonomous background loops.
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 from typing import Any, Coroutine
 
@@ -122,13 +123,20 @@ class RuntimeLoop:
 
         try:
             now = datetime.now(UTC)
-            now_iso = now.isoformat()
+            now_iso = now.isoformat().replace("+00:00", "Z")
             rows = read_ports.query_due_timers(now_iso=now_iso, limit=50)
             for row in rows:
                 timer_id = row["id"]
                 handler_name = row.get("handler_name", "")
                 cron_expr = row.get("cron_expr", "")
                 schedule_type = row.get("schedule_type", "cron")
+                payload_json = row.get("payload_json") or "{}"
+                
+                try:
+                    payload = json.loads(payload_json)
+                except Exception:
+                    payload = {}
+
                 if not handler_name:
                     continue
                 kernel.emit_event(
@@ -137,6 +145,7 @@ class RuntimeLoop:
                         "handler_name": handler_name,
                         "fired_at": now_iso,
                         "cron_expr": cron_expr,
+                        "payload": payload,
                     },
                     actor="runtime_loop",
                 )
@@ -150,6 +159,7 @@ class RuntimeLoop:
                             "schedule_type": "cron",
                             "cron_expr": cron_expr,
                             "fire_at": next_fire,
+                            "payload": payload,
                         },
                         actor="runtime_loop",
                     )
@@ -160,25 +170,39 @@ class RuntimeLoop:
     def _next_cron_fire(cron_expr: str, from_ts=None) -> str:
         """Calculate the next fire time for a cron expression."""
         from datetime import UTC, datetime, timedelta
+        from zoneinfo import ZoneInfo
 
-        now = from_ts or datetime.now(UTC)
+        try:
+            tz = ZoneInfo(settings.timezone)
+        except Exception:
+            tz = UTC
+
+        # We calculate the target in the user's local timezone
+        now_local = from_ts or datetime.now(tz)
+        # Ensure now_local is aware and in the right TZ if from_ts was passed
+        if now_local.tzinfo is None:
+            now_local = now_local.replace(tzinfo=UTC).astimezone(tz)
+        elif now_local.tzinfo != tz:
+            now_local = now_local.astimezone(tz)
+
         parts = {p.split("=")[0].strip(): p.split("=")[1].strip() for p in cron_expr.split(",")}
 
         if "minute" in parts and parts["minute"].startswith("*/"):
             interval = int(parts["minute"][2:])
-            current_block = (now.minute // interval) * interval
+            current_block = (now_local.minute // interval) * interval
             next_minute = current_block + interval
             if next_minute >= 60:
-                next_time = now.replace(minute=0, second=0, microsecond=0) + timedelta(hours=1)
-                return (next_time + timedelta(minutes=next_minute - 60)).isoformat()
-            next_time = now.replace(minute=next_minute, second=0, microsecond=0)
-            if next_time <= now:
-                next_time += timedelta(minutes=interval)
-            return next_time.isoformat()
+                next_time = now_local.replace(minute=0, second=0, microsecond=0) + timedelta(hours=1)
+                res_dt = next_time + timedelta(minutes=next_minute - 60)
+                return res_dt.astimezone(UTC).isoformat().replace("+00:00", "Z")
+            res_dt = now_local.replace(minute=next_minute, second=0, microsecond=0)
+            if res_dt <= now_local:
+                res_dt += timedelta(minutes=interval)
+            return res_dt.astimezone(UTC).isoformat().replace("+00:00", "Z")
 
         hour = int(parts.get("hour", "0"))
         minute = int(parts.get("minute", "0"))
-        target = now.replace(hour=hour, minute=minute, second=0, microsecond=0)
+        target = now_local.replace(hour=hour, minute=minute, second=0, microsecond=0)
         if "day" in parts:
             target = target.replace(day=int(parts["day"]))
         elif "day_of_week" in parts:
@@ -196,13 +220,15 @@ class RuntimeLoop:
             if days_ahead <= 0:
                 days_ahead += 7
             target += timedelta(days=days_ahead)
-        if target <= now:
+        if target <= now_local:
             if "day" in parts or "day_of_week" in parts:
                 target += timedelta(days=1) if "day" not in parts else timedelta(days=31)
                 target = target.replace(day=1)
             else:
                 target += timedelta(days=1)
-        return target.isoformat()
+        
+        # Always return as UTC ISO8601 for consistent string comparison in DB
+        return target.astimezone(UTC).isoformat().replace("+00:00", "Z")
 
     # ── Background maintenance ─────────────────────────────────────────
 

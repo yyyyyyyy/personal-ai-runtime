@@ -231,6 +231,7 @@ CREATE TABLE IF NOT EXISTS timer_events (
     delay_seconds INTEGER,
     fire_at       TEXT NOT NULL,
     status        TEXT NOT NULL DEFAULT 'active',
+    payload_json  TEXT DEFAULT '{}',
     created_at    TEXT DEFAULT NULL,
     fired_at      TEXT DEFAULT NULL
 );

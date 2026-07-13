@@ -7,6 +7,7 @@ from __future__ import annotations
 import logging
 from datetime import UTC, datetime, timedelta
 
+from app.config import settings
 from app.core.runtime import read_ports
 from app.core.runtime.kernel_instance import kernel
 from app.core.runtime.runtime_loop import RuntimeLoop
@@ -71,9 +72,14 @@ def _on_task_completed(event):
 
 
 def _deadline_target_dates() -> set:
-    """Return the set of dates (UTC) that trigger deadline alerts."""
-    today_utc = datetime.now(UTC).date()
-    return {today_utc + timedelta(days=offset) for offset in (1, 3)}
+    """Return the set of dates (local) that trigger deadline alerts."""
+    from zoneinfo import ZoneInfo
+    try:
+        tz = ZoneInfo(settings.timezone)
+    except Exception:
+        tz = UTC
+    today = datetime.now(tz).date()
+    return {today + timedelta(days=offset) for offset in (1, 3)}
 
 
 def shutdown_scheduler():
