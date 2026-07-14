@@ -80,7 +80,7 @@ class YourFragment(ContextFragment):
 fragment_registry.register(YourFragment())
 ```
 
-**强制**：必须通过 [`backend/app/core/runtime/read_ports.py`](../../backend/app/core/runtime/read_ports.py) 访问数据，绝不直访 Kernel 存储——`check_boundary.py` 与 `test_fragment_read_boundary.py` 强制。`priority >= 100` 的 fragment 永不被 Assembler 丢弃。
+**强制**：必须通过 [`backend/app/core/runtime/read_ports/__init__.py`](../../backend/app/core/runtime/read_ports/__init__.py) 访问数据，绝不直访 Kernel 存储——`check_boundary.py` 与 `test_fragment_read_boundary.py` 强制。`priority >= 100` 的 fragment 永不被 Assembler 丢弃。
 
 ## 外部 MCP Server
 

@@ -44,7 +44,7 @@ flowchart LR
 
 ## 已注册的 Fragment
 
-[`backend/app/fragments/register.py`](../../backend/app/fragments/register.py) 注册 12 个 fragment，全部为只读 `ContextFragment`，通过 [`read_ports.py`](../../backend/app/core/runtime/read_ports.py) 访问数据。
+[`backend/app/fragments/register.py`](../../backend/app/fragments/register.py) 注册 12 个 fragment，全部为只读 `ContextFragment`，通过 [`read_ports/`](../../backend/app/core/runtime/read_ports/__init__.py) 访问数据。
 
 | Fragment | id | priority | max_tokens | tags | 作用 |
 |---|---|---|---|---|---|
@@ -111,4 +111,4 @@ token 估算用 [`backend/app/core/agents/token_counter.py`](../../backend/app/c
 
 ## 读边界
 
-Fragment **必须**通过 [`backend/app/core/runtime/read_ports.py`](../../backend/app/core/runtime/read_ports.py) 访问数据，绝不直访 Kernel 存储。可用端口：`query_top_active_goals`、`query_recent_inbox_emails`、`retrieve_memory_with_sources`、`search_knowledge`、`query_world_context`、`query_calendar_*`、MCP connector 探针、治理读端口（`query_pending_approval_count`、`query_stagnant_goal_count`）。这是 Kernel 边界的一部分，详见 [kernel-boundary.md](kernel-boundary.md)。
+Fragment **必须**通过 [`backend/app/core/runtime/read_ports/`](../../backend/app/core/runtime/read_ports/__init__.py) 访问数据，绝不直访 Kernel 存储。可用端口：`query_top_active_goals`、`query_recent_inbox_emails`、`retrieve_memory_with_sources`、`search_knowledge`、`query_world_context`、`query_calendar_*`、MCP connector 探针、治理读端口（`query_pending_approval_count`、`query_stagnant_goal_count`）。这是 Kernel 边界的一部分，详见 [kernel-boundary.md](kernel-boundary.md)。

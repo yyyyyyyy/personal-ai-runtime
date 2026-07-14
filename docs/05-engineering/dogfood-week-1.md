@@ -179,7 +179,7 @@
 （验证"keep as is"的判断）
 
 ### 5. Review 里指出的债，哪些被 dogfood 证实是"真问题"？
-- read_ports.py 拆分：证实 / 不重要
+- read_ports/ 拆分：证实 / 不重要
 - API 三处混层：证实 / 不重要
 - governance/ → context/ 重命名：证实 / 不重要
 - test_coverage_*.py 清理：证实 / 不重要
