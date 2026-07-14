@@ -129,15 +129,57 @@ def _input_hashes() -> dict[str, str]:
     }
 
 
+def _platform_block_header(block: str) -> tuple[str, str]:
+    """Return (normalized_name, expected_marker) from a platform-only lock block."""
+    first_line = block.strip().splitlines()[0]
+    match = LOCK_PACKAGE.match(first_line)
+    if not match:
+        raise ValueError(f"invalid PLATFORM_ONLY_LOCK_BLOCKS header: {first_line!r}")
+    return _normalize_name(match.group("name")), _normalize_marker(match.group("marker"))
+
+
+def _rewrite_lock_package_header(text: str, name: str, new_header: str) -> str:
+    """Replace the ``name==...`` header line; leave hash / via lines intact."""
+    header = new_header.rstrip()
+    if not header.endswith("\\"):
+        header = f"{header} \\"
+    out: list[str] = []
+    replaced = False
+    for line in text.splitlines():
+        match = LOCK_PACKAGE.match(line.strip())
+        if (
+            not replaced
+            and match
+            and _normalize_name(match.group("name")) == name
+        ):
+            out.append(header)
+            replaced = True
+        else:
+            out.append(line)
+    if not replaced:
+        raise ValueError(f"package {name!r} not found in requirements.lock")
+    ending = "\n" if text.endswith("\n") else ""
+    return "\n".join(out) + ending
+
+
 def _stamp_lock_input_hashes() -> None:
-    """Record the exact dependency inputs used to generate requirements.lock."""
+    """Record the exact dependency inputs used to generate requirements.lock.
+
+    Also ensures Windows-only transitive pins carry ``sys_platform == \"win32\"``.
+    pip-compile on Windows emits those packages without markers; without this
+    rewrite, Linux CI tries to install pywin32/pyreadline3 and fails.
+    """
     text = LOCK_PATH.read_text(encoding="utf-8")
-    locked_names = set(_lock_packages())
-    missing_platform_blocks = [
-        block
-        for name, block in PLATFORM_ONLY_LOCK_BLOCKS.items()
-        if name not in locked_names
-    ]
+    locked = _lock_packages()
+    missing_platform_blocks: list[str] = []
+    for name, block in PLATFORM_ONLY_LOCK_BLOCKS.items():
+        first_line = block.strip().splitlines()[0]
+        _, expected_marker = _platform_block_header(block)
+        locked_pkg = locked.get(name)
+        if locked_pkg is None:
+            missing_platform_blocks.append(block)
+        elif locked_pkg["marker"] != expected_marker:
+            text = _rewrite_lock_package_header(text, name, first_line)
     if missing_platform_blocks:
         text = text.rstrip() + "\n" + "\n".join(missing_platform_blocks)
     body = "\n".join(
@@ -236,6 +278,20 @@ def main(argv: list[str] | None = None) -> int:
                         f"requirements.lock marker for {name} is "
                         f"{locked['marker']!r}, expected {marker!r} — run 'make lockfile'"
                     )
+        for name, block in PLATFORM_ONLY_LOCK_BLOCKS.items():
+            _, expected_marker = _platform_block_header(block)
+            locked = lock_packages.get(name)
+            if locked is None:
+                errors.append(
+                    f"requirements.lock missing platform-only package {name} "
+                    "— run 'make lockfile'"
+                )
+            elif locked["marker"] != expected_marker:
+                errors.append(
+                    f"requirements.lock marker for {name} is "
+                    f"{locked['marker']!r}, expected {expected_marker!r} "
+                    "— run 'make lockfile'"
+                )
 
     if errors:
         print(

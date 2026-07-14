@@ -81,3 +81,47 @@ def test_extras_mismatch_detected_even_after_stamp(tmp_path, monkeypatch, capsys
     sync._stamp_lock_input_hashes()
     assert sync.main([]) == 1
     assert "extras" in capsys.readouterr().err
+
+
+def test_stamp_adds_win32_marker_when_pip_compile_omits_it(tmp_path, monkeypatch):
+    """Windows pip-compile emits pywin32 without a marker; stamp must rewrite it."""
+    requirements = tmp_path / "requirements.txt"
+    dev_requirements = tmp_path / "requirements-dev.txt"
+    pyproject = tmp_path / "pyproject.toml"
+    lock = tmp_path / "requirements.lock"
+
+    requirements.write_text("example-package==1.0\n", encoding="utf-8")
+    dev_requirements.write_text("-r requirements.txt\n", encoding="utf-8")
+    pyproject.write_text(
+        '[project]\ndependencies = ["example-package==1.0"]\n',
+        encoding="utf-8",
+    )
+    lock.write_text(
+        "example-package==1.0 \\\n"
+        "    --hash=sha256:abc\n"
+        "pywin32==312 \\\n"
+        "    --hash=sha256:win\n"
+        "    # via mcp\n",
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr(sync, "REQUIREMENTS_PATH", requirements)
+    monkeypatch.setattr(sync, "DEV_REQUIREMENTS_PATH", dev_requirements)
+    monkeypatch.setattr(sync, "PYPROJECT_PATH", pyproject)
+    monkeypatch.setattr(sync, "LOCK_PATH", lock)
+    monkeypatch.setattr(
+        sync,
+        "PLATFORM_ONLY_LOCK_BLOCKS",
+        {
+            "pywin32": (
+                'pywin32==312 ; sys_platform == "win32" \\\n'
+                "    --hash=sha256:win\n"
+                "    # via mcp\n"
+            ),
+        },
+    )
+
+    sync._stamp_lock_input_hashes()
+    stamped = lock.read_text(encoding="utf-8")
+    assert 'pywin32==312 ; sys_platform == "win32"' in stamped
+    assert sync.main([]) == 0
