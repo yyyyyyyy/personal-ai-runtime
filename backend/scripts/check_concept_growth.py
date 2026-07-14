@@ -122,7 +122,10 @@ def count_dead_code_files() -> int:
 # the table in docs/02-concepts/runtime-algebra.md §4.6.
 
 BASELINE = {
-    "runtime_files": 44,               # concept compression merges (capability_context removed)
+    # Raised 44→57: read_ports.py → read_ports/ package (+13). Same Read Port
+    # concept, domain-scoped files — not new primitives. Revisit if dogfood
+    # marks the split as 不重要 (fold back toward a thinner package).
+    "runtime_files": 57,
     "event_types": 50,                # event type compression                 # unchanged
     "query_state_selectors": 10,       # dropped goals/timer/background/user_profile
     "fragments": 10,                   # register.py

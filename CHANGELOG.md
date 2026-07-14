@@ -18,6 +18,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/). Version numbers 
 ### Changed
 
 - Split `read_ports.py` into a domain-scoped `read_ports/` package (backward-compatible re-exports)
+- Raise `runtime_files` architecture baseline 44→57 for the read_ports package split (same Read Port concept; one-year target remains ≤44)
 - Knowledge API no longer imports `app.store` directly; document CRUD/search lives in `product/knowledge.py`
 - Boundary guard: fail if `app/api/` imports `app.store`
 - `VectorStore` reads `settings.vector_dir` at construction time so `reset_settings()` in tests takes effect

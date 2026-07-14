@@ -33,7 +33,7 @@ METRICS = [
 ]
 
 ASPIRATIONAL_TARGETS = {
-    "runtime_files": 45,
+    "runtime_files": 44,  # one-year target; current baseline is 57 after read_ports split
     "event_types": 55,
     "query_state_selectors": 10,
     "fragments": 10,
