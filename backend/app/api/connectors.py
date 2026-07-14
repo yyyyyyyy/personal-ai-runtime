@@ -128,10 +128,30 @@ async def list_connectors():
     return {"connectors": builtin + connectors}
 
 
+def _load_installed_names() -> set[str]:
+    """Return the set of server names already in mcp_config.json."""
+    if not MCP_CONFIG_PATH.exists():
+        return set()
+    try:
+        existing = _json.loads(MCP_CONFIG_PATH.read_text(encoding="utf-8"))
+        external = existing.get("external_servers", [])
+        return {s["name"] for s in external if isinstance(s, dict) and "name" in s}
+    except Exception:
+        logger.warning("Failed to load installed MCP servers from %s", MCP_CONFIG_PATH, exc_info=True)
+        return set()
+
+
 @router.get("/registry")
 async def list_registry():
     registry = _load_registry()
-    return {"servers": registry, "total": len(registry)}
+    installed_names = _load_installed_names()
+    enriched = []
+    for server in registry:
+        enriched.append({
+            **server,
+            "installed": server.get("name", "") in installed_names,
+        })
+    return {"servers": enriched, "total": len(enriched)}
 
 
 @router.post("/install")

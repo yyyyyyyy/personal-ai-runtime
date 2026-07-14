@@ -70,10 +70,13 @@ export default function McpMarketplace() {
             </div>
             <button
               onClick={() => handleInstall(s.name)}
-              disabled={installing === s.name}
-              className="shrink-0 ml-3 px-3 py-1 text-xs bg-gray-700 hover:bg-gray-600 text-gray-300 rounded transition-colors disabled:opacity-50"
+              disabled={installing === s.name || s.installed}
+              className={s.installed
+                ? "shrink-0 ml-3 px-3 py-1 text-xs bg-gray-800 text-gray-600 rounded cursor-not-allowed"
+                : "shrink-0 ml-3 px-3 py-1 text-xs bg-gray-700 hover:bg-gray-600 text-gray-300 rounded transition-colors disabled:opacity-50"
+              }
             >
-              {installing === s.name ? "安装中…" : "安装"}
+              {installing === s.name ? "安装中…" : s.installed ? "已安装" : "安装"}
             </button>
           </div>
         ))

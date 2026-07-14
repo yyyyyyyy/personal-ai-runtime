@@ -7,6 +7,7 @@ export interface McpRegistryServer {
   description: string;
   category: string;
   env_vars: Record<string, string>;
+  installed: boolean;
 }
 
 export async function listMcpRegistry(): Promise<McpRegistryServer[]> {
