@@ -62,20 +62,28 @@ def test_query_state_simple(isolated_kernel):
 
 
 def test_query_state_multiple_conditions(isolated_kernel):
-    """query_state with multiple conditions."""
+    """query_state with multiple conditions and created_at_desc ordering.
+
+    The two events carry explicit, distinct created_at timestamps so the
+    ordering assertion does not depend on wall-clock resolution (Windows
+    timeGetTime has ~15ms granularity — two back-to-back isoformat() calls
+    routinely return identical strings).
+    """
     k, db = isolated_kernel
     k.emit_event("WorkItemCreated", "work_item", "goal_qs2_first", payload={
         "work_type": "goal", "status": "active",
         "title": "First",
+        "created_at": "2026-01-01T00:00:00+00:00",
     }, actor="verify")
     k.emit_event("WorkItemCreated", "work_item", "goal_qs2", payload={
         "work_type": "goal", "status": "active",
         "title": "Query2",
+        "created_at": "2026-01-02T00:00:00+00:00",
     }, actor="verify")
 
     rows = k.query_state("work_items", work_type="goal", limit=10, order="created_at_desc")
     assert len(rows) == 2
-    # created_at_desc: the most recently emitted goal must come first.
+    # created_at_desc: the row with the newer created_at must come first.
     assert rows[0]["title"] == "Query2"
     assert rows[1]["title"] == "First"
 
