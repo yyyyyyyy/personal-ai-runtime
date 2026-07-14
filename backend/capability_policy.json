@@ -40,7 +40,8 @@
     "computer_key",
     "create_goal",
     "update_goal_progress",
-    "complete_goal"
+    "complete_goal",
+    "delete_goal"
   ],
   "external_ingestion": [
     "check_inbox",

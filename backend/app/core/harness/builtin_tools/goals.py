@@ -123,6 +123,33 @@ def _writer_complete_goal(goal_id: str, reflection: str = "") -> str:
     }, ensure_ascii=False)
 
 
+def _writer_delete_goal(goal_id: str) -> str:
+    """Tool handler — emit WorkItemDeleted for a goal (cascades to children)."""
+    from app.core.runtime.kernel_instance import kernel
+    from app.core.runtime import read_ports
+
+    goal = read_ports.query_goal(goal_id)
+    if not goal:
+        return json.dumps({"error": f"未找到目标 {goal_id}"}, ensure_ascii=False)
+
+    title = goal.get("title", "")
+
+    # Cascade: delete children first
+    for child in read_ports.query_work_items_by_parent_goal(goal_id):
+        kernel.emit_event("WorkItemDeleted", "work_item", child["id"], actor="user")
+    from app.core.runtime.task_engine import get_sub_work_items
+    for child in get_sub_work_items(goal_id):
+        kernel.emit_event("WorkItemDeleted", "work_item", child["id"], actor="user")
+    kernel.emit_event("WorkItemDeleted", "work_item", goal_id, actor="user")
+
+    return json.dumps({
+        "goal_id": goal_id,
+        "title": title,
+        "status": "deleted",
+        "message": f"已删除目标「{title}」及其关联行动步骤",
+    }, ensure_ascii=False)
+
+
 # ─── LLM-facing surface (goes through invoke_capability) ───────────────────
 
 
@@ -198,6 +225,20 @@ class GoalsServer:
             {"error": result.get("error", "unknown")}, ensure_ascii=False,
         )
 
+    async def delete_goal(self, goal_id: str) -> str:
+        """Delete a goal and all its child actions via the capability gate."""
+        from app.core.runtime.kernel_instance import kernel
+
+        result = await kernel.invoke_capability(
+            "delete_goal",
+            args={"goal_id": goal_id},
+            actor="user",
+            execution_id=_current_execution_id(),
+        )
+        return result.get("result") or json.dumps(
+            {"error": result.get("error", "unknown")}, ensure_ascii=False,
+        )
+
     def list_active_goals(self) -> str:
         """List the user's active goals.
 
@@ -208,7 +249,7 @@ class GoalsServer:
         """
         from app.core.runtime import read_ports
 
-        goals = read_ports.query_active_goals(limit=20, order="importance_desc")
+        goals = read_ports.query_active_goals(limit=500, order="importance_desc")
 
         return json.dumps({
             "count": len(goals),

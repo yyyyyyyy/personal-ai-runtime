@@ -214,47 +214,7 @@ export default function GoalsPage() {
         )}
 
         <div className="p-2 space-y-1">
-          {goals.map((goal) => (
-            <div
-              key={goal.id}
-              onClick={() => handleSelectGoal(goal.id)}
-              className={`p-3 rounded-lg cursor-pointer transition-colors ${
-                selectedGoal?.id === goal.id
-                  ? "bg-gray-800 border border-gray-700"
-                  : "hover:bg-gray-800/50 border border-transparent"
-              }`}
-            >
-              <div className="flex items-center gap-2">
-                <span
-                  className={`w-2 h-2 rounded-full shrink-0 ${
-                    goal.status === "active"
-                      ? "bg-emerald-500"
-                      : goal.status === "completed"
-                        ? "bg-blue-500"
-                        : "bg-gray-500"
-                  } ${isStagnant(goal.last_activity_at, goal.created_at) && goal.status === "active" ? "ring-2 ring-amber-500" : ""}`}
-                />
-                <span className="text-sm font-medium truncate flex-1">{goal.title}</span>
-              </div>
-              {goal.last_activity_at && (
-                <div className="text-xs text-gray-600 mt-1 ml-4">
-                  上次活动: {timeAgo(goal.last_activity_at)}
-                </div>
-              )}
-              {goal.deadline && (
-                <div className="text-xs text-gray-500 mt-1 ml-4">
-                  截止: {new Date(goal.deadline).toLocaleDateString("zh-CN")}
-                </div>
-              )}
-              <div className="mt-2 ml-4 h-1 bg-gray-800 rounded-full overflow-hidden">
-                <div
-                  className="h-full bg-emerald-600 rounded-full"
-                  style={{ width: `${Math.min(goal.progress, 100)}%` }}
-                />
-              </div>
-            </div>
-          ))}
-          {goals.length === 0 && (
+          {goals.length === 0 ? (
             <EmptyState
               title="暂无目标"
               description="创建第一个目标，让 AI 帮你追踪进度"
@@ -263,6 +223,12 @@ export default function GoalsPage() {
                   创建目标
                 </Button>
               }
+            />
+          ) : (
+            <GoalGroupedList
+              goals={goals}
+              selectedId={selectedGoal?.id}
+              onSelect={handleSelectGoal}
             />
           )}
         </div>
@@ -481,6 +447,101 @@ function NewActionInput({ onAdd }: { onAdd: (title: string) => void }) {
       >
         添加
       </button>
+    </div>
+  );
+}
+
+function GoalGroupedList({
+  goals,
+  selectedId,
+  onSelect,
+}: {
+  goals: Goal[];
+  selectedId?: string;
+  onSelect: (goalId: string) => void;
+}) {
+  const activeOrPaused = goals.filter((g) => g.status !== "completed");
+  const completed = goals.filter((g) => g.status === "completed");
+
+  return (
+    <>
+      {activeOrPaused.map((goal) => (
+        <GoalListItem
+          key={goal.id}
+          goal={goal}
+          selected={goal.id === selectedId}
+          onSelect={onSelect}
+        />
+      ))}
+      {completed.length > 0 && (
+        <>
+          <div className="pt-3 pb-1 px-1 text-xs text-gray-500 font-medium uppercase tracking-wider">
+            已完成 ({completed.length})
+          </div>
+          {completed.map((goal) => (
+            <GoalListItem
+              key={goal.id}
+              goal={goal}
+              selected={goal.id === selectedId}
+              onSelect={onSelect}
+            />
+          ))}
+        </>
+      )}
+    </>
+  );
+}
+
+function GoalListItem({
+  goal,
+  selected,
+  onSelect,
+}: {
+  goal: Goal;
+  selected: boolean;
+  onSelect: (goalId: string) => void;
+}) {
+  return (
+    <div
+      onClick={() => onSelect(goal.id)}
+      className={`p-3 rounded-lg cursor-pointer transition-colors ${
+        selected
+          ? "bg-gray-800 border border-gray-700"
+          : "hover:bg-gray-800/50 border border-transparent"
+      }`}
+    >
+      <div className="flex items-center gap-2">
+        <span
+          className={`w-2 h-2 rounded-full shrink-0 ${
+            goal.status === "active"
+              ? "bg-emerald-500"
+              : goal.status === "completed"
+                ? "bg-blue-500"
+                : "bg-gray-500"
+          } ${
+            isStagnant(goal.last_activity_at, goal.created_at) && goal.status === "active"
+              ? "ring-2 ring-amber-500"
+              : ""
+          }`}
+        />
+        <span className="text-sm font-medium truncate flex-1">{goal.title}</span>
+      </div>
+      {goal.last_activity_at && (
+        <div className="text-xs text-gray-600 mt-1 ml-4">
+          上次活动: {timeAgo(goal.last_activity_at)}
+        </div>
+      )}
+      {goal.deadline && (
+        <div className="text-xs text-gray-500 mt-1 ml-4">
+          截止: {new Date(goal.deadline).toLocaleDateString("zh-CN")}
+        </div>
+      )}
+      <div className="mt-2 ml-4 h-1 bg-gray-800 rounded-full overflow-hidden">
+        <div
+          className="h-full bg-emerald-600 rounded-full"
+          style={{ width: `${Math.min(goal.progress, 100)}%` }}
+        />
+      </div>
     </div>
   );
 }

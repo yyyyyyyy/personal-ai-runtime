@@ -19,6 +19,7 @@ from app.core.harness.builtin_tools.git import git_server
 from app.core.harness.builtin_tools.goals import (
     _writer_complete_goal,
     _writer_create_goal,
+    _writer_delete_goal,
     _writer_update_goal_progress,
     goals_server,
 )
@@ -557,6 +558,20 @@ def _register_goals_tools(hub):
             "required": ["goal_id"],
         },
         handler=_writer_complete_goal,
+        requires_confirmation=True,
+    ))
+
+    hub.register_tool(ToolDef(
+        name="delete_goal",
+        description="Delete a goal and all its child actions. Use when the user asks to delete or remove a goal.",
+        parameters={
+            "type": "object",
+            "properties": {
+                "goal_id": {"type": "string", "description": "The goal ID to delete"},
+            },
+            "required": ["goal_id"],
+        },
+        handler=_writer_delete_goal,
         requires_confirmation=True,
     ))
 
