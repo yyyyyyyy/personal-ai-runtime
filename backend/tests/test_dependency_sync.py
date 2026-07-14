@@ -125,3 +125,45 @@ def test_stamp_adds_win32_marker_when_pip_compile_omits_it(tmp_path, monkeypatch
     stamped = lock.read_text(encoding="utf-8")
     assert 'pywin32==312 ; sys_platform == "win32"' in stamped
     assert sync.main([]) == 0
+
+
+def test_stamp_adds_hf_xet_omitted_on_windows_host(tmp_path, monkeypatch):
+    """Windows pip-compile skips hf-xet (AMD64 vs amd64 marker); stamp must add it."""
+    requirements = tmp_path / "requirements.txt"
+    dev_requirements = tmp_path / "requirements-dev.txt"
+    pyproject = tmp_path / "pyproject.toml"
+    lock = tmp_path / "requirements.lock"
+
+    requirements.write_text("example-package==1.0\n", encoding="utf-8")
+    dev_requirements.write_text("-r requirements.txt\n", encoding="utf-8")
+    pyproject.write_text(
+        '[project]\ndependencies = ["example-package==1.0"]\n',
+        encoding="utf-8",
+    )
+    lock.write_text(
+        "example-package==1.0 \\\n"
+        "    --hash=sha256:abc\n",
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr(sync, "REQUIREMENTS_PATH", requirements)
+    monkeypatch.setattr(sync, "DEV_REQUIREMENTS_PATH", dev_requirements)
+    monkeypatch.setattr(sync, "PYPROJECT_PATH", pyproject)
+    monkeypatch.setattr(sync, "LOCK_PATH", lock)
+    monkeypatch.setattr(
+        sync,
+        "PLATFORM_ONLY_LOCK_BLOCKS",
+        {
+            "hf-xet": (
+                "hf-xet==1.5.1 \\\n"
+                "    --hash=sha256:xet\n"
+                "    # via huggingface-hub\n"
+            ),
+        },
+    )
+
+    sync._stamp_lock_input_hashes()
+    stamped = lock.read_text(encoding="utf-8")
+    assert "hf-xet==1.5.1" in stamped
+    assert "--hash=sha256:xet" in stamped
+    assert sync.main([]) == 0
