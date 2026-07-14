@@ -9,12 +9,17 @@ def test_export_events_roundtrip(isolated_kernel):
     }, actor="verify")
 
     exported = k.export_event_log_rows()
-    assert isinstance(exported, list)
-    assert len(exported) > 0
+    assert any(
+        r["aggregate_id"] == "goal_export" for r in exported
+    ), "exported rows must contain the emitted event"
 
-    # Import back
-    k.import_event_log_rows(exported)
-    assert len(exported) > 0
+    # Wipe the projection, then re-import — the goal must reappear.
+    with db.get_db() as conn:
+        conn.execute("DELETE FROM work_items")
+    k.import_event_log_rows(exported, rebuild_projections=True)
+    restored = k.query_state("work_items", id="goal_export")
+    assert restored and restored[0]["title"] == "Export test", \
+        "import must restore the projection row from the exported event log"
 
 
 def test_rebuild_single_aggregate(isolated_kernel):
@@ -26,8 +31,9 @@ def test_rebuild_single_aggregate(isolated_kernel):
     }, actor="verify")
 
     result = k.rebuild("work_item")
-    assert isinstance(result, int)
-    assert result > 0
+    assert result == 1, f"rebuild('work_item') should replay exactly 1 event, got {result}"
+    rows = k.query_state("work_items", id="goal_rebuild_test")
+    assert rows and rows[0]["title"] == "Rebuild test"
 
 
 def test_rebuild_all(isolated_kernel):
@@ -38,8 +44,8 @@ def test_rebuild_all(isolated_kernel):
     }, actor="verify")
 
     result = k.rebuild_all()
-    assert isinstance(result, dict)
     assert "work_item" in result
+    assert result["work_item"] >= 1, "rebuild_all must report >=1 replayed work_item event"
 
 
 def test_query_state_simple(isolated_kernel):
@@ -51,21 +57,27 @@ def test_query_state_simple(isolated_kernel):
     }, actor="verify")
 
     rows = k.query_state("work_items", work_type="goal", status="active", limit=5)
-    assert isinstance(rows, list)
-    assert len(rows) > 0
+    assert len(rows) == 1
+    assert rows[0]["title"] == "Query test"
 
 
 def test_query_state_multiple_conditions(isolated_kernel):
     """query_state with multiple conditions."""
     k, db = isolated_kernel
+    k.emit_event("WorkItemCreated", "work_item", "goal_qs2_first", payload={
+        "work_type": "goal", "status": "active",
+        "title": "First",
+    }, actor="verify")
     k.emit_event("WorkItemCreated", "work_item", "goal_qs2", payload={
         "work_type": "goal", "status": "active",
         "title": "Query2",
     }, actor="verify")
 
     rows = k.query_state("work_items", work_type="goal", limit=10, order="created_at_desc")
-    assert isinstance(rows, list)
-    assert len(rows) > 0
+    assert len(rows) == 2
+    # created_at_desc: the most recently emitted goal must come first.
+    assert rows[0]["title"] == "Query2"
+    assert rows[1]["title"] == "First"
 
 
 def test_read_events_filter(isolated_kernel):
@@ -76,9 +88,9 @@ def test_read_events_filter(isolated_kernel):
     }, actor="verify")
 
     events = k.read_events(types=["WorkItemCreated"], limit=10)
-    assert isinstance(events, list)
-    assert len(events) > 0
+    assert len(events) == 1
     assert events[0].type == "WorkItemCreated"
+    assert events[0].aggregate_id == "goal_evt"
 
 
 def test_emit_event_with_caused_by(isolated_kernel):

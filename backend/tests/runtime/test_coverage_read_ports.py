@@ -22,8 +22,7 @@ def test_query_top_active_goals(isolated_kernel):
         "title": "Coverage test goal",
     }, actor="verify")
     result = query_top_active_goals(limit=5)
-    assert isinstance(result, list)
-    assert len(result) > 0
+    assert len(result) == 1
     assert result[0]["title"] == "Coverage test goal"
 
 
