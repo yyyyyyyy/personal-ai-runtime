@@ -87,6 +87,8 @@ def _inbox_canned_summary(_tool_calls: list[dict], tool_results: list[dict]) -> 
             if data.get("error"):
                 return None
             count = int(data.get("count", 0))
+            if count == 0:
+                return None
             return (
                 f"已加载最近 {count} 封邮件，详见上方列表。"
                 "需要我帮您查看某封详情或处理待办吗？"
