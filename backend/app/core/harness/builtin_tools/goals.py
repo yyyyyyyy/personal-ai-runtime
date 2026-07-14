@@ -125,8 +125,8 @@ def _writer_complete_goal(goal_id: str, reflection: str = "") -> str:
 
 def _writer_delete_goal(goal_id: str) -> str:
     """Tool handler — emit WorkItemDeleted for a goal (cascades to children)."""
-    from app.core.runtime.kernel_instance import kernel
     from app.core.runtime import read_ports
+    from app.core.runtime.kernel_instance import kernel
 
     goal = read_ports.query_goal(goal_id)
     if not goal:
