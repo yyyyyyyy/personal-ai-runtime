@@ -54,7 +54,7 @@ class _ServerConnection:
             params = StdioServerParameters(
                 command=self.config.command,
                 args=self.config.args,
-                env=self.config.resolve_env() or None,
+                env=self.config.resolve_env(),
             )
             transport = stdio_client(params)
             read, write = await transport.__aenter__()

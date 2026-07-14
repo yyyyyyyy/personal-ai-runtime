@@ -18,6 +18,25 @@ def test_empty_command_rejected():
     assert "Empty command" in _error(shell_server.execute("   "))
 
 
+def test_bare_chain_operator_rejected_with_clear_message():
+    # Bare "&&" should be rejected as empty, not as a metachar violation.
+    assert "Empty command after parsing" in _error(shell_server.execute("&&"))
+    assert "Empty command after parsing" in _error(shell_server.execute("&&   "))
+
+
+def test_glob_asterisk_allowed_for_coding_agents():
+    # With shell=False the OS does not expand globs; agents need patterns like *.py.
+    # The command itself may fail if no matching file named literally "*.py" exists,
+    # but it must not be rejected as a metacharacter violation.
+    err = _error(shell_server.execute("ls *.py"))
+    assert "metacharacters" not in err.lower()
+
+
+def test_background_ampersand_blocked():
+    # Single & would background a command in a shell; blocked even with shell=False.
+    assert "metacharacters" in _error(shell_server.execute("echo hello &")).lower()
+
+
 def test_non_whitelisted_command_rejected():
     assert "not in whitelist" in _error(shell_server.execute("bash -c ls"))
 

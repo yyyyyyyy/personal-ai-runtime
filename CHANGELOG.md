@@ -6,16 +6,28 @@ Format follows [Keep a Changelog](https://keepachangelog.com/). Version numbers 
 
 ## [Unreleased]
 
+### Security
+
+- Knowledge upload rejects oversized files at the API boundary (413) before ingest
+- Destructive system routes use request-body confirm codes (not query params); when `AUTH_TOKEN` is configured, Bearer auth is also required
+- MCP external servers pin package versions and receive a minimal env (no parent secret inheritance)
+- Rate limits use path-boundary matching, per-IP buckets, shared restore/export quotas, and LRU eviction
+- Shell tool blocks background `&` / shell metacharacters; `*` globs remain allowed for coding agents (`shell=False`)
+- Browser search URL-encodes query/site; fetch streams responses with a hard byte cap
+
 ### Changed
 
 - Split `read_ports.py` into a domain-scoped `read_ports/` package (backward-compatible re-exports)
 - Knowledge API no longer imports `app.store` directly; document CRUD/search lives in `product/knowledge.py`
 - Boundary guard: fail if `app/api/` imports `app.store`
 - `VectorStore` reads `settings.vector_dir` at construction time so `reset_settings()` in tests takes effect
+- Optional `TRUST_PROXY_HEADERS` for rate-limit keying behind a trusted reverse proxy
 
 ### Fixed
 
 - Remove root-level debug dump `full_chat.txt` from the working tree
+- Memory graph edge unit test import path after `read_ports` split
+- Local-first destroy/import works again when `AUTH_TOKEN` is unset (confirm code only)
 
 ## [0.2.0]
 

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import re
+import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -69,6 +70,8 @@ class ExternalMCPServerConfig:
         return True
 
     def resolve_env(self) -> dict[str, str]:
+        import os
+
         from app.config import settings
 
         settings_env = {
@@ -78,7 +81,23 @@ class ExternalMCPServerConfig:
             "TAVILY_API_KEY": settings.tavily_api_key,
             "NOTION_TOKEN": settings.notion_token,
         }
-        merged = dict(self.env)
+        # Minimal necessary environment for subprocess — never inherit the full
+        # parent env (which contains LLM_API_KEY, EMAIL_PASS, etc.).
+        merged = {
+            "PATH": os.environ.get("PATH", ""),
+        }
+        # Locale + temp dir keep npx/node MCP servers from failing on systems
+        # that require them, without leaking secrets.
+        for optional_key in ("TMPDIR", "TMP", "TEMP", "LANG", "LC_ALL"):
+            val = os.environ.get(optional_key)
+            if val:
+                merged[optional_key] = val
+        if sys.platform == "win32":
+            merged["SYSTEMROOT"] = os.environ.get("SYSTEMROOT", "")
+            merged["USERPROFILE"] = os.environ.get("USERPROFILE", "")
+        else:
+            merged["HOME"] = os.environ.get("HOME", "")
+        merged.update(self.env)
         for key in self.required_env + self.optional_env:
             val = settings_env.get(key, "").strip()
             if val:

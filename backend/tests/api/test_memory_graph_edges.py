@@ -1,6 +1,6 @@
 """Unit tests for batched memory graph edge building."""
 
-from app.api.memory import _build_memory_graph_edges
+from app.core.runtime.read_ports.memory import build_memory_graph_edges
 
 
 def test_build_memory_graph_edges_uses_batch_and_dedupes(monkeypatch):
@@ -32,7 +32,7 @@ def test_build_memory_graph_edges_uses_batch_and_dedupes(monkeypatch):
         {"id": "m1", "content": "alpha memory about cats"},
         {"id": "m2", "content": "beta memory about dogs"},
     ]
-    edges = _build_memory_graph_edges(sources)
+    edges = build_memory_graph_edges(sources)
 
     assert len(calls) == 1
     assert calls[0] == ["alpha memory about cats", "beta memory about dogs"]
@@ -43,4 +43,4 @@ def test_build_memory_graph_edges_uses_batch_and_dedupes(monkeypatch):
 
 
 def test_build_memory_graph_edges_empty_sources():
-    assert _build_memory_graph_edges([]) == []
+    assert build_memory_graph_edges([]) == []

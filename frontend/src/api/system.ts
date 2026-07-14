@@ -95,8 +95,8 @@ export async function importEncryptedData(
 }
 
 export async function destroyAllData(): Promise<Record<string, unknown>> {
-  // Backend reads confirm from the query string (not JSON body).
-  return request(`${API_BASE}/system/data?confirm=${encodeURIComponent("DESTROY_ALL_DATA")}`, {
+  return request(`${API_BASE}/system/data`, {
     method: "DELETE",
+    body: JSON.stringify({ confirm: "DESTROY_ALL_DATA" }),
   });
 }

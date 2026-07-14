@@ -71,9 +71,16 @@ class ShellServer:
     })
 
     # Shell metacharacters — never pass to a shell.
-    # && is handled separately by _split_and_execute; all other metacharacters
-    # (|, ||, ;, `, $, <, >, (, )) are still rejected.
-    _METACHAR_RE = re.compile(r"[|;`$<>()]|\|\|")
+    # && is handled separately by _split_chained_commands; all other
+    # metacharacters are rejected at the single-command level:
+    #   pipe (|), or (||), semicolon (;), ampersand (&) — prevents chaining
+    #   and background execution.
+    #   backtick (`), dollar ($) — prevents command substitution.
+    #   redirects (< >), parentheses () — prevents subshells.
+    #   newlines (\n \r) — prevents line injection.
+    # Asterisk (*) is intentionally NOT blocked: with shell=False the OS does
+    # not expand globs, and coding agents commonly need patterns like ``*.py``.
+    _METACHAR_RE = re.compile(r"[|;&`$<>()\n\r]|\|\|")
 
     # Commands that escalate privileges — rejected at argv level (not substring
     # matching, which would false-positive on "pseudo", "subl", "summarize").
@@ -126,9 +133,25 @@ class ShellServer:
         )
 
     def _split_chained_commands(self, command: str) -> list[str]:
-        """Split a chained command (cmd1 && cmd2) into individual commands."""
-        parts = command.split("&&")
-        return [p.strip() for p in parts if p.strip()]
+        """Split a chained command (cmd1 && cmd2) into individual commands.
+
+        Uses shlex to tokenize first, then splits on ``&&`` tokens. This
+        correctly handles ``&&`` inside quoted strings (e.g. ``echo "a&&b"``
+        produces a single token ``a&&b``, not a chain separator).
+        """
+        try:
+            tokens = shlex.split(command, posix=not sys.platform.startswith("win"))
+        except ValueError:
+            # If shlex can't parse, fall back to treating it as a single command
+            # so _parse_argv can report the syntax error.
+            return [command]
+        groups: list[list[str]] = [[]]
+        for tok in tokens:
+            if tok == "&&":
+                groups.append([])
+            else:
+                groups[-1].append(tok)
+        return [" ".join(shlex.quote(t) for t in g) for g in groups if g]
 
     # Dangerous flags for interpreters that can execute arbitrary code.
     DANGEROUS_FLAGS: dict[str, frozenset[str]] = {
@@ -243,6 +266,9 @@ class ShellServer:
         The first failure stops the chain.
         """
         parts = self._split_chained_commands(command)
+        if not parts:
+            # Handles bare "&&", trailing "&&", or whitespace-only input.
+            return json.dumps({"error": "Empty command after parsing chain operators"})
         if len(parts) > 1:
             results = []
             for i, part in enumerate(parts):

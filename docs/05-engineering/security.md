@@ -83,7 +83,7 @@ URL 抓取类工具经 `url_safety.validate_http_url` 校验。相关测试：`t
 | `POST /api/system/export/encrypted` | 加密导出 | 只读 |
 | `POST /api/system/import` | replay event_log + bootstrap chat | **destructive**（`read_only=false` 时） |
 | `POST /api/system/import/encrypted` | 解密 + destructive import | **destructive** |
-| `DELETE /api/system/data?confirm=DESTROY_ALL_DATA` | 删 SQLite 文件 + vectors 目录 + 重建空 DB | **不可逆** |
+| `DELETE /api/system/data`（body `{"confirm":"DESTROY_ALL_DATA"}`；若已配置 `AUTH_TOKEN` 则需 Bearer） | 删 SQLite 文件 + vectors 目录 + 重建空 DB | **不可逆** |
 
 ## 密钥扫描
 

@@ -8,6 +8,7 @@ from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import StreamingResponse
 
 from app.api.models import (
+    DestroyDataRequest,
     EncryptedExportRequest,
     EncryptedImportRequest,
     ExportRequest,
@@ -30,6 +31,23 @@ def _request_has_valid_auth(request: Request) -> bool:
     if not auth_header.startswith("Bearer "):
         return False
     return secrets.compare_digest(auth_header[7:], expected)
+
+
+def _require_auth_when_configured(request: Request, action: str) -> None:
+    """Enforce Bearer auth only when AUTH_TOKEN is configured.
+
+    Local-first default leaves AUTH_TOKEN empty; destructive operations are then
+    gated solely by confirm codes. When AUTH_TOKEN is set, AuthMiddleware already
+    rejects unauthenticated callers — this is defense-in-depth for those routes.
+    """
+    if not settings.auth_token:
+        return
+    if not _request_has_valid_auth(request):
+        raise HTTPException(
+            status_code=403,
+            detail=f"{action} requires AUTH_TOKEN to be set and provided",
+        )
+
 
 EXPORT_CONFIRM = "EXPORT_ALL_DATA"
 DESTROY_CONFIRM = "DESTROY_ALL_DATA"
@@ -146,14 +164,16 @@ async def export_all_data(body: ExportRequest | None = None):
     )
 
 @router.post("/import")
-async def import_all_data(body: ImportRequest):
+async def import_all_data(body: ImportRequest, request: Request):
     """Import personal data snapshot. Requires confirm code when not read_only."""
     read_only = body.read_only
-    if not read_only and body.confirm != IMPORT_CONFIRM:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Set confirm='{IMPORT_CONFIRM}' for write import",
-        )
+    if not read_only:
+        _require_auth_when_configured(request, "Write import")
+        if body.confirm != IMPORT_CONFIRM:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Set confirm='{IMPORT_CONFIRM}' for write import",
+            )
     return await asyncio.to_thread(
         kernel.restore,
         body.data,
@@ -162,14 +182,18 @@ async def import_all_data(body: ImportRequest):
 
 
 @router.delete("/data")
-async def destroy_all_data(confirm: str = ""):
-    """Destroy all local data. Requires confirm code via query parameter.
-    Usage: DELETE /api/system/data?confirm=DESTROY_ALL_DATA
+async def destroy_all_data(body: DestroyDataRequest, request: Request):
+    """Destroy all local data. Requires confirm code in body; AUTH_TOKEN when configured.
+
+    Usage: DELETE /api/system/data with JSON body ``{"confirm": "DESTROY_ALL_DATA"}``.
+    Body is used (not query params) so the confirm code stays out of access logs.
+    When AUTH_TOKEN is unset (local-first default), confirm code alone is sufficient.
     """
-    if confirm != DESTROY_CONFIRM:
+    _require_auth_when_configured(request, "Destroy")
+    if body.confirm != DESTROY_CONFIRM:
         raise HTTPException(
             status_code=400,
-            detail=f"Query parameter confirm must be '{DESTROY_CONFIRM}'",
+            detail=f"Set confirm='{DESTROY_CONFIRM}' in request body",
         )
     return await asyncio.to_thread(kernel.erase)
 
@@ -208,13 +232,15 @@ async def export_encrypted(body: EncryptedExportRequest):
 
 
 @router.post("/import/encrypted")
-async def import_encrypted(body: EncryptedImportRequest):
+async def import_encrypted(body: EncryptedImportRequest, request: Request):
     """Import previously encrypted export blob.
 
     Requires the same confirm code as plaintext write import, because the
     underlying path rewrites event_log (drops append-only triggers, clears,
-    reinserts). Password is read from the request body.
+    reinserts). Password is read from the request body. AUTH_TOKEN is required
+    only when configured.
     """
+    _require_auth_when_configured(request, "Encrypted import")
     if body.confirm != IMPORT_CONFIRM:
         raise HTTPException(
             status_code=400,

@@ -5,13 +5,19 @@ import asyncio
 from fastapi import APIRouter, File, HTTPException, Query, UploadFile
 
 from app.product import knowledge as knowledge_service
+from app.product.knowledge import MAX_FILE_SIZE
 
 router = APIRouter(tags=["knowledge"])
 
 
 @router.post("/upload")
 async def upload_document(file: UploadFile = File(...)):
-    content = await file.read()
+    content = await file.read(MAX_FILE_SIZE + 1)
+    if len(content) > MAX_FILE_SIZE:
+        raise HTTPException(
+            status_code=413,
+            detail=f"File too large (max {MAX_FILE_SIZE // 1024 // 1024} MB)",
+        )
     try:
         document = await asyncio.to_thread(
             knowledge_service.ingest_upload,

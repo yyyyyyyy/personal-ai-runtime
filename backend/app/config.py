@@ -74,6 +74,10 @@ class Settings(BaseSettings):
     allow_no_auth_on_exposed: bool = False
     """允许在公网暴露时无认证运行。仅在明确了解安全风险时设为 true。"""
 
+    trust_proxy_headers: bool = False
+    """信任反向代理头（X-Forwarded-For）。仅在部署于受信任的反代（nginx/Caddy/Cloudflare）
+    之后时启用，否则外部客户端可伪造 IP 绕过限流。未启用时，限流使用 socket 直接对端 IP。"""
+
     # --- MCP ---
     mcp_config_path: str = str(BASE_DIR / "backend" / "mcp_config.json")
     capability_policy_path: str = str(BASE_DIR / "backend" / "capability_policy.json")

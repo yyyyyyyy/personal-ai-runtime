@@ -1,6 +1,7 @@
 """Browser MCP Server — Playwright-based web automation (read-only by default)."""
 
 import json
+import urllib.parse
 
 from app.core.harness.url_safety import (
     UnsafeUrlError,
@@ -44,9 +45,10 @@ class BrowserServer:
 
     async def search_and_extract(self, query: str, site: str = "") -> str:
         """Search a site and extract text content."""
-        search_url = f"https://duckduckgo.com/html/?q={query}"
+        encoded_q = urllib.parse.quote_plus(query)
+        search_url = f"https://duckduckgo.com/html/?q={encoded_q}"
         if site:
-            search_url += f"+site%3A{site}"
+            search_url += f"+site%3A{urllib.parse.quote(site, safe='')}"
         return await self.open_page(search_url)
 
     def take_screenshot(self, url: str) -> str:

@@ -103,7 +103,7 @@ GitHub Release 由 [`workflows/release.yml`](../../.github/workflows/release.yml
 | Docker Compose | `/app/backend/data/personal_ai.db`（卷 `backend-data`） | `/app/backend/data/vectors/`（同卷） |
 | 桌面打包 | 由系统 `DATA_DIR` 决定 | 同 |
 
-数据可经 `POST /api/system/export`（明文 JSON）或 `POST /api/system/export/encrypted`（AES-GCM + PBKDF2，base64）导出；经 `POST /api/system/import` 或 `/import/encrypted` 导入；`DELETE /api/system/data?confirm=DESTROY_ALL_DATA` 不可逆销毁。详见 [03-subsystems/backend-api.md](../03-subsystems/backend-api.md) 与 [04-data/data-model.md](../04-data/data-model.md)。
+数据可经 `POST /api/system/export`（明文 JSON）或 `POST /api/system/export/encrypted`（AES-GCM + PBKDF2，base64）导出；经 `POST /api/system/import` 或 `/import/encrypted` 导入；`DELETE /api/system/data`（body `{"confirm": "DESTROY_ALL_DATA"}`；若已配置 `AUTH_TOKEN` 则同时需要 Bearer）不可逆销毁。详见 [03-subsystems/backend-api.md](../03-subsystems/backend-api.md) 与 [04-data/data-model.md](../04-data/data-model.md)。
 
 ## 生产安全清单
 

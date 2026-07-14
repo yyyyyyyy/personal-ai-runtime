@@ -104,6 +104,28 @@ def _is_localhost_bind(host: str) -> bool:
     return host in _LOCALHOST_HOSTS or host.startswith("127.")
 
 
+def _extract_client_ip(scope: Scope) -> str:
+    """Return the client IP for rate-limiting, honouring X-Forwarded-For only
+    when ``settings.trust_proxy_headers`` is enabled.
+
+    Without the proxy-trust flag we use the raw socket peer. This prevents
+    spoofing via a client-supplied ``X-Forwarded-For`` header. When deploying
+    behind a trusted reverse proxy, set TRUST_PROXY_HEADERS=true so that
+    rate-limit buckets are keyed by the real upstream client.
+    """
+    if settings.trust_proxy_headers:
+        for name, value in scope.get("headers", []):
+            if name == b"x-forwarded-for":
+                # First entry is the original client; subsequent are proxy chain.
+                xff = value.decode("latin-1").split(",")
+                if xff:
+                    ip = xff[0].strip()
+                    if ip:
+                        return ip
+    client = scope.get("client", ("", 0))[0]
+    return client or "unknown"
+
+
 def _tokens_match(provided: str, expected: str) -> bool:
     if not provided or not expected:
         return False
@@ -205,10 +227,13 @@ class AuthMiddleware:
         # is preserved but cannot be abused at high frequency.
         from app.core.rate_limit import check_rate_limit
 
+        client_ip = _extract_client_ip(scope)
+
         expected = settings.auth_token
         if not expected:
-            # No auth configured — use common anonymous bucket for everyone.
-            if not check_rate_limit(path, key="anonymous"):
+            # No auth configured — rate-limit per client IP so one attacker
+            # cannot exhaust the quota for all other users.
+            if not check_rate_limit(path, key=client_ip):
                 await self._too_many_requests(send)
                 return
             await self.app(scope, receive, send)
@@ -216,9 +241,9 @@ class AuthMiddleware:
 
         token = self._extract_bearer(scope)
         if not _tokens_match(token, expected):
-            # Invalid token — rate-limit under a separate "bad-auth" key so
-            # attackers cannot exhaust the legitimate bucket.
-            if not check_rate_limit(path, key="bad-auth"):
+            # Invalid token — rate-limit per IP under a separate "bad-auth"
+            # namespace so attackers cannot exhaust the legitimate bucket.
+            if not check_rate_limit(path, key=f"bad-auth:{client_ip}"):
                 await self._too_many_requests(send)
                 return
             await self._unauthorized(send)

@@ -6,7 +6,7 @@
       "enabled": true,
       "startup_connect": true,
       "command": "npx",
-      "args": ["-y", "@playwright/mcp@latest", "--headless"],
+      "args": ["-y", "@playwright/mcp@0.0.78", "--headless"],
       "connect_timeout_seconds": 60,
       "policy_default": "auto_allow",
       "enabled_tools": [
@@ -89,7 +89,7 @@
       "enabled": true,
       "startup_connect": true,
       "command": "npx",
-      "args": ["-y", "tavily-mcp@latest"],
+      "args": ["-y", "tavily-mcp@0.2.21"],
       "optional_env": ["TAVILY_API_KEY"],
       "connect_timeout_seconds": 30,
       "policy_default": "auto_allow",

@@ -103,20 +103,20 @@
 
 确认码常量（[`system.py`](../../backend/app/api/system.py)）：`EXPORT_CONFIRM="EXPORT_ALL_DATA"`、`DESTROY_CONFIRM="DESTROY_ALL_DATA"`、`IMPORT_CONFIRM="DESTROY_AND_IMPORT"`。
 
-| 方法 | 路径 | 行 | 请求 | 响应 | Auth | 副作用 |
-|---|---|---|---|---|---|---|
-| GET | `/health` | `36-51` | — | `{status, service, version, auth_required, startup}`（未认证 startup 脱敏） | **public** | 无 |
-| GET | `/live` | `54-60` | — | `{status:"ok", service}` | **public** | 无（Docker healthcheck） |
-| GET | `/ready` | `63-74` | — | `{status:"ok",...}` / 503 | middleware | 探测 event_log 表 |
-| GET | `/llm-providers` | `77-83` | — | `{providers, default}` | middleware | 无 |
-| GET | `/info` | `86-106` | — | 表计数 + llm_providers 数 | middleware | 无 |
-| GET | `/mcp-status` | `109-114` | — | MCP server 状态 | middleware | 无 |
-| POST | `/export` | `117-126` | `ExportRequest{confirm=""}` | 完整快照（event_log + conversations + messages + counts） | middleware | DB 读 + activity_log 写 + `save_projection_snapshots()` |
-| POST | `/import` | `129-138` | `ImportRequest{data, read_only=False, confirm=""}` | import 结果 | middleware | **destructive**：replay event_log + bootstrap chat |
-| DELETE | `/data` | `141-151` | query `confirm` | `{status:"destroyed"}` | middleware | **不可逆**：删 SQLite + vectors + 重建空 DB |
-| POST | `/export/encrypted` | `156-184` | `EncryptedExportRequest{password, confirm=""}` | `{format, data(base64), size_bytes}` | middleware | 线程池 PBKDF2(600k) + AES-GCM 加密 |
-| POST | `/import/encrypted` | `187-209` | `EncryptedImportRequest{data, password, confirm=""}` | `{status, events_imported}` | middleware | 解密 + destructive import |
-| GET | `/demo/model-continuity` | `214-225` | — | `{model, base_url, total_memories, total_events, message}` | middleware | 无 |
+| 方法 | 路径 | 请求 | 响应 | Auth | 副作用 |
+|---|---|---|---|---|---|
+| GET | `/health` | — | `{status, service, version, auth_required, startup}`（未认证 startup 脱敏） | **public** | 无 |
+| GET | `/live` | — | `{status:"ok", service}` | **public** | 无（Docker healthcheck） |
+| GET | `/ready` | — | `{status:"ok",...}` / 503 | middleware | 探测 event_log 表 |
+| GET | `/llm-providers` | — | `{providers, default}` | middleware | 无 |
+| GET | `/info` | — | 表计数 + llm_providers 数 | middleware | 无 |
+| GET | `/mcp-status` | — | MCP server 状态 | middleware | 无 |
+| POST | `/export` | `ExportRequest{confirm=""}` | 完整快照（event_log + conversations + messages + counts） | middleware | DB 读 + 投影快照 |
+| POST | `/import` | `ImportRequest{data, read_only=False, confirm=""}` | import 结果 | middleware；`read_only=false` 时若已配置 `AUTH_TOKEN` 则强制校验 | **destructive**：replay event_log + bootstrap chat |
+| DELETE | `/data` | body `DestroyDataRequest{confirm=""}` | `{status:"destroyed"}` | middleware；若已配置 `AUTH_TOKEN` 则强制校验（未配置时仅确认码） | **不可逆**：删 SQLite + vectors + 重建空 DB |
+| POST | `/export/encrypted` | `EncryptedExportRequest{password, confirm=""}` | `{format, data(base64), size_bytes}` | middleware | 线程池 PBKDF2(600k) + AES-GCM 加密 |
+| POST | `/import/encrypted` | `EncryptedImportRequest{data, password, confirm=""}` | `{status, events_imported}` | middleware；若已配置 `AUTH_TOKEN` 则强制校验 | 解密 + destructive import |
+| GET | `/demo/model-continuity` | — | `{model, base_url, total_memories, total_events, message}` | middleware | 无 |
 
 ## settings — `/api/settings`（[`api/settings_api.py`](../../backend/app/api/settings_api.py)）
 

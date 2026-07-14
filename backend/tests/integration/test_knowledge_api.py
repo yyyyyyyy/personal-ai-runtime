@@ -79,3 +79,17 @@ def test_search_with_results(client: TestClient):
     assert r.status_code == 200
     data = r.json()
     assert data["total"] >= 1
+
+
+def test_upload_oversized_file_rejected(client: TestClient):
+    """Files exceeding MAX_FILE_SIZE must be rejected with 413 before ingest."""
+    from app.product.knowledge import MAX_FILE_SIZE
+
+    # Craft a payload just over the cap. We don't materialise the whole body
+    # in memory in the assertion — only the BytesIO does, and we keep it tight.
+    oversized = b"x" * (MAX_FILE_SIZE + 1)
+    r = client.post("/api/knowledge/upload", files={
+        "file": ("huge.txt", io.BytesIO(oversized), "text/plain"),
+    })
+    assert r.status_code == 413
+    assert "too large" in r.json()["detail"].lower()
