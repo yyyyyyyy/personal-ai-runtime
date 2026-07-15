@@ -29,7 +29,7 @@ bash install.sh
 1. 检查 python3/node/npm 版本。
 2. 若 `.env` 不存在，复制 `.env.example`，交互式提示选 LLM provider（DeepSeek 默认 / OpenAI / 自定义 OpenAI 兼容）+ API key + base URL + model，可选 Gmail 凭据。若 `.env` 存在但 `LLM_API_KEY` 不以 `sk-` 开头则警告。
 3. 安装后端 pip、前端 npm（`npm ci` → 失败回退 `npm install`）、desktop npm（若存在）。
-4. 跑 `alembic upgrade head`（首次运行可能由应用 auto-init）。
+4. 跑 `alembic upgrade head` 初始化 schema（首次运行可能由应用 auto-init）。
 5. 验证 `from app.main import app` 可导入，打印启动说明。
 
 ### 手动
@@ -38,7 +38,7 @@ bash install.sh
 make install
 ```
 
-等价于：先检查后端依赖元数据同步，再执行 `pip install --require-hashes -r backend/requirements.lock` + `npm ci`（frontend + desktop）+ `python3 generate_icon.py`（desktop）+ `alembic upgrade head`（失败容错）。锁文件同时包含运行时依赖和 pytest/ruff/mypy 等开发工具。
+等价于：先检查后端依赖元数据同步，再执行 `pip install --require-hashes -r backend/requirements.lock` + `npm ci`（frontend + desktop）+ `python3 generate_icon.py`（desktop）+ `alembic upgrade head` 初始化 schema（失败容错）。锁文件同时包含运行时依赖和 pytest/ruff/mypy 等开发工具。
 
 ## 环境配置
 
@@ -71,13 +71,13 @@ make desktop      # cd desktop && npm start  (electron .)
 
 Electron 默认加载 `http://localhost:5173`，探测 8000 端口已有后端则复用。详见 [03-subsystems/desktop.md](../03-subsystems/desktop.md)。
 
-### 数据库迁移
+### 数据库初始化
 
 ```bash
 make init-db      # alembic upgrade head（失败容错）
 ```
 
-迁移文件见 [04-data/data-model.md](../04-data/data-model.md) 的 Alembic 段。
+Schema 定义见 [04-data/data-model.md](../04-data/data-model.md) 的 Schema 初始化段。
 
 ### 演示数据
 
@@ -87,9 +87,9 @@ make demo         # LLM_API_KEY=${LLM_API_KEY:-demo-seed} python3 scripts/seed_d
 
 [`scripts/seed_demo.py`](../../backend/scripts/seed_demo.py) 幂等：检查目标 `【Demo】完成用户验证访谈` 是否已存在，不存在则播种 2 个目标 + 2 条记忆 + 1 个对话 + 1 条消息。
 
-## 开发期自用检查（dogfood）
+## 自用检查（dogfood）
 
-项目当前处于开发期，未上生产。为保证核心闭环真实可用（而非仅靠 CI 不变量背书），每周至少跑通下表一次。目标不是覆盖所有功能，而是验证「自己每天能用」的最小路径。
+为保证核心闭环真实可用（而非仅靠 CI 不变量背书），每周至少跑通下表一次。目标不是覆盖所有功能，而是验证「自己每天能用」的最小路径。
 
 | 闭环 | 通过标准（开发期） | 状态标记 |
 |------|-------------------|---------|
@@ -101,21 +101,19 @@ make demo         # LLM_API_KEY=${LLM_API_KEY:-demo-seed} python3 scripts/seed_d
 
 记录方式：在本地笔记或 PR 描述里记一行 `2026-WW Chat:pass Memory:fail Work:pass Desktop:pass Inbox:blocked`，无需入库。连续两周某项 `fail` 应优先排进下周计划。
 
-辅助工具：[`scripts/soak_dogfood_report.py`](../../scripts/soak_dogfood_report.py)（见 [testing.md](testing.md) 开发期 soak 段）对当前 `backend/data/personal_ai.db` 输出只读计数报告，用于核对上面的主观判断是否与库内数据一致。
+辅助工具：[`scripts/soak_dogfood_report.py`](../../scripts/soak_dogfood_report.py)（见 [testing.md](testing.md) soak 段）对当前 `backend/data/personal_ai.db` 输出只读计数报告，用于核对上面的主观判断是否与库内数据一致。
 
-### 当前基线快照（2026-07-12，工具与文档里程碑，非闭环 pass）
+### 基线快照
 
-本轮巩固计划交付的是 **tag / IPC 收口 / dogfood 工具与闸门文档**，**尚未**把下表跑成 pass。以 `python scripts/soak_dogfood_report.py` 对本地库的只读计数为准（会随日用变化）：
+以 `python scripts/soak_dogfood_report.py` 对本地库的只读计数为准（会随日用变化）：
 
-| 闭环 | 当时证据 | 建议标记 |
-|------|---------|---------|
-| Chat | `messages` 极少、`CapabilityInvoked=0`、approval 多 pending 且无 approve | `fail` |
-| Memory | 有 `MemoryDerived`/`memories` 行，但缺「后续对话可召回」的人工验证 | `fail`（待日用验证） |
-| Work items | 库内有 completed work items | 可标 `pass`（若你确认是真实操作而非纯测试种子） |
-| Desktop | 需人工托盘 + 通知验证 | 未测 |
-| Inbox | `inbox_emails=0` | `blocked` |
-
-下一步优先：真实跑通 Chat（含一次工具审批）→ Memory 召回，再用 soak 报告核对，不要用「报告脚本更完善」替代闭环 pass。
+| 闭环 | 核对维度 |
+|------|---------|
+| Chat | `messages` 数、`CapabilityInvoked` 计数、approval pending/approve |
+| Memory | `MemoryDerived`/`memories` 行数 + 人工召回验证 |
+| Work items | completed work items 计数 |
+| Desktop | 托盘 + 通知人工验证 |
+| Inbox | `inbox_emails` 计数 |
 
 ## 质量门
 

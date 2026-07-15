@@ -36,7 +36,7 @@ class TestInboxAudit:
         ]
 
         monkeypatch.setattr("app.product.inbox.kernel", kernel)
-        # v0.3.0: db singleton no longer imported by inbox.py after inbox_emails
+        # db singleton is not imported by inbox.py after inbox_emails
         # promotion to governed projection (commit 035b2f2).
 
         with patch.object(kernel, "invoke_capability", side_effect=fake_invoke):
@@ -79,7 +79,7 @@ class TestInboxAudit:
         ]
 
         monkeypatch.setattr("app.product.inbox.kernel", kernel)
-        # v0.3.0: db singleton no longer imported by inbox.py (see above).
+        # db singleton is not imported by inbox.py (see above).
 
         with patch.object(kernel, "invoke_capability", side_effect=fake_invoke):
             with patch("app.product.inbox._classify_emails", new=AsyncMock(return_value=classified)):

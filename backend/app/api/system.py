@@ -198,7 +198,7 @@ async def destroy_all_data(body: DestroyDataRequest, request: Request):
     return await asyncio.to_thread(kernel.erase)
 
 
-# --- Encrypted Sync (Phase 2) ---
+# --- Encrypted Sync ---
 
 @router.post("/export/encrypted")
 async def export_encrypted(body: EncryptedExportRequest):
@@ -258,11 +258,11 @@ async def import_encrypted(body: EncryptedImportRequest, request: Request):
     return {"status": "ok", "events_imported": result.get("events_imported", 0)}
 
 
-# --- Demo endpoint (Phase 1: Model Continuity Demo) ---
+# --- Demo endpoint (Model Continuity Demo) ---
 
 @router.get("/demo/model-continuity")
 async def model_continuity_demo():
-    """Return current model & memory stats for the Phase 1 model-switch demo."""
+    """Return current model & memory stats for the model-switch demo."""
     from app.core.runtime.kernel_instance import kernel
     counts = kernel.table_counts(("memories", "event_log"))
     return {

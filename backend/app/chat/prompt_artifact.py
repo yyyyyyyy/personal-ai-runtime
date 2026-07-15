@@ -2,14 +2,10 @@
 
 Canonical source for identity, coding rules, and tool hints.
 
-Migration notes:
-  Canonical:   PromptArtifactLoader / IDENTITY_ARTIFACT / CODING_RULES_TEMPLATE
-  Removed:     runtime.identity fragment (identity only via PromptArtifactLoader)
+Identity and coding rules are loaded from prompt files in backend/prompts/.
+Users can customize them via Settings > System Prompt.
 
 Prompt Artifact is static guidance only — no DB, memory, kernel state, or events.
-
-Since v0.1.0: Identity and coding rules are loaded from prompt files in
-backend/prompts/. Users can customize them via Settings > System Prompt.
 """
 
 from __future__ import annotations
@@ -65,7 +61,7 @@ def _load_prompt_file(filename: str, default: str) -> str:
     return default
 
 
-# Keep backward-compatible constants (used by tests and legacy code)
+# Public constants (used by tests and callers)
 IDENTITY_FILE = "identity.md"
 CODING_RULES_FILE = "coding_rules.md"
 
@@ -84,7 +80,7 @@ class PromptArtifactContext:
 class PromptArtifactLoader:
     """Load static prompt artifact blocks. No runtime state retrieval.
 
-    Since v0.1.0, identity and coding rules can be overridden via:
+    Identity and coding rules can be overridden via:
     - backend/prompts/identity.md and coding_rules.md (file-based)
     - /api/settings/prompt API (runtime override, stored in app_settings)
     """

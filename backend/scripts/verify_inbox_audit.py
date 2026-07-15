@@ -50,7 +50,7 @@ def verify_inbox_emails_event_consistency(db_path: str) -> list[str]:
       - InboxEmailRecorded event exists whose aggregate_id has no matching
         inbox_emails row (emit succeeded, INSERT failed or row was deleted)
 
-    A small number of legacy events may exist without rows (emails deleted
+    A small number of events may exist without rows (emails deleted
     by the user but the event_log row is immutable). We surface those as
     info-level warnings, not failures, when the count is below a threshold.
     """
@@ -216,7 +216,7 @@ def main() -> int:
 
     print(
         "INBOX AUDIT VERIFICATION PASSED — "
-        "InboxEmailRecorded events traceable + inbox_emails ↔ event_log consistent"
+        "InboxEmailRecorded events traceable + inbox_emails <-> event_log consistent"
     )
     return 0
 

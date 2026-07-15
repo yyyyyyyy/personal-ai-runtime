@@ -1,4 +1,4 @@
-"""Event-log formatting and legacy UI adapters."""
+"""Event-log formatting and UI-facing event adapters."""
 
 from __future__ import annotations
 

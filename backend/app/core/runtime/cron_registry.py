@@ -1,6 +1,6 @@
 """Cron scheduler — timer-driven scheduling via Runtime Timer Engine.
 
-v0.4.0: ensure_schedules inlined from deleted timer_engine.py.
+``ensure_schedules`` is inlined in RuntimeLoop.
 """
 from __future__ import annotations
 

@@ -1,4 +1,4 @@
-"""Tests for v1.0 Phase 2: WorkItemCreated/Updated projector handles goal fields.
+"""Tests for WorkItemCreated/Updated projector goal fields.
 
 Verifies:
   1. WorkItemCreated with work_type='goal' populates progress/importance/

@@ -2,7 +2,7 @@
 
 本目录是 Personal AI Runtime 的官方文档，所有内容均依据当前代码库（`backend/`、`frontend/`、`desktop/`、根目录脚本）撰写。文档与代码不一致时，以代码为准。
 
-当前版本：`0.2.0`（[`backend/app/version.py`](../backend/app/version.py)）。
+当前版本：`1.0.0`（[`backend/app/version.py`](../backend/app/version.py)）。
 
 ---
 

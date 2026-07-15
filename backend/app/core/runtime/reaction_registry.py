@@ -1,10 +1,7 @@
 """Reaction Registry — declarative periodic actions.
 
-v0.6.0: Imperative TriggerEngine replaced by @reaction declarations.
-v0.11.0: removed unused event-driven ``on_event``/``_check_threshold`` path
-         (it was never wired into Kernel._dispatch). ``evaluate_cycle`` is
-         now the only firing mechanism.
-v0.12.0: ``ReactionWhen`` is consulted by ``evaluate_cycle``.
+Reactions are declared via ``@reaction`` and fired by ``evaluate_cycle``.
+``ReactionWhen`` is consulted by ``evaluate_cycle``:
          - ``every_cycle`` opts a reaction into the periodic loop.
          - ``state_selector`` + ``count_gte`` (+ optional ``state_filters``)
            are a pre-gate: the handler is skipped when matching state rows
@@ -28,8 +25,7 @@ class ReactionWhen:
     """Conditions that gate periodic evaluation.
 
     ``every_cycle``
-        Include this reaction in RuntimeLoop ``evaluate_cycle``. Prefer this
-        over the legacy ``count_gte > 0`` opt-in.
+        Include this reaction in RuntimeLoop ``evaluate_cycle``.
 
     ``state_selector`` / ``state_filters`` / ``count_gte``
         Pre-gate against governed state via ``kernel.query_state``. When
@@ -64,7 +60,7 @@ class ReactionWhen:
         """Whether this reaction participates in ``evaluate_cycle``."""
         if self.every_cycle:
             return True
-        # Legacy opt-in: count_gte > 0 without every_cycle (pre-v0.12).
+        # Opt-in via count_gte > 0 without every_cycle.
         if self.count_gte > 0:
             return True
         if self.state_selector:

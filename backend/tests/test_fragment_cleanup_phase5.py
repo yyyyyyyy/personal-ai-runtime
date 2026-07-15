@@ -1,4 +1,4 @@
-"""Phase 5 — fragment registry audit and reachability tests."""
+"""Fragment registry audit and reachability tests."""
 
 from __future__ import annotations
 
@@ -12,7 +12,7 @@ from app.core.runtime.governance.fragment_selector import (
 )
 from app.fragments.register import register_all_fragments
 
-_EXPECTED_FRAGMENT_COUNT = 10  # v0.7.0: memory+world merged into background, mail+calendar identity merged into existing fragments
+_EXPECTED_FRAGMENT_COUNT = 10  # background + mail + calendar + other fragments
 
 FRAGMENT_TRIGGER_MATRIX: dict[str, str] = {
     "core.background": "Core Tier",
@@ -87,7 +87,7 @@ class TestBackgroundReachability:
         registry = FragmentRegistry()
         register_all_fragments(registry)
         ids = reachable_fragment_ids(registry)
-        assert "core.background" in ids  # v0.7.0: background is Core Tier
+        assert "core.background" in ids  # background is Core Tier
 
 
 class TestIdentitySingleSource:

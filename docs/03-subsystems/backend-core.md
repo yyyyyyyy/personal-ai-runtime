@@ -132,9 +132,9 @@ cron 表达式解析 `_next_cron_fire(cron_expr, from_ts)`（[`runtime_loop.py`]
 
 ## Agent / 执行模型
 
-### 单 Agent 模型（v0.4.0+）
+### 单 Agent 模型
 
-Runtime 在 v0.4.0 移除了多 Agent 抽象（`AgentDefinition`/`AgentInstance`/`AgentRegistry` 已删），改为单一持久 agent。`agent:primary` 字符串直接由 [`agent_scheduler.py`](../../backend/app/core/runtime/agent_scheduler.py) 内联使用，作为 `ensure_scheduler(kernel)` 内部的 actor 标识。所有事件路由都通过 Scheduler + `@subscribe` handler 注册机制（详见 [02-concepts/runtime-algebra.md](../02-concepts/runtime-algebra.md) §4.5）。
+Runtime 使用单一持久 agent。`agent:primary` 字符串直接由 [`agent_scheduler.py`](../../backend/app/core/runtime/agent_scheduler.py) 内联使用，作为 `ensure_scheduler(kernel)` 内部的 actor 标识。所有事件路由都通过 Scheduler + `@subscribe` handler 注册机制（详见 [02-concepts/runtime-algebra.md](../02-concepts/runtime-algebra.md) §4）。
 
 ### Event Handlers
 
@@ -168,7 +168,7 @@ Handlers（[`handlers/`](../../backend/app/core/agents/handlers/)）：
 - [`work_item.py`](../../backend/app/core/runtime/work_item.py) — 原子执行单元，状态机 `pending → running → completed | failed → retrying → running`，持久化于 `handler_executions`。`to_row`/`from_row` 用于序列化。
 - [`execution.py`](../../backend/app/core/runtime/execution.py) — 最小 handler 上下文（`instance_id`、`actor`、`correlation_id`、`_kernel`、`principal`、`execution_id`），暴露 `emit()`。
 - [`handler_registry.py`](../../backend/app/core/runtime/handler_registry.py) — 事件类型 → async handler 映射，`@subscribe("EventType")` 装饰器注册。
-- 影子比对（ADR-0007 Step 2）已内联进 [`agent_scheduler.py`](../../backend/app/core/runtime/agent_scheduler.py) 的 `_emit_verify` → `_shadow_compare`：每次 emit 后比对 `WorkItem.to_row()` 与 `handler_executions` 投影。
+- 影子比对（Execution 契约 §2）内联在 [`agent_scheduler.py`](../../backend/app/core/runtime/agent_scheduler.py) 的 `_emit_verify` → `_shadow_compare`：每次 emit 后比对 `WorkItem.to_row()` 与 `handler_executions` 投影。
 
 ### SSE 队列
 
@@ -183,9 +183,9 @@ Scheduler 通过 `kernel.set_async_dispatcher()`（[`kernel.py`](../../backend/a
 | 文件 | 职责 |
 |---|---|
 | [`task_engine.py`](../../backend/app/core/runtime/task_engine.py) | WorkItem CRUD 模块函数（`work_type=task`，底层 emit `WorkItem*` 事件）；统一状态机（`TaskStatus` 枚举 + `_TRANSITIONS` 校验） |
-| [`runtime_config.py`](../../backend/app/core/runtime/runtime_config.py) | LLM/Email 设置持久化于 SQLite `app_settings`；env 播种默认；UI 编辑持久化 DB；遗留 `runtime_config.json` 自动迁移。`PROVIDER_TYPES`、`PROVIDER_PRESETS`、`effective_api_key`、`get_llm_config(masked)`、`update_llm_config`、`get_email_config`、`get_generation_params`、`get_prompt`/`save_prompt` |
-| [`cron_registry.py`](../../backend/app/core/runtime/cron_registry.py) | Cron 调度注册（扫描已迁移到 RuntimeLoop）：`ensure_schedules`/`create_schedule`/`list_schedules`/`delete_schedule`（由 `timer_engine` 折叠而来） |
-| [`reaction_registry.py`](../../backend/app/core/runtime/reaction_registry.py) | v0.6.0 声明式触发器（替代已删除的 `trigger_engine`） |
+| [`runtime_config.py`](../../backend/app/core/runtime/runtime_config.py) | LLM/Email 设置持久化于 SQLite `app_settings`；env 播种默认；UI 编辑持久化 DB；若存在 `runtime_config.json` 则自动导入 `app_settings`。`PROVIDER_TYPES`、`PROVIDER_PRESETS`、`effective_api_key`、`get_llm_config(masked)`、`update_llm_config`、`get_email_config`、`get_generation_params`、`get_prompt`/`save_prompt` |
+| [`cron_registry.py`](../../backend/app/core/runtime/cron_registry.py) | Cron 调度注册（扫描在 RuntimeLoop）：`ensure_schedules`/`create_schedule`/`list_schedules`/`delete_schedule` |
+| [`reaction_registry.py`](../../backend/app/core/runtime/reaction_registry.py) | 声明式触发器注册 |
 | [`runtime_loop.py`](../../backend/app/core/runtime/runtime_loop.py) | 后台任务生命周期与轮询（`background_worker` 折叠于此）：timer 扫描（每 10 tick）、维护（每 100 tick）、后台任务派发、ChromaDB repair 重试 |
 | [`notification_channel.py`](../../backend/app/core/runtime/notification_channel.py) | 可插拔通道：`DesktopChannel`（WS 广播）、`WebhookChannel`（HTTP POST）、`NtfyChannel`（ntfy.sh）。`NotificationRouter.notify()` 扇出 |
 | [`notification_bridge.py`](../../backend/app/core/runtime/notification_bridge.py) | 同步→异步桥；`push_notification` 持久化+广播，`broadcast_event` 纯传输 |

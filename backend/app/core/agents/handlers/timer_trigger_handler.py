@@ -33,7 +33,6 @@ async def _call_product(
         if handler_name == "deadline_alert":
             from app.core.runtime import read_ports
 
-            # v1.0 Phase 4: goals table retired
             candidates = read_ports.query_goals_with_deadline(limit=500)
             now_local = datetime.now(tz)
             today = now_local.date()

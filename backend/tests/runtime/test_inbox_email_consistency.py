@@ -1,9 +1,9 @@
 """Tests for inbox_emails ↔ InboxEmailRecorded event consistency checks.
 
-v0.3.0: inbox_emails is now a governed projection derived solely from events
-via projectors_inbox.py. The "emit without row" drift scenario can no longer
-happen in normal operation — the projector runs in the same transaction as
-the event INSERT. These tests therefore focus on:
+inbox_emails is a governed projection derived solely from events via
+projectors_inbox.py. The "emit without row" drift scenario cannot happen in
+normal operation — the projector runs in the same transaction as the event
+INSERT. These tests therefore focus on:
   1. Happy-path: emit produces a matching projection row.
   2. Drift detection still works when rows are inserted out-of-band (this
      can happen during manual import, raw SQL recovery, etc.).
@@ -81,7 +81,7 @@ def test_inbox_row_without_event_detected(fresh_db):
 
 
 def test_emit_creates_projection_row(fresh_db):
-    """v0.3.0: emitting InboxEmailRecorded must materialize the projection."""
+    """Emitting InboxEmailRecorded must materialize the projection."""
     db, _ = fresh_db
     kernel = Kernel(db=db)
 
@@ -112,7 +112,7 @@ def test_emit_creates_projection_row(fresh_db):
 
 
 def test_status_changed_event_updates_projection(fresh_db):
-    """v0.3.0: InboxEmailStatusChanged transitions the projection."""
+    """InboxEmailStatusChanged transitions the projection."""
     db, _ = fresh_db
     kernel = Kernel(db=db)
 
@@ -132,7 +132,7 @@ def test_status_changed_event_updates_projection(fresh_db):
 
 
 def test_notified_and_digested_events_update_projection(fresh_db):
-    """v0.3.0: InboxEmailFlagSet (flag=notified / flag=digested) flips the flags."""
+    """InboxEmailFlagSet (flag=notified / flag=digested) flips the flags."""
     db, _ = fresh_db
     kernel = Kernel(db=db)
 
@@ -158,7 +158,7 @@ def test_notified_and_digested_events_update_projection(fresh_db):
 
 
 def test_inbox_email_rebuild_byte_identical(fresh_db):
-    """v0.3.0: rebuild('inbox_email') produces a byte-identical projection."""
+    """rebuild('inbox_email') produces a byte-identical projection."""
     db, _ = fresh_db
     kernel = Kernel(db=db)
 

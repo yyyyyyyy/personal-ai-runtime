@@ -2,7 +2,7 @@
 
 本文档解释 Personal AI Runtime 的能力治理模型——LLM 调用任何工具前必须通过的 3-gate 授权、防提示注入的 taint 追踪、身份解析与执行归属。
 
-> v0.9.0：4-gate 改为 3-gate。原 Gate 2（agent principal grant_events 检查）删除——grant_events 表自 v0.7.0 起无 projector 写入，Gate 2 永远 fail-closed。同时 `Principal.agent` 工厂方法删除；`agent:*` actor 现在统一解析为 system principal（Scheduler 内部信任代码）。详见 [PR-6 changelog](../../CHANGELOG.md)。
+`agent:*` actor 统一解析为 system principal（Scheduler 内部信任代码）。
 
 ## 入口：`Kernel.invoke_capability`
 
@@ -98,7 +98,7 @@ flowchart TB
 
 ### Principal
 
-[`backend/app/core/runtime/execution.py`](../../backend/app/core/runtime/execution.py) 定义类型化运行时身份（ADR-0007 Step 8，v0.9.0 简化）：
+[`backend/app/core/runtime/execution.py`](../../backend/app/core/runtime/execution.py) 定义类型化运行时身份（Execution 契约 §8）：
 
 ```
 Principal(principal_id, type ∈ {system, user}, actor, allowed_capabilities)
@@ -106,10 +106,10 @@ Principal(principal_id, type ∈ {system, user}, actor, allowed_capabilities)
 
 冻结 dataclass。`IdentityResolver.resolve(actor, kernel)` 把 actor 映射到 Principal：
 
-- `system` / `kernel` / `scheduler` / `executor` / `background` / `agent:*`（legacy Scheduler actor） → `Principal.system()`
+- `system` / `kernel` / `scheduler` / `executor` / `background` / `agent:*`（Scheduler actor） → `Principal.system()`
 - 其他任意 actor（含 `user`、用户名） → `Principal.user(actor)`
 
-v0.9.0 起不再有 `agent` principal 类型——Scheduler 是受信任的 Runtime 代码，所有内部 actor 统一以 system 身份运行。`Principal.agent` 工厂方法已删除。
+只有 `system` 与 `user` 两种 principal 类型——Scheduler 是受信任的 Runtime 代码，所有内部 actor 统一以 system 身份运行。
 
 ### execution_scope
 
@@ -119,9 +119,7 @@ v0.9.0 起不再有 `agent` principal 类型——Scheduler 是受信任的 Runt
 
 治理本身是事件溯源的根：
 
-- `policy_events` 表 — 每个能力的风险等级与状态变更历史，由 [`projectors_governance.py`](../../backend/app/core/runtime/kernel/projectors_governance.py) 从 `PolicyCreated/Updated/Revoked` 事件投影。`risk_for` 读取此投影（带缓存）。
-
-Grant 投影（`grant_events` 表）已于 v0.9.0 删除——Gate 2 消除后无 production 读路径。
+- `policy_events` 表 — 每个能力的风险等级与状态，由 [`projectors_governance.py`](../../backend/app/core/runtime/kernel/projectors_governance.py) 从 `PolicyCreated/Updated/Revoked` 事件投影。`risk_for` 读取此投影（带缓存）。
 
 ## 出口审计
 

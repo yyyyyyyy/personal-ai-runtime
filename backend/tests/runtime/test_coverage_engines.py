@@ -1,9 +1,7 @@
 """Coverage tests for timer and approval lifecycle.
 
-v0.6.0: timer_engine deleted; _next_cron_fire lives on RuntimeLoop.
-v0.11.0: _next_cron_fire format tests removed — they assert ISO timestamp
-details and break on any refactor. Runtime behaviour is covered by
-test_scheduler.py and test_runtime_config.py.
+_next_cron_fire lives on RuntimeLoop; its format details are not unit-tested
+(Runtime behaviour is covered by integration tests).
 """
 
 

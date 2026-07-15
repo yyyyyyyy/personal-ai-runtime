@@ -146,8 +146,8 @@ def _on_memory_deleted(event: Event, conn) -> None:
     conn.execute("DELETE FROM memories WHERE id = ?", (event.aggregate_id,))
 
 
-# --- Unified WorkItem projection (v0.5.0: merges task + action) ------------
-# The `work_items` table fully supersedes both `tasks` and `actions`.
+# --- WorkItem projection -------------------------------------------------------
+# The `work_items` table holds all work types (task / action / background / goal).
 
 _OWNED_TABLES["work_item"] = ["work_items"]
 
@@ -155,10 +155,10 @@ _OWNED_TABLES["work_item"] = ["work_items"]
 @projector("WorkItemCreated")
 def _on_work_item_created(event: Event, conn) -> None:
     p = event.payload
-    # v1.0 Phase 2: goal-unification columns. WorkItemCreated with
-    # work_type='goal' populates progress/importance/urgency/deadline/
-    # last_activity_at; other work_types fall back to schema defaults
-    # (progress=0, importance=urgency=0.5, deadline/last_activity_at=NULL).
+    # Goal columns: WorkItemCreated with work_type='goal' populates
+    # progress/importance/urgency/deadline/last_activity_at; other work_types
+    # fall back to schema defaults (progress=0, importance=urgency=0.5,
+    # deadline/last_activity_at=NULL).
     conn.execute(
         """INSERT OR REPLACE INTO work_items
            (id, title, description, work_type, parent_work_id, parent_goal_id,
@@ -189,10 +189,10 @@ def _on_work_item_created(event: Event, conn) -> None:
         ),
     )
 
-    # v1.0 Phase 3c: when a new child is created under a goal, recompute the
-    # parent's progress so the count of children stays consistent. Without
-    # this, adding a child after some siblings are already completed would
-    # leave the parent's progress stale until the next status change.
+    # When a new child is created under a goal, recompute the parent's progress
+    # so the count of children stays consistent. Without this, adding a child
+    # after some siblings are already completed would leave the parent's
+    # progress stale until the next status change.
     _recalculate_parent_goal_progress(conn, event.aggregate_id, event.ts)
 
 
@@ -202,7 +202,6 @@ def _on_work_item_updated(event: Event, conn) -> None:
     updatable = ("title", "description", "status", "priority",
                  "dependencies_json", "executable_plan", "completed_at",
                  "parent_work_id", "parent_goal_id",
-                 # v1.0 Phase 2: goal-unification fields are updatable.
                  "progress", "importance", "urgency", "deadline",
                  "last_activity_at")
     fields = [k for k in updatable if k in p]
@@ -237,8 +236,7 @@ def _on_work_item_status_changed(event: Event, conn) -> None:
         vals,
     )
 
-    # v1.0 Phase 3c: derive parent goal progress when a child changes status.
-    # This replaces the api/goals.py _on_action_completed imperative联动.
+    # Derive parent goal progress when a child changes status.
     # Pure projection (same transaction) — rebuild produces byte-identical
     # state because the same event sequence replays the same calculation.
     _recalculate_parent_goal_progress(conn, event.aggregate_id, event.ts)
@@ -252,8 +250,7 @@ def _recalculate_parent_goal_progress(
     the parent is a goal). Pure SQL within the projector's transaction — no
     event emission, so no recursion risk.
 
-    The definition matches the legacy api/goals.py _on_action_completed:
-        progress = completed / total  (only children of this parent counted)
+    Progress = completed / total (only children of this parent counted).
 
     ``parent_id_hint`` lets callers that already know the parent (e.g. delete
     path, which has to capture it before the row goes away) skip the lookup.
@@ -278,8 +275,8 @@ def _recalculate_parent_goal_progress(
     if parent is None or parent["work_type"] != "goal":
         return
 
-    # Count children and completed children. Children can reference the goal
-    # via either parent_work_id (v1.0 unified) or parent_goal_id (legacy).
+    # Count children and completed children. Children reference the goal
+    # via either parent_work_id or parent_goal_id.
     children = conn.execute(
         "SELECT status FROM work_items "
         "WHERE parent_work_id = ? OR parent_goal_id = ?",
@@ -306,8 +303,8 @@ def _recalculate_parent_goal_progress(
 
 @projector("WorkItemDeleted")
 def _on_work_item_deleted(event: Event, conn) -> None:
-    # v1.0 Phase 3c: capture parent reference before delete so we can
-    # recompute parent goal progress after the child row is gone.
+    # Capture parent reference before delete so we can recompute
+    # parent goal progress after the child row is gone.
     row = conn.execute(
         "SELECT parent_work_id, parent_goal_id FROM work_items WHERE id = ?",
         (event.aggregate_id,),
@@ -372,7 +369,7 @@ def _on_claim_revised(event: Event, conn) -> None:
     )
 
 
-# --- User Profile projection (was projectors_user.py, merged v0.7.0) ---------
+# --- User Profile projection --------------------------------------------------
 
 @projector("UserProfileUpdated")
 def _on_user_profile_updated(event: Event, conn) -> None:
@@ -386,7 +383,7 @@ def _on_user_profile_updated(event: Event, conn) -> None:
     )
 
 
-# --- Notification projection (was projectors_aux.py, merged v0.7.0) ----------
+# --- Notification projection --------------------------------------------------
 
 _OWNED_TABLES["notification"] = ["notifications"]
 

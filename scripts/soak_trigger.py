@@ -1,4 +1,4 @@
-"""ADR-0007 Step 3 Soak Gate — execution 累积脚本。
+"""Execution 契约 §3 Soak Gate — execution 累积脚本。
 
 每次运行产生 N 个真实 execution，完整走 Scheduler 闭环：
     emit(TaskCreated) → AgentBus → AgentInstance.dispatch

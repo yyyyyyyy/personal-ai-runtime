@@ -1,7 +1,6 @@
-"""ADR-0007 Step 9 — CapabilityDecision and CapabilityGovernance tests.
+"""Execution 契约 §9 — CapabilityDecision and CapabilityGovernance tests.
 
-v0.9.0: agent principal tests removed — Principal.agent was deleted along
-with Gate 2 (grant_events). The runtime now only emits system/user principals.
+The runtime only emits system/user principals.
 """
 
 from __future__ import annotations

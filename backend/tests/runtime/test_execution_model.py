@@ -107,7 +107,7 @@ def test_work_item_update_status(kernel):
 def test_recover_work_items_scans_without_mutating(kernel):
     """recover_work_items scans running/pending rows but performs NO writes.
 
-    ADR-0007 Step 3: recovery no longer issues a bare UPDATE. The running →
+    Execution 契约 §3: recovery does not issue a bare UPDATE. The running →
     retrying transition is driven by the Scheduler via ExecutionRetried
     events. This test pins the scanner contract: the call returns a
     (running, pending) tuple and leaves handler_executions untouched.
@@ -127,7 +127,7 @@ def test_recover_work_items_scans_without_mutating(kernel):
         instance_id="test",
         status="pending",
     )
-    # ADR-0007 Step 10: use events instead of persist_work_item
+    # Use events instead of persist_work_item
     for it in (running_item, pending_item):
         kernel.emit_event("ExecutionRequested", AGGREGATE_EXECUTION, it.id, payload={
             "execution_id": it.id, "actor": "agent:test",

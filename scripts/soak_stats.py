@@ -1,4 +1,4 @@
-"""ADR-0007 Step 3 Soak Gate 统计查询。
+"""Execution 契约 §3 Soak Gate 统计查询。
 
 用法:
     cd backend
@@ -26,7 +26,7 @@ BAR_LEN = 30
 
 def main() -> None:
     print("=" * 55)
-    print("ADR-0007 Step 3 Soak Gate 统计")
+    print("Execution 契约 §3 Soak Gate 统计")
     print("=" * 55)
 
     with db.get_db() as conn:

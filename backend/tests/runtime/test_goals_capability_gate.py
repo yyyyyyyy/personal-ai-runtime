@@ -63,7 +63,7 @@ async def test_create_goal_emits_capability_invoked(isolated_kernel):
     contract we pin: the gate was actually entered.
     """
     server = GoalsServer()
-    result = await server.create_goal(title="ship v0.3.0", importance=0.9)
+    result = await server.create_goal(title="ship release", importance=0.9)
 
     # The policy says needs_user — without an approval the call defers.
     # Either way, a Capability* event MUST exist (gate was entered).

@@ -1,4 +1,4 @@
-"""Tests for v1.0 Phase 3c: parent goal progress auto-recalculation in projector.
+"""Tests for parent goal progress auto-recalculation in projector.
 
 The WorkItemStatusChanged projector now derives parent goal progress as
 completed_children / total_children. This is pure projection (no event

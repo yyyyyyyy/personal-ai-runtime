@@ -1,4 +1,4 @@
-"""Tests for Task Engine (v0.6.0: uses work_items + backward-compat aliases)."""
+"""Tests for WorkItem engine (uses work_items)."""
 import os
 
 os.environ["LLM_API_KEY"] = "test-key"

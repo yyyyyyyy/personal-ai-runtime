@@ -1,4 +1,4 @@
-"""Tests for /api/work-items endpoints (v1.0 Phase 3a)."""
+"""Tests for /api/work-items endpoints."""
 
 import os
 
@@ -171,7 +171,7 @@ def test_delete(client):
     assert client.get(f"/api/work-items/{item_id}").status_code == 404
 
 
-# ── Phase 4 new capabilities: include=, cascade delete, decompose, side-effects ─
+# ── include=, cascade delete, decompose, side-effects ─
 
 
 def test_get_with_include_actions_events(client):

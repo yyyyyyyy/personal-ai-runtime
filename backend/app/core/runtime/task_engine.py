@@ -1,13 +1,7 @@
 """WorkItem CRUD service — thin emit/query helpers over the Kernel ABI.
 
-v0.3.0: the ``TaskEngine`` class and module-level singleton were removed.
-The methods are now module-level functions. This eliminates a God-Object-lite
-wrapper (closes ARCHITECTURE_SURVIVAL_REVIEW Medium #11) without changing
-any caller's business logic: import sites shift from
-``from ... import task_engine`` to ``from ... import create_work_item, ...``
-and calls drop the ``task_engine.`` prefix.
-
-The functions remain thin wrappers over ``kernel.emit_event`` +
+Module-level functions (no class/singleton). Each function is a thin wrapper
+over ``kernel.emit_event`` +
 ``read_ports`` queries plus three pieces of real business logic that were
 always worth keeping: status-machine validation (StateManager), dependency
 checks, and recursive tree assembly.
@@ -92,8 +86,8 @@ def create_work_item(
     priority: int = 0,
     dependencies: list[str] | None = None,
     executable_plan: str | None = None,
-    # v1.0 Phase 3a: goal-unification fields. Populated when work_type='goal';
-    # ignored (fall back to schema defaults) for other work_types.
+    # Goal fields. Populated when work_type='goal'; ignored (fall back to
+    # schema defaults) for other work_types.
     progress: float | None = None,
     importance: float | None = None,
     urgency: float | None = None,
@@ -115,10 +109,9 @@ def create_work_item(
         "executable_plan": executable_plan,
         "status": status,
     }
-    # v1.0 goal fields — only attach to payload when explicitly provided
+    # Goal fields — only attach to payload when explicitly provided
     # so the projector's .get(field, default) falls through to schema
-    # defaults for non-goal work_types. This keeps rebuild byte-identical
-    # for legacy callers.
+    # defaults for non-goal work_types. This keeps rebuild byte-identical.
     if progress is not None:
         payload["progress"] = progress
     if importance is not None:
@@ -160,9 +153,9 @@ def update_work_item_fields(
 ) -> dict | None:
     """Update arbitrary fields on a work_item via WorkItemUpdated event.
 
-    v1.0 Phase 3a: supports the goal-unification fields so /api/work-items
-    can update progress/deadline/etc. Status transitions still go through
-    update_work_item_status (which validates the state machine).
+    Supports goal fields (progress/deadline/etc.) so /api/work-items can
+    update them. Status transitions still go through update_work_item_status
+    (which validates the state machine).
     """
     if not get_work_item(item_id):
         return None

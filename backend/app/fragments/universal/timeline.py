@@ -1,7 +1,4 @@
-"""TimelineContextFragment — merged Actions + Events into single timeline.
-
-v0.6.0: Consolidated from ActionsContextFragment and EventsContextFragment.
-Single fragment provides pending actions + recent events in one budget slot.
+"""TimelineContextFragment — pending actions + recent events in one budget slot.
 """
 
 from __future__ import annotations

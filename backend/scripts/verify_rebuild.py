@@ -37,7 +37,7 @@ SAMPLE_SCENARIO: list[tuple[str, str, str, dict[str, Any]]] = [
     ("MemoryDerived", "memory", "m1", {"category": "fact", "content": "Likes Rust", "confidence": 0.8}),
     ("MemoryUpdated", "memory", "m1", {"content": "Prefers Rust", "confidence": 0.9}),
     ("MemoryDeleted", "memory", "m1", {}),
-    # WorkItem (v0.5.0: unified task + action)
+    # WorkItem
     ("WorkItemCreated", "work_item", "wi1", {
         "title": "Ship feature",
         "description": "Build runtime",
@@ -78,11 +78,11 @@ SAMPLE_SCENARIO: list[tuple[str, str, str, dict[str, Any]]] = [
         },
     ),
     ("NotificationRead", "notification", "n1", {}),
-    # Policy (Phase 3)
+    # Policy
     ("PolicyCreated", "policy", "policy_read_file", {"capability": "read_file", "risk_level": "low"}),
     ("PolicyCreated", "policy", "policy_shell_exec", {"capability": "shell_exec", "risk_level": "high"}),
     ("PolicyCreated", "policy", "policy_forbidden_tool", {"capability": "forbidden_tool", "risk_level": "forbidden"}),
-    # Timer (Phase 2)
+    # Timer
     ("TimerCreated", "timer", "timer_cron_1", {"handler_name": "test_timer", "schedule_type": "cron", "cron_expr": "hour=8,minute=0", "fire_at": "2026-06-10T08:00:00Z"}),
     ("TimerFired", "timer", "timer_cron_1", {"fired_at": "2026-06-10T08:00:00Z"}),
 ]

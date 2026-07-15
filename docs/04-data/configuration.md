@@ -143,7 +143,7 @@ flowchart LR
 
 ## 运行时 DB 配置（runtime_config）
 
-[`backend/app/core/runtime/runtime_config.py`](../../backend/app/core/runtime/runtime_config.py) 把 LLM 与邮件设置持久化于 SQLite `app_settings` 表。env 播种默认值，UI 编辑持久化到 DB。遗留 `runtime_config.json` 自动迁移。
+[`backend/app/core/runtime/runtime_config.py`](../../backend/app/core/runtime/runtime_config.py) 把 LLM 与邮件设置持久化于 SQLite `app_settings` 表。env 播种默认值，UI 编辑持久化到 DB。若存在 `runtime_config.json`，首次读取时自动导入 `app_settings`。
 
 关键概念：
 

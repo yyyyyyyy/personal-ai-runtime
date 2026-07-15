@@ -1,5 +1,5 @@
-/** Barrel re-export for backward compatibility.
- *  New code should import directly from domain modules (e.g. `../api/chat`).
+/** Barrel re-export of domain API modules.
+ *  Prefer importing from domain modules (e.g. `../api/chat`).
  */
 
 // Core

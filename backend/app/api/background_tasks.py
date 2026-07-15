@@ -1,8 +1,6 @@
 """Background Tasks API — manage long-running background tasks.
 
-v0.4.0: create_task/get_task/list_tasks inlined from deleted background_worker.py.
-
-Compatibility note: background tasks are a **Work subtype** (see Runtime
+Background tasks are a **Work subtype** (see Runtime
 Algebra). New runtime code should treat them as Work with a background
 lifecycle, not a separate conceptual layer. This HTTP surface remains for
 operators / SPA; avoid introducing parallel task engines.

@@ -4,11 +4,10 @@ Every subsystem singleton is accessible from a single container.
 This enables single-point reset() for test isolation and future
 multi-Kernel instances.
 
-v0.5.0: All module-level singletons are now lazy proxies that forward to
-the matching RuntimeContainer property. The container is the sole owner of
-each instance; ``reset()`` rebuilds them from scratch. Old ``from x import
-singleton`` import paths keep working because the proxy transparently
-delegates attribute access.
+All module-level singletons are lazy proxies that forward to the matching
+RuntimeContainer property. The container is the sole owner of each instance;
+``reset()`` rebuilds them from scratch. ``from x import singleton`` import
+paths work because the proxy transparently delegates attribute access.
 
 Architecture target: global singletons 15+ → 0 (all registered).
 """
@@ -42,10 +41,10 @@ class _LazyProxy:
     """Transparent forwarder to a RuntimeContainer property.
 
     Module-level singletons are replaced by ``_LazyProxy(lambda: runtime.x)``
-    so that legacy ``from module import singleton`` imports keep working
-    while the container remains the single source of truth. Every attribute
-    *read* is delegated to the underlying instance; writes/deletes stay on
-    the proxy itself so ``unittest.mock.patch`` can swap a method without
+    so that ``from module import singleton`` imports keep working while the
+    container remains the single source of truth. Every attribute *read* is
+    delegated to the underlying instance; writes/deletes stay on the proxy
+    itself so ``unittest.mock.patch`` can swap a method without
     touching the shared underlying instance.
 
     The ``__new__`` overload below tells mypy that constructing a proxy
@@ -359,8 +358,7 @@ class RuntimeContainer:
             reset_handlers()
             from app.context_runtime import reset_fragment_registry
             reset_fragment_registry()
-            # v0.3.0 trivial singleton resets — closes Survival Medium #13 for
-            # the low-hanging fruit.  These modules hold either no mutable state
+            # These modules hold either no mutable state
             # (identity_resolver, sensitive_router) or state that is safe to
             # reset synchronously (caches, queues, telemetry instance).
             from app.core.runtime.notification_bridge import reset_sse_queues

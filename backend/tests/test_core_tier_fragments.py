@@ -1,4 +1,4 @@
-"""Tests for Core Tier fragments and selector policy (Phase 2)."""
+"""Tests for Core Tier fragments and selector policy."""
 
 from __future__ import annotations
 

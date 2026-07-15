@@ -1,4 +1,4 @@
-/** Trust Report API — aggregates trust-related data for Phase 1 Trust Moat. */
+/** Trust Report API — aggregates trust-related data. */
 
 import type { EnrichedApproval, SystemInfo } from "./types";
 import { listEnrichedPendingApprovals } from "./approvals";

@@ -99,7 +99,7 @@ class ContextPolicy(Protocol):
 
 
 class DefaultContextPolicy:
-    """Stage-aware default policy — chat preserves legacy selection behavior.
+    """Stage-aware default policy for chat context selection.
 
     Does NOT consume any runtime contexts. This is the active production
     policy used by ContextPipeline.

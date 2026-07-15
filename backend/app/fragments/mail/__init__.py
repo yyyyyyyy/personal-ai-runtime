@@ -2,8 +2,6 @@
 
 从旧 prompts.py + skills.py 提取认知内容，重构为 ContextFragment 实现。
 Fragment 只负责数据收集，不负责推理或 UI 呈现。
-
-v0.7.0: MailIdentityFragment 身份声明合并进 RecentEmailsFragment。
 """
 
 from __future__ import annotations

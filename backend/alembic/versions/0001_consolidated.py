@@ -1,16 +1,10 @@
-"""Consolidated schema — single baseline for fresh installs.
+"""Initial schema for Personal AI Runtime.
 
-All historical migrations (initial + v02-v07) are merged into this one file
-since there is no production data to preserve. The final schema state reflects:
-- goals/actions/events tables removed (v06 dropped goals; actions/events were
-  FK-dependent on goals and are unused since v1.0 WorkItem unification)
-- work_items table includes goal-specific columns (v05)
-- memories table includes source_document columns (v07)
-- messages table includes sources column (v02)
-- notifications table includes dedup columns (v03)
-- timer_events, policy_events, memory_index_repairs tables (v02, v04)
-- dead tables removed: patterns, tasks, schedules, triggers, grant_events,
-  events, email_settings (zero runtime references)
+Creates the complete database structure in a single revision: application
+storage tables, the event log (append-only), and Kernel projection tables.
+``schema_init.apply_projection_ddl`` re-applies projector-owned table DDL
+(timer_events, policy_events, memory_index_repairs) idempotently so the
+schema is consistent on both the Alembic and raw-DDL initialization paths.
 """
 
 from typing import Sequence, Union
@@ -274,6 +268,7 @@ def upgrade() -> None:
         sa.Column("delay_seconds", sa.Float(), nullable=False, server_default="0"),
         sa.Column("fire_at", sa.Text(), nullable=False, server_default=""),
         sa.Column("status", sa.Text(), nullable=False, server_default="active"),
+        sa.Column("payload_json", sa.Text(), server_default="{}"),
         sa.Column("created_at", sa.Text(), nullable=False),
         sa.Column("fired_at", sa.Text(), nullable=False, server_default=""),
     )

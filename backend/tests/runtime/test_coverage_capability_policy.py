@@ -1,6 +1,4 @@
-"""Coverage tests for capability governance external MCP tool registration.
-
-v0.7.0: Migrated from capability_policy → capability_governance (superset)."""
+"""Coverage tests for capability governance external MCP tool registration."""
 import pytest
 
 from app.core.runtime.capability_governance import capability_governance

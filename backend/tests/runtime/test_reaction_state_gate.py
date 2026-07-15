@@ -1,4 +1,4 @@
-"""Tests for ReactionWhen state gating in evaluate_cycle (v0.12)."""
+"""Tests for ReactionWhen state gating in evaluate_cycle."""
 
 import os
 import sys

@@ -35,7 +35,7 @@
 
 ## work-items — `/api/work-items`（[`api/work_items.py`](../../backend/app/api/work_items.py)）
 
-统一的 Work 原语 HTTP 表面（Phase 4 已退休 `/api/goals` 与 `/api/tasks`）。
+统一的 Work 原语 HTTP 表面。
 
 | 方法 | 路径 | 请求 | 响应 | 副作用 |
 |---|---|---|---|---|
@@ -43,7 +43,7 @@
 | GET | `/` | query `work_type?`, `status?`, `parent_goal_id?`, `parent_work_id?`, `limit` | list | 无 |
 | GET | `/{id}` | query `include=actions,events,children,tree` | work_item（可选嵌入） | 无 |
 | GET | `/{id}/children` | path | list（goal 用 `parent_goal_id`） | 无 |
-| GET | `/{id}/events` | query `limit` | legacy-shaped events | 无 |
+| GET | `/{id}/events` | query `limit` | UI-shaped events | 无 |
 | PATCH | `/{id}` | 字段更新 | work_item | `WorkItemUpdated` / goal `completed` → `WorkItemStatusChanged`；action 完成 → 通知 + memory |
 | POST | `/{id}/status` | `{status}` | work_item | 状态机或 goal 状态更新 |
 | DELETE | `/{id}` | path | `{"status":"ok"}` | goal 级联删除子项 |
@@ -80,7 +80,7 @@
 
 | 方法 | 路径 | 行 | 请求 | 响应 | 副作用 |
 |---|---|---|---|---|---|
-| POST | `/` | `19-42` | `CreateTriggerRequest{name, trigger_type, condition, action_config?}` | reaction dict / 400 | `ReactionRegistry.register`（内存，v0.6.0） |
+| POST | `/` | `19-42` | `CreateTriggerRequest{name, trigger_type, condition, action_config?}` | reaction dict / 400 | `ReactionRegistry.register`（内存） |
 | GET | `/` | `45-48` | — | list | 无 |
 | DELETE | `/{trigger_id}` | `51-57` | path | `{"status":"ok"}` / 404 | 从 ReactionRegistry 删除 |
 

@@ -2,7 +2,7 @@
 
 ## 是什么
 
-Personal AI Runtime 是一个**本地优先、单用户、事件溯源**的个人 AI 运行时。当前版本 `0.2.0`（[`backend/app/version.py`](../../backend/app/version.py)）。
+Personal AI Runtime 是一个**本地优先、单用户、事件溯源**的个人 AI 运行时。当前版本 `1.0.0`（[`backend/app/version.py`](../../backend/app/version.py)）。
 
 它由三个子系统构成，全部源码位于本仓库：
 
@@ -81,8 +81,7 @@ personal-ai-runtime/
 
 代码中可观察到的、文档需明确标注的现状：
 
-- `desktop/preload.js` 不再向渲染进程暴露任何 IPC 绑定（早期 `electronAPI` 桥接无前端消费方，已移除）。渲染进程通过 HTTP/SSE/WebSocket 直连后端；桌面原生行为（托盘、全局快捷键、WebSocket→系统通知）由 main 进程处理（[`desktop/main.js`](../../desktop/main.js)）。
-- `backend/app/version.py` 标注 `VERSION = "0.2.0"`。其他模块/docstring 中出现的 `v0.3.0`…`v1.1` 是**子系统演进阶段标记**（见 [02-concepts/runtime-algebra.md](../02-concepts/runtime-algebra.md) §5.3），不是产品版本号，与项目整体版本不冲突。
+- `desktop/preload.js` 不向渲染进程暴露任何 IPC 绑定。渲染进程通过 HTTP/SSE/WebSocket 直连后端；桌面原生行为（托盘、全局快捷键、WebSocket→系统通知）由 main 进程处理（[`desktop/main.js`](../../desktop/main.js)）。
 
 ## 下一步
 

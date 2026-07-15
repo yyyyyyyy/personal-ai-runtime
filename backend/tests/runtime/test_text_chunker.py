@@ -1,4 +1,4 @@
-"""Tests for token-based semantic chunking (Phase 1.3)."""
+"""Tests for token-based semantic chunking."""
 
 from app.store.text_chunker import ChunkConfig, chunk_text, count_tokens
 

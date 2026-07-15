@@ -1,6 +1,6 @@
 {
   "name": "personal-ai-runtime-desktop",
-  "version": "0.2.0",
+  "version": "1.0.0",
   "description": "Personal AI Runtime Desktop Client",
   "author": "Personal AI Runtime",
   "main": "main.js",

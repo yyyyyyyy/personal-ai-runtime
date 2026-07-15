@@ -1,13 +1,13 @@
-"""ADR-0007 Step 3 Soak Gate — recovery 路径验证脚本。
+"""Execution 契约 §3 Soak Gate — recovery 路径验证脚本。
 
 模拟真实的 crash/restart 场景，验证 recovery 通过事件流（而非 bare SQL UPDATE）
 完成 running → retrying → pending 的转换，且 shadow compare 0 mismatch。
 
 流程:
-    Phase 1: 启动 Scheduler，emit N 个事件，让它们进入 running 状态
-    Phase 2: 模拟 crash —— 不等 handler 完成，直接 stop（running 行留在 DB）
-    Phase 3: 新 Scheduler 实例启动 → _recover() 触发事件化恢复
-    Phase 4: 验证 event_log 有 ExecutionRetried(interrupted)
+    Step 1: 启动 Scheduler，emit N 个事件，让它们进入 running 状态
+    Step 2: 模拟 crash —— 不等 handler 完成，直接 stop（running 行留在 DB）
+    Step 3: 新 Scheduler 实例启动 → _recover() 触发事件化恢复
+    Step 4: 验证 event_log 有 ExecutionRetried(interrupted)
              handler_executions 状态正确
              shadow compare 0 mismatch
              rebuild("execution") == handler_executions
@@ -70,7 +70,7 @@ def _register_blocking_handler() -> None:
 
 
 async def phase1_seed_running(n: int) -> list[str]:
-    """Phase 1: emit n events, transition to running, emit ExecutionStarted.
+    """Step 1: emit n events, transition to running, emit ExecutionStarted.
 
     Returns the list of execution_ids left in 'running' state.
 
@@ -145,13 +145,13 @@ def phase2_verify_crash_state(execution_ids: list[str]) -> int:
 
 
 async def phase3_recover() -> None:
-    """Phase 3: new Scheduler instance boots and runs _recover()."""
+    """Step 3: new Scheduler instance boots and runs _recover()."""
     reset_scheduler()
     get_scheduler(kernel)  # __init__ calls _recover()
 
 
 def phase4_verify(execution_ids: list[str]) -> dict:
-    """Phase 4: verify the recovery produced correct event-sourced state."""
+    """Step 4: verify the recovery produced correct event-sourced state."""
     result = {}
 
     # 4a: event_log has ExecutionRetried(reason=interrupted) for each item
@@ -205,27 +205,27 @@ async def run(n: int) -> None:
     print(f"Soak Recovery Test: {n} interrupted executions")
     print(f"{'=' * 55}")
 
-    # Phase 1
-    print(f"\n[Phase 1] Seeding {n} executions and crashing mid-flight...")
+    # Step 1
+    print(f"\n[Step 1] Seeding {n} executions and crashing mid-flight...")
     execution_ids = await phase1_seed_running(n)
     print(f"  Emitted {len(execution_ids)} events, scheduler crashed")
 
-    # Phase 2
+    # Step 2
     crashed = phase2_verify_crash_state(execution_ids)
-    print(f"\n[Phase 2] Verifying crash state:")
+    print(f"\n[Step 2] Verifying crash state:")
     print(f"  Items stuck in 'running': {crashed}/{len(execution_ids)}")
 
     if crashed == 0:
         print("  WARNING: no items left running — crash simulation may not have worked")
         print("  (handlers may have completed before stop). Retrying with longer delay.")
 
-    # Phase 3
-    print(f"\n[Phase 3] New scheduler instance booting → _recover()...")
+    # Step 3
+    print(f"\n[Step 3] New scheduler instance booting → _recover()...")
     await phase3_recover()
     print(f"  Recovery complete")
 
-    # Phase 4
-    print(f"\n[Phase 4] Verifying event-sourced recovery:")
+    # Step 4
+    print(f"\n[Step 4] Verifying event-sourced recovery:")
     result = phase4_verify(execution_ids)
 
     print(f"  ExecutionRetried(interrupted) events: {result['retried_events']}")

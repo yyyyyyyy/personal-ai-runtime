@@ -107,9 +107,9 @@ class MCPHub:
             else:
                 result = cast(str, tool.handler(**arguments))
 
-            # v0.3.0: tool_calls is now a governed projection. Capability*
-            # events emitted by kernel.invoke_capability flow through
-            # projectors_telemetry (in projectors_governance), which owns the
+            # tool_calls is a governed projection. Capability* events emitted
+            # by kernel.invoke_capability flow through projectors_telemetry
+            # (in projectors_governance), which owns the
             # INSERT. Recording here was a dual-write that could drift.
 
             if isinstance(result, str) and len(result) > 8000:

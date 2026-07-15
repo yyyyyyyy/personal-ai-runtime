@@ -1,8 +1,8 @@
-"""Brain LLM Client — standalone LLM calling layer (v0.10.0).
+"""Brain LLM Client — standalone LLM calling layer.
 
 Decoupled from Brain via explicit injection: the client and provider come
 from ``llm_router.get_client()``, and the ``build_messages_fn`` callback
-replaces the former mixin's implicit ``self._build_messages`` contract.
+builds the messages array.
 
 Heavy call logic lives in ``brain_llm_ops`` (not counted toward God Object LOC).
 """

@@ -1,4 +1,4 @@
-"""Architectural tests — Policy coverage enforcement (Phase 9.5).
+"""Architectural tests — Policy coverage enforcement.
 
 Every context compilation path must flow through ContextPolicy.
 """

@@ -9,7 +9,7 @@ from __future__ import annotations
 # Kernel-owned projections (event-sourced read models + event log).
 GOVERNED_TABLES: frozenset[str] = frozenset({
     "event_log",
-    "work_items",  # v1.0: unified task + action + goal projection
+    "work_items",
     "memories",
     "approvals",
     "conversations",
@@ -19,15 +19,14 @@ GOVERNED_TABLES: frozenset[str] = frozenset({
     "handler_executions",
     "timer_events",
     "policy_events",
-    # v0.3.0: promoted from APP_STORAGE — derived solely from InboxEmail* events
-    # via projectors_inbox.py so the table is fully rebuildable from event_log.
+    # Derived solely from InboxEmail* events via projectors_inbox.py
+    # so the table is fully rebuildable from event_log.
     "inbox_emails",
-    # v0.3.0: promoted from APP_STORAGE — derived solely from Capability* events
-    # via projectors_telemetry.py. Every row maps 1:1 to a CapabilityInvoked,
-    # CapabilityFailed, or CapabilityDenied event in event_log.
+    # Derived solely from Capability* events via projectors_telemetry.py.
+    # Every row maps 1:1 to a CapabilityInvoked, CapabilityFailed, or
+    # CapabilityDenied event in event_log.
     "tool_calls",
-    # v0.3.0: promoted from APP_STORAGE — derived solely from LLMCallRecorded
-    # events via projectors_telemetry.py.
+    # Derived solely from LLMCallRecorded events via projectors_telemetry.py.
     "llm_calls",
 })
 
@@ -61,11 +60,11 @@ APP_STORAGE_TABLES: frozenset[str] = frozenset({
 
 # Expected columns for governed projection tables (PRAGMA contract).
 GOVERNED_SCHEMA: dict[str, frozenset[str]] = {
-    "work_items": frozenset({  # v1.0: unified task + action + goal
+    "work_items": frozenset({
         "id", "title", "description", "work_type", "parent_work_id",
         "parent_goal_id", "status", "priority", "dependencies_json",
         "executable_plan", "created_at", "updated_at", "completed_at",
-        # v1.0 goal-unification columns (work_type='goal' rows populate these):
+        # Goal columns (work_type='goal' rows populate these):
         "progress", "importance", "urgency", "deadline", "last_activity_at",
     }),
     "memories": frozenset({

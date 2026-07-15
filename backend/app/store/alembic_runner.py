@@ -1,4 +1,4 @@
-"""Alembic migration runner — called at application startup to ensure DB schema is current."""
+"""Alembic schema runner — called at application startup to initialize the DB schema."""
 
 import logging
 import os
@@ -14,9 +14,9 @@ _ALEMBIC_INI = Path(__file__).resolve().parent.parent.parent / "alembic.ini"
 
 
 def run_migrations() -> None:
-    """Run all pending Alembic migrations (idempotent — safe to call every startup)."""
+    """Apply the Alembic schema to head (idempotent — safe to call every startup)."""
     if not _ALEMBIC_INI.is_file():
-        logger.warning("alembic.ini not found at %s — skipping migrations", _ALEMBIC_INI)
+        logger.warning("alembic.ini not found at %s — skipping schema setup", _ALEMBIC_INI)
         return
 
     os.environ.setdefault("LLM_API_KEY", "alembic-migration-key")
@@ -24,7 +24,7 @@ def run_migrations() -> None:
     alembic_cfg = Config(str(_ALEMBIC_INI))
     try:
         command.upgrade(alembic_cfg, "head")
-        logger.info("Alembic migrations applied successfully")
+        logger.info("Alembic schema applied successfully")
     except Exception as exc:
-        logger.error("Alembic migration failed: %s", exc)
+        logger.error("Alembic schema setup failed: %s", exc)
         raise

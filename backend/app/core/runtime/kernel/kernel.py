@@ -320,7 +320,7 @@ class Kernel(QueryStateMixin, SovereigntyMixin):
     def recover_work_items(self) -> tuple[list, list]:
         """Scan WorkItems in 'pending' or 'retrying' state for re-enqueue.
 
-        ADR-0007 Step 3: this method is now a pure scanner — it performs
+        Execution 契约 §3: this method is a pure scanner — it performs
         NO writes to handler_executions. Interrupted ('running') items are
         NOT mutated here; the caller (Scheduler._recover) drives the
         running → retrying transition by emitting ExecutionRetried events

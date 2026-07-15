@@ -114,7 +114,7 @@ async def update_memory(memory_id: str, body: UpdateMemoryRequest):
     return {"status": "ok"}
 
 
-# --- Claim authority endpoints (Phase 1: user confirms/corrects memories) ---
+# --- Claim authority endpoints (user confirms/corrects memories) ---
 
 @router.post("/memories/{memory_id}/ratify")
 async def ratify_memory(memory_id: str):
@@ -170,7 +170,7 @@ async def contest_memory(memory_id: str):
     return {"status": "ok", "claim_status": "contested"}
 
 
-# --- AI Portrait endpoint (Phase 1: Trust Moat) ---
+# --- AI Portrait endpoint ---
 
 @router.get("/portrait")
 async def get_portrait():
@@ -189,7 +189,7 @@ async def get_portrait():
     # 2. Habits — memories with category="habit"
     habits = memory_engine.list_memories(category="habit", limit=50)
 
-    # 3. Active goals (v1.0 Phase 4: goals table retired)
+    # 3. Active goals (work_items with work_type='goal')
     try:
         goal_rows = read_ports.query_active_goals(limit=20)
     except Exception:

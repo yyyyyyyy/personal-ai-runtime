@@ -46,7 +46,7 @@ class RuntimeLoop:
         self._running = False
         self._loop_task: asyncio.Task | None = None
         self._tick_count = 0
-        self._dirty = False  # v0.3.0: set by reset() when event loop changes
+        self._dirty = False  # set by reset() when event loop changes
         # Fire-and-forget background tasks. Held to prevent GC and to allow
         # graceful cancellation on stop(). See _spawn_background_task.
         self._bg_tasks: set[asyncio.Task] = set()
@@ -54,7 +54,7 @@ class RuntimeLoop:
     # ── lifecycle ──────────────────────────────────────────────────────
 
     async def start(self) -> None:
-        # v0.3.0: when reset() marked us dirty (previous event loop closed),
+        # When reset() marked us dirty (previous event loop closed),
         # clean up the zombie task so create_task won't fail on a dead loop.
         if self._dirty:
             self._loop_task = None
@@ -419,7 +419,7 @@ class RuntimeLoop:
                     )
 
     async def _check_reactions(self) -> None:
-        """Evaluate registered Reactions (v0.6.0: replaces TriggerEngine).
+        """Evaluate registered Reactions.
 
         Offloaded to a worker thread because evaluate_cycle performs
         synchronous SQLite reads/writes that can block the event loop.

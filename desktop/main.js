@@ -140,7 +140,7 @@ function readAppVersion() {
     const versionPath = path.join(__dirname, "..", "VERSION");
     return fs.readFileSync(versionPath, "utf8").trim();
   } catch {
-    return "0.2.0";
+    return "1.0.0";
   }
 }
 

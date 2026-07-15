@@ -38,7 +38,7 @@ from app.core.runtime.execution_events import (
     emit_execution_started,
 )
 
-# ── Shadow-compare helpers (inlined from execution_shadow_compare.py, v0.7.0) ──
+# ── Shadow-compare helpers ──
 
 _SHADOW_FIELDS: tuple[str, ...] = (
     "id", "status", "retry_count", "created_at", "started_at", "completed_at",
@@ -111,7 +111,7 @@ class Scheduler:
     def _recover(self) -> None:
         """Recover WorkItems that were interrupted by a restart.
 
-    ADR-0007 Step 4: the projector is the sole writer to handler_executions.
+    Execution 契约 §4: the projector is the sole writer to handler_executions.
     persist_work_item is no longer called on the scheduler hot path. The
     projection IS the truth, verified after every emit by shadow compare.
         """
@@ -194,7 +194,7 @@ class Scheduler:
         logger.info("Scheduler stopped")
 
     def _emit_verify(self, item: "WorkItem", emit_fn) -> None:
-        """Emit execution event then verify projection matches (ADR-0007 Step 4).
+        """Emit execution event then verify projection matches (Execution 契约 §4).
 
         The projector (triggered inside emit_event) is now the SOLE writer to
         handler_executions. persist_work_item is no longer called on the hot
@@ -218,7 +218,7 @@ class Scheduler:
     ) -> "WorkItem":
         """Create a WorkItem from an event and enqueue it.
 
-        ADR-0007 Step 7: takes identity primitives (instance_id, actor)
+        Execution 契约 §7: takes identity primitives (instance_id, actor)
         instead of an AgentInstance object. The Scheduler no longer depends
         on AgentInstance for handler execution — it operates purely on
         execution identity derived from the event stream.
@@ -336,7 +336,7 @@ class Scheduler:
         # Construct ExecutionContext from WorkItem identity fields. This
         # decouples handler execution from AgentInstance — the handler
         # receives only what it needs (identity + emit + Principal), not
-        # the full AgentInstance object. (ADR-0007 Step 5 + Step 8)
+        # the full AgentInstance object. (Execution 契约 §5 + §8)
         from .execution import identity_resolver
 
         actor = f"agent:{item.instance_id}"

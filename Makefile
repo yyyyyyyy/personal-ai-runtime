@@ -184,7 +184,7 @@ inbox-audit-verify:
 memory-repair-verify:
 	cd $(BACKEND_DIR) && python3 scripts/verify_memory_index_repairs.py
 
-# Alembic schema migration
+# Alembic schema initialization
 alembic-verify:
 	cd $(BACKEND_DIR) && python3 scripts/verify_alembic.py
 

@@ -39,11 +39,11 @@ AUTH_TOKEN   = process.env.AUTH_TOKEN   || ""
 - **开发**：回退到 Vite dev server `http://localhost:5173`（其 vite proxy 已转发 `/api`、`/ws`）。
 - `WEB_URL` 环境变量总是最高优先级（允许手动覆盖）。
 
-`resolveBackendDir()` 按打包状态分流：打包时指向 `process.resourcesPath/backend`（extraResources），开发时指向 `<repo>/backend`。`readAppVersion()` 读 `../VERSION`，缺失回退 `"0.2.0"`。
+`resolveBackendDir()` 按打包状态分流：打包时指向 `process.resourcesPath/backend`（extraResources），开发时指向 `<repo>/backend`。`readAppVersion()` 读 `../VERSION`，缺失回退 `"1.0.0"`。
 
 ## 后端进程管理
 
-**Python 运行时**（v0.5.1 起）：
+**Python 运行时**：
 
 - **Windows 打包版**：`prebuild.js` 通过 [`bundle-python.js`](../../desktop/bundle-python.js) 捆绑 embeddable CPython 3.12 + `requirements.txt` 到 `extraResources/python/`；`main.js` 优先使用捆绑的 `python.exe`。
 - **开发 / 非 Windows**：`resolvePythonCommand()` 依次尝试 `py -3.12`、`python`、`python3`；依赖系统已安装的后端包。
@@ -96,8 +96,6 @@ stdio = ["ignore", "pipe", "pipe"]
 ## Preload / IPC
 
 [`desktop/preload.js`](../../desktop/preload.js) 不向渲染进程暴露任何 IPC 绑定；main 进程亦无 `ipcMain.handle` 面向渲染器的通道。渲染进程（前端 SPA）通过 HTTP/SSE/WebSocket 直连后端。桌面原生行为（托盘、全局快捷键、WebSocket→系统通知）由 main 进程处理（见上节 WebSocket）。
-
-> 历史：早期版本通过 `contextBridge.exposeInMainWorld('electronAPI', ...)` 暴露 `getBackendUrl`/`sendNotification`/`platform`，并有对应 `ipcMain.handle`；`frontend/src/` 中无消费方，已移除以收窄 Electron 可信边界。
 
 ## Smoke 测试
 

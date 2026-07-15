@@ -10,10 +10,9 @@ source as Gate seeding and ``GET /api/settings/capability-policy``):
 
 Missing or empty policy fails closed (raises) — never silently disables taint.
 
-v0.2.1: Taint marks moved from contextvars.ContextVar to an instance-level dict
-with TTL-based expiry. ContextVar was async-task-local and broke under
-asyncio.gather fan-out in the Scheduler, silently dropping taint across tasks
-that share the same correlation_id.
+Taint marks are stored in an instance-level dict with TTL-based expiry.
+This is safe under asyncio.gather fan-out in the Scheduler, which shares
+taint across tasks with the same correlation_id.
 """
 
 from __future__ import annotations

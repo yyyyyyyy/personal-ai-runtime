@@ -195,7 +195,7 @@ def check_provenance(conn: Any) -> list[Violation]:
                  f"no event_log row for aggregate_type={AGGREGATE_MEMORY!r}"),
             )
 
-    # v0.3.0: inbox_emails provenance — every row must trace to an
+    # inbox_emails provenance — every row must trace to an
     # InboxEmailRecorded event (governed projection from projectors_inbox.py).
     for row in conn.execute("SELECT id FROM inbox_emails").fetchall():
         inbox_id = row["id"]
@@ -270,7 +270,7 @@ def bootstrap_sample_scenario(kernel: Any) -> None:
         payload={"category": "fact", "content": "Provenance memory", "confidence": 0.8},
         actor="verify",
     )
-    # v0.3.0: inbox_emails provenance
+    # inbox_emails provenance
     kernel.emit_event(
         EVENT_INBOX_EMAIL_RECORDED,
         AGGREGATE_INBOX_EMAIL,

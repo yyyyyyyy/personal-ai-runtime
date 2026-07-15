@@ -1,4 +1,4 @@
-"""Tests for Memory ↔ Knowledge provenance (Phase 1.5).
+"""Tests for Memory ↔ Knowledge provenance.
 
 Verifies that MemoryDerived events carrying source_document_id / name are
 projected into the memories table and surfaced through query_state, so the

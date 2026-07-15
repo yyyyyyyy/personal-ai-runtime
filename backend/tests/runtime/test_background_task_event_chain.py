@@ -1,6 +1,6 @@
 """B1 integration — background task lifecycle auditable via event_log.
 
-v0.6.0: BackgroundWorker deleted; tests use inlined API from background_tasks module.
+Tests use the background_tasks API module.
 """
 from __future__ import annotations
 

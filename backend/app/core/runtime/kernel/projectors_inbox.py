@@ -1,13 +1,10 @@
 """Inbox email projection — derives the inbox_emails table solely from
 InboxEmail* events.
 
-v0.3.0: closes Critical #1 from ARCHITECTURE_SURVIVAL_REVIEW.md. Previously
-inbox_emails was written directly by app/product/inbox.py while InboxEmailRecorded
-was emitted in parallel — a classic dual-write that could drift. The table is
-now a governed projection: every column is derived from events, the table can
-be rebuilt via kernel.rebuild("inbox_email"), and verify_inbox_audit.py can
-guarantee 1:1 correspondence because the INSERT path no longer exists outside
-the Kernel.
+inbox_emails is a governed projection: every column is derived from events,
+the table can be rebuilt via kernel.rebuild("inbox_email"), and
+verify_inbox_audit.py can guarantee 1:1 correspondence because the INSERT
+path only exists inside the Kernel.
 """
 
 import json

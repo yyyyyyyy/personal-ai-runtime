@@ -171,9 +171,8 @@ def _widget_timer_status() -> dict:
 def _widget_governance_status() -> dict:
     """Policy status — Governance Runtime health.
 
-    v0.9.0: grant_events reporting removed — table has no projector writer
-    since v0.7.0, so the count was always 0. active_grants kept in the
-    response shape for frontend backward-compat but is hardcoded 0.
+    ``active_grants`` is kept in the response shape (hardcoded 0) for
+    frontend compatibility.
     """
     try:
         policies = read_ports.query_active_policies(limit=200)

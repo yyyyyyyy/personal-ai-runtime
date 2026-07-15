@@ -1,7 +1,6 @@
-"""ADR-0007 Step 8 — Principal and IdentityResolver tests.
+"""Execution 契约 §8 — Principal and IdentityResolver tests.
 
-v0.9.0: agent principal tests removed — Principal.agent was deleted.
-Agent actor strings now resolve to system principal (they only appear
+Agent actor strings resolve to system principal (they only appear
 internally in the Scheduler, which is fully trusted Runtime code).
 """
 
@@ -65,8 +64,8 @@ def test_principal_user_is_capable_of_anything():
 def test_resolver_agent_actor_maps_to_system(kernel):
     """Agent actors resolve to system principal in single-user runtime.
 
-    Scheduler emits ``agent:primary`` internally; since v0.9.0 there is no
-    separate agent principal type. The Scheduler is trusted Runtime code
+    Scheduler emits ``agent:primary`` internally; there is no separate agent
+    principal type. The Scheduler is trusted Runtime code
     and runs as system identity.
     """
     from app.core.runtime.execution import Principal, identity_resolver
@@ -139,5 +138,5 @@ def test_execution_context_default_principal(kernel):
         _kernel=kernel,
     )
     assert isinstance(ctx.principal, Principal)
-    # agent: actors now resolve to system (v0.9.0).
+    # agent: actors resolve to system.
     assert ctx.principal.type == "system"

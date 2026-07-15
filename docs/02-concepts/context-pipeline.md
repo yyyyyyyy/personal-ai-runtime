@@ -25,7 +25,7 @@ flowchart LR
 - `PROMPTS_DIR = backend/prompts/`，从 `identity.md` 与 `coding_rules.md` 读取；缺失则用 `DEFAULT_IDENTITY` / `DEFAULT_CODING_RULES`。
 - `PromptArtifactLoader.load(ctx)`（[`prompt_artifact.py`](../../backend/app/chat/prompt_artifact.py)）组装：identity + coding_rules（`.format(project_root=BASE_DIR)`）+ `build_prompt_hints(available_tools)`，用 `\n\n` 连接。
 - 工具列表来自 `kernel.list_capability_definitions()`。
-- v0.1.0 起支持运行时通过 `/api/settings/prompt` 覆盖（存于 `app_settings` 表）。
+- 支持运行时通过 `/api/settings/prompt` 覆盖（存于 `app_settings` 表）。
 
 `identity.md` 与 `coding_rules.md` 的具体内容见 [04-data/configuration.md](../04-data/configuration.md)。
 

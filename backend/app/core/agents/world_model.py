@@ -32,7 +32,7 @@ class WorldModel:
         now = datetime.now(UTC)
         thirty_days_ago = (now - timedelta(days=30)).isoformat()
 
-        # v1.0 Phase 4: goals table retired — always read from work_items.
+        # Goals are work_items(work_type='goal').
         active_goals = read_ports.query_active_goals(limit=500)
         all_goals = read_ports.query_goals(limit=500)
         completed_recently = read_ports.query_completed_goals(

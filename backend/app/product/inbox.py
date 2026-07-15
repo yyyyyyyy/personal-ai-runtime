@@ -1,10 +1,7 @@
 """Proactive Inbox App — poll, classify, notify, daily digest.
 
-v0.3.0: writes only through Kernel.emit_event. The inbox_emails table is now
-a governed projection derived solely from InboxEmail* events (see
-projectors_inbox.py). This closes Critical #1 from ARCHITECTURE_SURVIVAL_REVIEW.md
-by eliminating the dual-write drift between the IMAP INSERT path and the
-InboxEmailRecorded audit event.
+Writes only through Kernel.emit_event. The inbox_emails table is a governed
+projection derived solely from InboxEmail* events (see projectors_inbox.py).
 """
 
 from __future__ import annotations
@@ -80,7 +77,7 @@ async def _classify_emails(emails: list[dict]) -> list[dict]:
         {"role": "system", "content": CLASSIFY_SYSTEM_PROMPT},
         {"role": "user", "content": user_prompt},
     ]
-    # v0.3.0: route through the egress audit gate for parity with Brain paths.
+    # Route through the egress audit gate for parity with Brain paths.
     # audit_llm_egress emits EgressAudited and returns (messages, audit_meta);
     # we reuse the returned messages so the LLM call matches what was audited.
     audited_messages, _audit = audit_llm_egress(
@@ -204,8 +201,8 @@ async def apply_inbox_poll_payload(payload: dict, *, execution_id: str | None = 
     When *execution_id* is provided (background handler path), InboxEmailRecorded
     events link back to the owning Execution via caused_by.
 
-    v0.3.0: emits InboxEmailRecorded with the full payload; the projection is
-    written by projectors_inbox.py inside the Kernel transaction.
+    Emits InboxEmailRecorded with the full payload; the projection is written
+    by projectors_inbox.py inside the Kernel transaction.
     """
     if payload.get("error"):
         raw_error = payload["error"]

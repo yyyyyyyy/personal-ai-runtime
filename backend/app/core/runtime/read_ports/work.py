@@ -8,7 +8,7 @@ from app.core.runtime.read_ports._common import kernel
 
 
 def query_pending_actions(*, limit: int = 5) -> list[dict[str, Any]]:
-    """Query pending work items (v0.5.0: replaces actions table)."""
+    """Query pending work items."""
     return kernel().query_state(
         "work_items",
         status="pending",
@@ -20,7 +20,7 @@ def query_pending_actions(*, limit: int = 5) -> list[dict[str, Any]]:
 def query_top_active_goals(*, limit: int = 5) -> list[dict[str, Any]]:
     """Top active goals ordered by importance × urgency.
 
-    v1.0: reads from work_items(work_type='goal'); goals table dropped in Phase 4.
+    Reads from work_items(work_type='goal').
     """
     return kernel().query_state(
         "work_items", work_type="goal",
@@ -61,7 +61,7 @@ def query_work_items(**filters: Any) -> list[dict[str, Any]]:
 
 
 def query_goals(*, status: str | None = None, limit: int = 50) -> list[dict[str, Any]]:
-    """List goals (work_type=goal). Replaces the legacy ``goals`` selector."""
+    """List goals (work_type=goal)."""
     filters: dict[str, Any] = {"work_type": "goal", "limit": limit}
     if status:
         filters["status"] = status

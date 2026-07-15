@@ -1,7 +1,7 @@
 """Work Items API — unified endpoint for tasks, actions, goals.
 
-Phase 4: sole product HTTP surface for Work. Legacy /api/goals and /api/tasks
-are retired; clients use work_type discrimination and optional include= flags.
+Sole product HTTP surface for Work. Clients use work_type discrimination and
+optional include= flags.
 """
 from __future__ import annotations
 

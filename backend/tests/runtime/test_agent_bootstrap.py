@@ -1,6 +1,4 @@
-"""Test agent_bootstrap — ensure_scheduler covers the cache path and dispatcher registration.
-
-v0.6.0: ensure_agent renamed to ensure_scheduler.
+"""Test ensure_scheduler covers the cache path and dispatcher registration.
 """
 import pytest
 

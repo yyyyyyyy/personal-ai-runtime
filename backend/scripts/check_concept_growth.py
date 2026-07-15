@@ -1,11 +1,11 @@
-"""Architecture Contract Gate — enforces the Runtime Algebra evolution contract.
+"""Architecture Contract Gate — enforces the Runtime Algebra concept-compression contract.
 
-Reads the current concept baseline from ``runtime-algebra.md`` §4.6 and
+Reads the current concept baseline from ``runtime-algebra.md`` §4.4 and
 fails if any tracked metric has grown since the last recorded baseline.
 
 This script is the CI enforcement of the Concept Compression Contract
 (§5.2). When you intentionally reduce a metric, update the baseline AND
-the table in docs/02-concepts/runtime-algebra.md §4.6.
+the table in docs/02-concepts/runtime-algebra.md §4.4.
 
 Usage:
     python scripts/check_concept_growth.py            # check against baseline
@@ -31,7 +31,7 @@ def count_runtime_files() -> int:
 def count_event_types() -> int:
     """Count individual ``EVENT_* = \"...\"`` string assignments in constants.py."""
     constants = ROOT / "backend" / "app" / "core" / "runtime" / "kernel" / "constants.py"
-    text = constants.read_text()
+    text = constants.read_text(encoding="utf-8")
     # Only match string-valued EVENT_* = "..." — exclude frozenset/set assignments
     return len(re.findall(r"EVENT_[A-Z_]+\s*=\s*\"", text))
 
@@ -39,14 +39,14 @@ def count_event_types() -> int:
 def count_query_state_selectors() -> int:
     """Count ``if selector ==`` branches in kernel_query_state.py."""
     query_state = ROOT / "backend" / "app" / "core" / "runtime" / "kernel" / "kernel_query_state.py"
-    text = query_state.read_text()
+    text = query_state.read_text(encoding="utf-8")
     return len(re.findall(r'if\s+selector\s*==\s*"', text))
 
 
 def count_fragments() -> int:
     """Count fragment class registrations in fragments/register.py."""
     reg = ROOT / "backend" / "app" / "fragments" / "register.py"
-    text = reg.read_text()
+    text = reg.read_text(encoding="utf-8")
     # Count class names in _ALL_FRAGMENT_CLASSES list
     match = re.search(r"_ALL_FRAGMENT_CLASSES\s*=\s*\[(.*?)\]", text, re.DOTALL)
     if not match:
@@ -57,7 +57,7 @@ def count_fragments() -> int:
 def count_governed_tables() -> int:
     """Count tables in GOVERNED_TABLES frozenset declaration."""
     table_reg = ROOT / "backend" / "app" / "store" / "table_registry.py"
-    text = table_reg.read_text()
+    text = table_reg.read_text(encoding="utf-8")
     # Match the type-annotated frozenset: GOVERNED_TABLES: frozenset[str] = frozenset({...})
     match = re.search(
         r"GOVERNED_TABLES.*?frozenset\(\{(.*?)\}\)", text, re.DOTALL
@@ -86,7 +86,7 @@ def count_god_object_max_loc() -> int:
         total = 0
         for p in paths:
             if p.exists():
-                total += len(p.read_text().splitlines())
+                total += len(p.read_text(encoding="utf-8").splitlines())
         return total
 
     kernel_loc = _loc(
@@ -104,35 +104,31 @@ def count_god_object_max_loc() -> int:
     return max(kernel_loc, brain_loc, hub_loc)
 
 
-# Known dead-code files that exist ONLY because of unfinished migrations or
-# historical evolution.  These files have zero runtime callers.
-# When a file from this list is deleted, also remove its entry here so the
-# dead_code_files count decreases.
+# Tracked unused files (zero runtime callers).
+# When a file is deleted, also remove its entry here.
 _KNOWN_DEAD_FILES: list[str] = []
 
 
 def count_dead_code_files() -> int:
-    """Count how many of the known dead files still exist on disk."""
+    """Count how many of the tracked unused files still exist on disk."""
     return sum(1 for p in _KNOWN_DEAD_FILES if (ROOT / p).exists())
 
 
-# ── Baseline (sourced from runtime-algebra.md §4.6; updated 2026-07-04) ─────
+# ── Baseline (sourced from runtime-algebra.md §4.4) ──────────────────────
 
-# When you *reduce* a metric through refactoring, update these baselines AND
-# the table in docs/02-concepts/runtime-algebra.md §4.6.
+# When you *reduce* a metric, update these baselines AND
+# the table in docs/02-concepts/runtime-algebra.md §4.4.
 
 BASELINE = {
-    # Raised 44→57: read_ports.py → read_ports/ package (+13). Same Read Port
-    # concept, domain-scoped files — not new primitives. Revisit if dogfood
-    # marks the split as 不重要 (fold back toward a thinner package).
+    # read_ports/ domain-scoped package — same Read Port concept.
     "runtime_files": 57,
-    "event_types": 50,                # event type compression                 # unchanged
-    "query_state_selectors": 10,       # dropped goals/timer/background/user_profile
-    "fragments": 10,                   # register.py
-    "governed_tables": 14,             # unchanged
-    "projector_files": 6,              # telemetry folded into projectors_governance
-    "god_object_max_loc": 559,        # after governance fold into kernel.py
-    "dead_code_files": 0,              # 已知死代码文件数
+    "event_types": 50,
+    "query_state_selectors": 10,
+    "fragments": 10,
+    "governed_tables": 14,
+    "projector_files": 6,              # telemetry in projectors_governance
+    "god_object_max_loc": 559,
+    "dead_code_files": 0,
 }
 
 
@@ -172,12 +168,12 @@ def check(verbose: bool = True, strict: bool = False) -> int:
             if verbose:
                 direction = ">" if cur > baseline_val else ">"
                 print(
-                    f"  ❌ {key}: {cur} > {limit} "
+                    f"  [FAIL] {key}: {cur} > {limit} "
                     f"(+{cur - limit})"
                 )
         elif verbose:
-            status = "  ✅"
-            print(f"  {status} {key}: {cur} (≤ {limit})")
+            status = "  [OK]"
+            print(f"  {status} {key}: {cur} (<= {limit})")
 
     if verbose:
         print()

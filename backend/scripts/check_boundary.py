@@ -29,8 +29,8 @@ PROJECTION_TABLES = (
     "event_log",
     "timer_events",
     "policy_events",
-    "inbox_emails",  # v0.3.0: promoted to governed (projectors_inbox.py)
-    "llm_calls",  # v0.3.0 governed telemetry
+    "inbox_emails",  # governed (projectors_inbox.py)
+    "llm_calls",  # governed telemetry
     "tool_calls",
 )
 KERNEL_PREFIX = Path("core/runtime/kernel")
@@ -77,9 +77,9 @@ def _capability_subsystem_file(rel: Path) -> bool:
         return True  # Fragment-facing read abstractions (package)
     return rel in {
         Path("core/runtime/capability_governance.py"),  # includes SensitiveRouter
-        Path("core/runtime/capability_decision.py"),  # ADR-0007 Step 9: CapabilityGateway (deprecated v0.4.0)
-        Path("core/runtime/capability_governance.py"),  # v0.4.0: merged governance
-        Path("core/runtime/runtime_container.py"),  # v0.5.0: DI container for all subsystems
+        Path("core/runtime/capability_decision.py"),  # CapabilityGateway
+        Path("core/runtime/capability_governance.py"),  # governance module
+        Path("core/runtime/runtime_container.py"),  # DI container for all subsystems
     }
 
 

@@ -1,4 +1,4 @@
-"""Tests for Prompt Artifact extraction (Phase 3)."""
+"""Tests for Prompt Artifact extraction."""
 
 from __future__ import annotations
 

@@ -1,4 +1,4 @@
-"""Personal Dashboard integration tests (Phase 5 consistency slice).
+"""Personal Dashboard integration tests.
 
 Proves the Runtime can natively host a product without boundary violations.
 The dashboard product accesses data exclusively through Kernel ABI:
@@ -46,7 +46,7 @@ def test_dashboard_recent_events_structure(client: TestClient):
 
 
 def test_dashboard_timer_status_structure(client: TestClient):
-    """Timer status widget has correct structure (Phase 2 Time dimension)."""
+    """Timer status widget has correct structure."""
     r = client.get("/api/dashboard")
     data = r.json()
     timer = data["timer_status"]
@@ -57,7 +57,7 @@ def test_dashboard_timer_status_structure(client: TestClient):
 
 
 def test_dashboard_governance_status_structure(client: TestClient):
-    """Governance status widget verifies Phase 3 runtime health."""
+    """Governance status widget verifies runtime health."""
     r = client.get("/api/dashboard")
     data = r.json()
     gov = data["governance_status"]

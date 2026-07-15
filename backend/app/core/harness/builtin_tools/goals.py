@@ -245,7 +245,7 @@ class GoalsServer:
         Read-only path; no capability gate required (matches the existing
         auto_allow classification in capability_policy.json).
 
-        v1.0 Phase 3b: prefer work_items(work_type='goal'), fall back to goals.
+        Reads from work_items(work_type='goal').
         """
         from app.core.runtime import read_ports
 

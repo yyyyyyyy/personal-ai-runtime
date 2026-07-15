@@ -1,23 +1,16 @@
 """CapabilityGovernance — unified capability authorization and policy management.
 
-v0.4.0: Merged from CapabilityGateway + CapabilityPolicy + ApprovalEngine.
 Single module for policy seeding, risk lookup, 3-gate authorization, approval
-queries, and external tool registration. Eliminates the approval dual-path
-(FACT-35).
+queries, and external tool registration.
 
-v0.9.0: Gate 2 (agent principal grant_events check) removed. The single-user
-runtime only emits system/user principals in practice — Scheduler-derived
-actors ("agent:primary", "scheduler", "executor", "background") are mapped
-to system principal by IdentityResolver, and grant_events had no projector
-to populate it. The data path was dead; Gate 2 always returned fail-closed
-deny. Removing it eliminates the grant_events concept entirely.
+Scheduler-derived actors ("agent:primary", "scheduler", "executor",
+"background") are mapped to system principal by IdentityResolver.
 
-v0.10.0: Taint escalation now applies to ALL paths, including pre_approved.
-Previously, a pre_approved invocation skipped Gate 3 entirely, which meant a
-tainted correlation could drive a write-class tool without re-evaluation.
-The fix: tainted_write is computed before Gate 2; system principals are
-fail-closed denied even on the pre_approved path, and user principals still
-skip the approval request (no double-confirmation).
+Taint escalation applies to ALL paths, including pre_approved. A tainted
+correlation drives a write-class tool through re-evaluation: tainted_write
+is computed before Gate 2; system principals are fail-closed denied even on
+the pre_approved path, and user principals still skip the approval request
+(no double-confirmation).
 
 Gate 1: policy_events projection (forbidden check)
 Gate 2: pre-approved fast path (consume pre-approved approval)

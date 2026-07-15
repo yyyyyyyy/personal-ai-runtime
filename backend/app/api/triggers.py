@@ -1,9 +1,8 @@
 """Triggers API — manage proactive reactions via ReactionRegistry.
 
-v0.6.0: replaces imperative trigger_engine with declarative ReactionRegistry.
-The path prefix remains ``/api/triggers`` for compatibility; responses are
-Reaction descriptors (see ``list_reactions``). Prefer ``gated_by`` /
-``every_cycle`` / ``state_selector`` over assuming ``threshold`` alone fires.
+The path prefix is ``/api/triggers``; responses are Reaction descriptors
+(see ``list_reactions``). Prefer ``gated_by`` / ``every_cycle`` /
+``state_selector`` over assuming ``threshold`` alone fires.
 """
 
 from fastapi import APIRouter, HTTPException
@@ -61,7 +60,7 @@ async def create_trigger(body: CreateTriggerRequest):
 
 @router.get("/")
 async def list_triggers():
-    """List registered reactions (legacy route name: triggers)."""
+    """List registered reactions."""
     registry = get_reaction_registry()
     return registry.list_reactions()
 

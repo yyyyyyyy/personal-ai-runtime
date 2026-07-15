@@ -20,10 +20,10 @@ def uses_alembic(db_path: str) -> bool:
 
 
 def apply_projection_ddl(db: Database) -> None:
-    """Ensure projection tables exist (idempotent).
+    """Ensure projector-owned projection tables exist (idempotent).
 
-    These tables are owned by Kernel projectors but are not in the Alembic
-    baseline; production DBs need this after ``run_migrations()``.
+    These tables are owned by Kernel projectors; production DBs apply them
+    after the Alembic baseline. All columns are part of the CREATE statements.
     """
     from app.core.runtime.kernel.projectors_governance import POLICY_DDL
     from app.core.runtime.kernel.projectors_inbox import TIMER_DDL
@@ -33,27 +33,6 @@ def apply_projection_ddl(db: Database) -> None:
         conn.executescript(TIMER_DDL)
         conn.executescript(POLICY_DDL)
         conn.executescript(MEMORY_INDEX_REPAIRS_SCHEMA)
-        # Migration: add sources column to messages for "I Remember" persistence
-        _migrate_messages_sources(conn)
-        _migrate_timer_payload(conn)
-
-
-def _migrate_messages_sources(conn) -> None:
-    """Add sources column to messages table if it doesn't exist (Phase 1 migration)."""
-    import sqlite3
-    try:
-        conn.execute("ALTER TABLE messages ADD COLUMN sources TEXT")
-    except sqlite3.OperationalError:
-        pass  # column already exists
-
-
-def _migrate_timer_payload(conn) -> None:
-    """Add payload_json column to timer_events table if it doesn't exist."""
-    import sqlite3
-    try:
-        conn.execute("ALTER TABLE timer_events ADD COLUMN payload_json TEXT DEFAULT '{}'")
-    except sqlite3.OperationalError:
-        pass  # column already exists
 
 
 def apply_raw_ddl(db: Database) -> None:
@@ -63,7 +42,6 @@ def apply_raw_ddl(db: Database) -> None:
         APP_STORAGE_DDL_TAIL,
         EVENT_LOG_SCHEMA,
         HANDLER_EXECUTIONS_SCHEMA,
-        MEMORIES_LEGACY_DDL,
         MEMORY_INDEX_REPAIRS_SCHEMA,
         POLICY_EVENTS_SCHEMA,
         PROJECTION_CHECKPOINTS_SCHEMA,
@@ -81,13 +59,6 @@ def apply_raw_ddl(db: Database) -> None:
         conn.executescript(TIMER_EVENTS_SCHEMA)
         conn.executescript(POLICY_EVENTS_SCHEMA)
         conn.executescript(MEMORY_INDEX_REPAIRS_SCHEMA)
-        for stmt in MEMORIES_LEGACY_DDL:
-            try:
-                conn.execute(stmt)
-            except Exception:
-                logger.warning("Legacy DDL statement failed (may be expected): %s", stmt[:80])
-        _migrate_messages_sources(conn)
-        _migrate_timer_payload(conn)
 
 
 def ensure_schema(db: Database) -> None:
@@ -100,14 +71,13 @@ def ensure_schema(db: Database) -> None:
     try:
         run_migrations()
     except Exception as exc:
-        logger.warning("Alembic migrations unavailable, using raw DDL: %s", exc)
+        logger.warning("Alembic unavailable, using raw DDL: %s", exc)
         apply_raw_ddl(db)
         return
 
-    # Projection tables are not in Alembic; ensure they exist.
+    # Projector-owned tables are not declared in Alembic; ensure they exist.
     apply_projection_ddl(db)
 
-    # v0.5.0: work_items table is in Alembic baseline; idempotent ensure for safety.
     from app.store.schema_ddl import WORK_ITEMS_SCHEMA
     with db.get_db() as conn:
         conn.executescript(WORK_ITEMS_SCHEMA)

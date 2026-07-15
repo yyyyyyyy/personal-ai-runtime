@@ -5,8 +5,8 @@ importing ORM models, or calling Kernel / storage directly.
 
     Fragment → Read Port → Kernel → Projection / Query Model
 
-This package is split by domain; public names are re-exported here for
-backward-compatible imports (``from app.core.runtime.read_ports import …``).
+This package is split by domain; public names are re-exported here
+(``from app.core.runtime.read_ports import …``).
 """
 
 from app.core.runtime.read_ports.approvals import (

@@ -307,9 +307,7 @@ def fetch_event_log_rows(
 def query_work_items(db, filters: dict[str, Any]) -> list[dict]:
     """Unified query for work_items table.
 
-    v0.5.0: supersedes tasks+actions.
-    v1.0 Phase 3b: also serves goal readers (work_type='goal') by
-    supporting the same filters/orders that _query_goals offered.
+    Serves all work types (task / action / background / goal).
     """
     item_id = filters.get("id")
     status = filters.get("status")
@@ -330,7 +328,6 @@ def query_work_items(db, filters: dict[str, Any]) -> list[dict]:
         "created_at_asc": "created_at ASC",
         "created_at_desc": "created_at DESC",
         "priority_desc": "priority DESC, created_at ASC",
-        # v1.0 Phase 3b: goal-style orders, ported from _query_goals.
         "importance_desc": "importance DESC, created_at DESC",
         "importance_urgency_desc": "importance DESC, urgency DESC",
         "last_activity_asc": "last_activity_at ASC",
@@ -368,7 +365,6 @@ def query_work_items(db, filters: dict[str, Any]) -> list[dict]:
         if depends_on_work is not None:
             clauses.append("dependencies_json LIKE ?")
             params.append(f"%{depends_on_work}%")
-        # v1.0 Phase 3b: goal-style filters, ported from _query_goals.
         if last_activity_older_than_days is not None:
             clauses.append("last_activity_at < datetime('now', ?)")
             params.append(f"-{int(last_activity_older_than_days)} days")

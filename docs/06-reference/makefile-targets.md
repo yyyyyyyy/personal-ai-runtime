@@ -104,6 +104,6 @@
 | [`install.sh`](../../install.sh) | 交互式安装向导（`make setup` 调用） |
 | [`scripts/install_hooks.sh`](../../scripts/install_hooks.sh) / [`.ps1`](../../scripts/install_hooks.ps1) / [`install-hooks.cmd`](../../install-hooks.cmd) | git hook 安装 |
 | [`scripts/wait_for_health.sh`](../../scripts/wait_for_health.sh) | 轮询健康端点（`make dev` 用） |
-| [`scripts/soak_recovery.py`](../../scripts/soak_recovery.py) | ADR-0007 Step 3 崩溃恢复 soak 测试 |
+| [`scripts/soak_recovery.py`](../../scripts/soak_recovery.py) | Execution 契约 §3 崩溃恢复 soak 测试 |
 | [`scripts/soak_trigger.py`](../../scripts/soak_trigger.py) | 累积执行 soak 测试 |
 | [`scripts/soak_stats.py`](../../scripts/soak_stats.py) | soak 只读报告 |

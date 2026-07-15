@@ -1,4 +1,4 @@
-"""Deep coverage tests for timer_engine scan loop (v0.3.0: now in RuntimeLoop)."""
+"""Deep coverage tests for timer scan loop (in RuntimeLoop)."""
 import pytest
 
 

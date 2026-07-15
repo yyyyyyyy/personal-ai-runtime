@@ -95,7 +95,7 @@ class Brain:
     async def continue_after_tool_result(
         self, conversation: ConversationManager, *, depth: int = 0,
     ) -> str:
-        """Delegate to BrainLLMClient.continue_after_tool_result (v0.10.0)."""
+        """Delegate to BrainLLMClient.continue_after_tool_result."""
         return await self._llm.continue_after_tool_result(
             conversation, depth=depth,
         )
@@ -107,7 +107,7 @@ class Brain:
         *,
         system_prompt: str,
     ) -> list[dict]:
-        """Delegate to brain_history_builder.build_messages (v0.10.0)."""
+        """Delegate to brain_history_builder.build_messages."""
         return build_messages(
             conversation, user_message, system_prompt=system_prompt,
         )

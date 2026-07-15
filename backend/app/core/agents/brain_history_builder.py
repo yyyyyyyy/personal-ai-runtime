@@ -1,7 +1,6 @@
 """Brain History Builder — constructs the LLM messages array.
 
-Extracted from Brain._build_messages (v0.10.0) so the history assembly
-logic is independently testable. Handles:
+History assembly logic, independently testable. Handles:
 
 - Injection of system_prompt as the first message
 - Long-context truncation (capped by ``settings.max_recent_messages``)

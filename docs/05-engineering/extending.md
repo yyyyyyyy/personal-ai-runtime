@@ -38,7 +38,7 @@ _OWNED_TABLES["your_aggregate_type"] = ["your_table"]
 
 3. 若新增 governed 表，在 [`backend/app/store/table_registry.py`](../../backend/app/store/table_registry.py) 的 `GOVERNED_TABLES` 添加表名，并在 `GOVERNED_SCHEMA` 声明预期列。
 
-4. Alembic migration 创建表（[`backend/alembic/versions/`](../../backend/alembic/versions/)）。
+4. 在 Alembic 初始 schema 中声明表（[`backend/alembic/versions/`](../../backend/alembic/versions/)）。
 
 **守卫**：`check_projection_provenance.py` 验证每条投影行有对应 event_log 事件；`verify_rebuild.py` 验证全量重建字节一致；`check_boundary.py` 阻止 User Space 直访新表。
 

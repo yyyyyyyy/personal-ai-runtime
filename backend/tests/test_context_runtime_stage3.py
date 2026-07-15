@@ -36,7 +36,7 @@ class TestFragmentMetadata:
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# PR-2: Prompt Artifact Identity (runtime.identity fragment removed Phase 5)
+# Prompt Artifact Identity
 # ═══════════════════════════════════════════════════════════════════════════
 
 class TestPromptArtifactIdentity:
@@ -264,7 +264,7 @@ class TestContextAssembler:
         assert "X" not in result  # HugeContext dropped due to budget
 
     def test_estimate_tokens(self):
-        # estimate_tokens() removed in v0.3.1; FragmentResult.__post_init__
+        # FragmentResult.__post_init__
         # now computes token count inline as max(1, len(content) // 4).
         from app.context_runtime import FragmentResult
 

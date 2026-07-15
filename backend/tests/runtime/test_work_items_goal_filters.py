@@ -1,4 +1,4 @@
-"""Tests for v1.0 Phase 3b: _query_work_items supports goal-style filters."""
+"""Tests for _query_work_items goal-style filters."""
 
 import os
 

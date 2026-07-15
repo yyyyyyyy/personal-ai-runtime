@@ -1,7 +1,7 @@
 /**
  * Work Items API — unified endpoint for tasks, actions, goals.
  *
- * Phase 4: sole HTTP client for Work. goals.ts is a thin Goal view-model
+ * Sole HTTP client for Work. goals.ts is a thin Goal view-model
  * adapter over these helpers.
  */
 import { API_BASE, request } from "./core";

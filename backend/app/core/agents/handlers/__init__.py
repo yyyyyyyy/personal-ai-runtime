@@ -1,8 +1,7 @@
 """Chat handler registration for the Personal AI Runtime.
 
 Handlers are registered via @subscribe("EventType") decorators.
-handler_registry dispatches by event type only — no AgentDefinition or
-SubscriptionRule needed (both removed in v0.4.0).
+handler_registry dispatches by event type only.
 """
 
 # Import handler modules to trigger @subscribe decorator registration.

@@ -31,7 +31,6 @@ def test_runtime_container_reset_clears_taint():
 
 
 def test_runtime_container_reset_clears_capability_policy():
-    # v0.4.0: CapabilityGovernance replaced CapabilityPolicy
     from app.core.runtime.capability_governance import capability_governance
     from app.core.runtime.runtime_container import runtime
 
@@ -64,7 +63,7 @@ def test_global_runtime_singleton_is_available():
 
 
 def test_runtime_container_new_properties():
-    """v0.5.0: All module-level singletons now accessible via RuntimeContainer."""
+    """All module-level singletons are accessible via RuntimeContainer."""
     from app.core.runtime.runtime_container import RuntimeContainer
 
     c = RuntimeContainer()

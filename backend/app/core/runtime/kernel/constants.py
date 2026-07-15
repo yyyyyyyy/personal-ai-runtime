@@ -56,10 +56,10 @@ EVENT_BG_TASK_STATUS_CHANGED = "BackgroundTaskStatusChanged"
 EVENT_INBOX_POLL_REQUESTED = "InboxPollRequested"
 EVENT_INBOX_POLL_COMPLETED = "InboxPollCompleted"
 EVENT_INBOX_EMAIL_RECORDED = "InboxEmailRecorded"
-# v0.3.0: turn inbox_emails into a governed projection derived solely from
-# events. Status / notified / digested transitions are now event-sourced so
+# inbox_emails is a governed projection derived solely from events.
+# Status / notified / digested transitions are event-sourced so
 # verify_inbox_audit can guarantee the table is fully reconstructable from
-# event_log (closes Critical #1 from ARCHITECTURE_SURVIVAL_REVIEW.md).
+# event_log.
 EVENT_INBOX_EMAIL_STATUS_CHANGED = "InboxEmailStatusChanged"
 # InboxEmailFlagSet covers both notified and digested (payload.flag distinguishes).
 EVENT_INBOX_EMAIL_FLAG_SET = "InboxEmailFlagSet"
@@ -70,13 +70,12 @@ EVENT_CHAT_DONE = "ChatDone"
 # ── Application audit ──────────────────────────────────────────
 
 EVENT_APP_CONFIG_CHANGED = "AppConfigChanged"
-# v0.3.0: telemetry LLM calls are now event-sourced. brain_telemetry emits
+# Telemetry LLM calls are event-sourced. brain_telemetry emits
 # this event instead of INSERTing directly into the llm_calls APP_STORAGE
-# table. The projector (projectors_telemetry.py) derives the table row,
-# closing the dual-write drift (Critical #1).
+# table. The projector (projectors_telemetry.py) derives the table row.
 EVENT_LLM_CALL_RECORDED = "LLMCallRecorded"
 
-# ── Execution aggregate (ADR-0007) ──────────────────────────────────────────
+# ── Execution aggregate ──────────────────────────────────────────
 
 EVENT_EXECUTION_REQUESTED = "ExecutionRequested"
 EVENT_EXECUTION_STARTED = "ExecutionStarted"
@@ -100,7 +99,7 @@ AGGREGATE_APPROVAL = "approval"
 AGGREGATE_CAPABILITY = "capability"
 AGGREGATE_MEMORY = "memory"
 AGGREGATE_CONVERSATION = "conversation"
-AGGREGATE_WORK_ITEM = "work_item"  # v0.7.0: fully supersedes task + action
+AGGREGATE_WORK_ITEM = "work_item"
 AGGREGATE_NOTIFICATION = "notification"
 AGGREGATE_EXECUTION = "execution"
 AGGREGATE_TIMER = "timer"

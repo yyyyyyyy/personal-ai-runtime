@@ -11,8 +11,8 @@ from app.core.runtime.kernel_instance import kernel
 
 router = APIRouter(tags=["approvals"])
 
-# ── Flow classification helpers (v0.11.0: moved from capability_governance) ──
-# These are UI-presentation concerns — Chinese labels for the approval list.
+# ── Flow classification helpers ──
+# UI-presentation concerns — Chinese labels for the approval list.
 # They do NOT belong in the governance layer which should remain pure decision logic.
 
 _CORR_PREFIX_MAP: list[tuple[str, str]] = [
@@ -52,8 +52,7 @@ def _label_flow(corr_id: str, task_id: str | None, task_map: dict[str, str]) -> 
 def _list_pending_enriched(kernel) -> list[dict]:
     """List pending approvals with flow context enriched from event_log.
 
-    Moved from capability_governance.list_pending_enriched (v0.11.0) —
-    this is a UI-presentation concern, not a governance decision.
+    UI-presentation concern, not a governance decision.
     """
     pending = read_ports.query_pending_approvals()
     if not pending:

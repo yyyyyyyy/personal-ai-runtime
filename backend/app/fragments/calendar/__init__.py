@@ -1,8 +1,6 @@
 """Calendar context fragments.
 
 读取 OS 日历事件，无需专用存储表。
-
-v0.7.0: CalendarIdentityFragment 身份声明合并进 DailyAgendaFragment。
 """
 
 from __future__ import annotations

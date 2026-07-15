@@ -1,4 +1,4 @@
-"""Architecture tests — Context Policy primitive (Phase 8)."""
+"""Architecture tests — Context Policy primitive."""
 
 from __future__ import annotations
 

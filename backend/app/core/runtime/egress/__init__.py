@@ -1,4 +1,4 @@
-"""Egress gate — LLM outbound audit (EGRESS_RFC v0.1)."""
+"""Egress gate — LLM outbound audit."""
 
 from app.core.runtime.egress.egress_gate import audit_llm_egress
 

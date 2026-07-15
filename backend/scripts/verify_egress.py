@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""LLM Egress verification — EGRESS_RFC v0.1."""
+"""LLM Egress verification."""
 
 from __future__ import annotations
 

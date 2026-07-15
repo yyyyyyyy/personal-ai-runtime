@@ -1,4 +1,4 @@
-"""Tests for the Runtime Gateway MCP server (Phase 3.2 dogfood).
+"""Tests for the Runtime Gateway MCP server.
 
 Verifies the stdio JSON-RPC protocol handling and that tools dispatch
 correctly to the HTTP @public endpoints (mocked).

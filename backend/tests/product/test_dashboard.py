@@ -1,4 +1,4 @@
-"""Personal Dashboard product unit tests (Phase 5 consistency slice).
+"""Personal Dashboard product unit tests.
 
 Tests the dashboard product's ability to compute widgets from Kernel ABI
 without any boundary violations.
@@ -53,7 +53,7 @@ def test_generate_dashboard_with_seeded_data(tmp_path, monkeypatch):
 
     # Governance widget
     assert dashboard["governance_status"]["active_policies"] >= 1
-    assert dashboard["governance_status"]["active_grants"] >= 0  # grant projectors removed v0.7.0
+    assert dashboard["governance_status"]["active_grants"] >= 0
 
     # Structure
     assert "generated_at" in dashboard

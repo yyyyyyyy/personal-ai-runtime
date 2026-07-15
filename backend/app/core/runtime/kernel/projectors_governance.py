@@ -1,8 +1,7 @@
 """Governance projectors — Policy event-sourced projections.
 
 policy_events is a projection of Policy aggregate event streams, fully
-reconstructible from the Event Log. Grant projections were removed in v0.9.0
-(Gate 2 eliminated; no Grant* projectors remain).
+reconstructible from the Event Log.
 """
 
 from __future__ import annotations

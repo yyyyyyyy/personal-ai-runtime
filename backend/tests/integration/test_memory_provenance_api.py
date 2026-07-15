@@ -1,4 +1,4 @@
-"""Integration tests for Memory provenance API (Phase 2.1).
+"""Integration tests for Memory provenance API.
 
 Verifies that GET /api/memory/memories/{id}/provenance returns the full
 event chain for a memory, enabling the "explainable memory" UI.

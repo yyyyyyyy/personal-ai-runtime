@@ -1,7 +1,6 @@
 """Gate 3 (risk escalation) tests for CapabilityGovernance.decide().
 
-v0.9.0: Gate 4 → Gate 3 (Gate 2 grant_events removed). Agent principal tests
-removed — only system/user principals exist now.
+Only system/user principals exist.
 
 Covers paths not exercised by existing decision/forbidden tests:
 - taint escalation (write-class tool on tainted correlation → forced high)

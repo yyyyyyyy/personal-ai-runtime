@@ -182,7 +182,7 @@ def test_docker_run_escape_blocked():
 
 
 def test_curl_internal_url_blocked():
-    # curl/wget have been removed from ALLOWED_COMMANDS (v0.2.1) to prevent
+    # curl/wget are not in ALLOWED_COMMANDS to prevent
     # SSRF bypass. All network requests must go through the DNS-pinned fetch_url tool.
     result = _error(shell_server.execute("curl http://127.0.0.1/admin"))
     assert "not in whitelist" in result, result

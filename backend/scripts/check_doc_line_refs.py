@@ -2,9 +2,8 @@
 """Verify docs contain no ``.py:NNN`` line-number references.
 
 Line numbers in doc links drift every refactor (function moves, file grows,
-lines renumber). The repo switched to function-name references in v0.9.0
-for stability. This guard blocks new line-number references from creeping
-back into docs.
+lines renumber). The repo uses function-name references for stability.
+This guard blocks new line-number references from creeping back into docs.
 
 Exit codes:
   0 — no line-number refs found

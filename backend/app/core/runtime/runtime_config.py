@@ -1,7 +1,7 @@
 """Runtime configuration — LLM and email settings persisted in SQLite.
 
 Env vars seed defaults on first load; UI edits are stored in app_settings table.
-Legacy runtime_config.json is migrated automatically on first read.
+If runtime_config.json exists, it is imported into app_settings on first read.
 """
 
 from __future__ import annotations
@@ -232,7 +232,7 @@ def _load_from_json_file() -> dict[str, Any] | None:
             data["email"] = defaults["email"]
         return data
     except (json.JSONDecodeError, OSError) as exc:
-        logger.warning("Failed to load legacy runtime config: %s", exc)
+        logger.warning("Failed to load runtime_config.json: %s", exc)
         return None
 
 
@@ -246,10 +246,10 @@ def _load_raw(*, force: bool = False) -> dict[str, Any]:
         _cache = deepcopy(data)
         return deepcopy(data)
 
-    legacy = _load_from_json_file()
-    if legacy is not None:
-        _save_raw(legacy)
-        logger.info("Migrated runtime_config.json into app_settings table")
+    imported = _load_from_json_file()
+    if imported is not None:
+        _save_raw(imported)
+        logger.info("Imported runtime_config.json into app_settings table")
         return deepcopy(_cache)  # type: ignore[arg-type]
 
     data = _defaults()
@@ -443,7 +443,7 @@ class RuntimeConfig:
                          updated_at = excluded.updated_at""",
                     (category, json.dumps({"content": content, "key": key}, ensure_ascii=False), now),
                 )
-            # v0.3.0: emit audit event so config changes are visible in the
+            # Emit audit event so config changes are visible in the
             # event stream. The payload is metadata only — prompt content
             # stays in app_settings (it may contain sensitive content).
             from app.core.runtime.kernel_instance import kernel

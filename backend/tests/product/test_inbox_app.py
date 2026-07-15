@@ -1,8 +1,7 @@
 """Tests for proactive inbox app.
 
-v0.3.0: inbox_emails is now a governed projection. Tests no longer INSERT
-directly into the table; instead they emit InboxEmail* events to set up
-fixtures (mirroring the production write path).
+inbox_emails is a governed projection. Tests emit InboxEmail* events to set
+up fixtures (mirroring the production write path).
 """
 
 import json

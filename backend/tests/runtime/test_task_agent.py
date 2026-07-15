@@ -1,5 +1,6 @@
 """T5 acceptance test: Task lifecycle events + dynamic agent spawn with trace.
-ADR-0007 Step 10: uses direct emit_event instead of deleted create_task/spawn_agent/kill_agent.
+
+Uses direct emit_event for task lifecycle.
 """
 
 import os
@@ -24,7 +25,7 @@ class TestTaskAgent:
         task_id = f"task_{uuid.uuid4().hex}"
         agent_id = f"agent_{uuid.uuid4().hex}"
 
-        # 1. Create task (ADR-0007 Step 10: emit event directly)
+        # 1. Create task (emit event directly)
         k.emit_event(
             type="WorkItemCreated", aggregate_type="work_item", aggregate_id=task_id,
             payload={"title": "Plan weekly report", "description": "Generate weekly report for the team"},

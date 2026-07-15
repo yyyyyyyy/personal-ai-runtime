@@ -177,7 +177,7 @@ test.describe("Error handling", () => {
   });
 });
 
-test.describe("New pages (v0.1.0)", () => {
+test.describe("New pages", () => {
   test.beforeEach(async ({ page }) => {
     await page.addInitScript(() => localStorage.setItem("onboarding_done", "1"));
   });

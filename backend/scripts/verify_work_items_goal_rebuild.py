@@ -1,11 +1,9 @@
 #!/usr/bin/env python
-"""Verify work_items goal rebuild (v1.0 Phase 3d).
+"""Verify work_items goal rebuild.
 
 Tests that the WorkItemCreated/Updated/StatusChanged projectors produce
 byte-identical state for work_type='goal' rows when the work_item aggregate
-is rebuilt from event_log. This complements verify_goal_rebuild.py (which
-validates the legacy goals projection) and will supersede it in Phase 4
-when the goals table is dropped.
+is rebuilt from event_log.
 
 Exit codes:
   0 — rebuild byte-identical

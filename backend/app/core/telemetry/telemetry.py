@@ -1,14 +1,12 @@
 """Telemetry — observability views over LLM calls, tool calls, and system health.
 
-v0.11.0: removed the legacy ``record_llm_call`` / ``record_tool_call`` direct
-INSERT methods and their ``LLMCallRecord`` / ``ToolCallRecord`` data classes.
-Telemetry writes now flow exclusively through the Kernel as
-``LLMCallRecorded`` / ``CapabilityInvoked`` events (see
-``brain_telemetry.record_llm_call`` and ``projectors_telemetry``).
+Telemetry writes flow exclusively through the Kernel as ``LLMCallRecorded`` /
+``CapabilityInvoked`` events (see ``brain_telemetry.record_llm_call`` and
+``projectors_telemetry``).
 
-v0.12.0: governed-table *reads* also go through ``kernel.query_state``
-(``llm_calls`` / ``tool_calls`` / ``memories`` / ``work_items``). Direct SQL
-is reserved for APP_STORAGE (``memory_index_repairs``).
+Governed-table reads go through ``kernel.query_state`` (``llm_calls`` /
+``tool_calls`` / ``memories`` / ``work_items``). Direct SQL is reserved for
+APP_STORAGE (``memory_index_repairs``).
 """
 
 from collections import Counter, defaultdict

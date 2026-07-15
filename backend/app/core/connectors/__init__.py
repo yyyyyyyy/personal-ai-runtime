@@ -1,4 +1,4 @@
-"""Inbound connectors — capture Experience dimensions (CONNECTOR_RFC v0.1)."""
+"""Inbound connectors — capture Experience dimensions."""
 
 from app.core.connectors.calendar_capture import capture_calendar_observations
 

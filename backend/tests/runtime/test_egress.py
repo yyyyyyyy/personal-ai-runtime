@@ -85,7 +85,7 @@ def test_audit_llm_egress_goal_breakdown_audit(tmp_path):
 
         messages = [
             {"role": "system", "content": "You break goals into steps."},
-            {"role": "user", "content": "Goal: ship v0.3.0"},
+            {"role": "user", "content": "Goal: ship release"},
         ]
         returned_messages, audit = audit_llm_egress(
             messages, purpose="goal_breakdown", actor="api",

@@ -1,9 +1,9 @@
 """Runtime Gateway MCP Server — exposes Personal AI Runtime's @public SDK
 surface to external agents (Cursor, Claude Code, any MCP-compatible client).
 
-This is the Phase 3.2 dogfood: by pointing Cursor at this MCP server, the
-author's IDE agent gains access to long-term memory + knowledge recall,
-proving (or disproving) the "runtime as infrastructure" thesis.
+Pointing Cursor at this MCP server gives the IDE agent access to long-term
+memory + knowledge recall, proving (or disproving) the "runtime as
+infrastructure" thesis.
 
 Tools exposed:
   - recall: unified semantic search across memories + knowledge documents

@@ -1,5 +1,5 @@
 /**
- * Goals client — thin adapters over /api/work-items (Phase 4).
+ * Goals client — thin adapters over /api/work-items.
  *
  * Keeps the Goal view-model for existing pages while all HTTP goes through
  * the unified work-items surface.

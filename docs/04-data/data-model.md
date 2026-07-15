@@ -37,7 +37,7 @@ frozenset({
 
 append-only。索引：`idx_event_log_aggregate`、`idx_event_log_correlation`。
 
-### `work_items`（v0.5.0：统一 task + action；v1.0：吸收 goal）
+### `work_items`
 
 ```python
 frozenset({
@@ -49,8 +49,6 @@ frozenset({
 ```
 
 `work_type` 区分 `task` / `action` / `background` / `goal`。`query_state("goals", ...)` 是 `work_items WHERE work_type='goal'` 的别名（[`kernel_query_state.py`](../../backend/app/core/runtime/kernel/kernel_query_state.py)）。
-
-> **v1.0 演进说明**：独立的 `goals` 物理表与 `Goal*` 事件类型已删除，全部统一到 `work_items(work_type='goal')`。详见 [runtime-algebra.md §5.3](../02-concepts/runtime-algebra.md)。
 
 ### `memories`
 
@@ -134,7 +132,7 @@ WorkItem 持久化，崩溃恢复源。
 ```python
 frozenset({
     "id", "handler_name", "schedule_type", "cron_expr", "delay_seconds",
-    "fire_at", "status", "created_at", "fired_at",
+    "fire_at", "status", "payload_json", "created_at", "fired_at",
 })
 ```
 
@@ -146,7 +144,7 @@ frozenset({"id", "capability", "risk_level", "status", "created_at", "updated_at
 
 ### `tool_calls` / `llm_calls`
 
-v0.3.0 起从 APP_STORAGE 提升为 governed 投影，分别由 `CapabilityInvoked/Failed/Denied` 与 `LLMCallRecorded` 事件驱动。
+Governed 投影，分别由 `CapabilityInvoked/Failed/Denied` 与 `LLMCallRecorded` 事件驱动。
 
 ## APP_STORAGE 表（可直访）
 
@@ -167,15 +165,15 @@ v0.3.0 起从 APP_STORAGE 提升为 governed 投影，分别由 `CapabilityInvok
 | `memories` | 记忆向量 | Kernel（`_sync_memory_index`） |
 | `knowledge` | 知识库文档块向量 | `knowledge` API（上传时分块向量化） |
 
-## Alembic 迁移
+## Schema 初始化
 
-迁移文件在 [`backend/alembic/versions/`](../../backend/alembic/versions/)：
+初始 Schema 定义在 [`backend/alembic/versions/`](../../backend/alembic/versions/)：
 
 | Revision | down_revision | 内容 |
 |---|---|---|
-| `0001_consolidated` | — | 单一 baseline：全部应用表 + kernel 表 + 投影表 + append-only 触发器 |
+| `0001_consolidated` | — | 单一初始 schema：全部应用表 + kernel 表 + 投影表 + append-only 触发器 |
 
-历史增量迁移（initial + v02–v07）已合并进 `0001_consolidated.py`，fresh install 只需一次 `alembic upgrade head`。
+`alembic upgrade head` 一次应用完整 schema。
 
 `run_migrations()`（[`backend/app/store/alembic_runner.py`](../../backend/app/store/alembic_runner.py)）用 `backend/alembic.ini`，`command.upgrade(cfg, "head")`，幂等。
 
@@ -183,7 +181,7 @@ v0.3.0 起从 APP_STORAGE 提升为 governed 投影，分别由 `CapabilityInvok
 
 [`backend/app/store/schema_init.py`](../../backend/app/store/schema_init.py) 的 `ensure_schema(db)`：
 
-- 若 `db_path == settings.sqlite_path`（生产路径）→ 跑 Alembic migrations（失败回退 raw DDL）。
+- 若 `db_path == settings.sqlite_path`（生产路径）→ 应用 Alembic schema（失败回退 raw DDL）。
 - 否则（测试/自定义路径）→ 跑 `apply_raw_ddl`。
 
 ## 一致性验证

@@ -1,7 +1,7 @@
 """Fragment registration — single entrypoint for all context fragments.
 
-v0.7.0: Memory+World → BackgroundContext; MailIdentity → RecentEmails;
-        CalendarIdentity → DailyAgenda. Total: 13 → 10.
+The active fragment set is: BackgroundContext, RecentEmails, DailyAgenda, and
+others registered below (10 total).
 """
 
 from __future__ import annotations

@@ -1,7 +1,6 @@
-"""BackgroundContextFragment — 语义记忆 + 30天生活快照（合并 memory + world）。
+"""BackgroundContextFragment — 语义记忆 + 30天生活快照。
 
-v0.7.0: MemoryContextFragment + WorldContextFragment 合并。两者都是
-read_ports 的瘦封装，同属于 universal 背景上下文层。
+读 read_ports 的通用背景上下文层。
 """
 
 from __future__ import annotations

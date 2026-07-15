@@ -1,11 +1,6 @@
 """SQLite database management — connection pool + schema lifecycle.
 
-v0.11.0: governed-read methods (get_conversation, list_conversations,
-get_message, get_recent_messages) removed — they SELECT from governed
-tables and belong in Kernel.query_state. The sole caller in
-verify_export_roundtrip.py now uses kernel.query_state().
-
-Remaining responsibilities (both acceptable for a single Database class):
+Governed reads go through Kernel.query_state; this class owns only:
   1. Connection pool (thread-local, WAL mode, busy_timeout)
   2. Schema lifecycle (Alembic or raw DDL in constructor)
 """

@@ -1,7 +1,6 @@
 """Built-in Reactions — declarative event→action bindings.
 
-v0.6.0: Replaces the old trigger_engine.seed_builtin_triggers().
-v0.12.0: ReactionWhen.every_cycle + state_selector gate evaluated by registry.
+``ReactionWhen.every_cycle`` + ``state_selector`` gate is evaluated by the registry.
 Each reaction below is registered via the @reaction decorator at import time.
 """
 
@@ -93,7 +92,7 @@ def _check_stagnant_goals(kernel=None) -> None:
     from app.core.runtime.kernel_instance import kernel as k
     kern = kernel or k
 
-    # Prefer work_items(work_type='goal'); goals selector is a legacy alias.
+    # Prefer work_items(work_type='goal'); goals selector is an alias.
     stagnant = kern.query_state(
         "work_items", work_type="goal", status="active",
         last_activity_older_than_days=3, limit=5,

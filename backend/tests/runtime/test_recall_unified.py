@@ -1,4 +1,4 @@
-"""Tests for unified memory + knowledge retrieval (Phase 1.2).
+"""Tests for unified memory + knowledge retrieval.
 
 recall_unified lives in read_ports (a pure composition of
 kernel.recall_memory + kernel.recall_knowledge) so the Background fragment

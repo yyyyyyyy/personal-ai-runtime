@@ -1,7 +1,7 @@
-"""Execution identity — typed Principal, resolver, and scoping (ADR-0007 Step 8).
+"""Execution identity — typed Principal, resolver, and scoping (Execution 契约 §8).
 
-Merged from principal.py + identity_resolver.py + execution_scope.py (v0.7.0).
-These three concepts are the same concern: "who is executing and what are they allowed to do."
+Principal, identity resolution, and execution scoping are one concern:
+"who is executing and what are they allowed to do."
 """
 
 from __future__ import annotations
@@ -24,8 +24,6 @@ class Principal:
 
     Only two principal types are recognized in the single-user runtime:
     ``system`` (kernel/runtime loops) and ``user`` (interactive user).
-    The former ``agent`` principal type was removed in v0.9.0 — it had no
-    production emitter and its Gate 2 grant check was fail-closed dead.
     """
 
     principal_id: str
@@ -50,7 +48,7 @@ class Principal:
 class IdentityResolver:
     """Resolve actor strings to Principals.
 
-    Actor strings starting with ``agent:`` (legacy) and the named runtime
+    Actor strings starting with ``agent:`` and the named runtime
     actors ``scheduler`` / ``executor`` / ``background`` / ``kernel`` all
     resolve to the ``system`` principal — they run inside the trusted
     Runtime and are not subject to per-user approval gating.

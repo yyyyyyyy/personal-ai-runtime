@@ -191,8 +191,8 @@ async def invoke_capability(
 ) -> dict:
     """Invoke a capability through the Kernel, with approval gating.
 
-    ADR-0007 Step 9: authorization is delegated to CapabilityGateway,
-    which uses typed Principal (Step 8) for identity-based checks.
+    Execution 契约 §9: authorization is delegated to CapabilityGateway,
+    which uses typed Principal (§8) for identity-based checks.
 
     When execution_id is provided, this invocation is attributed to the
     owning Execution aggregate via caused_by.

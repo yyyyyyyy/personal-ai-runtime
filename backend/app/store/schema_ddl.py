@@ -58,7 +58,7 @@ CREATE TABLE IF NOT EXISTS memories (
 );
 """
 
-# v0.5.0: unified work_items table supersedes tasks + actions + goals.
+# Unified work_items table (Goal / Task / Action are work_type values).
 WORK_ITEMS_SCHEMA = """
 CREATE TABLE IF NOT EXISTS work_items (
     id TEXT PRIMARY KEY,
@@ -269,14 +269,3 @@ CREATE TABLE IF NOT EXISTS memory_index_repairs (
 CREATE INDEX IF NOT EXISTS idx_memory_repairs_status
     ON memory_index_repairs (status, retry_count);
 """
-
-MEMORIES_LEGACY_DDL = [
-    "ALTER TABLE memories ADD COLUMN confidence REAL DEFAULT 0.5",
-    "ALTER TABLE memories ADD COLUMN derived_from_event TEXT",
-    "ALTER TABLE memories ADD COLUMN decayed_at DATETIME",
-    "ALTER TABLE memories ADD COLUMN status TEXT DEFAULT 'active'",
-    "ALTER TABLE memories ADD COLUMN origin TEXT DEFAULT 'claim'",
-    "ALTER TABLE memories ADD COLUMN claim_status TEXT",
-    "ALTER TABLE memories ADD COLUMN source_document_id TEXT",
-    "ALTER TABLE memories ADD COLUMN source_document_name TEXT",
-]

@@ -2,7 +2,7 @@
 
 本地优先、单用户、事件溯源的个人 AI 运行时。所有个人数据（对话、记忆、目标、收件箱、审批、知识库）存于本机，由统一 Kernel 写入，LLM 与工具调用受治理与审计。
 
-当前版本：**0.2.0**（权威源：[`backend/app/version.py`](backend/app/version.py)）
+当前版本：**1.0.0**（权威源：[`backend/app/version.py`](backend/app/version.py)）
 
 ## 快速开始
 

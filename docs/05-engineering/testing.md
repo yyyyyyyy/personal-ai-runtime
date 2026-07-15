@@ -53,7 +53,7 @@ flowchart TB
 
 - **事件溯源与重建**：`test_event_sourcing.py`、`test_engine_rebuild.py`、`test_memory_belief.py`、`test_conversation_recorded.py`、`test_actions_event_sourced.py`、`test_goals_event_sourced.py`
 - **边界与归属守卫**：`test_boundary_guard.py`、`test_execution_ownership_guard.py`、`test_projection_provenance_guard.py`、`test_projection_schema_contract.py`
-- **执行模型（ADR-0007 Step 1–5）**：`test_execution_model.py`、`test_execution_events.py`、`test_principal.py`（含 ExecutionContext）、`test_execution_recovery.py`、`test_execution_shadow_compare.py`、`test_execution_ownership.py`
+- **执行模型（Execution 契约 §1–5）**：`test_execution_model.py`、`test_execution_events.py`、`test_principal.py`（含 ExecutionContext）、`test_execution_recovery.py`、`test_execution_shadow_compare.py`、`test_execution_ownership.py`
 - **Scheduler / timer / reaction / 隔离**：`test_scheduler.py`、`test_scheduler_deadline.py`、`test_scheduler_extended.py`、`test_d1_concurrent_isolation.py`、`test_coverage_engines.py`
 - **能力治理与策略（T2/A3/C3）**：`test_capability_approval.py`、`test_capability_decision.py`、`test_capability_forbidden.py`、`test_c3_mcp_policy_eventsourcing.py`、`test_runtime_config.py`、`test_taint.py`、`test_sensitive_router.py`
 - **出口与连接器**：`test_egress.py`、`test_connector.py`、`test_browser_ssrf.py`、`test_fetch_ssrf.py`、`test_url_safety.py`、`test_web_search_html.py`
@@ -69,7 +69,7 @@ make test-backend     # cd backend && pytest tests/ -q -m "not live_llm"
 
 `-m "not live_llm"` 排除需要真实 LLM API 的测试。
 
-### 覆盖率策略（v0.9.0 更新）
+### 覆盖率策略
 
 **覆盖率是结果，不是目标。**
 
@@ -166,7 +166,7 @@ vitest，**不需要 Electron 已安装**。读 `main.js` 源码，字符串 `to
 
 `auth.test.ts`、`api/client.test.ts`，组件测试（`Button/Input/Dialog/Sidebar/MessageItem/ToolCallDisplay/ContextPanel/ConfirmationDialog/ChatView/ui.snapshots`），页面测试（`Dashboard/Inbox/Memories/Goals/Settings/Portrait/TrustReport`）。运行：`make test-frontend`（含 `tsc --noEmit`）。
 
-## Soak 测试（ADR-0007 Step 3）
+## Soak 测试（Execution 契约 §3）
 
 [`scripts/`](../../scripts/) 下的 soak 脚本模拟长时间运行：
 
@@ -175,7 +175,7 @@ vitest，**不需要 Electron 已安装**。读 `main.js` 源码，字符串 `to
 | [`soak_recovery.py`](../../scripts/soak_recovery.py) | 四阶段崩溃/重启模拟：spawn soak agent + 阻塞 handler → 入队 N 个 work item → scheduler 接手 → 停 scheduler 并强 emit `ExecutionStarted`（模拟崩溃）→ 验证 item 卡在 running → 新 Scheduler `_recover()` → 验证 `ExecutionRetried(reason=interrupted)` 全存在、无 item 卡 running、shadow-compare 0 mismatch、`rebuild("execution")` 后 `handler_executions` 字节一致 |
 | [`soak_trigger.py`](../../scripts/soak_trigger.py) | 累积执行：注册 no-op handler，每 7 批用 30% 失败率演练重试 + shadow compare；发 N 个 `SoakTrigger` 事件走真实 `emit → AgentBus → Scheduler → _persist_emit_verify` 循环 |
 | [`soak_stats.py`](../../scripts/soak_stats.py) | 只读报告：`handler_executions` 状态分布、完成数（基线 100）、`ExecutionRetried(interrupted)` 计数、事件类型分布 |
-| [`soak_dogfood_report.py`](../../scripts/soak_dogfood_report.py) | **开发期 dogfood**：对当前 `personal_ai.db` 输出只读计数报告，核对 chat/memory/work/approval/inbox 是否真的被日用。不进 CI |
+| [`soak_dogfood_report.py`](../../scripts/soak_dogfood_report.py) | **dogfood 自检**：对当前 `personal_ai.db` 输出只读计数报告，核对 chat/memory/work/approval/inbox 是否真的被日用。不进 CI |
 
 ## 开发期 dogfood soak
 

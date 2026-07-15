@@ -1,4 +1,4 @@
-"""Emit helpers for Execution aggregate events (ADR-0007 Step 1).
+"""Emit helpers for Execution aggregate events (Execution 契约 §1).
 
 Plain functions only — not a runtime domain object. Schedulers call these
 alongside existing persist_work_item dual-write paths.
