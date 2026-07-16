@@ -52,22 +52,24 @@ class QueryStateMixin:  # type: ignore[attr-defined]  # mixed into Kernel which 
         return qb.query_notifications(self._db, filters)
 
     def list_capability_definitions(self) -> list[dict]:
-        """Read-only capability metadata for LLM tool schemas (User Space ABI)."""
+        """Thin forward to harness — prefer ``mcp_hub.get_tool_defs_for_llm``."""
         from app.core.harness.mcp_hub import mcp_hub
 
         return mcp_hub.get_tool_defs_for_llm()
 
     def recall_memory(self, query: str, k: int = 5) -> list[dict]:
-        """Semantic recall from derived memories (projected from MemoryDerived events)."""
-        from app.store.vector import vector_store
-
-        return vector_store.search_memories(query, n_results=k)
+        """Semantic recall via injected MemoryIndexPort (no global vector bypass)."""
+        port = getattr(self, "_memory_index", None)
+        if port is None:
+            return []
+        return port.search_memories(query, n_results=k)
 
     def recall_knowledge(self, query: str, k: int = 5) -> list[dict]:
-        """Semantic recall from knowledge base documents."""
-        from app.store.vector import vector_store
-
-        return vector_store.search_knowledge(query, n_results=k)
+        """Knowledge recall via injected MemoryIndexPort."""
+        port = getattr(self, "_memory_index", None)
+        if port is None:
+            return []
+        return port.search_knowledge(query, n_results=k)
 
     def _query_conversations(self, filters: dict[str, Any]) -> list[dict]:
         return qb.query_conversations(self._db, filters)

@@ -48,7 +48,7 @@ class Principal:
 class IdentityResolver:
     """Resolve actor strings to Principals.
 
-    Actor strings starting with ``agent:`` and the named runtime
+    Actor strings starting with ``agent:`` / ``runtime:`` and the named
     actors ``scheduler`` / ``executor`` / ``background`` / ``kernel`` all
     resolve to the ``system`` principal — they run inside the trusted
     Runtime and are not subject to per-user approval gating.
@@ -57,7 +57,11 @@ class IdentityResolver:
     _RUNTIME_ACTORS = frozenset({"system", "kernel", "scheduler", "executor", "background"})
 
     def resolve(self, actor: str, kernel: "Kernel") -> Principal:
-        if actor.startswith("agent:") or actor in self._RUNTIME_ACTORS:
+        if (
+            actor.startswith("agent:")
+            or actor.startswith("runtime:")
+            or actor in self._RUNTIME_ACTORS
+        ):
             return Principal.system()
         return Principal.user(actor)
 
@@ -84,7 +88,7 @@ def get_current_execution_id() -> str | None:
 
 
 def actor_requires_execution_ownership(actor: str) -> bool:
-    if actor.startswith("agent:"):
+    if actor.startswith("agent:") or actor.startswith("runtime:"):
         return True
     return actor in RUNTIME_OWNERSHIP_ACTORS
 

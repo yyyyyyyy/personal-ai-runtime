@@ -1,27 +1,12 @@
-"""WorkItem execution engine — runs handlers within Execution context.
+"""Lane A Scheduler — runs handlers as ScheduledExecution units.
 
-Distinct from scheduler.py (cron registration): this module is the
-state machine that drives each WorkItem (pending → running → completed),
-persisted in handler_executions for crash recovery.
+Distinct from cron_registry: this module is the state machine that drives
+each ScheduledExecution (pending → running → completed), persisted in
+handler_executions for crash recovery.
 
-    Event → AgentInstance.dispatch()
-                            ↓
-                      enqueue(WorkItem)
-                            ↓
-                      _process_work_item()
-                            ↓
-                      _execute_handler()
-                            ↓
-                      handler(instance, event)
+    Event → fan-out handlers → enqueue(ScheduledExecution) → Handler
 
-The scheduling unit is the WorkItem, not the Agent. Every WorkItem is
-persisted in handler_executions so interrupted items can be recovered
-after restart.
-
-State Machine:
-    pending → running → completed
-    pending → running → failed → retrying → running → completed
-    retrying → failed (max retries exceeded)
+One event may produce N ScheduledExecutions (one per registered handler).
 """
 
 from __future__ import annotations
@@ -48,7 +33,7 @@ _SHADOW_FIELDS: tuple[str, ...] = (
 
 
 def _shadow_compare(kernel, item) -> list[str]:
-    """Verify WorkItem.to_row() matches what the projector wrote to handler_executions."""
+    """Verify ScheduledExecution.to_row() matches handler_executions projection."""
     import json
 
     def _normalize(row: dict) -> dict:
@@ -62,15 +47,13 @@ def _shadow_compare(kernel, item) -> list[str]:
         return out
 
     persist = item.to_row()
-    with kernel._db.get_db() as conn:
-        row = conn.execute(
-            "SELECT * FROM handler_executions WHERE id = ?", (item.id,),
-        ).fetchone()
-    if row is None:
+    # Boundary: use Kernel ABI (O(1) by id), never SELECT handler_executions here.
+    projected = kernel.read_scheduled_execution(item.id)
+    if projected is None:
         diffs = ["handler_executions row missing after dual-write"]
     else:
         exp = _normalize(persist)
-        act = _normalize(dict(row))
+        act = _normalize(projected.to_row())
         diffs = [
             f"{k}: persist={exp.get(k)!r} projection={act.get(k)!r}"
             for k in _SHADOW_FIELDS if exp.get(k) != act.get(k)
@@ -83,38 +66,35 @@ def _shadow_compare(kernel, item) -> list[str]:
 if TYPE_CHECKING:
     from .kernel.event import Event
     from .kernel.kernel import Kernel
-    from .work_item import WorkItem
+    from .scheduled_execution import ScheduledExecution
 
 logger = logging.getLogger(__name__)
 
-_MAX_CONCURRENT = 8  # max WorkItems processed per tick
+_MAX_CONCURRENT = 8  # max ScheduledExecutions processed per tick
+
+# Neutral runtime identity (not an Agent concept).
+_RUNTIME_INSTANCE_ID = "runtime:primary"
 
 
 class Scheduler:
-    """WorkItem execution engine.
+    """Lane A execution engine for ScheduledExecution units.
 
-    enqueue(event, instance) creates a WorkItem from an event and enqueues
-    it for processing.  The scheduler loop picks up pending items, executes
-    their handlers with a timeout, and transitions their status.
+    enqueue(event) creates one ScheduledExecution per registered handler
+    and enqueues them. The loop picks up pending items, executes handlers
+    with timeout, and transitions status.
     """
 
     def __init__(self, kernel: "Kernel"):
         self._kernel = kernel
         self._running = False
         self._worker_task: asyncio.Task | None = None
-        self._pending: list["WorkItem"] = []
+        self._pending: list["ScheduledExecution"] = []
         self._tick_interval: float = 0.05
 
-        # Recover interrupted WorkItems from the persistence layer
         self._recover()
 
     def _recover(self) -> None:
-        """Recover WorkItems that were interrupted by a restart.
-
-    Execution 契约 §4: the projector is the sole writer to handler_executions.
-    persist_work_item is no longer called on the scheduler hot path. The
-    projection IS the truth, verified after every emit by shadow compare.
-        """
+        """Recover ScheduledExecutions interrupted by a restart."""
         try:
             running, pending = self._kernel.recover_work_items()
         except Exception:
@@ -122,11 +102,6 @@ class Scheduler:
 
         recovered = 0
         for item in running:
-            # running → retrying via event, not bare SQL UPDATE. Set item.error
-            # so persist_work_item's to_row() matches the ExecutionRetried
-            # projector (which writes `reason` into the `error` column), same
-            # convention as the normal retry path where item.error is the
-            # failure message.
             item.error = "interrupted"
             item.transition_to("retrying")
             self._emit_verify(
@@ -137,8 +112,6 @@ class Scheduler:
                     status="retrying",
                 ),
             )
-            # Re-enqueue: retry path expects a pending→running transition
-            # on the next tick, mirroring the normal retry flow.
             item.transition_to("pending")
             self._emit_verify(
                 item,
@@ -154,7 +127,7 @@ class Scheduler:
         self._pending.extend(pending)
         recovered += len(pending)
         if recovered:
-            logger.info("Scheduler: recovered %d work item(s)", recovered)
+            logger.info("Scheduler: recovered %d scheduled execution(s)", recovered)
 
     # --- lifecycle -------------------------------------------------------
 
@@ -193,16 +166,8 @@ class Scheduler:
             self._worker_task = None
         logger.info("Scheduler stopped")
 
-    def _emit_verify(self, item: "WorkItem", emit_fn) -> None:
-        """Emit execution event then verify projection matches (Execution 契约 §4).
-
-        The projector (triggered inside emit_event) is now the SOLE writer to
-        handler_executions. persist_work_item is no longer called on the hot
-        path — the projection IS the truth. The verify step remains as a
-        projector-correctness check: it compares the WorkItem's expected
-        state against what the projector actually wrote, catching any drift
-        between the event payload semantics and the projector's SQL.
-        """
+    def _emit_verify(self, item: "ScheduledExecution", emit_fn) -> None:
+        """Emit execution event then verify projection matches."""
         emit_fn()
         _shadow_compare(self._kernel, item)
 
@@ -215,50 +180,43 @@ class Scheduler:
         event: "Event",
         *,
         policy=None,
-    ) -> "WorkItem":
-        """Create a WorkItem from an event and enqueue it.
+    ) -> list["ScheduledExecution"]:
+        """Create one ScheduledExecution per registered handler (fan-out)."""
+        from .handler_registry import get_handlers
+        from .scheduled_execution import ScheduledExecution, policy_for_event
 
-        Execution 契约 §7: takes identity primitives (instance_id, actor)
-        instead of an AgentInstance object. The Scheduler no longer depends
-        on AgentInstance for handler execution — it operates purely on
-        execution identity derived from the event stream.
-        """
-        from .handler_registry import get_handler
-        from .work_item import WorkItem, policy_for_event
+        handlers = get_handlers(event.type)
+        if not handlers:
+            return []
 
-        handler = get_handler(event.type)
-        if handler is None:
-            return None  # type: ignore[return-value]
-
-        item = WorkItem(
-            event_seq=int(event.seq) if event.seq else 0,
-            event_id=event.id,
-            event_type=event.type,
-            handler_name=handler.__name__,
-            instance_id=instance_id,
-            correlation_id=event.correlation_id or "",
-            policy=policy if policy is not None else policy_for_event(event.type),
-            _event=event,
-        )
-        self._pending.append(item)
-        self._emit_verify(
-            item,
-            lambda: emit_execution_requested(self._kernel, item, actor),
-        )
-        logger.debug(
-            "Scheduler: enqueued %s → %s (seq=%s)",
-            event.type, handler.__name__, item.event_seq,
-        )
-        return item
+        items: list[ScheduledExecution] = []
+        for handler in handlers:
+            item = ScheduledExecution(
+                event_seq=int(event.seq) if event.seq else 0,
+                event_id=event.id,
+                event_type=event.type,
+                handler_name=handler.__name__,
+                instance_id=instance_id,
+                correlation_id=event.correlation_id or "",
+                policy=policy if policy is not None else policy_for_event(event.type),
+                _event=event,
+            )
+            self._pending.append(item)
+            self._emit_verify(
+                item,
+                lambda it=item: emit_execution_requested(self._kernel, it, actor),
+            )
+            logger.debug(
+                "Scheduler: enqueued %s → %s (seq=%s)",
+                event.type, handler.__name__, item.event_seq,
+            )
+            items.append(item)
+        return items
 
     # --- scheduling loop -------------------------------------------------
 
     async def _scheduler_loop(self) -> None:
-        """Main scheduling loop — process pending WorkItems.
-
-        Each tick, take up to _MAX_CONCURRENT pending items and process
-        them in order.  Items that fail and can be retried are re-enqueued.
-        """
+        """Main scheduling loop — process pending ScheduledExecutions."""
         while self._running:
             try:
                 batch = self._pending[:_MAX_CONCURRENT]
@@ -275,8 +233,8 @@ class Scheduler:
                 logger.warning("Scheduler loop error: %s", exc)
                 await asyncio.sleep(1.0)
 
-    async def _process_work_item(self, item: "WorkItem") -> None:
-        """Process one WorkItem through its state machine."""
+    async def _process_work_item(self, item: "ScheduledExecution") -> None:
+        """Process one ScheduledExecution through its state machine."""
         item.transition_to("running")
         self._emit_verify(
             item,
@@ -291,7 +249,7 @@ class Scheduler:
                 if rehydrated:
                     event = rehydrated[0]
             if event is None:
-                item.error = "No event attached to WorkItem"
+                item.error = "No event attached to ScheduledExecution"
                 item.transition_to("failed")
                 self._emit_verify(
                     item,
@@ -318,14 +276,14 @@ class Scheduler:
             item.error = str(exc)
             await self._maybe_retry(item)
 
-    async def _execute_handler(self, item: "WorkItem", event: "Event") -> None:
-        """Look up the handler and execute it."""
+    async def _execute_handler(self, item: "ScheduledExecution", event: "Event") -> None:
+        """Resolve the named handler for this ScheduledExecution and run it."""
         from .execution import ExecutionContext
-        from .handler_registry import get_handler
+        from .handler_registry import get_handler_named
 
-        handler = get_handler(item.event_type)
+        handler = get_handler_named(item.event_type, item.handler_name)
         if handler is None:
-            item.error = f"No handler for {item.event_type}"
+            item.error = f"No handler {item.handler_name!r} for {item.event_type}"
             item.transition_to("failed")
             self._emit_verify(
                 item,
@@ -333,13 +291,13 @@ class Scheduler:
             )
             return
 
-        # Construct ExecutionContext from WorkItem identity fields. This
-        # decouples handler execution from AgentInstance — the handler
-        # receives only what it needs (identity + emit + Principal), not
-        # the full AgentInstance object. (Execution 契约 §5 + §8)
         from .execution import identity_resolver
 
-        actor = f"agent:{item.instance_id}"
+        actor = (
+            item.instance_id
+            if ":" in item.instance_id
+            else f"runtime:{item.instance_id}"
+        )
         principal = identity_resolver.resolve(actor, self._kernel)
         ctx = ExecutionContext(
             instance_id=item.instance_id,
@@ -355,7 +313,7 @@ class Scheduler:
         with execution_scope(item.id):
             await handler(ctx, event)
 
-    async def _maybe_retry(self, item: "WorkItem") -> None:
+    async def _maybe_retry(self, item: "ScheduledExecution") -> None:
         """Retry if within limits, else mark failed."""
         if item.can_retry():
             item.retry_count += 1
@@ -397,7 +355,7 @@ class Scheduler:
         return len(self._pending)
 
     async def flush(self) -> None:
-        """Process ALL pending WorkItems immediately. For test use only."""
+        """Process ALL pending ScheduledExecutions immediately. For test use only."""
         while self._pending:
             items = self._pending[:]
             self._pending = []
@@ -405,7 +363,7 @@ class Scheduler:
             await asyncio.gather(*tasks, return_exceptions=True)
 
     def status_counts(self) -> dict[str, int]:
-        """Return a snapshot of WorkItem status distribution."""
+        """Return a snapshot of ScheduledExecution status distribution."""
         counts: dict[str, int] = {}
         try:
             items = self._kernel.read_work_items()
@@ -414,7 +372,7 @@ class Scheduler:
         except Exception:
             import logging
             logging.getLogger(__name__).debug(
-                "Scheduler: failed to read work item counts", exc_info=True
+                "Scheduler: failed to read scheduled execution counts", exc_info=True
             )
         return counts
 
@@ -445,26 +403,22 @@ _started = False
 async def ensure_scheduler(kernel) -> None:
     """Ensure the Scheduler is running and the event dispatcher is registered.
 
-    Registers a kernel-level dispatcher that routes all emitted events to the
-    Scheduler's WorkItem engine. Handler matching is done by handler_registry.
+    Routes emitted events to Lane A (ScheduledExecution fan-out).
     """
     global _started
     if _started:
         return
 
     from app.core.runtime.agent_scheduler import get_scheduler
-    from app.core.runtime.handler_registry import get_handler
+    from app.core.runtime.handler_registry import get_handlers
 
     sch = get_scheduler(kernel)
     await sch.start()
 
-    _AGENT_ID = "agent:primary"
-
     async def _dispatch_to_scheduler(event):
-        handler = get_handler(event.type)
-        if handler is None:
+        if not get_handlers(event.type):
             return
-        sch.enqueue(_AGENT_ID, _AGENT_ID, event)
+        sch.enqueue(_RUNTIME_INSTANCE_ID, _RUNTIME_INSTANCE_ID, event)
 
     kernel.set_async_dispatcher(_dispatch_to_scheduler)
     _started = True

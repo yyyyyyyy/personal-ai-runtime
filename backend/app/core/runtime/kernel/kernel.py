@@ -300,39 +300,33 @@ class Kernel(QueryStateMixin, SovereigntyMixin):
 
     # --- Governance layer ----------------------------------------------------
 
-    # --- WorkItem persistence (Execution Model) ---------------------------
-    # Read paths live in work_item_repository.py (still Kernel Space).
-    # Writes are performed exclusively by the execution projectors reacting
-    # to Execution* events — these methods only scan the projection.
+    # --- ScheduledExecution persistence (Lane A) ---------------------------
+    # Read paths live in execution_repository.py (Kernel Space).
+    # Writes are exclusively via Execution* projectors.
+
+    def read_scheduled_execution(self, execution_id: str):
+        """O(1) read of one ScheduledExecution by id (Lane A projection)."""
+        from . import execution_repository
+        return execution_repository.read_scheduled_execution(self._db, execution_id)
 
     def read_work_items(
         self,
         status: str | None = None,
         instance_id: str | None = None,
     ) -> list:
-        """Read WorkItems from handler_executions for recovery.
+        """Read ScheduledExecutions from handler_executions (Scheduler recovery).
 
-        Used by Scheduler to find pending/running items after restart.
+        Prefer ``read_scheduled_execution(id)`` for single-row lookups.
         """
-        from . import work_item_repository
-        return work_item_repository.read_work_items(self._db, status, instance_id)
+        from . import execution_repository
+        return execution_repository.read_scheduled_executions(
+            self._db, status, instance_id,
+        )
 
     def recover_work_items(self) -> tuple[list, list]:
-        """Scan WorkItems in 'pending' or 'retrying' state for re-enqueue.
-
-        Execution 契约 §3: this method is a pure scanner — it performs
-        NO writes to handler_executions. Interrupted ('running') items are
-        NOT mutated here; the caller (Scheduler._recover) drives the
-        running → retrying transition by emitting ExecutionRetried events
-        through the normal _persist_emit_verify path, so that every recovery
-        state change is attributable to an event in event_log.
-
-        Returns (running_items, pending_items) where running_items still
-        have status='running' in the projection and MUST be transitioned by
-        the caller before being re-enqueued.
-        """
-        from . import work_item_repository
-        return work_item_repository.recover_work_items(self._db)
+        """Scan ScheduledExecutions needing recovery (pure read; no writes)."""
+        from . import execution_repository
+        return execution_repository.recover_scheduled_executions(self._db)
 
     # --- Governance (ex-GovernanceMixin / governance_ops) --------------------
 

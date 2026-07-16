@@ -68,16 +68,14 @@ def request_approval(
     }
 
 def expire_stale_approvals(kernel) -> int:
-    """Expire all pending approvals whose expires_at has passed.
+    """Expire pending approvals whose expires_at has passed.
 
-    Uses a single-transaction atomic UPDATE with rowcount to prevent
-    duplicate ApprovalExpired events from concurrent workers (TOCTOU fix).
-    Only emits events for rows that were actually transitioned.
-
-    Returns the count of approvals expired.
+    Emit-only path: GOVERNED ``approvals`` is updated solely by the
+    ApprovalDenied projector (``reason=auto_expired`` → status expired).
+    Projector uses ``UPDATE ... WHERE status='pending'`` for idempotent
+    convergence. Duplicate emits are safe under single-process RuntimeLoop.
     """
     now_iso = datetime.now(UTC).isoformat()
-    expired_ids: list[tuple[str, str]] = []  # (approval_id, action)
 
     with kernel._db.get_db() as conn:
         rows = conn.execute(
@@ -86,14 +84,7 @@ def expire_stale_approvals(kernel) -> int:
             (now_iso,),
         ).fetchall()
 
-        for row in rows:
-            cur = conn.execute(
-                "UPDATE approvals SET status = 'expired' "
-                "WHERE id = ? AND status = 'pending'",
-                (row["id"],),
-            )
-            if cur.rowcount > 0:
-                expired_ids.append((row["id"], row["action"] or ""))
+    expired_ids = [(row["id"], row["action"] or "") for row in rows]
 
     for approval_id, action in expired_ids:
         kernel.emit_event(

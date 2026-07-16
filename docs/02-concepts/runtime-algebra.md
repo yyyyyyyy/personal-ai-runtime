@@ -86,31 +86,21 @@ CONTEXT — 触发 WORK 的输入（消息 + 环境快照）
 
 ### 1.4 Work
 
-**定义**：需要被执行的计算单元。有生命周期（pending → running → completed/failed）、可重试（max_retries + delay）、可归属（`execution_id` → `handler_executions` 行）。
+**定义**：需要被执行的计算单元。有两类不要混淆：
 
-**当前分裂**：
+1. **领域 Work** — `work_items` 投影（goal / task / action）
+2. **Lane A ScheduledExecution** — `handler_executions`（一次 handler 调用）
 
-```
-Goal / Task / Action / Execution / BackgroundTask
-```
+详见 [execution-model.md](execution-model.md)。类名 `WorkItem`（执行）已收敛为 `ScheduledExecution`，避免与领域表同名。
 
-这五个概念**本质是同一个东西**——只是 status 和 metadata 不同：
-
-| 概念 | 本质 | 多余原因 |
-|---|---|---|
-| Goal    | 带 deadline + tree 的 Work | `parent_id` 即可 |
-| Task    | 带 dependency 的 Work | `dependencies_json` 列即可 |
-| Action  | Goal 的子 Work | 与 Task 语义重叠 |
-| Execution | Work 的执行记录 | 应是 Work 的一个 lifecycle 阶段 |
-| BackgroundTask | 带 plan_json 的 Work | 可以是一个字段 |
-
-**合并后**：唯一的 `Work` 原语，带 type 标签（goal/task/action/background）和 lifecycle status（pending/running/completed/failed/retrying）。不损失任何语义，只删除重复的投影表和事件类型。
+**仍分裂（后续里程碑）**：`BackgroundTask` 仍独立 APP_STORAGE 表；尚未并入 `work_items`。
 
 **不变量**：
 
-- 所有 Work 执行必须绑定 `execution_id`
+- Lane A 执行必须绑定 `execution_id`（= ScheduledExecution.id）
 - 中断恢复：从 `handler_executions` 投影重建
-- Work 的状态转换通过 Event（`ExecutionRequested → Started → Completed/Failed → Retried`）
+- Lane A 状态转换通过 Event（`ExecutionRequested → Started → Completed/Failed → Retried`）
+- Reaction 不是原语，是 `subscribe + emit/invoke` 的组合（Lane C）
 
 ### 1.5 Context
 
@@ -163,7 +153,7 @@ Goal / Task / Action / Execution / BackgroundTask
 | Fragment | `Context 的生产函数（优先级 + 预算 + collect async）` | — |
 | Principal | `Capability 的身份维度（system/user）` | — |
 | Policy | `Capability 的元数据（risk level + 授权状态）` | — |
-| Reaction | `subscribe(Event) + invoke(Capability) + produce(Work)` | 声明式，通过 `@reaction` 注册 |
+| Reaction | `subscribe(Event) + invoke(Capability) + produce(Work)` | **非原语**；Lane C 组合，经 `@reaction` + RuntimeLoop |
 | Timer / Cron | `clock_source + subscribe + invoke + produce` | — |
 | Kernel | 五个原语的**统一写入入口** + 边界守卫 | 必须存在 |
 | Schedule | clock source + `subscribe(Event) → invoke(Capability)` | — |

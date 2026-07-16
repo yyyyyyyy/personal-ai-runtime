@@ -63,6 +63,14 @@ def seeded_db(tmp_path, monkeypatch):
     return db
 
 
+def test_read_scheduled_execution_by_id(seeded_db):
+    item = wir.read_scheduled_execution(seeded_db, "w_run_1")
+    assert item is not None
+    assert item.id == "w_run_1"
+    assert item.status == "running"
+    assert wir.read_scheduled_execution(seeded_db, "missing") is None
+
+
 def test_read_work_items_no_filter_returns_all(seeded_db):
     items = wir.read_work_items(seeded_db)
     assert len(items) == 5

@@ -1,8 +1,8 @@
 """Tests for unified memory + knowledge retrieval.
 
-recall_unified lives in read_ports (a pure composition of
-kernel.recall_memory + kernel.recall_knowledge) so the Background fragment
-can cite both personal memories and uploaded documents in one response.
+recall_unified composes kernel.recall_memory + kernel.recall_knowledge.
+Recall goes through Kernel._memory_index (MemoryIndexPort), not the global
+vector_store singleton.
 """
 
 import os
@@ -14,9 +14,9 @@ from app.core.runtime.kernel import Kernel
 from app.store.database import Database
 
 
-def make_kernel(tmp_path):
+def make_kernel(tmp_path, memory_index=None):
     db = Database(db_path=str(tmp_path / "unified.db"))
-    return Kernel(db=db), db
+    return Kernel(db=db, memory_index=memory_index), db
 
 
 def _seed_memory(k: Kernel, mid: str, content: str, source: str = "chat") -> None:
@@ -29,9 +29,6 @@ def _seed_memory(k: Kernel, mid: str, content: str, source: str = "chat") -> Non
 
 class TestRecallUnified:
     def test_returns_memories_with_source_type(self, tmp_path, monkeypatch):
-        k, _ = make_kernel(tmp_path)
-        _seed_memory(k, "m1", "User prefers dark mode")
-
         class FakeVector:
             def search_memories(self, query, n_results=5):
                 return [{"id": "m1", "content": "User prefers dark mode",
@@ -40,17 +37,12 @@ class TestRecallUnified:
             def search_knowledge(self, query, n_results=5):
                 return []
 
-        import app.store.vector as vmod
-        original_vs = vmod.vector_store
-        vmod.vector_store = FakeVector()
-
-        # recall_unified uses _kernel() → kernel_instance; point it at the test kernel.
+        fake = FakeVector()
+        k, _ = make_kernel(tmp_path, memory_index=fake)
+        _seed_memory(k, "m1", "User prefers dark mode")
         monkeypatch.setattr("app.core.runtime.kernel_instance.kernel", k)
 
-        try:
-            results = read_ports.recall_unified("dark mode", k_memories=3, k_knowledge=3)
-        finally:
-            vmod.vector_store = original_vs
+        results = read_ports.recall_unified("dark mode", k_memories=3, k_knowledge=3)
 
         assert len(results) == 1
         assert results[0]["source_type"] == "memory"
@@ -58,8 +50,6 @@ class TestRecallUnified:
         assert "dark mode" in results[0]["content"]
 
     def test_returns_documents_with_source_type(self, tmp_path, monkeypatch):
-        k, _ = make_kernel(tmp_path)
-
         class FakeVector:
             def search_memories(self, query, n_results=5):
                 return []
@@ -71,23 +61,17 @@ class TestRecallUnified:
                     "distance": 0.25,
                 }]
 
-        import app.store.vector as vmod
-        original = vmod.vector_store
-        vmod.vector_store = FakeVector()
+        fake = FakeVector()
+        k, _ = make_kernel(tmp_path, memory_index=fake)
         monkeypatch.setattr("app.core.runtime.kernel_instance.kernel", k)
-        try:
-            results = read_ports.recall_unified("ownership", k_memories=3, k_knowledge=3)
-        finally:
-            vmod.vector_store = original
+
+        results = read_ports.recall_unified("ownership", k_memories=3, k_knowledge=3)
 
         assert len(results) == 1
         assert results[0]["source_type"] == "document"
         assert results[0]["provenance"] == "rust.md"
 
     def test_ranks_by_distance_and_merges(self, tmp_path, monkeypatch):
-        k, _ = make_kernel(tmp_path)
-        _seed_memory(k, "m1", "User likes tea")
-
         class FakeVector:
             def search_memories(self, query, n_results=5):
                 return [{"id": "m1", "content": "User likes tea",
@@ -99,14 +83,12 @@ class TestRecallUnified:
                     "metadata": {"source_file": "tea.md"}, "distance": 0.2,
                 }]
 
-        import app.store.vector as vmod
-        original_vs = vmod.vector_store
-        vmod.vector_store = FakeVector()
+        fake = FakeVector()
+        k, _ = make_kernel(tmp_path, memory_index=fake)
+        _seed_memory(k, "m1", "User likes tea")
         monkeypatch.setattr("app.core.runtime.kernel_instance.kernel", k)
-        try:
-            results = read_ports.recall_unified("tea", k_memories=3, k_knowledge=3)
-        finally:
-            vmod.vector_store = original_vs
+
+        results = read_ports.recall_unified("tea", k_memories=3, k_knowledge=3)
 
         assert len(results) == 2
         assert results[0]["source_type"] == "document"
@@ -115,26 +97,21 @@ class TestRecallUnified:
         assert results[1]["distance"] == 0.6
 
     def test_empty_results_when_nothing_matches(self, tmp_path, monkeypatch):
-        k, _ = make_kernel(tmp_path)
+        class EmptyVector:
+            def search_memories(self, query, n_results=5):
+                return []
+
+            def search_knowledge(self, query, n_results=5):
+                return []
+
+        k, _ = make_kernel(tmp_path, memory_index=EmptyVector())
         monkeypatch.setattr("app.core.runtime.kernel_instance.kernel", k)
 
-        import app.store.vector as vmod
-        original = vmod.vector_store
-        vmod.vector_store = type("V", (), {
-            "search_memories": lambda self, q, n_results=5: [],
-            "search_knowledge": lambda self, q, n_results=5: [],
-        })()
-        try:
-            results = read_ports.recall_unified("nothing", k_memories=3, k_knowledge=3)
-        finally:
-            vmod.vector_store = original
-
+        results = read_ports.recall_unified("nothing", k_memories=3, k_knowledge=3)
         assert results == []
 
     def test_tolerates_vector_store_failure(self, tmp_path, monkeypatch):
         """If one collection throws, the other's results still surface."""
-        k, _ = make_kernel(tmp_path)
-        monkeypatch.setattr("app.core.runtime.kernel_instance.kernel", k)
 
         class FlakeyVector:
             def search_memories(self, query, n_results=5):
@@ -144,13 +121,10 @@ class TestRecallUnified:
                 return [{"id": "d1", "content": "fallback doc",
                          "metadata": {"source_file": "f.md"}, "distance": 0.4}]
 
-        import app.store.vector as vmod
-        original = vmod.vector_store
-        vmod.vector_store = FlakeyVector()
-        try:
-            results = read_ports.recall_unified("x", k_memories=3, k_knowledge=3)
-        finally:
-            vmod.vector_store = original
+        k, _ = make_kernel(tmp_path, memory_index=FlakeyVector())
+        monkeypatch.setattr("app.core.runtime.kernel_instance.kernel", k)
+
+        results = read_ports.recall_unified("x", k_memories=3, k_knowledge=3)
 
         assert len(results) == 1
         assert results[0]["source_type"] == "document"

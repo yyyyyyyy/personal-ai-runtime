@@ -57,14 +57,16 @@ def query_memories(
 
 
 def build_memory_graph_edges(sources: list[dict]) -> list[dict]:
-    """Build similarity edges via one batched vector query (sync, for to_thread)."""
-    from app.store.vector import vector_store
-
+    """Build similarity edges via MemoryIndexPort batch search (sync, for to_thread)."""
     if not sources:
         return []
 
+    port = getattr(kernel(), "_memory_index", None)
+    if port is None or not hasattr(port, "search_memories_batch"):
+        return []
+
     query_texts = [m.get("content", "") for m in sources]
-    batches = vector_store.search_memories_batch(query_texts, n_results=5)
+    batches = port.search_memories_batch(query_texts, n_results=5)
 
     edges: list[dict] = []
     edge_set: set[tuple[str, str]] = set()

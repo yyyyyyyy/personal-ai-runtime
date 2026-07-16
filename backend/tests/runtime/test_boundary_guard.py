@@ -131,7 +131,7 @@ class TestBoundaryGuard:
         finally:
             sys.path.pop(0)
 
-    def test_kernel_space_excluded(self, tmp_path):
+    def test_kernel_space_excluded_from_user_scan(self, tmp_path):
         fake_app = tmp_path / "app" / "core" / "runtime" / "kernel"
         fake_app.mkdir(parents=True)
         ok_file = fake_app / "kernel.py"
@@ -146,5 +146,30 @@ class TestBoundaryGuard:
 
             violations = scan_app_root(tmp_path / "app")
             assert violations == []
+        finally:
+            sys.path.pop(0)
+
+    def test_kernel_non_projector_governed_dml_flagged(self, tmp_path):
+        """Kernel files outside projectors_* must not UPDATE GOVERNED tables."""
+        fake_kernel = tmp_path / "app" / "core" / "runtime" / "kernel"
+        fake_kernel.mkdir(parents=True)
+        (fake_kernel / "governance_ops.py").write_text(
+            'conn.execute("UPDATE approvals SET status = \'expired\' WHERE id = ?", (aid,))\n',
+            encoding="utf-8",
+        )
+        (fake_kernel / "projectors_core.py").write_text(
+            'conn.execute("UPDATE approvals SET status = ? WHERE id = ?", (s, aid))\n',
+            encoding="utf-8",
+        )
+
+        sys.path.insert(0, str(BACKEND))
+        try:
+            from scripts.check_boundary import scan_kernel_governed_dml
+
+            violations = scan_kernel_governed_dml(tmp_path / "app")
+            assert len(violations) == 1
+            assert violations[0][0].as_posix().endswith("governance_ops.py")
+            assert violations[0][3] == "approvals"
+            assert violations[0][4] == "kernel_dml_write"
         finally:
             sys.path.pop(0)

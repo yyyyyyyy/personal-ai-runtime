@@ -32,7 +32,16 @@ PROJECTION_TABLES = (
     "inbox_emails",  # governed (projectors_inbox.py)
     "llm_calls",  # governed telemetry
     "tool_calls",
+    "handler_executions",
+    "projection_checkpoints",
 )
+
+# Kernel files allowed to perform GOVERNED DML outside projectors_*.py
+# (event_log append, sovereignty rebuild/erase, projector-adjacent sync).
+KERNEL_GOVERNED_DML_ALLOWLIST: frozenset[str] = frozenset({
+    "core/runtime/kernel/kernel.py",  # event_log INSERT
+    "core/runtime/kernel/sovereignty_ops.py",  # rebuild / erase / import
+})
 KERNEL_PREFIX = Path("core/runtime/kernel")
 HARNESS_PREFIX = Path("core/harness")
 
@@ -91,13 +100,48 @@ def _is_store_layer(rel: Path) -> bool:
 def _is_app_storage_file(rel: Path) -> bool:
     """Files that directly access APP_STORAGE tables (allowed by P8).
 
-    APP_STORAGE tables (background_tasks, inbox_emails, etc.) may be read
-    directly by worker/operational code. The boundary guard scans for access to
-    GOVERNED tables only, so these files must be excluded from the DML scan.
+    APP_STORAGE operational workers may be excluded from the User Space
+    GOVERNED scan. Note: ``inbox_emails`` is GOVERNED, not APP_STORAGE.
     """
     return rel in {
         Path("core/runtime/background_worker.py"),
     }
+
+
+def _is_projector_module(rel: Path) -> bool:
+    name = rel.name
+    return name.startswith("projectors_") and name.endswith(".py")
+
+
+def scan_kernel_governed_dml(app_root: Path) -> list[tuple[Path, int, str, str, str]]:
+    """Fail Kernel Space DML on GOVERNED tables outside projectors / allowlist."""
+    violations: list[tuple[Path, int, str, str, str]] = []
+    kernel_root = app_root / KERNEL_PREFIX
+    if not kernel_root.is_dir():
+        return violations
+    for path in sorted(kernel_root.rglob("*.py")):
+        rel = path.relative_to(app_root)
+        if _is_projector_module(rel):
+            continue
+        if rel.as_posix() in KERNEL_GOVERNED_DML_ALLOWLIST:
+            continue
+        try:
+            text = path.read_text(encoding="utf-8")
+        except OSError:
+            continue
+        for lineno, line in enumerate(text.splitlines(), start=1):
+            write_match = DML_WRITE_PATTERN.search(line)
+            if write_match:
+                violations.append(
+                    (
+                        rel,
+                        lineno,
+                        line.strip(),
+                        write_match.group(2).lower(),
+                        "kernel_dml_write",
+                    )
+                )
+    return violations
 
 
 def _in_scan_scope(rel: Path) -> bool:
@@ -199,7 +243,7 @@ def main(argv: list[str] | None = None) -> int:
         print(f"ERROR: app root not found: {app_root}", file=sys.stderr)
         return 1
 
-    violations = scan_app_root(app_root)
+    violations = scan_app_root(app_root) + scan_kernel_governed_dml(app_root)
     known, new = partition_violations(violations, KNOWN_VIOLATION_ALLOWLIST)
 
     if args.inventory:

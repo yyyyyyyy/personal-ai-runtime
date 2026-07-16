@@ -39,8 +39,10 @@ def _on_approval_granted(event: Event, conn) -> None:
 def _on_approval_denied(event: Event, conn) -> None:
     p = event.payload
     status = "expired" if p.get("reason") == "auto_expired" else "denied"
+    # Idempotent: only transition pending rows (safe under duplicate emits).
     conn.execute(
-        "UPDATE approvals SET status = ?, resolved_at = ?, resolved_by = ? WHERE id = ?",
+        "UPDATE approvals SET status = ?, resolved_at = ?, resolved_by = ? "
+        "WHERE id = ? AND status = 'pending'",
         (status, event.ts, event.actor, event.aggregate_id),
     )
 

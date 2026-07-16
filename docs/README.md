@@ -34,6 +34,8 @@
 | 文档 | 内容 |
 |---|---|
 | [runtime-algebra.md](02-concepts/runtime-algebra.md) | ⭐ 五原语（Event/State/Capability/Work/Context）、三条判据、概念压缩契约 |
+| [execution-model.md](02-concepts/execution-model.md) | 三车道执行语义（Scheduled Work / Sync Capability / Maintenance） |
+| [kernel-abi.md](02-concepts/kernel-abi.md) | Kernel 冻结 ABI 与「新能力默认不改 Kernel」纪律 |
 | [event-sourcing.md](02-concepts/event-sourcing.md) | `event_log` → projectors → 投影表的数据流 |
 | [kernel-boundary.md](02-concepts/kernel-boundary.md) | GOVERNED vs APP_STORAGE 表分类与边界守卫机制 |
 | [capability-governance.md](02-concepts/capability-governance.md) | 3-gate 授权、taint 追踪、Principal、execution_scope |

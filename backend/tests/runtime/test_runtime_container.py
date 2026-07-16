@@ -134,18 +134,18 @@ def test_runtime_container_inventory():
 
 def test_reset_clears_module_singletons_handlers():
     """reset() must clear handler_registry so tests do not leak handlers."""
-    from app.core.runtime.handler_registry import get_handler, subscribe
+    from app.core.runtime.handler_registry import get_handlers, subscribe
 
     @subscribe("TestLeakedEvent")
     async def _handler(ctx, event):
         pass
 
-    assert get_handler("TestLeakedEvent") is _handler
+    assert get_handlers("TestLeakedEvent") == [_handler]
 
     from app.core.runtime.runtime_container import runtime
     runtime.reset()
 
-    assert get_handler("TestLeakedEvent") is None
+    assert get_handlers("TestLeakedEvent") == []
 
 
 def test_reset_clears_module_singletons_reactions():

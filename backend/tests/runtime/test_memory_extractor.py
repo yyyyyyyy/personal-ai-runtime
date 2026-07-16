@@ -20,17 +20,9 @@ async def stub_extract(_text: str) -> list[str]:
 class TestMemoryExtractor:
     async def test_extract_and_store_emits_events(self, tmp_path, monkeypatch):
         db = Database(db_path=str(tmp_path / "extract.db"))
-        k = Kernel(db=db)
+        # No memory_index → index sync is a no-op (avoid Chroma in unit tests).
+        k = Kernel(db=db, memory_index=None)
         monkeypatch.setattr("app.core.agents.memory_engine.kernel", k)
-        monkeypatch.setattr(
-            "app.store.vector.vector_store.add_memory",
-            lambda content, metadata, memory_id: f"emb_{memory_id}",
-        )
-        monkeypatch.setattr("app.store.vector.vector_store.delete_memory", lambda _id: None)
-        # Dedup check calls search_relevant_memories -> recall_memory, which
-        # hits a shared persistent ChromaDB in the full suite. Force empty
-        # recalls here so the first storage pass is not falsely deduped by
-        # unrelated leftovers from earlier tests.
         monkeypatch.setattr(memory_engine, "search_relevant_memories", lambda *_a, **_k: [])
 
         extractor = MemoryExtractor(extract_fn=stub_extract)
@@ -54,16 +46,9 @@ class TestMemoryExtractor:
     async def test_duplicate_fact_not_stored_again(self, tmp_path, monkeypatch):
         """When the same fact is extracted twice, the second pass is deduped."""
         db = Database(db_path=str(tmp_path / "extract_dedup.db"))
-        k = Kernel(db=db)
+        k = Kernel(db=db, memory_index=None)
         monkeypatch.setattr("app.core.agents.memory_engine.kernel", k)
-        monkeypatch.setattr(
-            "app.store.vector.vector_store.add_memory",
-            lambda content, metadata, memory_id: f"emb_{memory_id}",
-        )
-        monkeypatch.setattr("app.store.vector.vector_store.delete_memory", lambda _id: None)
 
-        # Capture every stored memory so the dedup check on the second pass
-        # can see them (the mocked vector index would otherwise be empty).
         stored_contents: list[str] = []
 
         def _fake_search(query: str, n_results: int = 5) -> list[dict]:
@@ -96,18 +81,32 @@ class TestMemoryExtractor:
     async def test_high_similarity_score_dedup(self, tmp_path, monkeypatch):
         """A recall hit with similarity >= threshold dedupes even non-identical text."""
         db = Database(db_path=str(tmp_path / "extract_sim.db"))
-        k = Kernel(db=db)
+
+        class FakeIndex:
+            def search_memories(self, query, n_results=5):
+                return [
+                    {
+                        "id": "m1",
+                        "content": "user prefers python",
+                        "score": 0.95,
+                        "distance": 0.05,
+                    }
+                ]
+
+            def search_knowledge(self, query, n_results=5):
+                return []
+
+            def index_memory(self, content, metadata=None, memory_id=None):
+                return f"emb_{memory_id}"
+
+            def delete_memory(self, memory_id):
+                return None
+
+            def list_memory_ids(self):
+                return []
+
+        k = Kernel(db=db, memory_index=FakeIndex())
         monkeypatch.setattr("app.core.agents.memory_engine.kernel", k)
-        monkeypatch.setattr(
-            "app.store.vector.vector_store.add_memory",
-            lambda content, metadata, memory_id: f"emb_{memory_id}",
-        )
-        monkeypatch.setattr("app.store.vector.vector_store.delete_memory", lambda _id: None)
-        # Stub recall to return a high-similarity hit for any query.
-        monkeypatch.setattr(
-            "app.core.runtime.kernel.kernel_query_state.QueryStateMixin.recall_memory",
-            lambda self, query, k=5: [{"id": "m1", "content": "user prefers python", "score": 0.95}],
-        )
 
         async def extract_new(_t: str) -> list[str]:
             return ["User prefers the Python language"]

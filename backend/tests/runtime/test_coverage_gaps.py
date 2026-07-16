@@ -19,10 +19,10 @@ class TestHandlerRegistry:
 
         _registry.pop(key, None)
 
-    def test_subscribe_overwrite_warns(self):
-        from app.core.runtime.handler_registry import _registry, subscribe
+    def test_subscribe_fanout_appends(self):
+        from app.core.runtime.handler_registry import _registry, get_handlers, subscribe
 
-        key = f"TestOverwrite_{id(self)}"
+        key = f"TestFanout_{id(self)}"
 
         @subscribe(key)
         async def handler_a(_ctx, _evt):
@@ -32,7 +32,9 @@ class TestHandlerRegistry:
         async def handler_b(_ctx, _evt):
             pass
 
-        assert _registry[key] is handler_b
+        handlers = get_handlers(key)
+        assert len(handlers) == 2
+        assert {h.__name__ for h in handlers} == {"handler_a", "handler_b"}
         _registry.pop(key, None)
 
 

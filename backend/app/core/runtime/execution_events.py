@@ -20,10 +20,10 @@ from app.core.runtime.kernel.constants import (
 if TYPE_CHECKING:
     from app.core.runtime.kernel.event import Event
     from app.core.runtime.kernel.kernel import Kernel
-    from app.core.runtime.work_item import WorkItem
+    from app.core.runtime.scheduled_execution import ScheduledExecution
 
 
-def _policy_payload(item: "WorkItem") -> dict:
+def _policy_payload(item: "ScheduledExecution") -> dict:
     return {
         "timeout": item.policy.timeout_seconds,
         "max_retries": item.policy.max_retries,
@@ -31,7 +31,7 @@ def _policy_payload(item: "WorkItem") -> dict:
     }
 
 
-def emit_execution_requested(kernel: "Kernel", item: "WorkItem", actor: str) -> "Event":
+def emit_execution_requested(kernel: "Kernel", item: "ScheduledExecution", actor: str) -> "Event":
     return kernel.emit_event(
         type=EVENT_EXECUTION_REQUESTED,
         aggregate_type=AGGREGATE_EXECUTION,
@@ -55,7 +55,7 @@ def emit_execution_requested(kernel: "Kernel", item: "WorkItem", actor: str) -> 
     )
 
 
-def emit_execution_started(kernel: "Kernel", item: "WorkItem") -> "Event":
+def emit_execution_started(kernel: "Kernel", item: "ScheduledExecution") -> "Event":
     return kernel.emit_event(
         type=EVENT_EXECUTION_STARTED,
         aggregate_type=AGGREGATE_EXECUTION,
@@ -72,7 +72,7 @@ def emit_execution_started(kernel: "Kernel", item: "WorkItem") -> "Event":
 
 def emit_execution_completed(
     kernel: "Kernel",
-    item: "WorkItem",
+    item: "ScheduledExecution",
     *,
     result_summary: str = "",
 ) -> "Event":
@@ -92,7 +92,7 @@ def emit_execution_completed(
 
 def emit_execution_failed(
     kernel: "Kernel",
-    item: "WorkItem",
+    item: "ScheduledExecution",
     *,
     terminal: bool,
 ) -> "Event":
@@ -114,7 +114,7 @@ def emit_execution_failed(
 
 def emit_execution_retried(
     kernel: "Kernel",
-    item: "WorkItem",
+    item: "ScheduledExecution",
     *,
     reason: str,
     status: str,

@@ -91,9 +91,10 @@ def fake_brain(monkeypatch):
 
         # —— INLINE HANDLER EXECUTION ——
         from app.core.runtime.execution import ExecutionContext, execution_scope, identity_resolver
-        from app.core.runtime.handler_registry import get_handler
+        from app.core.runtime.handler_registry import get_handlers
 
-        handler = get_handler("ChatRequested")
+        handlers = get_handlers("ChatRequested")
+        handler = handlers[0] if handlers else None
         if handler is not None:
             principal = identity_resolver.resolve("agent:primary", _k)
             ctx = ExecutionContext(
@@ -214,8 +215,13 @@ def app(tmp_path, monkeypatch):
     # importlib.reload alone isn't enough because sub-module decorators
     # executed at first import and Python caches them.  Reload the leaf
     # modules that carry @subscribe to force re-registration.
+    import app.core.agents.handlers.capability_handlers as _cap
+    import app.core.agents.handlers.chat_completed_handlers as _cch
     import app.core.agents.handlers.chat_handler as _ch
-    importlib.reload(_ch)
+    import app.core.agents.handlers.timer_trigger_handler as _th
+
+    for _mod in (_ch, _cch, _cap, _th):
+        importlib.reload(_mod)
     import app.core.agents.handlers as _handlers
     importlib.reload(_handlers)
     importlib.reload(app.core.runtime.agent_scheduler)
