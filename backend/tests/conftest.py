@@ -174,11 +174,17 @@ def _reset_runtime():
     Without this, global singletons (capability_policy,
     taint_registry, source_registry) can leak state between tests.
 
-    Fixtures that need a fresh start can rely on this
-    baseline cleanup.
+    Also restores ``kernel_instance.kernel`` to the canonical LazyProxy when a
+    test assigned a concrete Kernel without monkeypatch cleanup. Otherwise
+    ``task_engine`` (holds the proxy) and ``read_ports`` (re-imports
+    ``ki.kernel``) can point at different Kernel/DB instances.
     """
-    from app.core.runtime.runtime_container import runtime
+    import app.core.runtime.kernel_instance as ki
+    from app.core.runtime.runtime_container import _LazyProxy, runtime
+
     runtime.reset()
+    if not isinstance(ki.kernel, _LazyProxy):
+        ki.kernel = _LazyProxy(lambda: runtime.kernel)
     yield
 
 

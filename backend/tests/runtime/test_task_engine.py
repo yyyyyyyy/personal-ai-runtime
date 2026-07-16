@@ -12,7 +12,7 @@ from app.core.runtime.task_engine import (
 
 
 class TestTaskEngine:
-    def test_create_and_get_task(self):
+    def test_create_and_get_task(self, isolated_kernel):
         task = create_task(name="Test Task", description="A test task")
         assert task["title"] == "Test Task"
         assert task["status"] == "pending"
@@ -22,7 +22,7 @@ class TestTaskEngine:
         assert retrieved is not None
         assert retrieved["title"] == "Test Task"
 
-    def test_create_subtask(self):
+    def test_create_subtask(self, isolated_kernel):
         parent = create_task(name="Parent Task")
         child = create_task(
             name="Child Task",
@@ -36,14 +36,14 @@ class TestTaskEngine:
         assert len(subtasks) == 1
         assert subtasks[0]["title"] == "Child Task"
 
-    def test_task_for_goal(self):
+    def test_task_for_goal(self, isolated_kernel):
         task = create_task(name="Standalone Task")
         assert task["parent_goal_id"] is None
 
         tasks = list_tasks()
         assert any(t["id"] == task["id"] for t in tasks)
 
-    def test_update_status(self):
+    def test_update_status(self, isolated_kernel):
         from app.core.runtime.task_engine import update_task_status
         task = create_task(name="Status Test")
         updated = update_task_status(task["id"], "running")
@@ -52,7 +52,7 @@ class TestTaskEngine:
         completed = update_task_status(task["id"], "completed")
         assert completed["status"] == "completed"
 
-    def test_dependencies_met(self):
+    def test_dependencies_met(self, isolated_kernel):
         from app.core.runtime.task_engine import are_dependencies_met, update_task_status
         dep = create_task(name="Dependency Task")
         update_task_status(dep["id"], "running")
@@ -64,6 +64,6 @@ class TestTaskEngine:
         )
         assert are_dependencies_met(main_task["id"])
 
-    def test_list_tasks(self):
+    def test_list_tasks(self, isolated_kernel):
         tasks = list_tasks(limit=10)
         assert isinstance(tasks, list)

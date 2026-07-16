@@ -94,7 +94,8 @@ async def test_chat_completed_record_turn_via_scheduler(tmp_path, monkeypatch):
     )
 
     k = Kernel(db=Database(str(tmp_path / "chat_fanout.db")))
-    ki.kernel = k
+    # monkeypatch required: bare assignment leaks and splits emit vs read_ports.
+    monkeypatch.setattr(ki, "kernel", k)
 
     assert len(get_handlers("ChatCompleted")) >= 2
 
