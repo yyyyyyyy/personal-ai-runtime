@@ -55,12 +55,13 @@ def push_notification(
     ``kernel_instance.kernel`` after this module was imported.
     """
     notif = create_notification(notif_type, title, content, kernel=kernel)
+    payload = dict(notif)
     broadcast_event({
-        **notif,
+        **payload,
         "type": "notification",
-        "notification_type": notif.get("type", notif_type),
+        "notification_type": payload.get("type", notif_type),
     })
-    return notif
+    return payload
 
 
 def broadcast_event(event: dict) -> None:

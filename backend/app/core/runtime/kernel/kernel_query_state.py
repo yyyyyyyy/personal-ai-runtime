@@ -18,11 +18,11 @@ class QueryStateMixin:  # type: ignore[attr-defined]  # mixed into Kernel which 
     def query_state(self, selector: str, **filters: Any) -> list[dict]:
         """Read a projection. Prefer ``read_ports`` helpers for new call sites."""
         if selector == "work_items":  # unified task + action + goal
-            return self._query_work_items(filters)
+            return self._as_rows(self._query_work_items(filters))
         if selector == "approvals":
             return self._query_approvals(filters)
         if selector == "memories":
-            return self._query_memories(filters)
+            return self._as_rows(self._query_memories(filters))
         if selector == "notifications":
             return self._query_notifications(filters)
         if selector == "policy_events":
@@ -39,14 +39,24 @@ class QueryStateMixin:  # type: ignore[attr-defined]  # mixed into Kernel which 
             return self._query_llm_calls(filters)
         raise ValueError(f"Unknown state selector: {selector!r}")
 
+    @staticmethod
+    def _as_rows(result: list[dict] | int) -> list[dict]:
+        if isinstance(result, int):
+            raise TypeError("count_only result passed to query_state")
+        return result
+
     def count_state(self, selector: str, **filters: Any) -> int:
         """Count projection rows efficiently without loading them into memory."""
         filters["count_only"] = True
         if selector == "work_items":
-            return self._query_work_items(filters)
-        if selector == "memories":
-            return self._query_memories(filters)
-        raise ValueError(f"count_state not implemented for selector: {selector!r}")
+            result = self._query_work_items(filters)
+        elif selector == "memories":
+            result = self._query_memories(filters)
+        else:
+            raise ValueError(f"count_state not implemented for selector: {selector!r}")
+        if not isinstance(result, int):
+            raise TypeError(f"count_only query for {selector!r} did not return int")
+        return result
 
     def aggregate_state(self, selector: str, **filters: Any) -> Any:
         """SQL aggregations over governed projections (no silent row caps)."""
@@ -62,13 +72,13 @@ class QueryStateMixin:  # type: ignore[attr-defined]  # mixed into Kernel which 
             return qb.aggregate_memory_stats(self._db, filters)
         raise ValueError(f"Unknown aggregate selector: {selector!r}")
 
-    def _query_work_items(self, filters: dict[str, Any]) -> list[dict]:
+    def _query_work_items(self, filters: dict[str, Any]) -> list[dict] | int:
         return qb.query_work_items(self._db, filters)
 
     def _query_approvals(self, filters: dict[str, Any]) -> list[dict]:
         return qb.query_approvals(self._db, filters)
 
-    def _query_memories(self, filters: dict[str, Any]) -> list[dict]:
+    def _query_memories(self, filters: dict[str, Any]) -> list[dict] | int:
         return qb.query_memories(self._db, filters)
 
     def _query_notifications(self, filters: dict[str, Any]) -> list[dict]:

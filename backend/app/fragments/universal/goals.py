@@ -36,7 +36,12 @@ def _format_progress(raw: object) -> str:
     if raw is None or raw == "":
         return ""
     try:
-        value = float(raw)
+        if isinstance(raw, bool):
+            return ""
+        if isinstance(raw, (int, float)):
+            value = float(raw)
+        else:
+            value = float(str(raw))
     except (TypeError, ValueError):
         return ""
     if value < 0:

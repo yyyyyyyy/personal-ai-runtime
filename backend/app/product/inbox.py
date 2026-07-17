@@ -7,14 +7,19 @@ projection derived solely from InboxEmail* events (see projectors_inbox.py).
 from __future__ import annotations
 
 import asyncio
+import json as _stdlib_json
 import logging
 import re
 from datetime import UTC, datetime
+from types import ModuleType
+from typing import Any
 
 try:
-    import orjson as json
-except ImportError:
-    import json
+    import orjson as _orjson
+
+    _json: ModuleType = _orjson
+except ImportError:  # pragma: no cover
+    _json = _stdlib_json
 
 from app.config import settings
 from app.core.runtime import read_ports
@@ -23,7 +28,13 @@ from app.core.runtime.kernel_instance import kernel
 
 logger = logging.getLogger(__name__)
 
-_JSON_DUMPS_BYTES = isinstance(json.dumps({}), bytes)
+
+def _json_dumps_str(data: dict[str, Any]) -> str:
+    """Serialize for LLM prompts; always return ``str`` (orjson yields bytes)."""
+    raw = _json.dumps(data)
+    if isinstance(raw, bytes):
+        return raw.decode("utf-8")
+    return raw
 
 CLASSIFY_SYSTEM_PROMPT = """你是一个邮件分类助手。将每封邮件分为以下类别之一：
 - important: 需要用户尽快关注（老板、客户、紧急事项、验证码、账单等）
@@ -68,10 +79,7 @@ def _format_emails_for_llm(emails: list[dict]) -> str:
             "date": em.get("date", ""),
         }
 
-        if _JSON_DUMPS_BYTES:
-            lines.append(json.dumps(data).decode("utf-8"))
-        else:
-            lines.append(json.dumps(data, ensure_ascii=False))
+        lines.append(_json_dumps_str(data))
 
     return "\n".join(lines)
 
@@ -104,11 +112,11 @@ async def _classify_emails(emails: list[dict]) -> list[dict]:
     try:
         response = await client.chat.completions.create(
             model=provider.model,
-            messages=audited_messages,  # type: ignore[arg-type]
+            messages=audited_messages,
             temperature=0.2,
             max_tokens=settings.llm_max_tokens,
             response_format={"type": "json_object"},
-        )
+        )  # type: ignore[call-overload]
         raw = response.choices[0].message.content or "{}"
     except Exception as exc:
         logger.error("Inbox classification failed: %s", exc)
@@ -133,7 +141,7 @@ def _parse_classification(raw: str, fallback_emails: list[dict]) -> list[dict]:
             cleaned = re.sub(r"^```(?:json)?\n?", "", cleaned)
             cleaned = re.sub(r"\n?```$", "", cleaned).strip()
 
-        data = json.loads(cleaned)
+        data = _json.loads(cleaned)
         items = data.get("emails", data) if isinstance(data, dict) else data
         if isinstance(items, list) and items:
             return items
@@ -342,7 +350,7 @@ def _assert_imap_capability_ok(cap_res: dict, *, action: str) -> None:
     error = cap_res.get("error")
     if imap_ok and isinstance(result_raw, str):
         try:
-            parsed = json.loads(result_raw)
+            parsed = _json.loads(result_raw)
             if parsed.get("error"):
                 imap_ok = False
                 error = parsed["error"]
@@ -422,8 +430,8 @@ async def poll_inbox(limit: int = 20, *, execution_id: str | None = None) -> dic
                 raw_error = "Email credentials not configured"
             return {"status": "error", "error": raw_error, "new_count": 0}
         try:
-            payload = json.loads(cap.get("result", "{}"))
-        except json.JSONDecodeError:
+            payload = _json.loads(cap.get("result", "{}"))
+        except (ValueError, TypeError):
             return {"status": "error", "error": "invalid inbox JSON", "new_count": 0}
         return await apply_inbox_poll_payload(payload, execution_id=execution_id)
 
@@ -461,7 +469,7 @@ def generate_inbox_digest() -> dict | None:
 
     existing = find_notification("inbox_digest", title)
     if existing:
-        return existing
+        return dict(existing)
 
     rows = read_ports.query_inbox_emails(digested=0, limit=50, order="importance_desc")
 

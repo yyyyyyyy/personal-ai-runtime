@@ -18,14 +18,18 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import json as _stdlib_json
 import os
 import zlib
+from types import ModuleType
 from typing import Any
 
 try:
-    import orjson as json
-except ImportError:
-    import json
+    import orjson as _orjson
+
+    _json: ModuleType = _orjson
+except ImportError:  # pragma: no cover
+    _json = _stdlib_json
 
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
@@ -94,7 +98,7 @@ def encrypt_snapshot_sync(snapshot: dict[str, Any], password: str) -> str:
 
     # 1. Serialize and compress
     try:
-        plaintext = json.dumps(snapshot)
+        plaintext = _json.dumps(snapshot)
         if isinstance(plaintext, str):
             plaintext = plaintext.encode("utf-8")
     except Exception as exc:
@@ -152,7 +156,7 @@ def _decrypt_v1(raw: bytes, password: str) -> dict[str, Any]:
         ) from exc
 
     try:
-        return json.loads(plaintext)
+        return _json.loads(plaintext)
     except Exception as exc:
         raise EncryptedSyncPayloadError("Decrypted payload is not valid JSON") from exc
 
@@ -190,7 +194,7 @@ def _decrypt_v2(raw: bytes, password: str) -> dict[str, Any]:
         raise EncryptedSyncPayloadError("Failed to decompress payload") from exc
 
     try:
-        return json.loads(plaintext)
+        return _json.loads(plaintext)
     except Exception as exc:
         raise EncryptedSyncPayloadError("Decrypted payload is not valid JSON") from exc
 

@@ -2,7 +2,7 @@
 
 import uuid
 from datetime import UTC, datetime
-from typing import TYPE_CHECKING, TypedDict
+from typing import TYPE_CHECKING, Any, TypedDict, cast
 
 from app.core.runtime import read_ports
 from app.core.runtime.kernel.constants import (
@@ -41,17 +41,24 @@ def find_notification(
     kernel: "Kernel | None" = None,
 ) -> NotificationPayload | None:
     """Return an existing notification by dedup_key or type+title, if any."""
-    kwargs = {"type": notif_type, "limit": 1}
-    if dedup_key is not None:
-        kwargs["dedup_key"] = dedup_key
-    elif title is not None:
-        kwargs["title"] = title
-
+    query_title = None if dedup_key is not None else title
     if kernel is None:
-        rows = read_ports.query_notifications(**kwargs)
+        rows = read_ports.query_notifications(
+            type=notif_type,
+            limit=1,
+            dedup_key=dedup_key,
+            title=query_title,
+        )
     else:
-        rows = kernel.query_state("notifications", **kwargs)
-    return rows[0] if rows else None
+        filters: dict[str, Any] = {"type": notif_type, "limit": 1}
+        if dedup_key is not None:
+            filters["dedup_key"] = dedup_key
+        elif title is not None:
+            filters["title"] = title
+        rows = kernel.query_state("notifications", **filters)
+    if not rows:
+        return None
+    return cast(NotificationPayload, rows[0])
 
 
 def create_notification(
