@@ -29,8 +29,8 @@ except ImportError:
 
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
-from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 from cryptography.hazmat.primitives.kdf.argon2 import Argon2id
+from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 
 _SALT_LEN = 16
 _NONCE_LEN = 12

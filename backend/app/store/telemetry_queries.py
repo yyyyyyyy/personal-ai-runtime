@@ -6,7 +6,7 @@ governed tables is allowed here (see check_boundary._is_store_layer).
 
 from __future__ import annotations
 
-from typing import Any, TYPE_CHECKING, TypedDict
+from typing import TYPE_CHECKING, Any, TypedDict
 
 if TYPE_CHECKING:
     from app.store.database import Database

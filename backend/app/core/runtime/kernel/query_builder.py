@@ -384,7 +384,7 @@ def query_work_items(db, filters: dict[str, Any]) -> list[dict] | int:
             clauses.append("deadline IS NOT NULL")
 
         where = f" WHERE {' AND '.join(clauses)}" if clauses else ""
-        
+
         if count_only:
             row = conn.execute(f"SELECT COUNT(*) as c FROM work_items{where}", params).fetchone()
             return int(row["c"])
@@ -463,7 +463,7 @@ def query_memories(db, filters: dict[str, Any]) -> list[dict] | int:
             )
 
         where = f" WHERE {' AND '.join(clauses)}" if clauses else ""
-        
+
         if count_only:
             row = conn.execute(f"SELECT COUNT(*) as c FROM memories{where}", params).fetchone()
             return int(row["c"])

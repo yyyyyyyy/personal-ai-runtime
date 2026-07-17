@@ -6,8 +6,9 @@ from pathlib import Path
 from typing import Optional
 
 from alembic.config import Config
-from alembic import command
 from alembic.script import ScriptDirectory
+
+from alembic import command
 
 logger = logging.getLogger(__name__)
 
@@ -43,7 +44,7 @@ _ALEMBIC_INI = _find_alembic_ini()
 def run_migrations(db_url: Optional[str] = None) -> Optional[str]:
     """
     Apply the Alembic schema to head (idempotent — safe to call every startup).
-    
+
     Args:
         db_url: Optional SQLAlchemy database URL to override default settings.
 

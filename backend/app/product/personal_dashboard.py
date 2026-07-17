@@ -15,9 +15,9 @@ Widgets:
   - governance_status: active policy + grant counts (Governance)
 """
 
+import logging
 from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime, timedelta
-import logging
 
 from app.core.runtime import read_ports
 from app.core.runtime.kernel_instance import kernel
@@ -60,20 +60,20 @@ def _widget_data_sovereignty() -> dict:
         table_counts = kernel.table_counts(
             ("conversations", "messages", "memories", "event_log")
         )
-    except Exception as e:
+    except Exception:
         logger.warning("Dashboard: Failed to fetch table_counts", exc_info=True)
         table_counts = {}
 
     try:
         goal_total = read_ports.count_goals()
-    except Exception as e:
+    except Exception:
         logger.warning("Dashboard: Failed to fetch total goals count", exc_info=True)
         goal_total = 0
 
     try:
         self_report_count = read_ports.count_memories(origin="self_report")
         claim_count = read_ports.count_memories(origin="claim")
-    except Exception as e:
+    except Exception:
         logger.warning("Dashboard: Failed to fetch memories footprint", exc_info=True)
         self_report_count = 0
         claim_count = 0
@@ -81,7 +81,7 @@ def _widget_data_sovereignty() -> dict:
     try:
         goals_active = read_ports.count_active_goals()
         goals_completed = read_ports.count_completed_goals()
-    except Exception as e:
+    except Exception:
         logger.warning("Dashboard: Failed to fetch active/completed goals count", exc_info=True)
         goals_active = 0
         goals_completed = 0
@@ -89,7 +89,7 @@ def _widget_data_sovereignty() -> dict:
     try:
         beliefs = read_ports.query_memories(category="belief", limit=1, order="created_desc")
         last_reflection = beliefs[0].get("created_at") if beliefs else None
-    except Exception as e:
+    except Exception:
         logger.warning("Dashboard: Failed to fetch last reflection", exc_info=True)
         last_reflection = None
 
@@ -114,7 +114,7 @@ def _widget_active_goals() -> dict:
     try:
         active_count = read_ports.count_active_goals()
         top = read_ports.query_active_goals(limit=_MAX_TOP_GOALS, order="importance_desc")
-    except Exception as e:
+    except Exception:
         logger.warning("Dashboard: Failed to fetch active goals widget", exc_info=True)
         return {"count": 0, "top": []}
 
@@ -153,7 +153,7 @@ def _widget_recent_events(since_ts: str) -> dict:
                 for e in top_events
             ],
         }
-    except Exception as e:
+    except Exception:
         logger.warning("Dashboard: Failed to fetch recent events widget", exc_info=True)
         return {"count": 0, "total_in_window": 0, "items": []}
 
@@ -173,7 +173,7 @@ def _widget_recent_memories() -> dict:
                 for m in memories
             ],
         }
-    except Exception as e:
+    except Exception:
         logger.warning("Dashboard: Failed to fetch recent memories widget", exc_info=True)
         return {"count": 0, "items": []}
 
@@ -206,7 +206,7 @@ def _widget_governance_status() -> dict:
     """
     try:
         policies = read_ports.query_active_policies(limit=200)
-    except Exception as e:
+    except Exception:
         logger.warning("Dashboard: Failed to fetch governance status widget", exc_info=True)
         policies = []
     return {

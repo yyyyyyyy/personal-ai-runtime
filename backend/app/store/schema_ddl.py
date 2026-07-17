@@ -42,9 +42,9 @@ CREATE TABLE IF NOT EXISTS notifications (
     dedup_key TEXT,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
-CREATE INDEX IF NOT EXISTS ix_notifications_related_type 
+CREATE INDEX IF NOT EXISTS ix_notifications_related_type
     ON notifications (related_id, notification_type);
-CREATE INDEX IF NOT EXISTS ix_notifications_dedup_key 
+CREATE INDEX IF NOT EXISTS ix_notifications_dedup_key
     ON notifications (dedup_key);
 """
 

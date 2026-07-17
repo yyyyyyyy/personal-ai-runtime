@@ -132,7 +132,7 @@ def _parse_classification(raw: str, fallback_emails: list[dict]) -> list[dict]:
         if cleaned.startswith("```"):
             cleaned = re.sub(r"^```(?:json)?\n?", "", cleaned)
             cleaned = re.sub(r"\n?```$", "", cleaned).strip()
-            
+
         data = json.loads(cleaned)
         items = data.get("emails", data) if isinstance(data, dict) else data
         if isinstance(items, list) and items:
@@ -291,7 +291,7 @@ async def apply_inbox_poll_payload(payload: dict, *, execution_id: str | None = 
         )
         if execution_id:
             kwargs["caused_by"] = execution_id
-        
+
         kernel.emit_event(
             constants.EVENT_INBOX_EMAIL_RECORDED,
             constants.AGGREGATE_INBOX_EMAIL,
@@ -307,9 +307,9 @@ async def apply_inbox_poll_payload(payload: dict, *, execution_id: str | None = 
         })
 
     from app.core.runtime.notification_bridge import push_notification
-    
+
     important_items = [item for item in stored if item["category"] == "important"]
-    
+
     if len(important_items) == 1:
         item = important_items[0]
         title = f"重要邮件 · {item['subject'][:40]}"

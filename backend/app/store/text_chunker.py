@@ -66,11 +66,11 @@ def chunk_text(text: str, config: ChunkConfig | None = None) -> list[str]:
 
     Strategy:
     1. Break text into atomic structural blocks (sentences, code blocks, headings).
-    2. Greedily accumulate atoms into chunks up to target_tokens, accounting for 
+    2. Greedily accumulate atoms into chunks up to target_tokens, accounting for
        separator overhead.
-    3. When a chunk is full, start the next chunk with a tail of atoms from the 
+    3. When a chunk is full, start the next chunk with a tail of atoms from the
        previous chunk to satisfy overlap_tokens (providing continuity).
-    4. Any single atom larger than max_tokens is hard-split by token window, 
+    4. Any single atom larger than max_tokens is hard-split by token window,
        preserving word boundaries where possible.
     """
     cfg = config or ChunkConfig()
@@ -79,16 +79,16 @@ def chunk_text(text: str, config: ChunkConfig | None = None) -> list[str]:
 
     # 1. Break into atomic blocks (sentences, code blocks, headings)
     atoms = _get_atoms(text)
-    
+
     chunks: list[str] = []
     current_atoms: list[str] = []
     current_tokens = 0
-    
+
     i = 0
     while i < len(atoms):
         atom = atoms[i]
         atom_tokens = count_tokens(atom)
-        
+
         # Handle oversized atom (hard split)
         if atom_tokens > cfg.max_tokens:
             # Flush current if any
@@ -96,7 +96,7 @@ def chunk_text(text: str, config: ChunkConfig | None = None) -> list[str]:
                 chunks.append("\n\n".join(current_atoms).strip())
                 current_atoms = []
                 current_tokens = 0
-            
+
             # Hard split the big atom
             remaining = atom
             while count_tokens(remaining) > cfg.target_tokens:
@@ -106,7 +106,7 @@ def chunk_text(text: str, config: ChunkConfig | None = None) -> list[str]:
                 if cfg.overlap_tokens > 0:
                     overlap = _get_tail_text(head, cfg.overlap_tokens)
                     remaining = overlap + " " + remaining
-            
+
             if remaining.strip():
                 current_atoms = [remaining]
                 current_tokens = count_tokens(remaining)
@@ -116,11 +116,11 @@ def chunk_text(text: str, config: ChunkConfig | None = None) -> list[str]:
         # Normal accumulation
         # Add 2 tokens overhead for "\n\n" if not first
         overhead = 2 if current_atoms else 0
-        
+
         if current_tokens + atom_tokens + overhead > cfg.target_tokens and current_atoms:
             # Emit chunk
             chunks.append("\n\n".join(current_atoms).strip())
-            
+
             # Start next chunk with overlap
             if cfg.overlap_tokens > 0:
                 # Find how many atoms to keep for overlap
@@ -132,13 +132,13 @@ def chunk_text(text: str, config: ChunkConfig | None = None) -> list[str]:
                         break
                     overlap_buffer.insert(0, back_atom)
                     overlap_tokens += back_tokens + 2
-                
+
                 current_atoms = overlap_buffer
                 current_tokens = overlap_tokens
             else:
                 current_atoms = []
                 current_tokens = 0
-        
+
         current_atoms.append(atom)
         current_tokens += atom_tokens + overhead
         i += 1
@@ -147,7 +147,7 @@ def chunk_text(text: str, config: ChunkConfig | None = None) -> list[str]:
         final = "\n\n".join(current_atoms).strip()
         if final:
             chunks.append(final)
-            
+
     return chunks
 
 
@@ -193,7 +193,7 @@ def _get_atoms(text: str) -> list[str]:
 
     if buffer:
         atoms.extend(_split_into_sentences("\n".join(buffer)))
-    
+
     return [a for a in atoms if a.strip()]
 
 
@@ -235,20 +235,20 @@ def _hard_token_split(text: str, target: int) -> tuple[str, str]:
             ids = enc.encode(text, disallowed_special=())
         except Exception:
             ids = enc.encode(text)
-        
+
         if len(ids) <= target:
             return text, ""
-        
+
         head_ids = ids[:target]
         head = enc.decode(head_ids)
         # Walk back to a whitespace boundary to avoid cutting words
         idx = head.rfind(" ")
         if idx > len(head) // 2:
             head = head[:idx]
-        
+
         tail = text[len(head):].lstrip()
         return head, tail
-        
+
     # Char fallback
     char_target = target * 4
     idx = text.rfind(" ", 0, char_target)
