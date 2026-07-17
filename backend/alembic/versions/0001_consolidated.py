@@ -102,6 +102,8 @@ def upgrade() -> None:
         sa.Column("error_message", sa.Text()),
         sa.Column("created_at", sa.DateTime(), server_default=sa.text("CURRENT_TIMESTAMP")),
     )
+    op.execute("CREATE INDEX IF NOT EXISTS idx_llm_calls_created_at ON llm_calls (created_at DESC)")
+    op.create_index("idx_llm_calls_model", "llm_calls", ["model"])
 
     op.create_table(
         "tool_calls",
@@ -112,6 +114,8 @@ def upgrade() -> None:
         sa.Column("error_message", sa.Text()),
         sa.Column("created_at", sa.DateTime(), server_default=sa.text("CURRENT_TIMESTAMP")),
     )
+    op.execute("CREATE INDEX IF NOT EXISTS idx_tool_calls_created_at ON tool_calls (created_at DESC)")
+    op.create_index("idx_tool_calls_name", "tool_calls", ["tool_name"])
 
     op.create_table(
         "approvals",
@@ -144,6 +148,7 @@ def upgrade() -> None:
         sa.Column("category", sa.Text(), nullable=False),
         sa.Column("data_json", sa.Text(), nullable=False),
         sa.Column("confidence", sa.Float(), server_default="0.5"),
+        sa.Column("created_at", sa.DateTime(), server_default=sa.text("CURRENT_TIMESTAMP")),
         sa.Column("updated_at", sa.DateTime(), server_default=sa.text("CURRENT_TIMESTAMP")),
         sa.UniqueConstraint("category", name="uq_user_profile_category"),
     )
@@ -327,7 +332,11 @@ def downgrade() -> None:
     op.drop_table("user_profile")
     op.drop_table("background_tasks")
     op.drop_table("approvals")
+    op.drop_index("idx_tool_calls_name", table_name="tool_calls")
+    op.drop_index("idx_tool_calls_created_at", table_name="tool_calls")
     op.drop_table("tool_calls")
+    op.drop_index("idx_llm_calls_model", table_name="llm_calls")
+    op.drop_index("idx_llm_calls_created_at", table_name="llm_calls")
     op.drop_table("llm_calls")
     op.drop_table("activity_log")
     op.drop_index("ix_notifications_related_type", table_name="notifications")

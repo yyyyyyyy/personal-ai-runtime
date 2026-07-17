@@ -2,7 +2,15 @@
 
 import os
 import uuid
-from typing import Any
+from typing import Any, TypedDict
+
+
+class VectorSearchResult(TypedDict):
+    id: str
+    content: str
+    metadata: dict[str, Any]
+    distance: float | None
+
 
 # Suppress ChromaDB telemetry before the chromadb import touches posthog
 os.environ.setdefault("ANONYMIZED_TELEMETRY", "False")
@@ -46,15 +54,24 @@ class VectorStore:
 
     def _init_collections(self):
         """Create collections if they don't exist."""
+        # Cosine space matches distance→weight conversion in read_ports
+        # (weight ≈ 1 - distance). Fresh installs only — no migration path.
+        hnsw_config = {"hnsw:space": "cosine"}
         self.memory_collection = self.client.get_or_create_collection(
             name="memories",
             embedding_function=_EMBEDDING_FUNCTION,
-            metadata={"description": "Long-term user memories and preferences"},
+            metadata={
+                "description": "Long-term user memories and preferences",
+                **hnsw_config,
+            },
         )
         self.knowledge_collection = self.client.get_or_create_collection(
             name="knowledge",
             embedding_function=_EMBEDDING_FUNCTION,
-            metadata={"description": "Imported documents and knowledge fragments"},
+            metadata={
+                "description": "Imported documents and knowledge fragments",
+                **hnsw_config,
+            },
         )
 
     def add_memory(
@@ -85,18 +102,18 @@ class VectorStore:
                 pass  # not present yet — fine
         return self.add_memory(content, metadata=metadata, memory_id=memory_id)
 
-    def search_memories(self, query: str, n_results: int = 5) -> list[dict]:
+    def search_memories(self, query: str, n_results: int = 5) -> list[VectorSearchResult]:
         """Semantic search for related memories."""
         batch = self.search_memories_batch([query], n_results=n_results)
         return batch[0] if batch else []
 
     def search_memories_batch(
         self, queries: list[str], n_results: int = 5
-    ) -> list[list[dict]]:
+    ) -> list[list[VectorSearchResult]]:
         """Batch semantic search — one Chroma round-trip for many queries.
 
         Returns a list aligned with ``queries``; each entry is the hit list
-        for that query (same shape as :meth:`search_memories`).
+        for that query.
         """
         if not queries:
             return []
@@ -104,44 +121,52 @@ class VectorStore:
             query_texts=queries,
             n_results=n_results,
         )
-        batches: list[list[dict]] = []
+        return self._parse_search_results(results, len(queries))
+
+    def search_knowledge(self, query: str, n_results: int = 5) -> list[VectorSearchResult]:
+        """Semantic search in the knowledge base."""
+        batch = self.search_knowledge_batch([query], n_results=n_results)
+        return batch[0] if batch else []
+
+    def search_knowledge_batch(
+        self, queries: list[str], n_results: int = 5
+    ) -> list[list[VectorSearchResult]]:
+        """Batch semantic search in knowledge base."""
+        if not queries:
+            return []
+        results = self.knowledge_collection.query(
+            query_texts=queries,
+            n_results=n_results,
+        )
+        return self._parse_search_results(results, len(queries))
+
+    def _parse_search_results(self, results: Any, num_queries: int) -> list[list[VectorSearchResult]]:
+        """Internal helper to parse ChromaDB QueryResult into list of lists."""
+        batches: list[list[VectorSearchResult]] = []
+
+        # Chroma returns None or lists of lists
         ids_by_q = results.get("ids") or []
         docs_by_q = results.get("documents") or []
         metas_by_q = results.get("metadatas") or []
         dists_by_q = results.get("distances") or []
-        for q_idx in range(len(queries)):
-            items: list[dict] = []
+
+        for q_idx in range(num_queries):
+            items: list[VectorSearchResult] = []
             if q_idx < len(ids_by_q) and ids_by_q[q_idx]:
-                for i in range(len(ids_by_q[q_idx])):
+                q_ids = ids_by_q[q_idx]
+                q_docs = docs_by_q[q_idx] if docs_by_q and q_idx < len(docs_by_q) else []
+                q_metas = metas_by_q[q_idx] if metas_by_q and q_idx < len(metas_by_q) else []
+                q_dists = dists_by_q[q_idx] if dists_by_q and q_idx < len(dists_by_q) else []
+
+                for i in range(len(q_ids)):
                     items.append({
-                        "id": ids_by_q[q_idx][i],
-                        "content": docs_by_q[q_idx][i] if docs_by_q and docs_by_q[q_idx] else "",
-                        "metadata": (
-                            metas_by_q[q_idx][i] if metas_by_q and metas_by_q[q_idx] else {}
-                        ),
-                        "distance": (
-                            dists_by_q[q_idx][i] if dists_by_q and dists_by_q[q_idx] else None
-                        ),
+                        "id": q_ids[i],
+                        "content": q_docs[i] if i < len(q_docs) and q_docs[i] else "",
+                        "metadata": q_metas[i] if i < len(q_metas) and q_metas[i] else {},
+                        "distance": q_dists[i] if i < len(q_dists) else None,
                     })
             batches.append(items)
         return batches
-
-    def search_knowledge(self, query: str, n_results: int = 5) -> list[dict]:
-        """Semantic search in the knowledge base."""
-        results = self.knowledge_collection.query(
-            query_texts=[query],
-            n_results=n_results,
-        )
-        items = []
-        if results["ids"] and results["ids"][0]:
-            for i in range(len(results["ids"][0])):
-                items.append({
-                    "id": results["ids"][0][i],
-                    "content": results["documents"][0][i] if results["documents"] else "",
-                    "metadata": results["metadatas"][0][i] if results["metadatas"] else {},
-                    "distance": results["distances"][0][i] if results["distances"] else None,
-                })
-        return items
 
     def add_knowledge_chunk(
         self, content: str, metadata: dict | None = None, chunk_id: str | None = None
@@ -154,6 +179,17 @@ class VectorStore:
             metadatas=[metadata or {}],
         )
         return cid
+
+    def index_knowledge_chunk(
+        self, content: str, metadata: dict | None = None, chunk_id: str | None = None
+    ) -> str:
+        """Idempotent knowledge indexing per chunk_id."""
+        if chunk_id:
+            try:
+                self.knowledge_collection.delete(ids=[chunk_id])
+            except Exception:
+                pass
+        return self.add_knowledge_chunk(content, metadata=metadata, chunk_id=chunk_id)
 
     def delete_memory(self, memory_id: str):
         """Delete a memory by its ID."""

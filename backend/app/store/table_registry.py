@@ -6,58 +6,6 @@ New tables must be classified here or schema contract tests will fail.
 
 from __future__ import annotations
 
-# Kernel-owned projections (event-sourced read models + event log).
-GOVERNED_TABLES: frozenset[str] = frozenset({
-    "event_log",
-    "work_items",
-    "memories",
-    "approvals",
-    "conversations",
-    "messages",
-    "notifications",
-    "projection_checkpoints",
-    "handler_executions",
-    "timer_events",
-    "policy_events",
-    # Derived solely from InboxEmail* events via projectors_inbox.py
-    # so the table is fully rebuildable from event_log.
-    "inbox_emails",
-    # Derived solely from Capability* events via projectors_telemetry.py.
-    # Every row maps 1:1 to a CapabilityInvoked, CapabilityFailed, or
-    # CapabilityDenied event in event_log.
-    "tool_calls",
-    # Derived solely from LLMCallRecorded events via projectors_telemetry.py.
-    "llm_calls",
-})
-
-# Application storage (direct read/write outside Kernel ABI is allowed).
-#
-# Why each of these is NOT event-sourced (North Star P8 / NG6):
-# The Truth Layer (event_log + GOVERNED_TABLES above) is event-sourced because
-# it represents authoritative personal facts whose loss would break data
-# sovereignty. The tables below are operational/observational and either (a)
-# can be regenerated from authoritative sources, (b) are pure caches, or
-# (c) hold app-local config with no audit requirement. They must never be
-# presented as a second source of truth.
-APP_STORAGE_TABLES: frozenset[str] = frozenset({
-    # Human-readable activity log; derived from event_log via projection.
-    "activity_log",
-    # Background task queue state; lifecycle is governed by BackgroundTask*
-    # events in event_log. This table is a worker-scratch view.
-    "background_tasks",
-    # User profile / app settings — local-only preferences. No audit value;
-    # exporting event_log is sufficient for data sovereignty.
-    "user_profile",
-    # App settings (UI preferences, LLM/Email connection config). Local-only
-    # operational config; not a governed fact.
-    "app_settings",
-    # Pending ChromaDB index repairs for memory events whose embedding sync
-    # failed. The authoritative record is the MemoryDerived/Updated event in
-    # event_log; this queue tracks outstanding reconciliation work and is
-    # drained by RuntimeLoop._maintenance via the memory index repair worker.
-    "memory_index_repairs",
-})
-
 # Expected columns for governed projection tables (PRAGMA contract).
 GOVERNED_SCHEMA: dict[str, frozenset[str]] = {
     "work_items": frozenset({
@@ -106,18 +54,76 @@ GOVERNED_SCHEMA: dict[str, frozenset[str]] = {
     "policy_events": frozenset({
         "id", "capability", "risk_level", "status", "created_at", "updated_at",
     }),
+    # Derived solely from InboxEmail* events via projectors_inbox.py
+    # so the table is fully rebuildable from event_log.
     "inbox_emails": frozenset({
         "id", "server_id", "sender", "subject", "date", "preview",
         "full_text", "status", "category", "importance", "reason",
         "notified", "digested", "created_at", "received_at",
     }),
+    # Derived solely from Capability* events via projectors_telemetry.py.
+    # Every row maps 1:1 to a CapabilityInvoked, CapabilityFailed, or
+    # CapabilityDenied event in event_log.
     "tool_calls": frozenset({
         "id", "tool_name", "success", "latency_ms", "error_message", "created_at",
     }),
+    # Derived solely from LLMCallRecorded events via projectors_telemetry.py.
     "llm_calls": frozenset({
         "id", "provider", "model", "prompt_tokens", "completion_tokens",
         "latency_ms", "cost", "success", "error_message", "created_at",
     }),
 }
 
+# Expected columns for application storage tables.
+#
+# Why each of these is NOT event-sourced:
+# The Truth Layer (event_log + GOVERNED_TABLES) is event-sourced because
+# it represents authoritative personal facts whose loss would break data
+# sovereignty. The tables below are operational/observational and either (a)
+# can be regenerated from authoritative sources, (b) are pure caches, or
+# (c) hold app-local config with no audit requirement. They must never be
+# presented as a second source of truth.
+APP_STORAGE_SCHEMA: dict[str, frozenset[str]] = {
+    # Human-readable activity log; derived from event_log via projection.
+    "activity_log": frozenset({
+        "id", "type", "payload", "timestamp",
+    }),
+    # Background task queue state; lifecycle is governed by BackgroundTask*
+    # events in event_log. This table is a worker-scratch view.
+    "background_tasks": frozenset({
+        "id", "user_request", "plan_json", "status", "progress",
+        "created_at", "completed_at",
+    }),
+    # User profile / app settings — local-only preferences. No audit value;
+    # exporting event_log is sufficient for data sovereignty.
+    "user_profile": frozenset({
+        "id", "category", "data_json", "confidence", "created_at", "updated_at",
+    }),
+    # App settings (UI preferences, LLM/Email connection config). Local-only
+    # operational config; not a governed fact.
+    "app_settings": frozenset({
+        "category", "data_json", "updated_at",
+    }),
+    # Pending ChromaDB index repairs for memory events whose embedding sync
+    # failed. The authoritative record is the MemoryDerived/Updated event in
+    # event_log; this queue tracks outstanding reconciliation work and is
+    # drained by RuntimeLoop._maintenance via the memory index repair worker.
+    "memory_index_repairs": frozenset({
+        "id", "aggregate_id", "event_type", "event_seq", "error",
+        "retry_count", "status", "created_at", "last_retry_at",
+    }),
+}
+
+# Kernel-owned projections (event-sourced read models + event log).
+GOVERNED_TABLES: frozenset[str] = frozenset(GOVERNED_SCHEMA.keys())
+
+# Application storage (direct read/write outside Kernel ABI is allowed).
+APP_STORAGE_TABLES: frozenset[str] = frozenset(APP_STORAGE_SCHEMA.keys())
+
 ALL_CLASSIFIED_TABLES = GOVERNED_TABLES | APP_STORAGE_TABLES
+
+# Invariants check.
+if __debug__:
+    assert GOVERNED_TABLES.isdisjoint(APP_STORAGE_TABLES), (
+        f"Overlap between GOVERNED and APP_STORAGE: {GOVERNED_TABLES & APP_STORAGE_TABLES}"
+    )

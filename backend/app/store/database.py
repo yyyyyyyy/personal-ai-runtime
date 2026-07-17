@@ -10,7 +10,7 @@ import sqlite3
 import threading
 from contextlib import contextmanager
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Generator
 
 from app.config import settings
 
@@ -55,15 +55,20 @@ class Database:
 
         ensure_schema(self)
 
+    def _setup_connection(self, conn: sqlite3.Connection) -> sqlite3.Connection:
+        """Apply standard configuration to any new connection."""
+        conn.row_factory = sqlite3.Row
+        conn.execute("PRAGMA foreign_keys=ON")
+        conn.execute("PRAGMA busy_timeout=5000")
+        return conn
+
     def _get_connection(self) -> sqlite3.Connection:
         # Check if there's an open connection for this db_path in the current thread.
         connections = _tls_connections()
         conn = connections.get(self.db_path)
         if conn is None:
             conn = sqlite3.connect(self.db_path, timeout=30.0)
-            conn.row_factory = sqlite3.Row
-            conn.execute("PRAGMA foreign_keys=ON")
-            conn.execute("PRAGMA busy_timeout=5000")
+            self._setup_connection(conn)
             connections[self.db_path] = conn
         return conn
 
@@ -78,7 +83,7 @@ class Database:
                 pass
 
     @contextmanager
-    def get_db(self):
+    def get_db(self) -> Generator[sqlite3.Connection, None, None]:
         conn = self._get_connection()
         try:
             yield conn
@@ -107,10 +112,7 @@ class Database:
         transaction scope (e.g. import_event_log_rows).
         """
         conn = sqlite3.connect(self.db_path, timeout=30.0)
-        conn.row_factory = sqlite3.Row
-        conn.execute("PRAGMA foreign_keys=ON")
-        conn.execute("PRAGMA busy_timeout=5000")
-        return conn
+        return self._setup_connection(conn)
 
     # --- WAL checkpoint — call periodically to keep the WAL file bounded ---
 
@@ -119,9 +121,15 @@ class Database:
 
         PASSIVE is safe to call at any time without blocking readers/writers.
         """
+        # Whitelist modes to prevent SQL injection and ensure valid PRAGMA usage.
+        allowed_modes = {"PASSIVE", "FULL", "RESTART", "TRUNCATE"}
+        mode_upper = mode.upper()
+        if mode_upper not in allowed_modes:
+            raise ValueError(f"Invalid WAL checkpoint mode: {mode}. Must be one of {allowed_modes}")
+
         conn = self._get_connection()
         try:
-            conn.execute(f"PRAGMA wal_checkpoint({mode})")
+            conn.execute(f"PRAGMA wal_checkpoint({mode_upper})")
         except Exception:
             logger.debug("WAL checkpoint failed", exc_info=True)
 

@@ -25,40 +25,25 @@ def apply_projection_ddl(db: Database) -> None:
     These tables are owned by Kernel projectors; production DBs apply them
     after the Alembic baseline. All columns are part of the CREATE statements.
     """
-    from app.core.runtime.kernel.projectors_governance import POLICY_DDL
-    from app.core.runtime.kernel.projectors_inbox import TIMER_DDL
-    from app.store.schema_ddl import MEMORY_INDEX_REPAIRS_SCHEMA
+    from app.store.schema_ddl import (
+        MEMORY_INDEX_REPAIRS_SCHEMA,
+        POLICY_EVENTS_SCHEMA,
+        TIMER_EVENTS_SCHEMA,
+    )
 
     with db.get_db() as conn:
-        conn.executescript(TIMER_DDL)
-        conn.executescript(POLICY_DDL)
+        conn.executescript(TIMER_EVENTS_SCHEMA)
+        conn.executescript(POLICY_EVENTS_SCHEMA)
         conn.executescript(MEMORY_INDEX_REPAIRS_SCHEMA)
 
 
 def apply_raw_ddl(db: Database) -> None:
     """Apply inline DDL for test/custom databases (no Alembic)."""
-    from app.store.schema_ddl import (
-        APP_STORAGE_DDL,
-        APP_STORAGE_DDL_TAIL,
-        EVENT_LOG_SCHEMA,
-        HANDLER_EXECUTIONS_SCHEMA,
-        MEMORY_INDEX_REPAIRS_SCHEMA,
-        POLICY_EVENTS_SCHEMA,
-        PROJECTION_CHECKPOINTS_SCHEMA,
-        TIMER_EVENTS_SCHEMA,
-        WORK_ITEMS_SCHEMA,
-    )
+    from app.store.schema_ddl import ALL_SCHEMAS
 
     with db.get_db() as conn:
-        conn.executescript(APP_STORAGE_DDL)
-        conn.executescript(WORK_ITEMS_SCHEMA)
-        conn.executescript(APP_STORAGE_DDL_TAIL)
-        conn.executescript(EVENT_LOG_SCHEMA)
-        conn.executescript(PROJECTION_CHECKPOINTS_SCHEMA)
-        conn.executescript(HANDLER_EXECUTIONS_SCHEMA)
-        conn.executescript(TIMER_EVENTS_SCHEMA)
-        conn.executescript(POLICY_EVENTS_SCHEMA)
-        conn.executescript(MEMORY_INDEX_REPAIRS_SCHEMA)
+        for schema in ALL_SCHEMAS:
+            conn.executescript(schema)
 
 
 def ensure_schema(db: Database) -> None:
@@ -75,9 +60,5 @@ def ensure_schema(db: Database) -> None:
         apply_raw_ddl(db)
         return
 
-    # Projector-owned tables are not declared in Alembic; ensure they exist.
+    # Projector-owned tables are re-ensured idempotently after Alembic baseline.
     apply_projection_ddl(db)
-
-    from app.store.schema_ddl import WORK_ITEMS_SCHEMA
-    with db.get_db() as conn:
-        conn.executescript(WORK_ITEMS_SCHEMA)

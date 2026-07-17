@@ -21,8 +21,10 @@ config = context.config
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
-# Use the project's SQLite path
-DB_URL = f"sqlite:///{settings.sqlite_path}"
+# Use the project's SQLite path, but allow override via config (e.g. from runner)
+DB_URL = config.get_main_option("sqlalchemy.url")
+if not DB_URL or "driver://user:pass" in DB_URL:
+    DB_URL = f"sqlite:///{settings.sqlite_path}"
 
 
 def run_migrations_offline() -> None:

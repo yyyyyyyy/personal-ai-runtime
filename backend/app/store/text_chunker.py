@@ -30,20 +30,23 @@ def _encoder() -> tiktoken.Encoding:
         try:
             _ENCODER = tiktoken.get_encoding("cl100k_base")
         except Exception:
-            # Fallback: p50k (text-davinci). If that fails too, we degrade
-            # gracefully to character-based estimates.
             try:
                 _ENCODER = tiktoken.get_encoding("p50k_base")
             except Exception:
-                _ENCODER = None  # type: ignore[assignment]
+                pass
     return _ENCODER  # type: ignore[return-value]
 
 
 def count_tokens(text: str) -> int:
     """Token count via tiktoken; degrades to char/4 estimate if unavailable."""
+    if not text:
+        return 0
     enc = _encoder()
     if enc is not None:
-        return len(enc.encode(text))
+        try:
+            return len(enc.encode(text, disallowed_special=()))
+        except Exception:
+            return len(enc.encode(text))
     return max(1, len(text) // 4)
 
 
@@ -54,164 +57,198 @@ class ChunkConfig:
     max_tokens: int = 1500
 
 
-_CODE_FENCE_RE = re.compile(r"^(`{3,}|~{3,})", re.MULTILINE)
-_HEADING_RE = re.compile(r"^#{1,6}\s", re.MULTILINE)
+_CODE_FENCE_START_RE = re.compile(r"^(`{3,}|~{3,})")
+_HEADING_RE = re.compile(r"^#{1,6}\s")
 
 
 def chunk_text(text: str, config: ChunkConfig | None = None) -> list[str]:
-    """Chunk text into token-bounded, structure-aware pieces.
+    """Chunk text into token-bounded, structure-aware pieces with overlap support.
 
     Strategy:
-    1. Split into structural blocks (code fences kept whole; markdown headings
-       and blank-line-separated paragraphs form block boundaries).
-    2. Greedily accumulate blocks into chunks up to target_tokens.
-    3. When a chunk is full, start the next chunk with the last overlap_tokens
-       worth of text from the previous chunk for continuity.
-    4. Any single block larger than max_tokens is hard-split by sentences.
+    1. Break text into atomic structural blocks (sentences, code blocks, headings).
+    2. Greedily accumulate atoms into chunks up to target_tokens, accounting for 
+       separator overhead.
+    3. When a chunk is full, start the next chunk with a tail of atoms from the 
+       previous chunk to satisfy overlap_tokens (providing continuity).
+    4. Any single atom larger than max_tokens is hard-split by token window, 
+       preserving word boundaries where possible.
     """
     cfg = config or ChunkConfig()
     if not text or not text.strip():
         return []
 
-    blocks = _split_structural_blocks(text)
+    # 1. Break into atomic blocks (sentences, code blocks, headings)
+    atoms = _get_atoms(text)
+    
     chunks: list[str] = []
-    current_parts: list[str] = []
+    current_atoms: list[str] = []
     current_tokens = 0
-
-    def _flush() -> None:
-        nonlocal current_parts, current_tokens
-        if current_parts:
-            chunk = "\n\n".join(current_parts).strip()
-            if chunk:
-                chunks.append(chunk)
-            current_parts = []
-            current_tokens = 0
-
-    for block in blocks:
-        block_tokens = count_tokens(block)
-
-        # Hard-split oversized blocks by sentence.
-        if block_tokens > cfg.max_tokens:
-            _flush()
-            for piece in _split_oversized(block, cfg):
-                chunks.append(piece)
+    
+    i = 0
+    while i < len(atoms):
+        atom = atoms[i]
+        atom_tokens = count_tokens(atom)
+        
+        # Handle oversized atom (hard split)
+        if atom_tokens > cfg.max_tokens:
+            # Flush current if any
+            if current_atoms:
+                chunks.append("\n\n".join(current_atoms).strip())
+                current_atoms = []
+                current_tokens = 0
+            
+            # Hard split the big atom
+            remaining = atom
+            while count_tokens(remaining) > cfg.target_tokens:
+                head, remaining = _hard_token_split(remaining, cfg.target_tokens)
+                chunks.append(head.strip())
+                # For hard-split overlap, we take tail of head
+                if cfg.overlap_tokens > 0:
+                    overlap = _get_tail_text(head, cfg.overlap_tokens)
+                    remaining = overlap + " " + remaining
+            
+            if remaining.strip():
+                current_atoms = [remaining]
+                current_tokens = count_tokens(remaining)
+            i += 1
             continue
 
-        # If this single block already exceeds the target, emit it as its own
-        # chunk (or sentence-split it) rather than silently accumulating.
-        if block_tokens > cfg.target_tokens:
-            if current_parts:
-                _flush()
-            for piece in _split_oversized(block, cfg):
-                chunks.append(piece)
-            continue
+        # Normal accumulation
+        # Add 2 tokens overhead for "\n\n" if not first
+        overhead = 2 if current_atoms else 0
+        
+        if current_tokens + atom_tokens + overhead > cfg.target_tokens and current_atoms:
+            # Emit chunk
+            chunks.append("\n\n".join(current_atoms).strip())
+            
+            # Start next chunk with overlap
+            if cfg.overlap_tokens > 0:
+                # Find how many atoms to keep for overlap
+                overlap_buffer: list[str] = []
+                overlap_tokens = 0
+                for back_atom in reversed(current_atoms):
+                    back_tokens = count_tokens(back_atom)
+                    if overlap_tokens + back_tokens > cfg.overlap_tokens and overlap_buffer:
+                        break
+                    overlap_buffer.insert(0, back_atom)
+                    overlap_tokens += back_tokens + 2
+                
+                current_atoms = overlap_buffer
+                current_tokens = overlap_tokens
+            else:
+                current_atoms = []
+                current_tokens = 0
+        
+        current_atoms.append(atom)
+        current_tokens += atom_tokens + overhead
+        i += 1
 
-        if current_tokens + block_tokens > cfg.target_tokens and current_parts:
-            _flush()
-            current_parts = []
-            current_tokens = 0
-
-        current_parts.append(block)
-        current_tokens += block_tokens
-
-    _flush()
+    if current_atoms:
+        final = "\n\n".join(current_atoms).strip()
+        if final:
+            chunks.append(final)
+            
     return chunks
 
 
-def _split_structural_blocks(text: str) -> list[str]:
-    """Split text into blocks, keeping code fences intact."""
+def _get_atoms(text: str) -> list[str]:
+    """Split text into atomic structural blocks (sentences, code blocks, headings)."""
     lines = text.split("\n")
-    blocks: list[str] = []
+    atoms: list[str] = []
     buffer: list[str] = []
     in_fence = False
     fence_marker = ""
 
     for line in lines:
         stripped = line.lstrip()
-        is_fence = bool(re.match(r"^(`{3,}|~{3,})", stripped))
+        # Use startswith for speed for common case, then regex for precision
+        is_fence = (stripped.startswith("```") or stripped.startswith("~~~")) and \
+                   bool(_CODE_FENCE_START_RE.match(stripped))
 
         if is_fence and not in_fence:
-            # Flush paragraph buffer before starting a code block
             if buffer:
-                _emit_block(blocks, buffer)
+                atoms.extend(_split_into_sentences("\n".join(buffer)))
                 buffer = []
             in_fence = True
             fence_marker = stripped[:3]
             buffer.append(line)
         elif in_fence:
             buffer.append(line)
-            # Closing fence matches the opening marker
             if stripped.startswith(fence_marker) and len(stripped) <= len(fence_marker) + 1:
-                _emit_block(blocks, buffer)
+                atoms.append("\n".join(buffer).strip())
                 buffer = []
                 in_fence = False
-                fence_marker = ""
         else:
-            buffer.append(line)
-            # Blank line or heading ends a paragraph block
-            if stripped == "" or _HEADING_RE.match(stripped):
-                _emit_block(blocks, buffer)
-                buffer = []
+            if _HEADING_RE.match(stripped):
+                if buffer:
+                    atoms.extend(_split_into_sentences("\n".join(buffer)))
+                    buffer = []
+                atoms.append(line.strip())
+            elif stripped == "":
+                if buffer:
+                    atoms.extend(_split_into_sentences("\n".join(buffer)))
+                    buffer = []
+            else:
+                buffer.append(line)
 
     if buffer:
-        _emit_block(blocks, buffer)
-    return [b for b in blocks if b.strip()]
+        atoms.extend(_split_into_sentences("\n".join(buffer)))
+    
+    return [a for a in atoms if a.strip()]
 
 
-def _emit_block(blocks: list[str], buffer: list[str]) -> None:
-    text = "\n".join(buffer).strip()
-    if text:
-        blocks.append(text)
+def _split_into_sentences(text: str) -> list[str]:
+    """Split a paragraph into sentences."""
+    if not text.strip():
+        return []
+    # Split by sentence boundaries but keep the punctuation
+    # This regex looks for punctuation followed by space
+    parts = re.split(r"(?<=[。！？.?!\n])\s+", text)
+    return [p.strip() for p in parts if p.strip()]
 
 
-def _split_oversized(block: str, cfg: ChunkConfig) -> list[str]:
-    """Split a block larger than max_tokens by sentences, then by tokens."""
-    # Prefer sentence boundaries for readability.
-    sentences = re.split(r"(?<=[。！？.?!\n])\s+", block)
-    pieces: list[str] = []
-    current = ""
-    current_t = 0
-
-    for sent in sentences:
-        st = count_tokens(sent)
-        if current_t + st > cfg.target_tokens and current:
-            pieces.append(current.strip())
-            current = ""
-            current_t = 0
-        current += sent
-        current_t += st
-
-        # If a single sentence exceeds max_tokens, hard-split by token window.
-        while current_t > cfg.max_tokens:
-            hard = _hard_token_split(current, cfg.target_tokens)
-            if hard:
-                pieces.append(hard[0].strip())
-                current = hard[1]
-                current_t = count_tokens(current)
-            else:
-                break
-
-    if current.strip():
-        pieces.append(current.strip())
-    return pieces
+def _get_tail_text(text: str, target_tokens: int) -> str:
+    """Get approximately the last N tokens of text."""
+    enc = _encoder()
+    if enc is not None:
+        try:
+            ids = enc.encode(text, disallowed_special=())
+        except Exception:
+            ids = enc.encode(text)
+        if len(ids) <= target_tokens:
+            return text
+        tail_ids = ids[-target_tokens:]
+        tail = enc.decode(tail_ids)
+        # Try to start at a word boundary
+        idx = tail.find(" ")
+        if idx != -1 and idx < len(tail) // 2:
+            return tail[idx:].lstrip()
+        return tail
+    return text[-(target_tokens * 4):]
 
 
 def _hard_token_split(text: str, target: int) -> tuple[str, str]:
     """Split text at approximately target tokens, respecting word boundaries."""
     enc = _encoder()
     if enc is not None:
-        ids = enc.encode(text)
+        try:
+            ids = enc.encode(text, disallowed_special=())
+        except Exception:
+            ids = enc.encode(text)
+        
         if len(ids) <= target:
             return text, ""
-        # Decode the first target tokens, trim back to last space for safety.
+        
         head_ids = ids[:target]
         head = enc.decode(head_ids)
-        # Walk back to a whitespace boundary
+        # Walk back to a whitespace boundary to avoid cutting words
         idx = head.rfind(" ")
-        if idx > target // 2:
+        if idx > len(head) // 2:
             head = head[:idx]
-        tail = text[len(head):]
-        return head, tail.lstrip()
+        
+        tail = text[len(head):].lstrip()
+        return head, tail
+        
     # Char fallback
     char_target = target * 4
     idx = text.rfind(" ", 0, char_target)

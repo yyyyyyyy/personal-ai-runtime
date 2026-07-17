@@ -55,17 +55,18 @@ def count_fragments() -> int:
 
 
 def count_governed_tables() -> int:
-    """Count tables in GOVERNED_TABLES frozenset declaration."""
+    """Count tables in GOVERNED_SCHEMA dictionary declaration."""
     table_reg = ROOT / "backend" / "app" / "store" / "table_registry.py"
     text = table_reg.read_text(encoding="utf-8")
-    # Match the type-annotated frozenset: GOVERNED_TABLES: frozenset[str] = frozenset({...})
+    # Match the schema dictionary: GOVERNED_SCHEMA: dict[...] = {...}
+    # Matches everything until the closing brace at the start of a line.
     match = re.search(
-        r"GOVERNED_TABLES.*?frozenset\(\{(.*?)\}\)", text, re.DOTALL
+        r"GOVERNED_SCHEMA.*?=\s*\{(.*?)\n\}", text, re.DOTALL
     )
     if not match:
         return -1
-    # Count quoted table names
-    return len(re.findall(r'"([^"]+)"', match.group(1)))
+    # Count quoted keys (table names) followed by : frozenset
+    return len(re.findall(r'"([^"]+)"\s*:\s*frozenset', match.group(1)))
 
 
 def count_projector_files() -> int:

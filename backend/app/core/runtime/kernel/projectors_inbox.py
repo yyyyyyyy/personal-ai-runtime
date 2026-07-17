@@ -65,23 +65,7 @@ def _on_inbox_email_flag_set(event: Event, conn) -> None:
 
 
 # --- Timer projection (folded here to keep runtime_files zero-sum) ----------
-
-TIMER_DDL = """
-CREATE TABLE IF NOT EXISTS timer_events (
-    id               TEXT PRIMARY KEY,
-    handler_name     TEXT NOT NULL,
-    schedule_type    TEXT NOT NULL DEFAULT 'cron',
-    cron_expr        TEXT NOT NULL DEFAULT '',
-    delay_seconds    REAL NOT NULL DEFAULT 0,
-    fire_at          TEXT NOT NULL DEFAULT '',
-    status           TEXT NOT NULL DEFAULT 'active',
-    payload_json     TEXT DEFAULT '{}',
-    created_at       TEXT NOT NULL,
-    fired_at         TEXT NOT NULL DEFAULT ''
-);
-CREATE INDEX IF NOT EXISTS idx_timer_events_status
-    ON timer_events (status, fire_at);
-"""
+# timer_events DDL lives in app.store.schema_ddl.TIMER_EVENTS_SCHEMA.
 
 
 @projector("TimerCreated")

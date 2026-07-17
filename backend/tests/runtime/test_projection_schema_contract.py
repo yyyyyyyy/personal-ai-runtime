@@ -8,6 +8,7 @@ from app.core.runtime.kernel import Kernel
 from app.store.database import Database
 from app.store.table_registry import (
     ALL_CLASSIFIED_TABLES,
+    APP_STORAGE_SCHEMA,
     APP_STORAGE_TABLES,
     GOVERNED_SCHEMA,
     GOVERNED_TABLES,
@@ -19,8 +20,8 @@ def _table_columns(conn, table: str) -> set[str]:
     return {r[1] for r in rows}
 
 
-def _assert_governed_columns(conn) -> None:
-    for table, expected_cols in GOVERNED_SCHEMA.items():
+def _assert_schema_contract(conn, schema: dict[str, frozenset[str]]) -> None:
+    for table, expected_cols in schema.items():
         actual = _table_columns(conn, table)
         assert actual == set(expected_cols), (
             f"{table}: expected {sorted(expected_cols)}, got {sorted(actual)}"
@@ -48,15 +49,18 @@ def test_all_business_tables_classified(tmp_path):
     assert not unclassified, f"Unclassified tables: {unclassified}"
 
 
-def test_governed_projection_columns_match_contract(tmp_path):
+def test_projection_columns_match_contract(tmp_path):
     db = Database(db_path=str(tmp_path / "schema.db"))
     Kernel(db=db)
 
     with db.get_db() as conn:
-        _assert_governed_columns(conn)
+        # Check governed projections
+        _assert_schema_contract(conn, GOVERNED_SCHEMA)
+        # Check app storage
+        _assert_schema_contract(conn, APP_STORAGE_SCHEMA)
 
 
-def test_governed_projection_columns_match_contract_alembic_path(tmp_path, monkeypatch):
+def test_projection_columns_match_contract_alembic_path(tmp_path, monkeypatch):
     """Alembic production path must satisfy the same column contract as raw DDL."""
     prod_path = str(tmp_path / "prod_schema.db")
     monkeypatch.setattr("app.config.settings.sqlite_path", prod_path)
@@ -67,4 +71,5 @@ def test_governed_projection_columns_match_contract_alembic_path(tmp_path, monke
     ensure_schema(Database(db_path=prod_path))
 
     with Database(db_path=prod_path).get_db() as conn:
-        _assert_governed_columns(conn)
+        _assert_schema_contract(conn, GOVERNED_SCHEMA)
+        _assert_schema_contract(conn, APP_STORAGE_SCHEMA)

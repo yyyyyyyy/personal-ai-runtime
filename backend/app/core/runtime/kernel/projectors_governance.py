@@ -12,21 +12,6 @@ from .projectors_registry import _OWNED_TABLES, projector
 
 _OWNED_TABLES[AGGREGATE_POLICY] = ["policy_events"]
 
-POLICY_DDL = """
-CREATE TABLE IF NOT EXISTS policy_events (
-    id               TEXT PRIMARY KEY,
-    capability       TEXT NOT NULL,
-    risk_level       TEXT NOT NULL DEFAULT 'low',  -- low | high | forbidden
-    status           TEXT NOT NULL DEFAULT 'active',  -- active | revoked
-    created_at       TEXT NOT NULL,
-    updated_at       TEXT NOT NULL
-);
-CREATE INDEX IF NOT EXISTS idx_policy_events_capability
-    ON policy_events (capability);
-CREATE INDEX IF NOT EXISTS idx_policy_events_status
-    ON policy_events (status);
-"""
-
 
 def _invalidate_risk_cache() -> None:
     """Policy table changed — drop CapabilityGovernance risk cache."""
