@@ -48,6 +48,20 @@ class QueryStateMixin:  # type: ignore[attr-defined]  # mixed into Kernel which 
             return self._query_memories(filters)
         raise ValueError(f"count_state not implemented for selector: {selector!r}")
 
+    def aggregate_state(self, selector: str, **filters: Any) -> Any:
+        """SQL aggregations over governed projections (no silent row caps)."""
+        if selector == "llm_calls_summary":
+            return qb.aggregate_llm_calls_summary(self._db, filters)
+        if selector == "llm_calls_by_model":
+            return qb.aggregate_llm_calls_by_model(self._db, filters)
+        if selector == "tool_calls_summary":
+            return qb.aggregate_tool_calls_summary(self._db, filters)
+        if selector == "call_failure_rates":
+            return qb.aggregate_call_failure_rates(self._db, filters)
+        if selector == "memory_stats":
+            return qb.aggregate_memory_stats(self._db, filters)
+        raise ValueError(f"Unknown aggregate selector: {selector!r}")
+
     def _query_work_items(self, filters: dict[str, Any]) -> list[dict]:
         return qb.query_work_items(self._db, filters)
 

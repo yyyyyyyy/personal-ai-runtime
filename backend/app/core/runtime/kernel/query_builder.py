@@ -732,3 +732,35 @@ def query_tool_calls(db, filters: dict[str, Any]) -> list[dict]:
 def query_llm_calls(db, filters: dict[str, Any]) -> list[dict]:
     from app.store.telemetry_queries import select_telemetry_rows
     return select_telemetry_rows(db, "llm_calls", filters)
+
+
+def aggregate_llm_calls_summary(db, filters: dict[str, Any]) -> dict:
+    from app.store.telemetry_queries import aggregate_llm_summary
+
+    return aggregate_llm_summary(db, days=filters.get("since_days", 7))
+
+
+def aggregate_llm_calls_by_model(db, filters: dict[str, Any]) -> list[dict]:
+    from app.store.telemetry_queries import aggregate_llm_by_model
+
+    return aggregate_llm_by_model(db, days=filters.get("since_days", 7))
+
+
+def aggregate_tool_calls_summary(db, filters: dict[str, Any]) -> list[dict]:
+    from app.store.telemetry_queries import aggregate_tool_summary
+
+    return aggregate_tool_summary(db, days=filters.get("since_days", 7))
+
+
+def aggregate_call_failure_rates(db, filters: dict[str, Any]) -> dict:
+    from app.store.telemetry_queries import aggregate_call_failure_rates as _agg
+
+    return _agg(db, days=int(filters.get("since_days", 1) or 1))
+
+
+def aggregate_memory_stats(db, filters: dict[str, Any] | None = None) -> dict:
+    """Memory totals / categories / recent_7d via SQL COUNT (no row cap)."""
+    del filters  # reserved for future filters
+    from app.store.memory_queries import aggregate_memory_stats as _agg
+
+    return _agg(db)

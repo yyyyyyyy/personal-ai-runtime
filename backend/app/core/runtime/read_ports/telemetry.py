@@ -30,6 +30,26 @@ def query_tool_calls(
     return kernel().query_state("tool_calls", **filters)
 
 
+def summarize_llm_calls(*, days: int = 7) -> dict[str, Any]:
+    """Full-window LLM cost/token/latency summary (SQL aggregate)."""
+    return kernel().aggregate_state("llm_calls_summary", since_days=days)
+
+
+def summarize_llm_calls_by_model(*, days: int = 7) -> list[dict[str, Any]]:
+    """LLM totals grouped by provider+model (SQL aggregate)."""
+    return kernel().aggregate_state("llm_calls_by_model", since_days=days)
+
+
+def summarize_tool_calls(*, days: int = 7) -> list[dict[str, Any]]:
+    """Tool-call totals grouped by tool_name (SQL aggregate)."""
+    return kernel().aggregate_state("tool_calls_summary", since_days=days)
+
+
+def summarize_call_failure_rates(*, days: int = 1) -> dict[str, Any]:
+    """LLM/tool failure rates over a window (SQL aggregate)."""
+    return kernel().aggregate_state("call_failure_rates", since_days=days)
+
+
 def query_recent_tool_names(*, limit: int = 3) -> list[str]:
     """Return the names of the most recently invoked capabilities."""
     try:
@@ -42,4 +62,3 @@ def query_recent_tool_names(*, limit: int = 3) -> list[str]:
         return names[:limit]
     except Exception:
         return []
-

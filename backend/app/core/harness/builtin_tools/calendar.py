@@ -78,6 +78,7 @@ class CalendarServer:
                     "location": _ics_prop(block, "LOCATION") or "",
                     "all_day": all_day,
                     "file": ics_file.name,
+                    "uid": _ics_prop(block, "UID") or "",
                     "_sort_date": _event_date(start_val),
                 })
         return events

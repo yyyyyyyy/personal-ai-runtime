@@ -81,6 +81,11 @@ def count_memories(
     return kernel().count_state("memories", **filters)
 
 
+def summarize_memory_stats() -> dict[str, Any]:
+    """Memory totals / categories / recent_7d via SQL COUNT."""
+    return kernel().aggregate_state("memory_stats")
+
+
 def build_memory_graph_edges(sources: list[dict]) -> list[dict]:
     """Build similarity edges via MemoryIndexPort batch search (sync, for to_thread)."""
     if not sources:

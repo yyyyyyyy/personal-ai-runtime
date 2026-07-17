@@ -54,6 +54,7 @@ from app.core.runtime.read_ports.memory import (
     query_memory,
     retrieve_memory_context,
     retrieve_memory_with_sources,
+    summarize_memory_stats,
 )
 from app.core.runtime.read_ports.notifications import (
     query_notification,
@@ -67,6 +68,10 @@ from app.core.runtime.read_ports.telemetry import (
     query_llm_calls,
     query_recent_tool_names,
     query_tool_calls,
+    summarize_call_failure_rates,
+    summarize_llm_calls,
+    summarize_llm_calls_by_model,
+    summarize_tool_calls,
 )
 from app.core.runtime.read_ports.timers import (
     query_active_policies,
@@ -101,6 +106,7 @@ __all__ = [
     "count_completed_goals",
     "count_goals",
     "count_memories",
+    "summarize_memory_stats",
     "query_pending_actions",
     "query_top_active_goals",
     "query_stagnant_goals",
@@ -140,6 +146,10 @@ __all__ = [
     "query_llm_calls",
     "query_tool_calls",
     "query_recent_tool_names",
+    "summarize_llm_calls",
+    "summarize_llm_calls_by_model",
+    "summarize_tool_calls",
+    "summarize_call_failure_rates",
     "query_world_context",
     "query_calendar_upcoming",
     "query_calendar_today_events",

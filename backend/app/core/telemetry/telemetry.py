@@ -4,26 +4,17 @@ Telemetry writes flow exclusively through the Kernel as ``LLMCallRecorded`` /
 ``CapabilityInvoked`` events (see ``brain_telemetry.record_llm_call`` and
 ``projectors_telemetry``).
 
-Governed-table reads go through ``kernel.query_state`` (``llm_calls`` /
-``tool_calls`` / ``memories`` / ``work_items``). Direct SQL is reserved for
-APP_STORAGE (``memory_index_repairs``).
+Governed-table reads go through ``kernel.query_state`` / ``aggregate_state``
+(``llm_calls`` / ``tool_calls`` / ``memories`` / ``work_items``). Direct SQL is
+reserved for APP_STORAGE (``memory_index_repairs``).
 """
 
-from collections import Counter, defaultdict
-from datetime import UTC, datetime, timedelta
+import logging
 
 from app.core.runtime import read_ports
 from app.store.database import db
 
-
-def _parse_utc_datetime(value: str) -> datetime | None:
-    try:
-        dt = datetime.fromisoformat(value.replace("Z", "+00:00"))
-    except (ValueError, TypeError):
-        return None
-    if dt.tzinfo is None:
-        return dt.replace(tzinfo=UTC)
-    return dt.astimezone(UTC)
+logger = logging.getLogger(__name__)
 
 
 class Telemetry:
@@ -31,108 +22,15 @@ class Telemetry:
 
     def get_llm_summary(self, days: int = 7) -> dict:
         """Get cost/token/latency summary for recent LLM calls."""
-        rows = read_ports.query_llm_calls(days=days, limit=5000)
-        total = failed = 0
-        total_prompt = total_completion = total_cost = 0
-        latencies: list[float] = []
-        for r in rows:
-            total += 1
-            total_prompt += r.get("prompt_tokens", 0) or 0
-            total_completion += r.get("completion_tokens", 0) or 0
-            total_cost += r.get("cost", 0) or 0
-            lat = r.get("latency_ms")
-            if lat is not None:
-                latencies.append(float(lat))
-            if not r.get("success", 1):
-                failed += 1
-        return {
-            "total_calls": total,
-            "total_prompt_tokens": total_prompt,
-            "total_completion_tokens": total_completion,
-            "total_cost": total_cost,
-            "avg_latency_ms": sum(latencies) / len(latencies) if latencies else 0,
-            "failed_calls": failed,
-        }
+        return read_ports.summarize_llm_calls(days=days)
 
     def get_llm_summary_by_model(self, days: int = 7) -> list[dict]:
         """Get token/cost breakdown grouped by provider and model."""
-        rows = read_ports.query_llm_calls(days=days, limit=5000)
-        groups: dict[tuple[str, str], dict] = {}
-        for r in rows:
-            key = (str(r.get("provider") or ""), str(r.get("model") or ""))
-            g = groups.get(key)
-            if g is None:
-                g = {
-                    "provider": key[0],
-                    "model": key[1],
-                    "total_calls": 0,
-                    "prompt_tokens": 0,
-                    "completion_tokens": 0,
-                    "total_tokens": 0,
-                    "cost": 0.0,
-                    "latency_sum": 0.0,
-                    "latency_n": 0,
-                    "failed_calls": 0,
-                }
-                groups[key] = g
-            g["total_calls"] += 1
-            prompt = r.get("prompt_tokens", 0) or 0
-            completion = r.get("completion_tokens", 0) or 0
-            g["prompt_tokens"] += prompt
-            g["completion_tokens"] += completion
-            g["total_tokens"] += prompt + completion
-            g["cost"] += float(r.get("cost", 0) or 0)
-            lat = r.get("latency_ms")
-            if lat is not None:
-                g["latency_sum"] += float(lat)
-                g["latency_n"] += 1
-            if not r.get("success", 1):
-                g["failed_calls"] += 1
-
-        result = []
-        for g in groups.values():
-            result.append({
-                "provider": g["provider"],
-                "model": g["model"],
-                "total_calls": g["total_calls"],
-                "prompt_tokens": g["prompt_tokens"],
-                "completion_tokens": g["completion_tokens"],
-                "total_tokens": g["total_tokens"],
-                "cost": g["cost"],
-                "avg_latency_ms": (g["latency_sum"] / g["latency_n"]) if g["latency_n"] else 0,
-                "failed_calls": g["failed_calls"],
-            })
-        result.sort(key=lambda x: x["total_tokens"], reverse=True)
-        return result
+        return read_ports.summarize_llm_calls_by_model(days=days)
 
     def get_tool_summary(self, days: int = 7) -> list[dict]:
         """Get tool call success rate and latency summary."""
-        rows = read_ports.query_tool_calls(days=days, limit=5000)
-        groups: dict[str, dict] = defaultdict(lambda: {
-            "total_calls": 0,
-            "failed_calls": 0,
-            "latency_sum": 0.0,
-            "latency_n": 0,
-        })
-        for r in rows:
-            name = str(r.get("tool_name") or "")
-            g = groups[name]
-            g["total_calls"] += 1
-            if not r.get("success", 1):
-                g["failed_calls"] += 1
-            lat = r.get("latency_ms")
-            if lat is not None:
-                g["latency_sum"] += float(lat)
-                g["latency_n"] += 1
-        return [
-            {
-                "tool_name": name,
-                "total_calls": g["total_calls"],
-                "failed_calls": g["failed_calls"],
-                "avg_latency_ms": (g["latency_sum"] / g["latency_n"]) if g["latency_n"] else 0,
-            }
-            for name, g in groups.items()
-        ]
+        return read_ports.summarize_tool_calls(days=days)
 
     def get_llm_calls(self, limit: int = 50, offset: int = 0) -> list[dict]:
         return read_ports.query_llm_calls(limit=limit, offset=offset)
@@ -142,38 +40,35 @@ class Telemetry:
 
     def get_memory_stats(self) -> dict:
         """Get memory system stats: total count, categories, recent additions."""
-        memories = read_ports.query_memories(limit=5000)
-        cutoff = datetime.now(UTC) - timedelta(days=7)
-        recent_count = 0
-        for mem in memories:
-            created = mem.get("created_at")
-            if not created:
-                continue
-            created_dt = _parse_utc_datetime(created)
-            if created_dt and created_dt >= cutoff:
-                recent_count += 1
-        return {
-            "total_memories": len(memories),
-            "categories": dict(Counter(m.get("category") or "unknown" for m in memories)),
-            "recent_7d": recent_count,
-        }
+        return read_ports.summarize_memory_stats()
 
     def get_health(self) -> dict:
         """Get runtime health snapshot."""
-        queue_len = sum(
-            len(read_ports.query_work_items(status=status, limit=5000))
-            for status in ("pending", "running", "blocked")
-        )
-        llm_rows = read_ports.query_llm_calls(days=1, limit=5000)
-        tool_rows = read_ports.query_tool_calls(days=1, limit=5000)
-        llm_count = len(llm_rows)
-        llm_fail = sum(1 for r in llm_rows if not r.get("success", 1))
-        tool_count = len(tool_rows)
-        tool_fail = sum(1 for r in tool_rows if not r.get("success", 1))
+        from app.core.runtime.read_ports._common import kernel
+
+        active_work_items = 0
+        for status in ("pending", "running", "blocked"):
+            try:
+                active_work_items += int(
+                    kernel().count_state("work_items", status=status)
+                )
+            except Exception:
+                logger.warning(
+                    "telemetry health: count_state(work_items, status=%r) failed",
+                    status,
+                    exc_info=True,
+                )
+
+        rates = read_ports.summarize_call_failure_rates(days=1)
         return {
-            "task_queue_length": queue_len,
-            "llm_failure_rate_24h": round(llm_fail / llm_count, 4) if llm_count else 0,
-            "tool_failure_rate_24h": round(tool_fail / tool_count, 4) if tool_count else 0,
+            # Legacy key kept for API compatibility.
+            "task_queue_length": active_work_items,
+            "active_work_items": active_work_items,
+            "llm_failure_rate_24h": rates.get("llm_failure_rate", 0),
+            "tool_failure_rate_24h": rates.get("tool_failure_rate", 0),
+            "sample_size_llm_24h": rates.get("sample_size_llm", 0),
+            "sample_size_tool_24h": rates.get("sample_size_tool", 0),
+            "capped": bool(rates.get("capped", False)),
             **self._memory_index_repair_counts(),
         }
 
