@@ -51,25 +51,25 @@ class ConversationManager:
     def _k(self):
         return self.kernel or default_kernel
 
+    def _query_messages(self, **filters) -> list[dict]:
+        """Projection reads always go through the bound Kernel (test-injectable)."""
+        return self._k().query_state("messages", **filters)
+
+    def _query_message(self, msg_id: str) -> dict | None:
+        rows = self._query_messages(id=msg_id, limit=1)
+        return rows[0] if rows else None
+
     def get_history(self, *, since_created_at: str | None = None) -> list[dict]:
         """Get recent messages within the sliding window.
 
         If since_created_at is provided, only return messages created after
         that timestamp (enables incremental fetching for long conversations).
         """
-        if self.kernel is not None:
-            messages = self.kernel.query_state(
-                "messages",
-                conversation_id=self.conversation_id,
-                limit=settings.max_recent_messages,
-                order="created_at_asc",
-            )
-        else:
-            messages = read_ports.query_conversation_messages(
-                self.conversation_id,
-                limit=settings.max_recent_messages,
-                order="created_at_asc",
-            )
+        messages = self._query_messages(
+            conversation_id=self.conversation_id,
+            limit=settings.max_recent_messages,
+            order="created_at_asc",
+        )
         result = []
         for msg in messages:
             if since_created_at and msg["created_at"] <= since_created_at:
@@ -124,11 +124,7 @@ class ConversationManager:
             actor=actor or _actor_for_role(role),
             correlation_id=corr or None,
         )
-        if self.kernel is not None:
-            rows = self.kernel.query_state("messages", id=msg_id)
-            row = rows[0] if rows else None
-        else:
-            row = read_ports.query_message(msg_id)
+        row = self._query_message(msg_id)
         return row if row else {
             "id": msg_id,
             "conversation_id": self.conversation_id,
@@ -165,11 +161,7 @@ class ConversationManager:
             msg_id = ev.payload.get("message_id")
             if not msg_id:
                 continue
-            if self.kernel is not None:
-                rows = self.kernel.query_state("messages", id=msg_id)
-                row = rows[0] if rows else None
-            else:
-                row = read_ports.query_message(msg_id)
+            row = self._query_message(msg_id)
             if row:
                 return row
             return {
@@ -210,11 +202,8 @@ class ConversationAPI:
             payload={"title": title or "New Conversation", "created_at": now},
             actor="user",
         )
-        if kernel is None:
-            conv = read_ports.query_conversation(conv_id)
-        else:
-            rows = k.query_state("conversations", id=conv_id)
-            conv = rows[0] if rows else None
+        rows = k.query_state("conversations", id=conv_id, limit=1)
+        conv = rows[0] if rows else None
         return conv if conv else {
             "id": conv_id,
             "title": title or "New Conversation",

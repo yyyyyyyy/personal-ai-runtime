@@ -100,10 +100,12 @@ def upgrade() -> None:
         sa.Column("cost", sa.Float(), server_default="0"),
         sa.Column("success", sa.Integer(), server_default="1"),
         sa.Column("error_message", sa.Text()),
+        sa.Column("purpose", sa.Text(), server_default="chat"),
         sa.Column("created_at", sa.DateTime(), server_default=sa.text("CURRENT_TIMESTAMP")),
     )
     op.execute("CREATE INDEX IF NOT EXISTS idx_llm_calls_created_at ON llm_calls (created_at DESC)")
     op.create_index("idx_llm_calls_model", "llm_calls", ["model"])
+    op.create_index("idx_llm_calls_purpose", "llm_calls", ["purpose"])
 
     op.create_table(
         "tool_calls",
@@ -335,6 +337,7 @@ def downgrade() -> None:
     op.drop_index("idx_tool_calls_name", table_name="tool_calls")
     op.drop_index("idx_tool_calls_created_at", table_name="tool_calls")
     op.drop_table("tool_calls")
+    op.drop_index("idx_llm_calls_purpose", table_name="llm_calls")
     op.drop_index("idx_llm_calls_model", table_name="llm_calls")
     op.drop_index("idx_llm_calls_created_at", table_name="llm_calls")
     op.drop_table("llm_calls")

@@ -2,20 +2,24 @@
 
 Not counted toward God Object LOC (Architecture Contract only measures
 ``brain.py`` + ``brain_llm_client.py``).
+
+Stream chunk assembly lives in ``brain_stream_assemble``; this module owns
+the LLM → tool → continue control loop.
 """
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import time
 import uuid
-from typing import Any, AsyncIterator
+from typing import AsyncIterator
 
 from app.config import settings
+from app.core.agents.brain_stream_assemble import AssembledStream, iter_assembled_stream
 from app.core.agents.brain_telemetry import record_llm_call
 from app.core.agents.conversation import ConversationManager
 from app.core.agents.tool_dispatcher import ToolDispatcher
-from app.core.agents.tool_markup import parse_tool_calls, strip_tool_markup
 from app.core.agents.tool_postprocess import canned_summary
 from app.core.runtime.governance.context_pipeline import get_sources
 from app.core.runtime.kernel_instance import kernel
@@ -45,16 +49,11 @@ async def chat_stream(
     if not correlation_id:
         correlation_id = f"chat-{uuid.uuid4().hex[:16]}"
     taint_registry.clear(correlation_id)
-    # Propagate turn correlation onto MessageAppended (and tool-result saves).
     conversation.correlation_id = correlation_id
 
-    # Step 1: Build the messages array
     messages = brain._build_messages(conversation, user_message, system_prompt=system_prompt)
-
-    # Step 2: Save user message
     conversation.save_user_message(user_message)
 
-    # Step 3: Run the LLM → tool call loop
     full_content = ""
     tool_iterations = 0
     cumulative_prompt_tokens = 0
@@ -70,7 +69,6 @@ async def chat_stream(
             full_content += note
             break
 
-        # Call LLM (with multi-provider fallback)
         llm_start = time.time()
         try:
             response, client, used_provider = await brain._llm.create_stream(messages)
@@ -80,102 +78,53 @@ async def chat_stream(
         if used_provider.name != brain._llm.provider.name:
             brain._llm.replace_provider(client, used_provider)
 
-        # Collect streaming response — token-level text deltas are yielded
-        # directly here so SSE streaming stays live. Tool-call assembly and
-        # markup-recovery logic lives inline because it interleaves with yields.
-        assistant_content = ""
-        assistant_content_raw = ""
-        assistant_visible = ""  # cleaned text exposed to user
-        tool_calls_data: list[dict] = []
-        current_tool_call: dict[str, int | str] = {
-            "index": -1, "id": "", "function_name": "", "arguments": "",
-        }
-        # Providers that honour stream_options return token usage on the
-        # final chunk. Default to None and fall back to tiktoken below.
-        stream_usage: Any = None
+        assembled: AssembledStream | None = None
+        async for evt in iter_assembled_stream(response):
+            if evt.get("type") == "_stream_assembled":
+                assembled = evt["result"]
+            else:
+                yield evt
 
-        async for chunk in response:
-            # Capture usage from the terminal chunk when the provider
-            # includes it (OpenAI, DeepSeek).
-            if getattr(chunk, "usage", None) is not None:
-                stream_usage = chunk.usage
-            delta = chunk.choices[0].delta if chunk.choices else None
-            if delta is None:
-                continue
+        if assembled is None:
+            yield {"type": "error", "content": "LLM stream ended without a result."}
+            return
 
-            # Text content — always strip markup from full accumulated text.
-            # Strip on every delta; emit only new visible portion.
-            if delta.content:
-                assistant_content_raw += delta.content
-                cleaned = strip_tool_markup(assistant_content_raw)
-                extra = cleaned[len(assistant_visible) :]
-                if extra:
-                    assistant_visible = cleaned
-                    yield {"type": "text_delta", "content": extra}
+        assistant_content = assembled.visible_text
+        tool_calls_data = assembled.tool_calls
 
-            # Tool calls
-            if delta.tool_calls:
-                for tc in delta.tool_calls:
-                    if tc.index is not None and tc.index != current_tool_call["index"]:
-                        # New tool call
-                        if int(current_tool_call["index"]) >= 0:
-                            tool_calls_data.append(dict(current_tool_call))
-                        current_tool_call = {
-                            "index": tc.index,
-                            "id": tc.id or "",
-                            "function_name": "",
-                            "arguments": "",
-                        }
-                    if tc.id:
-                        current_tool_call["id"] = tc.id
-                    if tc.function:
-                        if tc.function.name:
-                            current_tool_call["function_name"] += tc.function.name
-                        if tc.function.arguments:
-                            current_tool_call["arguments"] += tc.function.arguments
-
-        # Finalize last tool call
-        if int(current_tool_call["index"]) >= 0:
-            tool_calls_data.append(dict(current_tool_call))
-
-        # Recover tool calls leaked as markup in text stream
-        if not tool_calls_data and assistant_content_raw:
-            parsed, cleaned = parse_tool_calls(assistant_content_raw)
-            if parsed:
-                tool_calls_data = parsed
-                assistant_visible = cleaned
-                logger.info(
-                    "Recovered %d tool call(s) from markup in text stream",
-                    len(parsed),
-                )
-        assistant_content = assistant_visible
-
-        # Record LLM call telemetry (latency, tokens, cost).
         turn_tokens = record_llm_call(
             messages, assistant_content, llm_start,
             provider_name=used_provider.name,
             provider_model=used_provider.model,
             price_per_prompt_token=used_provider.price_per_prompt_token,
             price_per_completion_token=used_provider.price_per_completion_token,
-            usage=stream_usage,
+            usage=assembled.usage,
         )
         cumulative_prompt_tokens += turn_tokens
 
-        # If LLM returned a text response without tool calls
         if not tool_calls_data:
             full_content = assistant_content
-            if not full_content.strip():
-                full_content = await brain._llm.complete_text_only(messages, user_message)
+            if not full_content.strip() and user_message.strip():
+                # Second LLM pass only when the first stream was empty — skip
+                # whitespace-only user turns to avoid burning tokens on noise.
+                try:
+                    full_content = await asyncio.wait_for(
+                        brain._llm.complete_text_only(messages, user_message),
+                        timeout=settings.complete_text_only_timeout,
+                    )
+                except TimeoutError:
+                    logger.warning("complete_text_only timed out")
+                    full_content = ""
                 if full_content:
                     yield {"type": "text_delta", "content": full_content}
             break
 
-        # Process tool calls via ToolDispatcher
         yield {"type": "tool_call_start", "tool_calls": tool_calls_data}
 
         dispatcher = ToolDispatcher(kernel=kernel, conversation=conversation)
         iteration_tool_results: list[dict] = []
         pending_approval = False
+        _tool_messages: list[dict] = []
 
         async for evt in dispatcher.dispatch(
             tool_calls_data,
@@ -184,7 +133,6 @@ async def chat_stream(
         ):
             if evt.get("type") == "_dispatcher_done":
                 iteration_tool_results = evt.get("results", [])
-                # Defer: tool_messages added below (must be after assistant msg)
                 _tool_messages = evt.get("tool_messages", [])
             elif evt.get("type") == "confirmation_required":
                 pending_approval = True
@@ -197,7 +145,6 @@ async def chat_stream(
         if pending_approval:
             return
 
-        # Persist assistant message with tool calls FIRST
         tc_for_msg = [{
             "id": tc["id"], "type": "function",
             "function": {"name": tc["function_name"], "arguments": tc["arguments"]},
@@ -208,7 +155,6 @@ async def chat_stream(
             tool_calls=tc_for_msg if tool_calls_data else None,
         )
 
-        # Build messages: assistant (with tool_calls) → tool results (order matters for LLM)
         messages.extend(dispatcher.build_tool_call_messages(assistant_content, tool_calls_data))
         messages.extend(_tool_messages)
 
@@ -239,9 +185,6 @@ async def chat_stream(
                 }
             break
 
-    # Step 4: Persist final assistant text — including canned summaries.
-    # Intermediate tool-call turns are already saved above; this writes the
-    # user-visible reply so history reload matches the live SSE stream.
     if full_content:
         try:
             sources = get_sources(conversation.conversation_id)

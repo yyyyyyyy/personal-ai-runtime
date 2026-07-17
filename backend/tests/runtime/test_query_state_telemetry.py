@@ -50,6 +50,45 @@ def test_llm_calls_since_days_and_offset(kernel):
     assert len(recent) == 3
 
 
+def test_llm_calls_purpose_filter(kernel):
+    kernel.emit_event(
+        "LLMCallRecorded",
+        "llm_call",
+        "llm_chat",
+        payload={
+            "provider": "test",
+            "model": "m",
+            "prompt_tokens": 1,
+            "completion_tokens": 1,
+            "cost": 0.0,
+            "latency_ms": 1,
+            "success": True,
+            "purpose": "chat",
+        },
+        actor="test",
+    )
+    kernel.emit_event(
+        "LLMCallRecorded",
+        "llm_call",
+        "llm_mem",
+        payload={
+            "provider": "ollama",
+            "model": "qwen",
+            "prompt_tokens": 1,
+            "completion_tokens": 1,
+            "cost": 0.0,
+            "latency_ms": 1,
+            "success": True,
+            "purpose": "memory_extract",
+        },
+        actor="test",
+    )
+
+    rows = kernel.query_state("llm_calls", purpose="memory_extract", limit=10)
+    assert len(rows) == 1
+    assert rows[0]["purpose"] == "memory_extract"
+
+
 def test_tool_calls_tool_name_filter(kernel):
     kernel.emit_event(
         "CapabilityInvoked",

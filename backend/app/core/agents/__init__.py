@@ -1,1 +1,5 @@
-"""Agent layer — Brain, Context Engine, Conversation, LLM Router, Memory Engine."""
+"""Agent layer — Brain reasoning loop, Conversation, LLM router, Memory.
+
+Context assembly (Fragments / PromptCompiler / ContextPipeline) lives outside
+this package under ``app.chat`` and ``app.core.runtime.governance``.
+"""

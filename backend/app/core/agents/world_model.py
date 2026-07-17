@@ -1,7 +1,11 @@
-"""World Model — maintains a 30-day rolling snapshot of the user's life state.
+"""World Model — 30-day rolling snapshot for brief / planner context.
 
-Aggregates events, goals, memories, and external data into a structured context.
-Injected into Planner's system prompt on every call.
+Chat turns use the Fragment Pipeline (goals / timeline / background), not this
+module. ``to_prompt_context`` is consumed via ``read_ports.query_world_context``
+(e.g. calendar/world fragment paths and Sunday cron warm-up).
+
+Prompt reads always rebuild from governed projections so the snapshot is fresh;
+``refresh_snapshot`` still warms an optional cache for non-prompt callers.
 """
 
 import json
@@ -13,7 +17,7 @@ from app.core.runtime.read_ports import to_legacy_dict
 
 
 class WorldModel:
-    """30-day rolling user life snapshot for context injection."""
+    """30-day rolling user life snapshot for brief/planner context injection."""
 
     def __init__(self):
         self._cached_snapshot: dict | None = None
@@ -23,6 +27,7 @@ class WorldModel:
         return self._cached_snapshot
 
     def get_snapshot(self) -> dict:
+        """Return a cached snapshot if warm, otherwise build once."""
         if self._cached_snapshot is None:
             self._cached_snapshot = self.build_snapshot()
         return self._cached_snapshot
@@ -32,7 +37,6 @@ class WorldModel:
         now = datetime.now(UTC)
         thirty_days_ago = (now - timedelta(days=30)).isoformat()
 
-        # Goals are work_items(work_type='goal').
         active_goals = read_ports.query_active_goals(limit=500)
         all_goals = read_ports.query_goals(limit=500)
         completed_recently = read_ports.query_completed_goals(
@@ -64,8 +68,9 @@ class WorldModel:
         }
 
     def to_prompt_context(self) -> str:
-        """Convert snapshot to a system prompt appendix."""
-        snapshot = self.get_snapshot()
+        """Fresh snapshot rendered for LLM context (never serves a stale cache)."""
+        snapshot = self.build_snapshot()
+        self._cached_snapshot = snapshot
 
         lines = ["## Current Life Snapshot (last 30 days)"]
         lines.append(f"- Active Goals: {snapshot['health']['active_goals']}")

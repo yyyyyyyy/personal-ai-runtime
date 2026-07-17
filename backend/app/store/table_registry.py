@@ -70,7 +70,7 @@ GOVERNED_SCHEMA: dict[str, frozenset[str]] = {
     # Derived solely from LLMCallRecorded events via projectors_telemetry.py.
     "llm_calls": frozenset({
         "id", "provider", "model", "prompt_tokens", "completion_tokens",
-        "latency_ms", "cost", "success", "error_message", "created_at",
+        "latency_ms", "cost", "success", "error_message", "purpose", "created_at",
     }),
 }
 

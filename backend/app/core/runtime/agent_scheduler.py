@@ -395,6 +395,7 @@ def reset_scheduler() -> None:
 
 
 # ── Agent bootstrap (folded from agent_bootstrap.py) ─────────────────────
+# agents.handlers also pulls in runtime.handlers (capability orchestration).
 import app.core.agents.handlers  # noqa: E402,F401 — registers @subscribe handlers
 
 _started = False

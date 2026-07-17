@@ -1,9 +1,14 @@
 """Structured user profile with confidence scoring, time decay, and conflict resolution.
 
-User profile writes now go through Kernel events (UserProfileUpdated) so changes
+User profile writes go through Kernel events (UserProfileUpdated) so changes
 are recorded in the event_log and remain auditable. The `user_profile` table is
 APP_STORAGE — not a core governance projection — but the write path is unified
 through the Kernel.
+
+Boundary vs Memory:
+- UserProfile = structured category bags (preferences / values / …) for settings-like facts.
+- MemoryDerived (via MemoryExtractor) = free-form conversational facts for recall.
+Do not write free-form chat extracts into UserProfile.
 """
 
 import json

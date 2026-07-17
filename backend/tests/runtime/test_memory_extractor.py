@@ -118,11 +118,25 @@ class TestMemoryExtractor:
     async def test_schedule_holds_strong_task_reference(self):
         """schedule() must retain the task so CPython does not GC it."""
         extractor = MemoryExtractor(extract_fn=stub_extract)
-        extractor.schedule("User likes Rust", source="test")
-        # The task must be in the strong-reference set immediately after
-        # scheduling. It may complete quickly, so we only assert presence
-        # when there are still pending tasks OR that the set is a valid set.
+        scheduled = extractor.schedule("User likes Rust", source="test")
+        assert scheduled is True
         assert isinstance(extractor._pending_tasks, set)
+
+    async def test_schedule_dedupes_same_key(self):
+        extractor = MemoryExtractor(extract_fn=stub_extract)
+        assert extractor.schedule("same text", dedup_key="turn-1") is True
+        assert extractor.schedule("same text", dedup_key="turn-1") is False
+
+    async def test_schedule_drops_when_backlog_full(self, monkeypatch):
+        extractor = MemoryExtractor(extract_fn=stub_extract)
+
+        class _Forever:
+            def done(self):
+                return False
+
+        # Saturate the pending set with unfinished stubs.
+        extractor._pending_tasks = {_Forever(), _Forever(), _Forever()}  # type: ignore[arg-type]
+        assert extractor.schedule("overflow", dedup_key="overflow-1") is False
 
     async def test_cloud_extract_failure_is_logged(self, monkeypatch):
         """Cloud extraction failures must surface as a warning, not silent []."""
@@ -146,6 +160,10 @@ class TestMemoryExtractor:
             llm_failover.llm_router,
             "get_client",
             lambda: (_BoomClient(), _BoomProvider()),
+        )
+        monkeypatch.setattr(
+            "app.core.agents.brain_telemetry.record_llm_outcome",
+            lambda **_kwargs: None,
         )
 
         extractor = me_mod.MemoryExtractor()

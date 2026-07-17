@@ -65,3 +65,47 @@ def test_telemetry_falls_back_to_tiktoken_without_usage():
     call_args = mock_kernel.emit_event.call_args
     assert call_args.args[0] == "LLMCallRecorded"
     assert call_args.kwargs["payload"]["prompt_tokens"] == tokens
+
+
+def test_record_llm_outcome_failure():
+    from app.core.agents.brain_telemetry import record_llm_outcome
+
+    with patch("app.core.agents.brain_telemetry.kernel") as mock_kernel:
+        record_llm_outcome(
+            provider_name="ollama",
+            provider_model="qwen",
+            llm_start=0.0,
+            success=False,
+            error_message="connection refused",
+            purpose="memory_extract",
+            actor="local_llm",
+        )
+    payload = mock_kernel.emit_event.call_args.kwargs["payload"]
+    assert payload["success"] is False
+    assert payload["purpose"] == "memory_extract"
+    assert payload["error_message"] == "connection refused"
+
+
+def test_llm_call_projector_persists_purpose(tmp_path, monkeypatch):
+    from app.core.agents.brain_telemetry import record_llm_outcome
+    from app.core.runtime.kernel.kernel import Kernel
+    from app.store.database import Database
+
+    db = Database(db_path=str(tmp_path / "purpose.db"))
+    k = Kernel(db=db)
+    monkeypatch.setattr("app.core.agents.brain_telemetry.kernel", k)
+
+    record_llm_outcome(
+        provider_name="ollama",
+        provider_model="qwen",
+        llm_start=0.0,
+        success=True,
+        prompt_tokens=3,
+        completion_tokens=5,
+        purpose="memory_extract",
+        actor="local_llm",
+    )
+    rows = k.query_state("llm_calls", limit=5)
+    assert len(rows) == 1
+    assert rows[0]["purpose"] == "memory_extract"
+    assert rows[0]["completion_tokens"] == 5

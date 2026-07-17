@@ -111,10 +111,12 @@ CREATE TABLE IF NOT EXISTS llm_calls (
     cost REAL DEFAULT 0,
     success INTEGER DEFAULT 1,
     error_message TEXT,
+    purpose TEXT DEFAULT 'chat',
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 CREATE INDEX IF NOT EXISTS idx_llm_calls_created_at ON llm_calls (created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_llm_calls_model ON llm_calls (model);
+CREATE INDEX IF NOT EXISTS idx_llm_calls_purpose ON llm_calls (purpose);
 """
 
 TOOL_CALLS_SCHEMA = """

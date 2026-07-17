@@ -126,8 +126,8 @@ def _on_llm_call_recorded(event: Event, conn) -> None:
     conn.execute(
         """INSERT OR REPLACE INTO llm_calls
            (id, provider, model, prompt_tokens, completion_tokens,
-            latency_ms, cost, success, error_message, created_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            latency_ms, cost, success, error_message, purpose, created_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
         (
             f"llm_{event.seq}",
             p.get("provider", ""),
@@ -138,6 +138,7 @@ def _on_llm_call_recorded(event: Event, conn) -> None:
             p.get("cost", 0),
             1 if p.get("success", True) else 0,
             p.get("error_message"),
+            p.get("purpose") or "chat",
             event.ts,
         ),
     )

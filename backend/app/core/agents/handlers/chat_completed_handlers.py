@@ -80,7 +80,10 @@ async def on_chat_completed_extract_memories(_ctx, event):
     user_message = payload.get("user_message", "")
     assistant_content = payload.get("content", "")
     if conv_id and (user_message or assistant_content):
+        # Prefer event id so ChatCompleted retries do not double-schedule.
+        dedup_key = getattr(event, "id", None) or f"{conv_id}:{user_message[:80]}"
         memory_extractor.schedule(
             f"User: {user_message}\nAssistant: {assistant_content}",
             source=f"conv:{conv_id}",
+            dedup_key=str(dedup_key),
         )

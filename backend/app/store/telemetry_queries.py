@@ -98,6 +98,12 @@ def select_telemetry_rows(
         clauses.append("success = ?")
         params.append(1 if success else 0)
 
+    # Optional purpose filter (chat / memory_extract / …)
+    purpose = filters.get("purpose")
+    if purpose:
+        clauses.append("purpose = ?")
+        params.append(str(purpose))
+
     # Time filter (ISO-safe)
     since_pred, since_params = created_at_since_sql(filters.get("since_days"))
     if since_pred is not None:

@@ -124,6 +124,8 @@ class Settings(BaseSettings):
     # running total crosses this threshold the loop stops even if iterations
     # remain, preventing runaway cost from long tool chains.
     max_tool_loop_prompt_tokens: int = 100_000
+    # Empty-stream retry (complete_text_only) soft timeout in seconds.
+    complete_text_only_timeout: float = 45.0
 
     # --- submit_command timeouts (per call site) ---
     # submit_command emits an event and awaits a matching *Completed event.
