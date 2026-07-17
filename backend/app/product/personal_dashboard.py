@@ -16,7 +16,6 @@ Widgets:
 """
 
 import logging
-from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime, timedelta
 
 from app.core.runtime import read_ports
@@ -31,27 +30,24 @@ _MAX_TOP_GOALS = 3
 
 
 def generate_dashboard() -> dict:
-    """Generate a Personal Dashboard using only Kernel ABI via read_ports."""
+    """Generate a Personal Dashboard using only Kernel ABI via read_ports.
+
+    Widgets run sequentially: SQLite is fine with thread-local connections, but
+    Chroma/HNSW (``recall_memory``) is not safe under concurrent native access
+    and has segfaulted CI under ThreadPoolExecutor + TestClient.
+    """
     now = datetime.now(UTC)
     seven_days_ago = (now - timedelta(days=7)).isoformat()
 
-    with ThreadPoolExecutor(max_workers=6) as executor:
-        f_sovereignty = executor.submit(_widget_data_sovereignty)
-        f_active_goals = executor.submit(_widget_active_goals)
-        f_events = executor.submit(_widget_recent_events, seven_days_ago)
-        f_memories = executor.submit(_widget_recent_memories)
-        f_timers = executor.submit(_widget_timer_status)
-        f_governance = executor.submit(_widget_governance_status)
-
-        return {
-            "generated_at": now.isoformat(),
-            "data_sovereignty": f_sovereignty.result(),
-            "active_goals": f_active_goals.result(),
-            "recent_events": f_events.result(),
-            "recent_memories": f_memories.result(),
-            "timer_status": f_timers.result(),
-            "governance_status": f_governance.result(),
-        }
+    return {
+        "generated_at": now.isoformat(),
+        "data_sovereignty": _widget_data_sovereignty(),
+        "active_goals": _widget_active_goals(),
+        "recent_events": _widget_recent_events(seven_days_ago),
+        "recent_memories": _widget_recent_memories(),
+        "timer_status": _widget_timer_status(),
+        "governance_status": _widget_governance_status(),
+    }
 
 
 def _widget_data_sovereignty() -> dict:
