@@ -5,7 +5,8 @@ Canonical source for identity, coding rules, and tool hints.
 Identity and coding rules are loaded from prompt files in backend/prompts/.
 Users can customize them via Settings > System Prompt.
 
-Prompt Artifact is static guidance only — no DB, memory, kernel state, or events.
+Prompt Artifact is static guidance only — no DB, memory, kernel state, or events
+(beyond optional runtime prompt overrides from app_settings).
 """
 
 from __future__ import annotations
@@ -14,8 +15,32 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from app.core.agents.tool_postprocess import build_prompt_hints
+from app.core.runtime.governance.context_policy import CompileStage, analyze_intent_tags
 
 PROMPTS_DIR = Path(__file__).resolve().parent.parent / "prompts"
+
+# Tools whose presence (plus coding intent / post_tool) warrants coding rules.
+_CODING_TOOLS = frozenset(
+    {
+        "apply_patch",
+        "write_file",
+        "read_file",
+        "list_directory",
+        "search_files",
+        "shell_exec",
+        "git_diff",
+    }
+)
+
+# Current prompt hints are mail-oriented and relatively long — gate by intent.
+_MAIL_HINT_TOOLS = frozenset(
+    {
+        "check_inbox",
+        "read_inbox_email",
+        "mark_inbox_email_read",
+        "mark_inbox_email_unread",
+    }
+)
 
 # ── Default identity (fallback if prompt file is missing) ─────────────────
 
@@ -61,6 +86,49 @@ def _load_prompt_file(filename: str, default: str) -> str:
     return default
 
 
+def render_coding_rules(template: str, project_root: str) -> str:
+    """Substitute ``{project_root}`` without treating other braces as format fields.
+
+    User-customized prompts may contain JSON/example ``{...}`` blocks that would
+    crash ``str.format``.
+    """
+    return template.replace("{project_root}", project_root)
+
+
+def should_include_coding_rules(
+    *,
+    stage: CompileStage,
+    intent_tags: frozenset[str],
+    available_tools: list[str] | set[str],
+) -> bool:
+    """Coding rules are heavy — inject only when likely useful."""
+    if stage == "brief":
+        return False
+    tools = set(available_tools)
+    if not (tools & _CODING_TOOLS):
+        return False
+    if "coding" in intent_tags:
+        return True
+    # Short resume messages ("继续") often lack coding keywords.
+    return stage == "post_tool"
+
+
+def tools_for_prompt_hints(
+    *,
+    stage: CompileStage,
+    intent_tags: frozenset[str],
+    available_tools: list[str] | set[str],
+) -> set[str]:
+    """Filter tools whose prompt hints should be injected this turn."""
+    if stage == "brief":
+        return set()
+    tools = set(available_tools)
+    # Mail hints are long; keep on post_tool (walkthrough: 继续/下一封).
+    if "mail" not in intent_tags and stage != "post_tool":
+        tools -= _MAIL_HINT_TOOLS
+    return tools
+
+
 # Public constants (used by tests and callers)
 IDENTITY_FILE = "identity.md"
 CODING_RULES_FILE = "coding_rules.md"
@@ -69,12 +137,17 @@ CODING_RULES_FILE = "coding_rules.md"
 IDENTITY_ARTIFACT = _load_prompt_file(IDENTITY_FILE, DEFAULT_IDENTITY)
 CODING_RULES_TEMPLATE = _load_prompt_file(CODING_RULES_FILE, DEFAULT_CODING_RULES)
 
+# Runtime prompt override cache (app_settings). Cleared on save/invalidate.
+_runtime_prompt_cache: dict[str, str | None] = {}
+
 
 @dataclass
 class PromptArtifactContext:
     available_tools: list[str]
     project_root: str
-    stage: str
+    stage: CompileStage
+    user_message: str = ""
+    intent_tags: frozenset[str] | None = None
 
 
 class PromptArtifactLoader:
@@ -86,14 +159,27 @@ class PromptArtifactLoader:
     """
 
     async def load(self, ctx: PromptArtifactContext) -> str:
-        # Check for runtime-overridden prompts (from app_settings)
+        intent_tags = ctx.intent_tags
+        if intent_tags is None:
+            intent_tags = analyze_intent_tags(ctx.user_message)
+
         identity = _load_runtime_prompt("identity") or IDENTITY_ARTIFACT
-        coding_rules = _load_runtime_prompt("coding_rules") or CODING_RULES_TEMPLATE
-
         parts: list[str] = [identity]
-        parts.append(coding_rules.format(project_root=ctx.project_root))
 
-        hints = build_prompt_hints(set(ctx.available_tools))
+        if should_include_coding_rules(
+            stage=ctx.stage,
+            intent_tags=intent_tags,
+            available_tools=ctx.available_tools,
+        ):
+            coding_rules = _load_runtime_prompt("coding_rules") or CODING_RULES_TEMPLATE
+            parts.append(render_coding_rules(coding_rules, ctx.project_root))
+
+        hint_tools = tools_for_prompt_hints(
+            stage=ctx.stage,
+            intent_tags=intent_tags,
+            available_tools=ctx.available_tools,
+        )
+        hints = build_prompt_hints(hint_tools)
         if hints:
             parts.append(hints)
 
@@ -102,12 +188,21 @@ class PromptArtifactLoader:
 
 def _load_runtime_prompt(key: str) -> str | None:
     """Load a prompt override from the runtime_config (app_settings table)."""
+    if key in _runtime_prompt_cache:
+        return _runtime_prompt_cache[key]
     try:
         from app.core.runtime.runtime_config import runtime_config
 
-        return runtime_config.get_prompt(key)
+        value = runtime_config.get_prompt(key)
     except Exception:
-        return None
+        value = None
+    _runtime_prompt_cache[key] = value
+    return value
+
+
+def invalidate_prompt_artifact_cache() -> None:
+    """Clear cached runtime prompt overrides (tests / Settings save)."""
+    _runtime_prompt_cache.clear()
 
 
 prompt_artifact_loader = PromptArtifactLoader()

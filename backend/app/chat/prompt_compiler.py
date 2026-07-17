@@ -5,12 +5,13 @@ Assembles Prompt Artifact (static instructions) + Context Sources (Fragment Pipe
 
 from __future__ import annotations
 
+import asyncio
 from dataclasses import dataclass
 
 from app.chat.prompt_artifact import PromptArtifactContext, prompt_artifact_loader
 from app.config import BASE_DIR
 from app.core.runtime.governance.context_pipeline import ContextPipeline, context_pipeline
-from app.core.runtime.governance.context_policy import CompileStage
+from app.core.runtime.governance.context_policy import CompileStage, analyze_intent_tags
 from app.core.runtime.kernel_instance import kernel
 
 _ARTIFACT_CONTEXT_SEPARATOR = "\n\n---\n"
@@ -53,21 +54,27 @@ class PromptCompiler:
             if t.get("function", {}).get("name")
         )
 
-        artifact = await prompt_artifact_loader.load(
+        # Analyze once; share with artifact gating and fragment policy.
+        intent_tags = analyze_intent_tags(ctx.user_message)
+
+        artifact_task = prompt_artifact_loader.load(
             PromptArtifactContext(
                 available_tools=available_tools,
                 project_root=str(BASE_DIR),
                 stage=ctx.stage,
+                user_message=ctx.user_message,
+                intent_tags=intent_tags,
             ),
         )
-
-        context = await self._pipeline.build(
+        context_task = self._pipeline.build(
             user_message=ctx.user_message,
             conversation_id=ctx.conversation_id,
             execution_id=ctx.execution_id or "",
             budget=budget,
             stage=ctx.stage,
+            intent_tags=intent_tags,
         )
+        artifact, context = await asyncio.gather(artifact_task, context_task)
 
         if not context:
             return artifact

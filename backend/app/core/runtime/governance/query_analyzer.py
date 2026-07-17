@@ -27,8 +27,12 @@ _INTENT_PATTERNS: dict[str, list[str]] = {
     ],
     "coding": [
         r"\bcode\b", r"\bfix\b", r"\bimplement\b", r"\brefactor\b",
-        r"\bbuild\b", r"\btest\b",
-        "代码", "修复", "bug", "改", "写一个", "实现", "重构", "编译",
+        r"\bbuild\b", r"\bdebug\b", r"\bpatch\b", r"\bpytest\b",
+        r"\bpython\b", r"\btypescript\b", r"\btraceback\b",
+        "代码", "修复", "bug", "写一个", "实现", "重构", "编译",
+        "改代码", "改文件", "改函数", "修改代码", "修改文件",
+        "写代码", "写个函数", "调试", "报错", "优化代码",
+        "这个函数", "这个文件", "这个类",
     ],
     "memory": [
         r"\blearn\b", r"\bremember\b",

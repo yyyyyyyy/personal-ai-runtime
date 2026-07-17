@@ -25,3 +25,18 @@ class TestQueryAnalyzerExtended:
         assert isinstance(result.tags, (list, tuple, set))
         # No specific tags for generic greeting
         assert "calendar" not in result.tags
+
+    def test_bare_gai_is_not_coding(self):
+        """Standalone 改 is too broad (改个时间 / 改提醒)."""
+        qa = QueryAnalyzer()
+        assert "coding" not in qa.analyze("帮我改个时间").tags
+        assert "coding" not in qa.analyze("改一下提醒").tags
+
+    def test_code_edit_phrases_are_coding(self):
+        qa = QueryAnalyzer()
+        assert "coding" in qa.analyze("帮我改一下代码").tags
+        assert "coding" in qa.analyze("改这个函数").tags
+
+    def test_python_optimize_is_coding(self):
+        qa = QueryAnalyzer()
+        assert "coding" in qa.analyze("这段 Python 怎么优化").tags

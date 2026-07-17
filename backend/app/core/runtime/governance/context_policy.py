@@ -61,6 +61,8 @@ class CompileRequest:
     stage: CompileStage = "chat"
     principal: Principal | None = None
     context_budget: int = _DEFAULT_CONTEXT_BUDGET
+    # When set (e.g. by PromptCompiler), skip re-running QueryAnalyzer.
+    intent_tags: frozenset[str] | None = None
 
 
 @dataclass
@@ -113,7 +115,10 @@ class DefaultContextPolicy:
         self._selector = FragmentSelector(self._registry)
 
     def evaluate(self, request: CompileRequest) -> CompilePlan:
-        analysis = self._analyzer.analyze(request.user_message)
+        if request.intent_tags is not None:
+            analysis = AnalysisResult(tags=set(request.intent_tags))
+        else:
+            analysis = self._analyzer.analyze(request.user_message)
         fragments = self._selector.select_for_stage(analysis, request.stage)
         budget = _resolve_stage_budget(request.stage, request.context_budget)
         fragment_ids = tuple(f.id for f in fragments)
@@ -134,6 +139,11 @@ def _resolve_stage_budget(stage: CompileStage, requested: int) -> int:
     if cap is None:
         return requested
     return min(requested, cap)
+
+
+def analyze_intent_tags(message: str) -> frozenset[str]:
+    """Shared intent tags for Artifact / Pipeline consumers outside Policy."""
+    return frozenset(QueryAnalyzer().analyze(message).tags)
 
 
 default_context_policy = DefaultContextPolicy()

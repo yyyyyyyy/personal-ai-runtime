@@ -56,6 +56,27 @@ def _policy_fragment_ids(
     return [f.id for f in plan.selected_fragments]
 
 
+class TestSharedIntentTags:
+    def test_policy_uses_precomputed_intent_tags(self, monkeypatch):
+        registry = FragmentRegistry()
+        register_all_fragments(registry)
+        policy = DefaultContextPolicy(registry)
+
+        def _boom(self, message: str):
+            raise AssertionError("QueryAnalyzer should not run when intent_tags are provided")
+
+        monkeypatch.setattr(QueryAnalyzer, "analyze", _boom)
+        plan = policy.evaluate(
+            CompileRequest(
+                user_message="改个时间",
+                stage="chat",
+                intent_tags=frozenset({"coding"}),
+            ),
+        )
+        assert plan.analysis_result is not None
+        assert plan.analysis_result.tags == {"coding"}
+
+
 class TestPolicyPrimitivesExist:
     def test_compile_request_fields(self):
         req = CompileRequest(
@@ -65,6 +86,7 @@ class TestPolicyPrimitivesExist:
             stage="post_tool",
             principal=Principal.user(),
             context_budget=16000,
+            intent_tags=frozenset({"mail"}),
         )
         assert req.user_message == "hi"
         assert req.conversation_id == "c1"
@@ -72,6 +94,7 @@ class TestPolicyPrimitivesExist:
         assert req.stage == "post_tool"
         assert req.principal is not None
         assert req.context_budget == 16000
+        assert req.intent_tags == frozenset({"mail"})
 
     def test_compile_plan_fields(self):
         plan = CompilePlan(

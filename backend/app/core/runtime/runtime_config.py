@@ -292,6 +292,12 @@ def invalidate_runtime_config_cache() -> None:
     """Clear in-memory cache (tests / forced reload)."""
     global _cache
     _cache = None
+    try:
+        from app.chat.prompt_artifact import invalidate_prompt_artifact_cache
+
+        invalidate_prompt_artifact_cache()
+    except Exception:
+        pass
 
 
 class RuntimeConfig:

@@ -201,6 +201,7 @@ class ContextPipeline:
         *,
         stage: CompileStage = "chat",
         principal: Principal | None = None,
+        intent_tags: frozenset[str] | None = None,
     ) -> str:
         """消息 → policy → 组装 → System Prompt（向后兼容入口）。"""
         request = CompileRequest(
@@ -210,6 +211,7 @@ class ContextPipeline:
             stage=stage,
             principal=principal,
             context_budget=budget,
+            intent_tags=intent_tags,
         )
         return await self.build_from_request(request)
 
