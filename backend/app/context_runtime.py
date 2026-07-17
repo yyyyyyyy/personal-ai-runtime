@@ -60,7 +60,7 @@ class ContextFragment:
     id: str = ""
 
     # Fragment 元数据 — 供 Assembler 做选择和裁剪
-    priority: int = 50          # 0-100，越高越优先加载
+    priority: int = 50          # 越高越优先装箱；全部受 Assembler budget 约束
     max_tokens: int = 2000      # 单个 Fragment 的 token 上限
     tags: frozenset[str] = field(default_factory=frozenset)
     # abstract capabilities required for this fragment.

@@ -235,33 +235,62 @@ class TestContextAssembler:
         # SmallFragment 只有 "hello" (约 1 token)
         assert "hello" in result
 
-    def test_assemble_identity_never_dropped(self):
-        """Identity Fragment (priority=100) 永不被丢弃。"""
+    def test_assemble_high_priority_still_budgeted(self):
+        """高 priority 也受 budget 约束（身份已迁到 Prompt Artifact）。"""
         from app.assembler.context_assembler import ContextAssembler
         from app.context_runtime import ContextFragment, FragmentResult, RuntimeContext
 
-        class Identity(ContextFragment):
-            id: str = "identity"
+        class HighPriority(ContextFragment):
+            id: str = "high"
             priority: int = 100
-            async def collect(self, ctx):
-                return FragmentResult(content="I am AI")
 
-        class HugeContext(ContextFragment):
-            id: str = "huge"
-            priority: int = 50
             async def collect(self, ctx):
-                return FragmentResult(content="X" * 20000)
+                return FragmentResult(content="H" * 400)
+
+        class LowPriority(ContextFragment):
+            id: str = "low"
+            priority: int = 10
+
+            async def collect(self, ctx):
+                return FragmentResult(content="ok")
 
         import asyncio
         assembler = ContextAssembler()
         result = asyncio.run(assembler.assemble(
-            [Identity(), HugeContext()],
+            [HighPriority(), LowPriority()],
             RuntimeContext(),
-            budget=10,  # 极小预算
+            budget=10,
         ))
-        # Identity 永不被丢弃，HugeContext 会被跳过
-        assert "I am AI" in result
-        assert "X" not in result  # HugeContext dropped due to budget
+        # High exceeds budget alone → dropped; low fits.
+        assert "ok" in result
+        assert "H" not in result
+
+    def test_assemble_collect_failure_is_logged(self, caplog):
+        from app.assembler.context_assembler import ContextAssembler
+        from app.context_runtime import ContextFragment, FragmentResult, RuntimeContext
+        import logging
+
+        class Boom(ContextFragment):
+            id: str = "boom"
+            async def collect(self, ctx):
+                raise RuntimeError("collect broke")
+
+        class Ok(ContextFragment):
+            id: str = "ok"
+            priority: int = 10
+            async def collect(self, ctx):
+                return FragmentResult(content="alive")
+
+        import asyncio
+        assembler = ContextAssembler()
+        with caplog.at_level(logging.ERROR, logger="app.assembler.context_assembler"):
+            result = asyncio.run(assembler.assemble(
+                [Boom(), Ok()],
+                RuntimeContext(),
+                budget=2000,
+            ))
+        assert "alive" in result
+        assert any("collect broke" in r.getMessage() for r in caplog.records)
 
     def test_estimate_tokens(self):
         # FragmentResult.__post_init__

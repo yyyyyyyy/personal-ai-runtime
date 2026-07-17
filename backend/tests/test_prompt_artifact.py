@@ -363,6 +363,40 @@ class TestPromptCompilerArtifactAssembly:
         assert "coding" in captured.get("intent_tags", frozenset())
 
     @pytest.mark.asyncio
+    async def test_compile_passes_remaining_budget_to_pipeline(self, monkeypatch):
+        from app.chat.prompt_compiler import CompileContext, PromptCompiler
+        from app.context_runtime import FragmentRegistry
+        from app.core.agents.token_counter import count_text_tokens
+        from app.core.runtime.governance.context_pipeline import ContextPipeline
+
+        captured: dict = {}
+
+        async def _capture_build(self, *args, **kwargs):
+            captured.update(kwargs)
+            return ""
+
+        monkeypatch.setattr(ContextPipeline, "build", _capture_build)
+        monkeypatch.setattr(
+            "app.chat.prompt_compiler.kernel.list_capability_definitions",
+            lambda: [],
+        )
+
+        pipeline = ContextPipeline(FragmentRegistry())
+        compiler = PromptCompiler(pipeline=pipeline)
+        total_budget = 5000
+        result = await compiler.compile(
+            CompileContext(
+                conversation_id="",
+                execution_id=None,
+                user_message="你好",
+                stage="chat",
+            ),
+            budget=total_budget,
+        )
+        expected = total_budget - count_text_tokens(result) - count_text_tokens("\n\n---\n")
+        assert captured.get("budget") == expected
+
+    @pytest.mark.asyncio
     async def test_chat_skips_coding_rules_without_coding_intent(self, monkeypatch):
         from app.chat.prompt_compiler import CompileContext, PromptCompiler
         from app.context_runtime import FragmentRegistry

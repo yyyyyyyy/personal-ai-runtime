@@ -3,7 +3,7 @@
 流程：
   1. 并行 collect() 所有 Fragment（asyncio.gather）
   2. 按 priority 降序排序
-  3. 在 budget 内组装
+  3. 在 budget 内组装（全部受预算约束；身份/静态规则在 Prompt Artifact）
   4. join 为最终 system prompt
   5. 收集所有 sources 供引用溯源
 """
@@ -11,6 +11,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 from dataclasses import dataclass, field
 
 from app.context_runtime import (
@@ -18,7 +19,9 @@ from app.context_runtime import (
     FragmentResult,
     RuntimeContext,
 )
-from app.core.agents.token_counter import count_text_tokens
+from app.core.agents.token_counter import count_text_tokens, truncate_to_token_budget
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -32,9 +35,9 @@ class ContextAssembler:
     """组装 Context Fragment 为最终 system prompt。
 
     策略：
-    - 按 Fragment.priority 降序加载
-    - 超过 budget 时跳过低优先级 Fragment
-    - Empty fragments are skipped
+    - 按 Fragment.priority 降序装箱
+    - 超过 budget 时跳过该 Fragment（不强制保留任何 priority）
+    - 空内容跳过；collect 异常记日志后跳过
     """
 
     async def assemble(
@@ -65,7 +68,13 @@ class ContextAssembler:
         results: list[tuple[ContextFragment, FragmentResult]] = []
         for i, result in enumerate(collected):
             if isinstance(result, BaseException):
-                continue  # skip fragments that raised
+                logger.error(
+                    "ContextAssembler: fragment %r collect failed: %s",
+                    fragments[i].id or type(fragments[i]).__name__,
+                    result,
+                    exc_info=result,
+                )
+                continue
             results.append((fragments[i], result))
 
         # 2. 按 priority 降序排序
@@ -77,31 +86,19 @@ class ContextAssembler:
         used = 0
 
         for frag, result in results:
-            content = result.content or ""
-            if not content and frag.priority < 100:
+            content = (result.content or "").strip()
+            if not content:
                 continue
 
             # Respect per-fragment max_tokens when set (>0).
             max_tok = getattr(frag, "max_tokens", 0) or 0
-            if content and max_tok > 0 and count_text_tokens(content) > max_tok:
-                # Soft trim by characters; fragments should self-limit, this is a backstop.
-                approx_chars = max(16, max_tok * 4)
-                content = content[:approx_chars].rstrip() + "…"
+            if max_tok > 0 and count_text_tokens(content) > max_tok:
+                content = truncate_to_token_budget(content, max_tok)
+                if not content:
+                    continue
                 result = FragmentResult(content=content, sources=result.sources)
 
-            token_count = count_text_tokens(content) if content else 0
-
-            # Identity Fragment 永不被丢弃（priority=100）
-            if frag.priority >= 100:
-                parts.append(content)
-                used += token_count
-                all_sources.extend(result.sources)
-                continue
-
-            if not content:
-                continue
-
-            # 预算不足时跳过
+            token_count = count_text_tokens(content)
             if used + token_count > budget:
                 continue
 
