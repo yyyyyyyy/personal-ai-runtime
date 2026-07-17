@@ -49,6 +49,7 @@ from app.core.runtime.read_ports.knowledge import (
 )
 from app.core.runtime.read_ports.memory import (
     build_memory_graph_edges,
+    count_memories,
     query_memories,
     query_memory,
     retrieve_memory_context,
@@ -76,6 +77,9 @@ from app.core.runtime.read_ports.timers import (
     query_timer,
 )
 from app.core.runtime.read_ports.work import (
+    count_active_goals,
+    count_completed_goals,
+    count_goals,
     query_active_goals,
     query_completed_goals,
     query_goal,
@@ -93,6 +97,10 @@ from app.core.runtime.read_ports.work import (
 )
 
 __all__ = [
+    "count_active_goals",
+    "count_completed_goals",
+    "count_goals",
+    "count_memories",
     "query_pending_actions",
     "query_top_active_goals",
     "query_stagnant_goals",

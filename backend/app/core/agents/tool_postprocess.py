@@ -126,6 +126,13 @@ def _mark_inbox_email_read_hint() -> str:
     )
 
 
+def _mark_inbox_email_unread_hint() -> str:
+    return (
+        "Use mark_inbox_email_unread after the user asks to mark mail as unread. Prefer message_id from the "
+        "latest check_inbox/read_inbox_email result."
+    )
+
+
 register_rule(
     "check_inbox",
     ToolPostprocessRule(
@@ -141,4 +148,8 @@ register_rule(
 register_rule(
     "mark_inbox_email_read",
     ToolPostprocessRule(prompt_hint=_mark_inbox_email_read_hint),
+)
+register_rule(
+    "mark_inbox_email_unread",
+    ToolPostprocessRule(prompt_hint=_mark_inbox_email_unread_hint),
 )

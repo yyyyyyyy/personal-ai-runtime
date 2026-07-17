@@ -56,6 +56,31 @@ def query_memories(
     return kernel().query_state("memories", **filters)
 
 
+def count_memories(
+    *,
+    category: str | None = None,
+    origin: str | None = None,
+    claim_status: str | None = None,
+    confidence_gt: float | None = None,
+    confidence_lt: float | None = None,
+    decay_eligible: bool | None = None,
+) -> int:
+    filters: dict[str, Any] = {}
+    if category is not None:
+        filters["category"] = category
+    if origin is not None:
+        filters["origin"] = origin
+    if claim_status is not None:
+        filters["claim_status"] = claim_status
+    if confidence_gt is not None:
+        filters["confidence_gt"] = confidence_gt
+    if confidence_lt is not None:
+        filters["confidence_lt"] = confidence_lt
+    if decay_eligible is not None:
+        filters["decay_eligible"] = decay_eligible
+    return kernel().count_state("memories", **filters)
+
+
 def build_memory_graph_edges(sources: list[dict]) -> list[dict]:
     """Build similarity edges via MemoryIndexPort batch search (sync, for to_thread)."""
     if not sources:

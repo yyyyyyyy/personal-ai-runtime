@@ -353,12 +353,29 @@ class EmailServer:
         unread_only: bool = True,
         mid: str | None = None,
     ) -> str:
-        """Mark one inbox message as read (IMAP \\Seen).
+        """Mark one inbox message as read (IMAP \\Seen)."""
+        return self._mark_flags(index, message_id or mid, limit, unread_only, "+FLAGS", "\\Seen")
 
-        Prefer ``message_id`` when known; otherwise ``index`` (1=newest) within
-        the same listing window used by check_inbox/read_inbox_email.
-        """
-        actual_mid = (message_id or mid or "").strip()
+    def mark_inbox_email_unread(
+        self,
+        index: int | None = None,
+        message_id: str | None = None,
+        limit: int = 30,
+        mid: str | None = None,
+    ) -> str:
+        """Mark one inbox message as unread (IMAP -\\Seen)."""
+        return self._mark_flags(index, message_id or mid, limit, False, "-FLAGS", "\\Seen")
+
+    def _mark_flags(
+        self,
+        index: int | None,
+        message_id: str | None,
+        limit: int,
+        unread_only: bool,
+        mode: str,
+        flag: str,
+    ) -> str:
+        actual_mid = (message_id or "").strip()
         if not actual_mid and index is None:
             return json.dumps({
                 "error": "Provide message_id or index (1=newest among recent mail)",
@@ -369,21 +386,19 @@ class EmailServer:
             try:
                 # v1.1 Optimization: Try efficient SEARCH by Message-ID first
                 if actual_mid:
-                    # Some IMAP servers are picky about <> or quoting.
-                    # We try exact match with HEADER Message-ID.
                     status, search_res = mail.search(None, f'HEADER Message-ID "{actual_mid}"')
                     if status == "OK" and search_res[0]:
                         ids = search_res[0].split()
                         if ids:
                             seq = ids[-1].decode()
-                            mail.store(seq, "+FLAGS", "\\Seen")
+                            mail.store(seq, mode, flag)
                             return json.dumps({
                                 "success": True,
                                 "message_id": actual_mid,
                                 "method": "imap_search"
                             }, ensure_ascii=False)
 
-                # Fallback to sorted listing (needed for index-based or if SEARCH failed)
+                # Fallback to sorted listing
                 search_limit = limit
                 search_unread_only = unread_only
                 if actual_mid:
@@ -394,7 +409,7 @@ class EmailServer:
                     mail, search_limit, search_unread_only, body_max=0
                 )
                 if not emails:
-                    return json.dumps({"error": "收件箱中没有可标记的邮件"})
+                    return json.dumps({"error": "No messages found to mark"})
 
                 target = None
                 if actual_mid:
@@ -405,13 +420,13 @@ class EmailServer:
                             break
                     if target is None:
                         return json.dumps({
-                            "error": f"未在最近搜索范围（{search_limit} 封）中找到 message_id={actual_mid}",
+                            "error": f"Message {actual_mid} not found in last {search_limit} emails",
                         })
                 else:
                     assert index is not None
                     if index < 1 or index > len(emails):
                         return json.dumps({
-                            "error": f"序号 {index} 超出范围，当前共 {len(emails)} 封（1=最新）",
+                            "error": f"Index {index} out of range (1-{len(emails)})",
                         })
                     target = emails[index - 1]
 
@@ -419,7 +434,7 @@ class EmailServer:
                 if not seq:
                     return json.dumps({"error": "Internal error: missing IMAP sequence"})
 
-                status, _data = mail.store(str(seq), "+FLAGS", "\\Seen")
+                status, _data = mail.store(str(seq), mode, flag)
                 if status != "OK":
                     return json.dumps({"error": f"IMAP STORE failed: {status}"})
 
@@ -428,7 +443,6 @@ class EmailServer:
                     "message_id": target.get("message_id", ""),
                     "from": target.get("from", ""),
                     "subject": target.get("subject", ""),
-                    "index": index,
                     "method": "list_scan"
                 }, ensure_ascii=False)
             finally:
@@ -436,10 +450,6 @@ class EmailServer:
                     mail.logout()
                 except Exception:
                     pass
-        except imaplib.IMAP4.error as e:
-            return json.dumps({"error": f"IMAP login failed: {str(e)}"})
-        except ValueError as e:
-            return json.dumps({"error": str(e)})
         except Exception as e:
             return json.dumps({"error": str(e)})
 

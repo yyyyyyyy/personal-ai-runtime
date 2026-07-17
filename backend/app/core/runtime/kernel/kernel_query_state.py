@@ -39,6 +39,15 @@ class QueryStateMixin:  # type: ignore[attr-defined]  # mixed into Kernel which 
             return self._query_llm_calls(filters)
         raise ValueError(f"Unknown state selector: {selector!r}")
 
+    def count_state(self, selector: str, **filters: Any) -> int:
+        """Count projection rows efficiently without loading them into memory."""
+        filters["count_only"] = True
+        if selector == "work_items":
+            return self._query_work_items(filters)
+        if selector == "memories":
+            return self._query_memories(filters)
+        raise ValueError(f"count_state not implemented for selector: {selector!r}")
+
     def _query_work_items(self, filters: dict[str, Any]) -> list[dict]:
         return qb.query_work_items(self._db, filters)
 

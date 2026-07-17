@@ -6,10 +6,15 @@ projection derived solely from InboxEmail* events (see projectors_inbox.py).
 
 from __future__ import annotations
 
-import json
+import asyncio
 import logging
 import re
 from datetime import UTC, datetime
+
+try:
+    import orjson as json
+except ImportError:
+    import json
 
 from app.config import settings
 from app.core.runtime import read_ports
@@ -17,6 +22,8 @@ from app.core.runtime.kernel import constants
 from app.core.runtime.kernel_instance import kernel
 
 logger = logging.getLogger(__name__)
+
+_JSON_DUMPS_BYTES = isinstance(json.dumps({}), bytes)
 
 CLASSIFY_SYSTEM_PROMPT = """你是一个邮件分类助手。将每封邮件分为以下类别之一：
 - important: 需要用户尽快关注（老板、客户、紧急事项、验证码、账单等）
@@ -44,18 +51,28 @@ def _existing_message_ids() -> set[str]:
 def _format_emails_for_llm(emails: list[dict]) -> str:
     lines = []
     for em in emails:
-        lines.append(
-            json.dumps(
-                {
-                    "message_id": em.get("message_id", ""),
-                    "from": em.get("from", ""),
-                    "subject": em.get("subject", ""),
-                    "preview": em.get("preview", ""),
-                    "date": em.get("date", ""),
-                },
-                ensure_ascii=False,
-            )
-        )
+        # Truncate to save classification tokens.
+        subject = em.get("subject", "")
+        preview = em.get("preview", "")
+
+        if len(subject) > 100:
+            subject = subject[:97] + "..."
+        if len(preview) > 200:
+            preview = preview[:197] + "..."
+
+        data = {
+            "message_id": em.get("message_id", ""),
+            "from": em.get("from", ""),
+            "subject": subject,
+            "preview": preview,
+            "date": em.get("date", ""),
+        }
+
+        if _JSON_DUMPS_BYTES:
+            lines.append(json.dumps(data).decode("utf-8"))
+        else:
+            lines.append(json.dumps(data, ensure_ascii=False))
+
     return "\n".join(lines)
 
 
@@ -90,6 +107,7 @@ async def _classify_emails(emails: list[dict]) -> list[dict]:
             messages=audited_messages,  # type: ignore[arg-type]
             temperature=0.2,
             max_tokens=settings.llm_max_tokens,
+            response_format={"type": "json_object"},
         )
         raw = response.choices[0].message.content or "{}"
     except Exception as exc:
@@ -109,22 +127,18 @@ async def _classify_emails(emails: list[dict]) -> list[dict]:
 
 def _parse_classification(raw: str, fallback_emails: list[dict]) -> list[dict]:
     try:
-        data = json.loads(raw)
+        # Strip potential markdown code blocks that some local models might still add
+        cleaned = raw.strip()
+        if cleaned.startswith("```"):
+            cleaned = re.sub(r"^```(?:json)?\n?", "", cleaned)
+            cleaned = re.sub(r"\n?```$", "", cleaned).strip()
+            
+        data = json.loads(cleaned)
         items = data.get("emails", data) if isinstance(data, dict) else data
         if isinstance(items, list) and items:
             return items
-    except json.JSONDecodeError:
-        pass
-
-    match = re.search(r"\{[\s\S]*\}", raw)
-    if match:
-        try:
-            data = json.loads(match.group())
-            items = data.get("emails", [])
-            if isinstance(items, list) and items:
-                return items
-        except json.JSONDecodeError:
-            pass
+    except Exception as e:
+        logger.error("Failed to parse classification JSON: %s. Raw: %s", e, raw)
 
     return [
         {
@@ -230,11 +244,25 @@ async def apply_inbox_poll_payload(payload: dict, *, execution_id: str | None = 
         return {"status": "ok", "new_count": 0, "notified": 0, "synced_read": synced_read}
 
     new_emails_list = list(to_record.values())
-    # Only classify the ones that have previews/bodies if there are many,
-    # but for now we try all because they are few usually.
-    # Actually, we should only classify the ones from 'emails' because others have no preview yet.
-    # Or just classify all and let them have empty reason if no body.
-    classified = await _classify_emails(new_emails_list)
+
+    CHUNK_SIZE = 20
+    classified: list[dict] = []
+    if new_emails_list:
+        chunks = [
+            new_emails_list[i:i + CHUNK_SIZE]
+            for i in range(0, len(new_emails_list), CHUNK_SIZE)
+        ]
+        logger.info(
+            "Classifying %d new emails in %d batches",
+            len(new_emails_list),
+            len(chunks),
+        )
+        classified_chunks = await asyncio.gather(*(
+            _classify_emails(chunk) for chunk in chunks
+        ))
+        for chunk_result in classified_chunks:
+            classified.extend(chunk_result)
+
     by_id = _classification_by_id(classified)
     now = datetime.now(UTC).isoformat()
     notified = 0
@@ -263,6 +291,7 @@ async def apply_inbox_poll_payload(payload: dict, *, execution_id: str | None = 
         )
         if execution_id:
             kwargs["caused_by"] = execution_id
+        
         kernel.emit_event(
             constants.EVENT_INBOX_EMAIL_RECORDED,
             constants.AGGREGATE_INBOX_EMAIL,
@@ -278,13 +307,23 @@ async def apply_inbox_poll_payload(payload: dict, *, execution_id: str | None = 
         })
 
     from app.core.runtime.notification_bridge import push_notification
-
-    for item in stored:
-        if item["category"] != "important":
-            continue
+    
+    important_items = [item for item in stored if item["category"] == "important"]
+    
+    if len(important_items) == 1:
+        item = important_items[0]
         title = f"重要邮件 · {item['subject'][:40]}"
-        content = f"发件人相关邮件需关注（分类: important，置信度 {item['importance']:.2f}）"
+        content = f"发件人 {item['sender']} 相关邮件需关注（置信度 {item['importance']:.2f}）"
         push_notification("inbox", title, content)
+        notified = 1
+    elif len(important_items) > 1:
+        title = f"收到 {len(important_items)} 封重要邮件"
+        senders = ", ".join(list(dict.fromkeys([item['sender'] for item in important_items]))[:3])
+        content = f"来自 {senders} 等发件人的重要邮件已到达，请注意查看。"
+        push_notification("inbox", title, content)
+        notified = len(important_items)
+
+    for item in important_items:
         kernel.emit_event(
             constants.EVENT_INBOX_EMAIL_FLAG_SET,
             constants.AGGREGATE_INBOX_EMAIL,
@@ -292,9 +331,29 @@ async def apply_inbox_poll_payload(payload: dict, *, execution_id: str | None = 
             payload={"flag": "notified"},
             actor="inbox",
         )
-        notified += 1
 
     return {"status": "ok", "new_count": len(stored), "notified": notified, "synced_read": synced_read}
+
+
+def _assert_imap_capability_ok(cap_res: dict, *, action: str) -> None:
+    """Fail closed when IMAP capability did not succeed."""
+    imap_ok = cap_res.get("status") == "success"
+    result_raw = cap_res.get("result")
+    error = cap_res.get("error")
+    if imap_ok and isinstance(result_raw, str):
+        try:
+            parsed = json.loads(result_raw)
+            if parsed.get("error"):
+                imap_ok = False
+                error = parsed["error"]
+            elif not parsed.get("success", True):
+                imap_ok = False
+        except Exception:
+            pass
+    if not imap_ok:
+        err = error or "unknown"
+        logger.warning("IMAP %s failed: %s", action, err)
+        raise ValueError(f"IMAP {action}失败: {err}")
 
 
 async def mark_inbox_email_status(email_id: str, status: str) -> dict | None:
@@ -304,39 +363,35 @@ async def mark_inbox_email_status(email_id: str, status: str) -> dict | None:
     if not row:
         return None
 
-    # Sync to IMAP when marking as read/handled. Fail closed so the next poll
-    # does not flip a local "read" back to pending after a failed IMAP STORE.
-    if status in ("read", "handled") and row.get("status") == "pending":
+    # Sync to IMAP when state changes. Fail closed so the next poll does not
+    # flip local status after a failed IMAP STORE.
+    old_status = row.get("status")
+    if status != old_status:
         from app.core.runtime.execution import get_current_execution_id
+        execution_id = get_current_execution_id()
 
         try:
-            cap_res = await kernel.invoke_capability(
-                "mark_inbox_email_read",
-                {"message_id": email_id},
-                actor="user",
-                execution_id=get_current_execution_id(),
-            )
+            if status in ("read", "handled") and old_status == "pending":
+                cap_res = await kernel.invoke_capability(
+                    "mark_inbox_email_read",
+                    {"message_id": email_id},
+                    actor="user",
+                    execution_id=execution_id,
+                )
+                _assert_imap_capability_ok(cap_res, action="标记已读")
+            elif status == "pending" and old_status in ("read", "handled"):
+                cap_res = await kernel.invoke_capability(
+                    "mark_inbox_email_unread",
+                    {"message_id": email_id},
+                    actor="user",
+                    execution_id=execution_id,
+                )
+                _assert_imap_capability_ok(cap_res, action="标记未读")
+        except ValueError:
+            raise
         except Exception as exc:
-            logger.warning("Failed to sync read status to IMAP for %s: %s", email_id, exc)
-            raise ValueError(f"IMAP 标记已读失败: {exc}") from exc
-
-        imap_ok = cap_res.get("status") == "success"
-        result_raw = cap_res.get("result")
-        if imap_ok and isinstance(result_raw, str):
-            try:
-                import json as _json
-                parsed = _json.loads(result_raw)
-                if parsed.get("error"):
-                    imap_ok = False
-                    cap_res = {**cap_res, "error": parsed["error"]}
-                elif not parsed.get("success", True):
-                    imap_ok = False
-            except Exception:
-                pass
-        if not imap_ok:
-            err = cap_res.get("error") or "unknown"
-            logger.warning("IMAP mark_read failed for %s: %s", email_id, err)
-            raise ValueError(f"IMAP 标记已读失败: {err}")
+            logger.warning("Failed to sync status to IMAP for %s: %s", email_id, exc)
+            raise ValueError(f"IMAP 同步失败: {exc}") from exc
 
     kernel.emit_event(
         constants.EVENT_INBOX_EMAIL_STATUS_CHANGED,

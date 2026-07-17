@@ -304,7 +304,7 @@ def fetch_event_log_rows(
 # These open Database connections; fragment helpers above stay connection-free.
 
 
-def query_work_items(db, filters: dict[str, Any]) -> list[dict]:
+def query_work_items(db, filters: dict[str, Any]) -> list[dict] | int:
     """Unified query for work_items table.
 
     Serves all work types (task / action / background / goal).
@@ -323,6 +323,7 @@ def query_work_items(db, filters: dict[str, Any]) -> list[dict]:
     has_deadline = filters.get("has_deadline")
     limit = filters.get("limit", 50)
     order = filters.get("order", "created_at_asc")
+    count_only = filters.get("count_only", False)
 
     order_clauses = {
         "created_at_asc": "created_at ASC",
@@ -337,6 +338,9 @@ def query_work_items(db, filters: dict[str, Any]) -> list[dict]:
 
     with db.get_db() as conn:
         if item_id:
+            if count_only:
+                row = conn.execute("SELECT COUNT(*) as c FROM work_items WHERE id = ?", (item_id,)).fetchone()
+                return int(row["c"]) if row else 0
             row = conn.execute("SELECT * FROM work_items WHERE id = ?", (item_id,)).fetchone()
             return [dict(row)] if row else []
 
@@ -380,6 +384,11 @@ def query_work_items(db, filters: dict[str, Any]) -> list[dict]:
             clauses.append("deadline IS NOT NULL")
 
         where = f" WHERE {' AND '.join(clauses)}" if clauses else ""
+        
+        if count_only:
+            row = conn.execute(f"SELECT COUNT(*) as c FROM work_items{where}", params).fetchone()
+            return int(row["c"])
+
         params.append(int(limit))
         rows = conn.execute(
             f"SELECT * FROM work_items{where} ORDER BY {order_sql} LIMIT ?",
@@ -410,7 +419,7 @@ def query_approvals(db, filters: dict[str, Any]) -> list[dict]:
             ).fetchall()
     return [dict(r) for r in rows]
 
-def query_memories(db, filters: dict[str, Any]) -> list[dict]:
+def query_memories(db, filters: dict[str, Any]) -> list[dict] | int:
     memory_id = filters.get("id")
     category = filters.get("category")
     origin = filters.get("origin")
@@ -419,9 +428,13 @@ def query_memories(db, filters: dict[str, Any]) -> list[dict]:
     confidence_lt = filters.get("confidence_lt")
     decay_eligible = filters.get("decay_eligible")
     limit = filters.get("limit", 50)
+    count_only = filters.get("count_only", False)
 
     with db.get_db() as conn:
         if memory_id:
+            if count_only:
+                row = conn.execute("SELECT COUNT(*) as c FROM memories WHERE id = ?", (memory_id,)).fetchone()
+                return int(row["c"]) if row else 0
             row = conn.execute(
                 "SELECT * FROM memories WHERE id = ?", (memory_id,)
             ).fetchone()
@@ -450,6 +463,11 @@ def query_memories(db, filters: dict[str, Any]) -> list[dict]:
             )
 
         where = f" WHERE {' AND '.join(clauses)}" if clauses else ""
+        
+        if count_only:
+            row = conn.execute(f"SELECT COUNT(*) as c FROM memories{where}", params).fetchone()
+            return int(row["c"])
+
         params.append(limit)
         rows = conn.execute(
             f"SELECT * FROM memories{where} ORDER BY confidence DESC, created_at DESC LIMIT ?",
@@ -465,6 +483,7 @@ def query_notifications(db, filters: dict[str, Any]) -> list[dict]:
     created_on_date = filters.get("created_on_date")
     related_id = filters.get("related_id")
     notification_type = filters.get("notification_type")
+    dedup_key = filters.get("dedup_key")
     limit = filters.get("limit", 50)
     order = filters.get("order", "created_at_desc")
 
@@ -500,6 +519,9 @@ def query_notifications(db, filters: dict[str, Any]) -> list[dict]:
         if notification_type is not None:
             clauses.append("notification_type = ?")
             params.append(notification_type)
+        if dedup_key is not None:
+            clauses.append("dedup_key = ?")
+            params.append(dedup_key)
 
         where = f" WHERE {' AND '.join(clauses)}" if clauses else ""
         params.append(limit)

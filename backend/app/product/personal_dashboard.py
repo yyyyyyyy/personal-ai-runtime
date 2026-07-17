@@ -15,10 +15,14 @@ Widgets:
   - governance_status: active policy + grant counts (Governance)
 """
 
+from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime, timedelta
+import logging
 
 from app.core.runtime import read_ports
 from app.core.runtime.kernel_instance import kernel
+
+logger = logging.getLogger(__name__)
 
 # Maximum items per widget
 _MAX_RECENT_EVENTS = 10
@@ -31,15 +35,23 @@ def generate_dashboard() -> dict:
     now = datetime.now(UTC)
     seven_days_ago = (now - timedelta(days=7)).isoformat()
 
-    return {
-        "generated_at": now.isoformat(),
-        "data_sovereignty": _widget_data_sovereignty(),
-        "active_goals": _widget_active_goals(),
-        "recent_events": _widget_recent_events(seven_days_ago),
-        "recent_memories": _widget_recent_memories(),
-        "timer_status": _widget_timer_status(),
-        "governance_status": _widget_governance_status(),
-    }
+    with ThreadPoolExecutor(max_workers=6) as executor:
+        f_sovereignty = executor.submit(_widget_data_sovereignty)
+        f_active_goals = executor.submit(_widget_active_goals)
+        f_events = executor.submit(_widget_recent_events, seven_days_ago)
+        f_memories = executor.submit(_widget_recent_memories)
+        f_timers = executor.submit(_widget_timer_status)
+        f_governance = executor.submit(_widget_governance_status)
+
+        return {
+            "generated_at": now.isoformat(),
+            "data_sovereignty": f_sovereignty.result(),
+            "active_goals": f_active_goals.result(),
+            "recent_events": f_events.result(),
+            "recent_memories": f_memories.result(),
+            "timer_status": f_timers.result(),
+            "governance_status": f_governance.result(),
+        }
 
 
 def _widget_data_sovereignty() -> dict:
@@ -48,33 +60,37 @@ def _widget_data_sovereignty() -> dict:
         table_counts = kernel.table_counts(
             ("conversations", "messages", "memories", "event_log")
         )
-    except Exception:
+    except Exception as e:
+        logger.warning("Dashboard: Failed to fetch table_counts", exc_info=True)
         table_counts = {}
+
     try:
-        goal_total = len(read_ports.query_goals(limit=10000))
-    except Exception:
+        goal_total = read_ports.count_goals()
+    except Exception as e:
+        logger.warning("Dashboard: Failed to fetch total goals count", exc_info=True)
         goal_total = 0
 
     try:
-        memories = read_ports.query_memories(limit=5000)
-        self_report_count = sum(1 for m in memories if m.get("origin") == "self_report")
-        claim_count = sum(1 for m in memories if m.get("origin") == "claim")
-    except Exception:
-        memories = []
+        self_report_count = read_ports.count_memories(origin="self_report")
+        claim_count = read_ports.count_memories(origin="claim")
+    except Exception as e:
+        logger.warning("Dashboard: Failed to fetch memories footprint", exc_info=True)
         self_report_count = 0
         claim_count = 0
 
     try:
-        goals_active = read_ports.query_active_goals(limit=5000)
-        goals_completed = read_ports.query_completed_goals(limit=5000)
-    except Exception:
-        goals_active = []
-        goals_completed = []
+        goals_active = read_ports.count_active_goals()
+        goals_completed = read_ports.count_completed_goals()
+    except Exception as e:
+        logger.warning("Dashboard: Failed to fetch active/completed goals count", exc_info=True)
+        goals_active = 0
+        goals_completed = 0
 
     try:
-        beliefs = read_ports.query_memories(category="belief", limit=5, order="created_desc")
+        beliefs = read_ports.query_memories(category="belief", limit=1, order="created_desc")
         last_reflection = beliefs[0].get("created_at") if beliefs else None
-    except Exception:
+    except Exception as e:
+        logger.warning("Dashboard: Failed to fetch last reflection", exc_info=True)
         last_reflection = None
 
     return {
@@ -83,8 +99,8 @@ def _widget_data_sovereignty() -> dict:
         "memories_self_report": self_report_count,
         "memories_claim": claim_count,
         "total_goals": goal_total,
-        "goals_active": len(goals_active),
-        "goals_completed": len(goals_completed),
+        "goals_active": goals_active,
+        "goals_completed": goals_completed,
         "total_conversations": table_counts.get("conversations", 0),
         "total_messages": table_counts.get("messages", 0),
         "data_location": "本地存储 (SQLite + ChromaDB)",
@@ -95,10 +111,15 @@ def _widget_data_sovereignty() -> dict:
 
 def _widget_active_goals() -> dict:
     """Active goals — count + top by importance."""
-    active = read_ports.query_active_goals(limit=50, order="importance_desc")
-    top = active[:_MAX_TOP_GOALS]
+    try:
+        active_count = read_ports.count_active_goals()
+        top = read_ports.query_active_goals(limit=_MAX_TOP_GOALS, order="importance_desc")
+    except Exception as e:
+        logger.warning("Dashboard: Failed to fetch active goals widget", exc_info=True)
+        return {"count": 0, "top": []}
+
     return {
-        "count": len(active),
+        "count": active_count,
         "top": [
             {
                 "id": g.get("id", ""),
@@ -113,40 +134,48 @@ def _widget_active_goals() -> dict:
 
 def _widget_recent_events(since_ts: str) -> dict:
     """Recent system events — what happened (read_events only)."""
-    all_events = kernel.read_events(since_ts=since_ts, limit=_MAX_RECENT_EVENTS, order="desc")
-    interesting = [e for e in all_events if e.type not in {
-        "ChatTextDelta", "ChatDone",
-    }]
-    top_events = interesting[:_MAX_RECENT_EVENTS]
-    return {
-        "count": len(top_events),
-        "total_in_window": len(all_events),
-        "items": [
-            {
-                "seq": e.seq,
-                "type": e.type,
-                "actor": e.actor,
-                "ts": e.ts,
-            }
-            for e in top_events
-        ],
-    }
+    try:
+        all_events = kernel.read_events(since_ts=since_ts, limit=_MAX_RECENT_EVENTS * 5, order="desc")
+        interesting = [e for e in all_events if e.type not in {
+            "ChatTextDelta", "ChatDone",
+        }]
+        top_events = interesting[:_MAX_RECENT_EVENTS]
+        return {
+            "count": len(top_events),
+            "total_in_window": len(all_events),
+            "items": [
+                {
+                    "seq": e.seq,
+                    "type": e.type,
+                    "actor": e.actor,
+                    "ts": e.ts,
+                }
+                for e in top_events
+            ],
+        }
+    except Exception as e:
+        logger.warning("Dashboard: Failed to fetch recent events widget", exc_info=True)
+        return {"count": 0, "total_in_window": 0, "items": []}
 
 
 def _widget_recent_memories() -> dict:
     """Recent beliefs — what the system thinks it knows (recall_memory only)."""
-    memories = kernel.recall_memory("recent activities goals preferences", k=_MAX_RECENT_MEMORIES)
-    return {
-        "count": len(memories),
-        "items": [
-            {
-                "content": m.get("content", "")[:200],
-                "category": m.get("category", ""),
-                "confidence": m.get("confidence", 0),
-            }
-            for m in memories
-        ],
-    }
+    try:
+        memories = kernel.recall_memory("recent activities goals preferences", k=_MAX_RECENT_MEMORIES)
+        return {
+            "count": len(memories),
+            "items": [
+                {
+                    "content": m.get("content", "")[:200],
+                    "category": m.get("category", ""),
+                    "confidence": m.get("confidence", 0),
+                }
+                for m in memories
+            ],
+        }
+    except Exception as e:
+        logger.warning("Dashboard: Failed to fetch recent memories widget", exc_info=True)
+        return {"count": 0, "items": []}
 
 
 def _widget_timer_status() -> dict:
@@ -154,6 +183,7 @@ def _widget_timer_status() -> dict:
     try:
         active = read_ports.query_active_timers(limit=100)
     except Exception:
+        logger.warning("Dashboard: Failed to fetch timer status widget", exc_info=True)
         return {"active_timers": 0, "items": []}
     return {
         "active_timers": len(active),
@@ -176,7 +206,8 @@ def _widget_governance_status() -> dict:
     """
     try:
         policies = read_ports.query_active_policies(limit=200)
-    except Exception:
+    except Exception as e:
+        logger.warning("Dashboard: Failed to fetch governance status widget", exc_info=True)
         policies = []
     return {
         "active_policies": len(policies),

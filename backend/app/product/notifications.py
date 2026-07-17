@@ -2,7 +2,7 @@
 
 import uuid
 from datetime import UTC, datetime
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, TypedDict
 
 from app.core.runtime import read_ports
 from app.core.runtime.kernel.constants import (
@@ -16,25 +16,41 @@ if TYPE_CHECKING:
     from app.core.runtime.kernel import Kernel
 
 
+class NotificationPayload(TypedDict, total=False):
+    id: str
+    type: str
+    title: str
+    content: str
+    read: int
+    related_id: str | None
+    related_type: str | None
+    notification_type: str
+    dedup_key: str | None
+    created_at: str
+
+
 def _kernel(k: "Kernel | None" = None) -> "Kernel":
     return k or default_kernel
 
 
 def find_notification(
     notif_type: str,
-    title: str,
+    title: str | None = None,
     *,
+    dedup_key: str | None = None,
     kernel: "Kernel | None" = None,
-) -> dict | None:
-    """Return an existing notification with the same type and title, if any."""
+) -> NotificationPayload | None:
+    """Return an existing notification by dedup_key or type+title, if any."""
+    kwargs = {"type": notif_type, "limit": 1}
+    if dedup_key is not None:
+        kwargs["dedup_key"] = dedup_key
+    elif title is not None:
+        kwargs["title"] = title
+
     if kernel is None:
-        rows = read_ports.query_notifications(
-            type=notif_type, title=title, limit=1,
-        )
+        rows = read_ports.query_notifications(**kwargs)
     else:
-        rows = kernel.query_state(
-            "notifications", type=notif_type, title=title, limit=1,
-        )
+        rows = kernel.query_state("notifications", **kwargs)
     return rows[0] if rows else None
 
 
@@ -45,15 +61,19 @@ def create_notification(
     *,
     related_id: str | None = None,
     related_type: str | None = None,
+    dedup_key: str | None = None,
+    actor: str = "system",
     kernel: "Kernel | None" = None,
-) -> dict:
-    """Create a notification and return it (idempotent by type + title).
+) -> NotificationPayload:
+    """Create a notification and return it (idempotent by dedup_key or type + title).
 
     ``related_id`` is stored in the notifications.related_id column via the
     projector — not embedded in content.
     """
     k = _kernel(kernel)
-    existing = find_notification(notif_type, title, kernel=k)
+    existing = find_notification(
+        notif_type, title, dedup_key=dedup_key, kernel=k
+    )
     if existing:
         if related_id and not existing.get("related_id"):
             k.emit_event(
@@ -65,7 +85,7 @@ def create_notification(
                     "related_id": related_id,
                     "related_type": related_type,
                 },
-                actor="system",
+                actor=actor,
             )
             existing = {
                 **existing,
@@ -87,9 +107,10 @@ def create_notification(
             "related_id": related_id,
             "related_type": related_type,
             "notification_type": notif_type,
+            "dedup_key": dedup_key,
             "created_at": now,
         },
-        actor="system",
+        actor=actor,
     )
     return {
         "id": nid,
@@ -98,5 +119,7 @@ def create_notification(
         "content": content,
         "related_id": related_id,
         "related_type": related_type,
+        "notification_type": notif_type,
+        "dedup_key": dedup_key,
         "created_at": now,
     }

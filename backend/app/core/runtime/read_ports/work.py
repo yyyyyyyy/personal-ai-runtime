@@ -44,7 +44,12 @@ def query_stagnant_goals(*, days: int = 3, limit: int = 10) -> list[dict[str, An
 def query_stagnant_goal_count(*, days: int = 3) -> int:
     """Count active goals with no recent activity."""
     try:
-        return len(query_stagnant_goals(days=days, limit=10))
+        return kernel().count_state(
+            "work_items",
+            work_type="goal",
+            status="active",
+            last_activity_older_than_days=days,
+        )
     except Exception:
         return 0
 
@@ -66,6 +71,14 @@ def query_goals(*, status: str | None = None, limit: int = 50) -> list[dict[str,
     if status:
         filters["status"] = status
     return kernel().query_state("work_items", **filters)
+
+
+def count_goals(*, status: str | None = None) -> int:
+    """Count goals."""
+    filters: dict[str, Any] = {"work_type": "goal"}
+    if status:
+        filters["status"] = status
+    return kernel().count_state("work_items", **filters)
 
 
 def query_goal(goal_id: str) -> dict[str, Any] | None:
@@ -102,6 +115,14 @@ def query_active_goals(
     )
 
 
+def count_active_goals() -> int:
+    return kernel().count_state(
+        "work_items",
+        work_type="goal",
+        status="active",
+    )
+
+
 def query_completed_goals(
     *,
     limit: int = 5000,
@@ -115,6 +136,19 @@ def query_completed_goals(
     if updated_since:
         filters["updated_since"] = updated_since
     return kernel().query_state("work_items", **filters)
+
+
+def count_completed_goals(
+    *,
+    updated_since: str | None = None,
+) -> int:
+    filters: dict[str, Any] = {
+        "work_type": "goal",
+        "status": "completed",
+    }
+    if updated_since:
+        filters["updated_since"] = updated_since
+    return kernel().count_state("work_items", **filters)
 
 
 def query_goals_with_deadline(*, limit: int = 500) -> list[dict[str, Any]]:

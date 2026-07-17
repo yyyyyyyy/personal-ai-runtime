@@ -353,6 +353,33 @@ def _register_email_tools(hub):
     ))
 
     hub.register_tool(ToolDef(
+        name="mark_inbox_email_unread",
+        description=(
+            "Mark one inbox email as unread (IMAP). "
+            "Use when the user asks to 标记未读 / mark as unread. "
+            "Prefer message_id from check_inbox/read_inbox_email; else use index (1=newest)."
+        ),
+        parameters={
+            "type": "object",
+            "properties": {
+                "message_id": {
+                    "type": "string",
+                    "description": "Stable Message-ID from check_inbox/read_inbox_email.",
+                },
+                "index": {
+                    "type": "integer",
+                    "description": "1-based position among recent mail (1=newest).",
+                },
+                "limit": {
+                    "type": "integer",
+                    "description": "Listing window size (default 30).",
+                },
+            },
+        },
+        handler=email_server.mark_inbox_email_unread,
+    ))
+
+    hub.register_tool(ToolDef(
         name="send_email",
         description="Send an email via SMTP. WARNING: This requires user confirmation.",
         parameters={

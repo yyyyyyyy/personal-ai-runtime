@@ -74,6 +74,7 @@ def _get_builtin_tools(name: str) -> list[dict]:
             {"name": "check_inbox", "description": "检查收件箱新邮件"},
             {"name": "read_inbox_email", "description": "读取邮件详情"},
             {"name": "mark_inbox_email_read", "description": "标记邮件为已读"},
+            {"name": "mark_inbox_email_unread", "description": "标记邮件为未读"},
             {"name": "send_email", "description": "发送邮件"},
         ]
     if name == "calendar":

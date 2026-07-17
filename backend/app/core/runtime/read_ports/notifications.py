@@ -18,6 +18,7 @@ def query_notifications(
     limit: int = 50,
     type: str | None = None,
     title: str | None = None,
+    dedup_key: str | None = None,
     order: str | None = None,
 ) -> list[dict[str, Any]]:
     filters: dict[str, Any] = {"limit": limit}
@@ -27,6 +28,8 @@ def query_notifications(
         filters["type"] = type
     if title is not None:
         filters["title"] = title
+    if dedup_key is not None:
+        filters["dedup_key"] = dedup_key
     if order:
         filters["order"] = order
     return kernel().query_state("notifications", **filters)

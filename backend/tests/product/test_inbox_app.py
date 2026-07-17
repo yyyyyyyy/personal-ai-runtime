@@ -188,6 +188,25 @@ async def test_poll_inbox_dedupes_and_notifies_important(inbox_db):
     assert result2["new_count"] == 0
 
 
+@pytest.mark.asyncio
+async def test_mark_inbox_email_status_syncs_unread_to_imap(inbox_db):
+    db, k = inbox_db
+    _seed_inbox_email(k, email_id="msg-sync-unread", status="read")
+
+    async def fake_invoke(name, args=None, actor="user", **kwargs):
+        assert name == "mark_inbox_email_unread"
+        assert args["message_id"] == "msg-sync-unread"
+        return {"status": "success"}
+
+    with patch("app.product.inbox.kernel.invoke_capability", side_effect=fake_invoke) as mock_invoke:
+        from app.product.inbox import mark_inbox_email_status
+        await mark_inbox_email_status("msg-sync-unread", "pending")
+        mock_invoke.assert_called_once()
+
+    rows = k.query_state("inbox_emails", id="msg-sync-unread")
+    assert rows[0]["status"] == "pending"
+
+
 def test_digest_idempotent(inbox_db, monkeypatch):
     db, k = inbox_db
 

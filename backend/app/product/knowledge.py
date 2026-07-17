@@ -103,10 +103,7 @@ def extract_text(file_path: Path, filename: str) -> str:
                 status_code=500,
             ) from e
         reader = PdfReader(str(file_path))
-        text = ""
-        for page in reader.pages:
-            text += page.extract_text() or ""
-        return text
+        return "".join(page.extract_text() or "" for page in reader.pages)
     if ext == ".docx":
         try:
             from docx import Document
