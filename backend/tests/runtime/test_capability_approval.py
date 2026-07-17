@@ -31,6 +31,7 @@ BUILTIN_TOOLS = {
     "check_inbox",
     "read_inbox_email",
     "mark_inbox_email_read",
+    "mark_inbox_email_unread",
     "send_email",
     "open_web_page",
     "search_and_extract",
@@ -89,7 +90,7 @@ def test_capability_policy_covers_all_registered_tools():
     assert not missing, f"Builtin tools missing from capability_policy: {missing}"
     assert not extra, f"Unknown tools in capability_policy: {extra}"
     assert not overlap, f"Tools in both auto_allow and needs_user: {overlap}"
-    assert len(BUILTIN_TOOLS) == 29
+    assert len(BUILTIN_TOOLS) == 30
 
 
 def make_kernel(tmp_path):
