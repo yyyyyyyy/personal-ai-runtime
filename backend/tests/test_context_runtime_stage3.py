@@ -265,32 +265,44 @@ class TestContextAssembler:
         assert "ok" in result
         assert "H" not in result
 
-    def test_assemble_collect_failure_is_logged(self, caplog):
+    def test_assemble_collect_failure_is_logged(self, monkeypatch):
+        from app.assembler import context_assembler as ca
         from app.assembler.context_assembler import ContextAssembler
         from app.context_runtime import ContextFragment, FragmentResult, RuntimeContext
-        import logging
+
+        logged: list[str] = []
+
+        def _capture_error(msg, *args, **kwargs):
+            try:
+                logged.append(msg % args if args else str(msg))
+            except Exception:
+                logged.append(str(msg))
+
+        monkeypatch.setattr(ca.logger, "error", _capture_error)
 
         class Boom(ContextFragment):
             id: str = "boom"
+
             async def collect(self, ctx):
                 raise RuntimeError("collect broke")
 
         class Ok(ContextFragment):
             id: str = "ok"
             priority: int = 10
+
             async def collect(self, ctx):
                 return FragmentResult(content="alive")
 
         import asyncio
+
         assembler = ContextAssembler()
-        with caplog.at_level(logging.ERROR, logger="app.assembler.context_assembler"):
-            result = asyncio.run(assembler.assemble(
-                [Boom(), Ok()],
-                RuntimeContext(),
-                budget=2000,
-            ))
+        result = asyncio.run(assembler.assemble(
+            [Boom(), Ok()],
+            RuntimeContext(),
+            budget=2000,
+        ))
         assert "alive" in result
-        assert any("collect broke" in r.getMessage() for r in caplog.records)
+        assert any("collect broke" in m for m in logged)
 
     def test_estimate_tokens(self):
         # FragmentResult.__post_init__

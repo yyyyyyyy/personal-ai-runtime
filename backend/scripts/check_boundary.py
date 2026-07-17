@@ -93,8 +93,14 @@ def _capability_subsystem_file(rel: Path) -> bool:
 
 
 def _is_store_layer(rel: Path) -> bool:
-    """database.py is the projection read layer (SELECT-only for governed tables)."""
-    return rel == Path("store/database.py")
+    """Store projection readers — SELECT-only helpers for governed tables.
+
+    ``database.py`` owns connections; ``*_queries.py`` modules hold thin SQL
+    aggregations used by Kernel QueryStateMixin (see telemetry_queries).
+    """
+    if rel.parts[:1] != ("store",):
+        return False
+    return rel.name == "database.py" or rel.name.endswith("_queries.py")
 
 
 def _is_app_storage_file(rel: Path) -> bool:

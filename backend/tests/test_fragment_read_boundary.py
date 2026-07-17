@@ -32,6 +32,9 @@ _ALLOWED_RUNTIME_IMPORTS = frozenset({
     "app.context_runtime",
     "app.core.runtime",
     "app.core.runtime.read_ports",
+    # Pure helpers (no persistence / Kernel bypass).
+    "app.core.agents.token_counter",
+    "app.core.agents.tool_markup",
 })
 
 
