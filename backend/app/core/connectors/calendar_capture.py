@@ -30,6 +30,10 @@ def capture_calendar_observations(
             "source": "calendar",
             "calendar": item.get("calendar", calendar),
             "title": item.get("title", ""),
+            "start": item.get("start"),
+            "end": item.get("end"),
+            "location": item.get("location") or "",
+            "all_day": bool(item.get("all_day")),
             "file": item.get("file"),
             "captured_at": datetime.now(UTC).isoformat(),
         }

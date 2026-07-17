@@ -6,9 +6,62 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from datetime import date, datetime
 
 from app.context_runtime import ContextFragment, FragmentResult, RuntimeContext
 from app.core.runtime import read_ports
+
+
+def _parse_start(raw: str) -> datetime | date | None:
+    if not raw:
+        return None
+    text = raw.strip()
+    try:
+        if "T" in text:
+            return datetime.fromisoformat(text.replace("Z", "+00:00"))
+        return date.fromisoformat(text[:10])
+    except ValueError:
+        return None
+
+
+def _format_event_when(event: dict, *, mode: str) -> str:
+    """Format event time for today agenda or upcoming list."""
+    if event.get("all_day"):
+        start = _parse_start(str(event.get("start") or event.get("date") or ""))
+        if mode == "today":
+            return "全天"
+        return start.isoformat()[:10] if start else "全天"
+
+    start = _parse_start(str(event.get("start") or ""))
+    if isinstance(start, datetime):
+        if mode == "today":
+            return start.strftime("%H:%M")
+        return start.strftime("%Y-%m-%d %H:%M")
+
+    if isinstance(start, date):
+        return start.isoformat() if mode == "week" else "全天"
+
+    # Backward-compatible fallback for older payloads.
+    legacy = str(event.get("date") or "").strip()
+    if legacy:
+        return legacy if mode == "week" else "全天"
+    return "时间未定" if mode == "week" else "全天"
+
+
+def _format_event_line(event: dict, *, mode: str) -> str:
+    title = event.get("title") or "无标题"
+    when = _format_event_when(event, mode=mode)
+    location = f" @{event['location']}" if event.get("location") else ""
+    return f"- {when}  {title}{location}"
+
+
+def _event_sources(events: list[dict]) -> list[dict]:
+    sources: list[dict] = []
+    for e in events:
+        title = str(e.get("title") or "无标题")
+        start = str(e.get("start") or e.get("date") or title)
+        sources.append({"id": f"calendar:{start}:{title}", "type": "calendar", "title": title})
+    return sources
 
 
 @dataclass
@@ -31,13 +84,8 @@ class UpcomingEventsFragment(ContextFragment):
             return FragmentResult(content="未来一周暂无日程安排。")
 
         lines = ["## 未来日程\n"]
-        for e in events:
-            title = e.get("title", "无标题")
-            start = e.get("start", "")
-            dt_str = start[:16] if start else "时间未定"
-            lines.append(f"- {dt_str}  {title}")
-
-        return FragmentResult(content="\n".join(lines))
+        lines.extend(_format_event_line(e, mode="week") for e in events)
+        return FragmentResult(content="\n".join(lines), sources=_event_sources(events))
 
 
 @dataclass
@@ -59,18 +107,12 @@ class DailyAgendaFragment(ContextFragment):
         try:
             data = read_ports.query_calendar_today_events()
         except Exception:
-            return FragmentResult(content=self._IDENTITY + "\n今日暂无日程安排。")
+            return FragmentResult(content=self._IDENTITY)
 
         events = data.get("events", [])
         if not events:
             return FragmentResult(content=self._IDENTITY + "\n今日暂无日程安排。")
 
         lines = [self._IDENTITY, "## 今日日程\n"]
-        for e in events:
-            title = e.get("title", "无标题")
-            start = e.get("start", "")
-            time_str = start[11:16] if start and len(start) >= 16 else "全天"
-            location = f" @{e['location']}" if e.get("location") else ""
-            lines.append(f"- {time_str}  {title}{location}")
-
-        return FragmentResult(content="\n".join(lines))
+        lines.extend(_format_event_line(e, mode="today") for e in events)
+        return FragmentResult(content="\n".join(lines), sources=_event_sources(events))

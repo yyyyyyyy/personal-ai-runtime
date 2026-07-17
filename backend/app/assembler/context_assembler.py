@@ -77,23 +77,35 @@ class ContextAssembler:
         used = 0
 
         for frag, result in results:
-            token_count = count_text_tokens(result.content) if result.content else 0
+            content = result.content or ""
+            if not content and frag.priority < 100:
+                continue
+
+            # Respect per-fragment max_tokens when set (>0).
+            max_tok = getattr(frag, "max_tokens", 0) or 0
+            if content and max_tok > 0 and count_text_tokens(content) > max_tok:
+                # Soft trim by characters; fragments should self-limit, this is a backstop.
+                approx_chars = max(16, max_tok * 4)
+                content = content[:approx_chars].rstrip() + "…"
+                result = FragmentResult(content=content, sources=result.sources)
+
+            token_count = count_text_tokens(content) if content else 0
 
             # Identity Fragment 永不被丢弃（priority=100）
             if frag.priority >= 100:
-                parts.append(result.content)
+                parts.append(content)
                 used += token_count
                 all_sources.extend(result.sources)
                 continue
 
-            if not result.content:
+            if not content:
                 continue
 
             # 预算不足时跳过
             if used + token_count > budget:
                 continue
 
-            parts.append(result.content)
+            parts.append(content)
             used += token_count
             all_sources.extend(result.sources)
 

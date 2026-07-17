@@ -171,10 +171,17 @@ class ContextPipeline:
         self._last_plan = plan
         self._record_fragment_ids(plan.selected_fragment_ids)
 
+        tags = (
+            frozenset(plan.analysis_result.tags)
+            if plan.analysis_result is not None
+            else frozenset()
+        )
         ctx = RuntimeContext(
             user_message=request.user_message,
             conversation_id=request.conversation_id,
             execution_id=request.execution_id,
+            intent_tags=tags,
+            stage=plan.stage,
         )
         # Use assemble_with_sources for citation tracking
         assembly_result = await self._assembler.assemble_with_sources(

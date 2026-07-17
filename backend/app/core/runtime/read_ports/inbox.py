@@ -7,12 +7,16 @@ from typing import Any
 from app.core.runtime.read_ports._common import kernel
 
 
-def query_recent_inbox_emails(*, limit: int = 20) -> list[dict[str, Any]]:
+def query_recent_inbox_emails(
+    *,
+    limit: int = 20,
+    order: str = "date_desc",
+) -> list[dict[str, Any]]:
     return kernel().query_state(
         "inbox_emails",
         status_not="archived",
         limit=limit,
-        order="date_desc",
+        order=order,
     )
 
 

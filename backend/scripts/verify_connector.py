@@ -37,9 +37,12 @@ def main() -> int:
     today = datetime.now().strftime("%Y-%m-%d")
     ics_path = ics_dir / "default.ics"
     ics_path.write_text(
-        f"BEGIN:VCALENDAR\nDTSTART:{today.replace('-', '')}T090000\n"
-        f"X-VERIFY-DATE:{today}\n"
-        f"SUMMARY:Verify Connector Meeting\nEND:VCALENDAR\n",
+        "BEGIN:VCALENDAR\nVERSION:2.0\n"
+        "BEGIN:VEVENT\n"
+        f"DTSTART:{today.replace('-', '')}T090000\n"
+        f"DTEND:{today.replace('-', '')}T100000\n"
+        "SUMMARY:Verify Connector Meeting\n"
+        "END:VEVENT\nEND:VCALENDAR\n",
         encoding="utf-8",
     )
 

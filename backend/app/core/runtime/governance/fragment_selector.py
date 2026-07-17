@@ -24,6 +24,7 @@ CORE_TIER_FRAGMENT_IDS: tuple[str, ...] = (
 POST_TOOL_FRAGMENT_IDS: tuple[str, ...] = (
     "core.background",
     "core.conversation_state",
+    "core.governance",  # pending approvals after tool deferral
 )
 
 BRIEF_FRAGMENT_IDS: tuple[str, ...] = (

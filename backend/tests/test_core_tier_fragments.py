@@ -86,16 +86,16 @@ class TestCoreTierCompile:
             CompileContext(
                 conversation_id="conv_1",
                 execution_id="exec_1",
-                user_message="hello",
+                user_message="what did I decide about the project roadmap",
                 stage="chat",
             ),
         )
 
         assert "Personal AI Runtime" in result
         assert "recalled fact" in result
-        assert "## Pending Actions" in result
+        assert "## 待办动作" in result
         assert "Finish report" in result
-        assert "## Recent Events" in result
+        assert "## 近期事件" in result
         assert "Action created: Finish report" in result
 
     @pytest.mark.asyncio
@@ -168,8 +168,8 @@ class TestCoreTierCompile:
 
         assert "resume memory" in result
         assert "Personal AI Runtime" in result
-        assert "## Pending Actions" not in result
-        assert "## Recent Events" not in result
+        assert "## 待办动作" not in result
+        assert "## 近期事件" not in result
 
 
 class TestEmptyFragmentBehavior:
@@ -213,8 +213,8 @@ class TestEmptyFragmentBehavior:
             RuntimeContext(user_message="hi", conversation_id="c1"),
         )
 
-        assert "## Pending Actions" not in result
-        assert "## Recent Events" not in result
+        assert "## 待办动作" not in result
+        assert "## 近期事件" not in result
         assert isinstance(result, str)
 class TestActionsEventsFragments:
     @pytest.mark.asyncio
@@ -235,7 +235,7 @@ class TestActionsEventsFragments:
         )
 
         result = await TimelineContextFragment().collect(RuntimeContext())
-        assert "## Pending Actions" in result.content
+        assert "## 待办动作" in result.content
         assert "[pending] Task A" in result.content
         assert result.content.count("- [") == 2
 
@@ -256,7 +256,7 @@ class TestActionsEventsFragments:
         )
 
         result = await TimelineContextFragment().collect(RuntimeContext())
-        assert "## Recent Events" in result.content
+        assert "## 近期事件" in result.content
         assert "Goal created: Learn Rust" in result.content
         assert "(2026-06-18)" in result.content
 

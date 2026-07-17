@@ -21,6 +21,10 @@ class RuntimeContext:
     user_message: str = ""
     conversation_id: str = ""
     execution_id: str = ""
+    # Intent tags from QueryAnalyzer — fragments use this to avoid duplicate work.
+    intent_tags: frozenset[str] = field(default_factory=frozenset)
+    # Compile stage (chat / post_tool / brief) — fragments can adapt density.
+    stage: str = "chat"
 
 
 # ── FragmentResult ───────────────────────────────────────────────────────

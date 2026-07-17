@@ -64,3 +64,33 @@ def count_text_tokens(text: str, *, model: str = "gpt-4") -> int:
     if encoding is None:
         return len(text) // 4
     return len(encoding.encode(text or ""))
+
+
+def truncate_to_token_budget(text: str, max_tokens: int, *, model: str = "gpt-4") -> str:
+    """Trim ``text`` to at most ``max_tokens`` (binary search on character length).
+
+    Appends an ellipsis when truncation occurs. Empty input or non-positive
+    budgets yield an empty string.
+    """
+    if not text or max_tokens <= 0:
+        return ""
+    if count_text_tokens(text, model=model) <= max_tokens:
+        return text
+
+    lo, hi = 0, len(text)
+    best = ""
+    while lo <= hi:
+        mid = (lo + hi) // 2
+        candidate = text[:mid].rstrip()
+        if not candidate:
+            lo = mid + 1
+            continue
+        if count_text_tokens(candidate, model=model) <= max_tokens:
+            best = candidate
+            lo = mid + 1
+        else:
+            hi = mid - 1
+
+    if best and not best.endswith("…"):
+        best = best.rstrip() + "…"
+    return best

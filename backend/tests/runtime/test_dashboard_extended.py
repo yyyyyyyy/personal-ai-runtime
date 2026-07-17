@@ -51,26 +51,20 @@ class TestDashboardGeneration:
 
 class TestKnowledgeFragment:
     def test_empty_message_returns_none(self):
-        import asyncio
-
         from app.fragments.universal.knowledge_fragment import build_knowledge_context
 
-        result = asyncio.run(build_knowledge_context(""))
+        result = build_knowledge_context("")
         assert result is None
 
     def test_short_message_returns_none(self):
-        import asyncio
-
         from app.fragments.universal.knowledge_fragment import build_knowledge_context
 
-        result = asyncio.run(build_knowledge_context("hi"))
+        result = build_knowledge_context("hi")
         assert result is None
 
     def test_valid_query_returns_formatted(self):
-        import asyncio
-
         from app.fragments.universal.knowledge_fragment import build_knowledge_context
 
-        result = asyncio.run(build_knowledge_context("what is machine learning"))
+        result = build_knowledge_context("what is machine learning")
         # Returns None if no docs in knowledge base, which is fine
         assert result is None or isinstance(result, str)

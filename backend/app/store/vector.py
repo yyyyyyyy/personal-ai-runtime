@@ -1,7 +1,11 @@
 """ChromaDB vector store management for semantic search and memory."""
 
+import json
+import logging
 import os
+import sqlite3
 import uuid
+from pathlib import Path
 from typing import Any, TypedDict
 
 
@@ -32,11 +36,57 @@ import chromadb  # noqa: E402
 from chromadb.config import Settings as ChromaSettings  # noqa: E402
 from chromadb.utils.embedding_functions import DefaultEmbeddingFunction  # noqa: E402
 
+logger = logging.getLogger(__name__)
+
 # Pin the same default ONNX MiniLM L6 v2 path Chroma 0.5.x / 1.x ships so
 # upgrades do not silently switch embedding models or dimensions.
 # Typed as Any: chromadb stubs expect a broader EmbeddingFunction protocol than
 # DefaultEmbeddingFunction declares.
 _EMBEDDING_FUNCTION: Any = DefaultEmbeddingFunction()
+
+# Valid CollectionConfigurationInternal for Chroma 0.5.x when older DBs stored
+# an empty config_json_str ('{}'), which otherwise raises KeyError: '_type'.
+_DEFAULT_COLLECTION_CONFIG_JSON = json.dumps({
+    "hnsw_configuration": {
+        "space": "l2",
+        "ef_construction": 100,
+        "ef_search": 10,
+        "num_threads": 16,
+        "M": 16,
+        "resize_factor": 1.2,
+        "batch_size": 100,
+        "sync_threshold": 1000,
+        "_type": "HNSWConfigurationInternal",
+    },
+    "_type": "CollectionConfigurationInternal",
+})
+
+
+def _repair_empty_collection_configs(vector_dir: str | Path) -> int:
+    """Patch collections whose config_json_str is empty / '{}'.
+
+    Returns the number of rows updated.
+    """
+    db_path = Path(vector_dir) / "chroma.sqlite3"
+    if not db_path.is_file():
+        return 0
+
+    conn = sqlite3.connect(str(db_path))
+    try:
+        cur = conn.execute(
+            "UPDATE collections SET config_json_str = ? "
+            "WHERE config_json_str IS NULL OR TRIM(config_json_str) IN ('', '{}')",
+            (_DEFAULT_COLLECTION_CONFIG_JSON,),
+        )
+        conn.commit()
+        return int(cur.rowcount or 0)
+    except Exception:
+        logger.warning(
+            "Failed to repair Chroma collection configs at %s", db_path, exc_info=True
+        )
+        return 0
+    finally:
+        conn.close()
 
 
 class VectorStore:
@@ -46,6 +96,16 @@ class VectorStore:
         # Resolve settings at call time so test reset_settings() takes effect.
         from app.config import settings
 
+        # Older DBs may have empty config_json_str; repair before PersistentClient
+        # lists collections (Chroma 0.5.x requires '_type' in the JSON).
+        repaired = _repair_empty_collection_configs(settings.vector_dir)
+        if repaired:
+            logger.info(
+                "Repaired %d Chroma collection config(s) in %s",
+                repaired,
+                settings.vector_dir,
+            )
+
         self.client = chromadb.PersistentClient(
             path=settings.vector_dir,
             settings=ChromaSettings(anonymized_telemetry=False),
@@ -54,24 +114,18 @@ class VectorStore:
 
     def _init_collections(self):
         """Create collections if they don't exist."""
-        # Cosine space matches distance→weight conversion in read_ports
-        # (weight ≈ 1 - distance). Fresh installs only — no migration path.
-        hnsw_config = {"hnsw:space": "cosine"}
+        # Descriptive metadata only. Do not put hnsw:space in metadata — on
+        # Chroma 0.5.x it does not change the real HNSW config (still L2) and
+        # is misleading. Existing indexes already use L2.
         self.memory_collection = self.client.get_or_create_collection(
             name="memories",
             embedding_function=_EMBEDDING_FUNCTION,
-            metadata={
-                "description": "Long-term user memories and preferences",
-                **hnsw_config,
-            },
+            metadata={"description": "Long-term user memories and preferences"},
         )
         self.knowledge_collection = self.client.get_or_create_collection(
             name="knowledge",
             embedding_function=_EMBEDDING_FUNCTION,
-            metadata={
-                "description": "Imported documents and knowledge fragments",
-                **hnsw_config,
-            },
+            metadata={"description": "Imported documents and knowledge fragments"},
         )
 
     def add_memory(

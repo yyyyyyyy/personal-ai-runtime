@@ -15,9 +15,12 @@ def test_capture_emits_observation(tmp_path: Path):
     today = datetime.now().strftime("%Y-%m-%d")
     ics = tmp_path / "default.ics"
     ics.write_text(
-        f"BEGIN:VCALENDAR\nDTSTART:{today.replace('-', '')}T090000\n"
-        f"X-TEST-DATE:{today}\n"
-        "SUMMARY:Unit Test Event\nEND:VCALENDAR\n",
+        "BEGIN:VCALENDAR\nVERSION:2.0\n"
+        "BEGIN:VEVENT\n"
+        f"DTSTART:{today.replace('-', '')}T090000\n"
+        f"DTEND:{today.replace('-', '')}T100000\n"
+        "SUMMARY:Unit Test Event\n"
+        "END:VEVENT\nEND:VCALENDAR\n",
         encoding="utf-8",
     )
     import app.core.harness.builtin_tools.calendar as cal_mod

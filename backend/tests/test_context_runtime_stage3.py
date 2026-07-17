@@ -292,17 +292,17 @@ class TestConversationStateFragment:
         assert f.priority == 80  # reduced from 90: Brain handles full history separately
         assert "conversation" in f.tags
 
-        # 新会话（无 conversation_id）
+        # 新会话（无 conversation_id）— 不注入占位文案，避免噪声
         import asyncio
         result = asyncio.run(f.collect(RuntimeContext(conversation_id="")))
-        assert "新会话" in result.content
+        assert result.content == ""
 
     def test_returns_summary_not_raw_transcript(self):
         """不返回原始全文 transcript。"""
         from app.fragments.universal.conversation_state import ConversationStateFragment
 
         f = ConversationStateFragment()
-        assert f.max_tokens == 800  # reduced from 1500: Brain injects full history
+        assert f.max_tokens == 500  # compact cognitive summary; Brain injects full history
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -312,14 +312,19 @@ class TestConversationStateFragment:
 class TestBackgroundContextFragment:
     """验证背景 Fragment 只读。"""
 
-    def test_background_fragment(self):
+    def test_background_fragment(self, monkeypatch):
         from app.context_runtime import RuntimeContext
         from app.fragments.universal.background import BackgroundContextFragment
 
         f = BackgroundContextFragment()
         assert f.id == "core.background"
-        assert f.priority == 58  # between memory(60) and world(55)
+        assert f.priority == 58
         assert {"memory", "world"}.issubset(f.tags)  # merged from both sources
+
+        monkeypatch.setattr(
+            "app.core.runtime.read_ports.query_world_context",
+            lambda: "## Current Life Snapshot (last 30 days)\n- Active Goals: 1",
+        )
 
         # 无 user_message 时仅返回 world snapshot（不需用户输入）
         import asyncio

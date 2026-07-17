@@ -10,9 +10,7 @@ from app.core.runtime.governance.fragment_selector import (
     CORE_TIER_FRAGMENT_IDS,
     reachable_fragment_ids,
 )
-from app.fragments.register import register_all_fragments
-
-_EXPECTED_FRAGMENT_COUNT = 10  # background + mail + calendar + other fragments
+from app.fragments.register import EXPECTED_FRAGMENT_COUNT, register_all_fragments
 
 FRAGMENT_TRIGGER_MATRIX: dict[str, str] = {
     "core.background": "Core Tier",
@@ -32,7 +30,7 @@ class TestFragmentRegistryAudit:
     def test_registered_fragment_count(self):
         registry = FragmentRegistry()
         ids = register_all_fragments(registry)
-        assert len(ids) == _EXPECTED_FRAGMENT_COUNT
+        assert len(ids) == EXPECTED_FRAGMENT_COUNT
 
     def test_all_registered_fragments_reachable(self):
         registry = FragmentRegistry()

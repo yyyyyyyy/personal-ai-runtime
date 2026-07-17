@@ -3,10 +3,13 @@
 Loaded in Scenario Tier when user query matches 'knowledge' intent.
 """
 
+from __future__ import annotations
+
+import asyncio
 from dataclasses import dataclass, field
 
 from app.context_runtime import ContextFragment, FragmentResult, RuntimeContext
-from app.fragments.universal.knowledge_fragment import build_knowledge_context
+from app.fragments.universal.knowledge_fragment import retrieve_knowledge_with_sources
 
 
 @dataclass
@@ -14,31 +17,24 @@ class KnowledgeContextFragment(ContextFragment):
     """Injects semantically relevant knowledge chunks from user documents."""
 
     id: str = field(default="scenario.knowledge", init=False)
-    priority: int = field(default=50, init=False)
+    priority: int = field(default=65, init=False)
     max_tokens: int = field(default=1500, init=False)
     tags: frozenset[str] = field(
-        default_factory=lambda: frozenset({"knowledge", "scenario"}), init=False
+        default_factory=lambda: frozenset({"knowledge", "scenario"}),
+        init=False,
     )
 
     async def collect(self, ctx: RuntimeContext) -> FragmentResult:
-        user_message = ctx.user_message
+        user_message = (ctx.user_message or "").strip()
         if not user_message:
             return FragmentResult(content="")
 
-        knowledge = await build_knowledge_context(user_message)
-        if knowledge:
-            # Carry document citations so the frontend can show them.
-            sources: list[dict] = []
-            try:
-                from app.core.runtime import read_ports
-                for r in read_ports.search_knowledge(user_message, n_results=3):
-                    meta = r.get("metadata") or {}
-                    sources.append({
-                        "id": r.get("id", ""),
-                        "type": "document",
-                        "title": meta.get("source_file", "document"),
-                    })
-            except Exception:
-                pass
-            return FragmentResult(content=knowledge, sources=sources)
-        return FragmentResult(content="")
+        # Offload sync vector I/O so the event loop stays responsive.
+        content, sources = await asyncio.to_thread(
+            retrieve_knowledge_with_sources,
+            user_message,
+            max_tokens=self.max_tokens,
+        )
+        if not content:
+            return FragmentResult(content="")
+        return FragmentResult(content=content, sources=sources)

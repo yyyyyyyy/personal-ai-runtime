@@ -63,14 +63,14 @@ class TestFragmentRegistry:
         assert "mail.email_search" in ids
 
     def test_register_all_fragments_includes_mail(self):
-        from app.fragments.register import register_all_fragments
+        from app.fragments.register import EXPECTED_FRAGMENT_COUNT, register_all_fragments
 
         registry = FragmentRegistry()
         ids = register_all_fragments(registry)
         assert "mail.recent_emails" in ids
         assert "mail.email_search" in ids
         assert "mail.email_thread" not in ids
-        assert len(ids) == 10
+        assert len(ids) == EXPECTED_FRAGMENT_COUNT
 
 
 class TestRuntimeGovernanceGuarantees:

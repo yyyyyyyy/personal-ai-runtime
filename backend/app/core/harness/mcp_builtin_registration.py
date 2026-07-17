@@ -259,6 +259,7 @@ def _register_calendar_tools(hub):
                 "time": {"type": "string", "description": "Event time in HH:MM format (default 09:00)."},
                 "duration_minutes": {"type": "integer", "description": "Duration in minutes (default 60)."},
                 "description": {"type": "string", "description": "Optional event description."},
+                "location": {"type": "string", "description": "Optional event location."},
             },
             "required": ["title", "date"],
         },
