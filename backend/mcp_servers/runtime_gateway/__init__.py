@@ -1,1 +1,1 @@
-"""Runtime Gateway MCP server — exposes recall + store_memory to external agents."""
+"""Runtime Gateway MCP server — recall, memory, approvals, and timeline for external agents."""

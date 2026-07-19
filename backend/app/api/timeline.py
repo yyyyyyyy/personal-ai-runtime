@@ -128,6 +128,8 @@ async def list_timeline_events(
 ):
     """Return paginated, human-readable timeline events.
 
+    **@public** SDK surface (read-only) — external agents may browse recent activity.
+
     Events are ordered by seq descending (newest first). Pagination is done
     in SQL (offset/limit) so results remain correct past the old 500-row cap.
     """

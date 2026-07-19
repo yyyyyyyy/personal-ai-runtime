@@ -49,7 +49,7 @@ def _label_flow(corr_id: str, task_id: str | None, task_map: dict[str, str]) -> 
     return corr_id or ""
 
 
-def _list_pending_enriched(kernel) -> list[dict]:
+def _list_pending_enriched(kernel, limit: int | None = None) -> list[dict]:
     """List pending approvals with flow context enriched from event_log.
 
     UI-presentation concern, not a governance decision.
@@ -57,6 +57,8 @@ def _list_pending_enriched(kernel) -> list[dict]:
     pending = read_ports.query_pending_approvals()
     if not pending:
         return []
+    if limit is not None and limit > 0:
+        pending = pending[:limit]
 
     approval_ids = [a["id"] for a in pending]
     correlation_map: dict[str, str] = {}
@@ -94,15 +96,19 @@ def _list_pending_enriched(kernel) -> list[dict]:
 async def list_approvals(limit: int = 50, pending_only: bool = False, enriched: bool = False):
     """List approvals, optionally enriched with flow context.
 
+    **@public** SDK surface (read-only) — external agents may list pending
+    approvals; mutating approve/reject endpoints remain private.
+
     When enriched=true, each approval includes:
       - flow_type: "对话" | "任务" | "定时任务" | "测试" | "系统" | "未知"
       - flow_label: human-readable source label
       - correlation_id: event correlation identifier
     """
     if pending_only and enriched:
-        return _list_pending_enriched(kernel)
+        return _list_pending_enriched(kernel, limit=limit)
     if pending_only:
-        return capability_governance.list_pending(kernel)
+        rows = capability_governance.list_pending(kernel)
+        return rows[:limit] if limit > 0 else rows
     return capability_governance.list_all(kernel, limit=limit)
 
 
