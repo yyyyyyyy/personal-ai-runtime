@@ -9,13 +9,90 @@ from app.chat.prompt_artifact import (
     IDENTITY_ARTIFACT,
     PromptArtifactContext,
     PromptArtifactLoader,
+    build_policy_tool_notes,
     render_coding_rules,
+    should_include_coding_ops,
     should_include_coding_rules,
     tools_for_prompt_hints,
 )
 from app.config import BASE_DIR
 
 _CODING_TOOLS = ["read_file", "apply_patch", "write_file", "shell_exec"]
+
+
+class TestPromptFileInvariants:
+    """Keep backend/prompts/*.md aligned with governance (single source of truth)."""
+
+    def test_prompts_dir_points_at_backend_prompts(self):
+        from app.chat.prompt_artifact import PROMPTS_DIR
+
+        assert PROMPTS_DIR.name == "prompts"
+        assert PROMPTS_DIR.parent.name == "backend"
+        assert (PROMPTS_DIR / "identity.md").is_file()
+        assert (PROMPTS_DIR / "coding_rules.md").is_file()
+        assert (PROMPTS_DIR / "coding_rules_ops.md").is_file()
+
+    def test_identity_covers_governance_red_lines(self):
+        assert "No side effects without explicit intent" in IDENTITY_ARTIFACT
+        assert "capability_policy.json" in IDENTITY_ARTIFACT
+        assert "CONSTITUTION" not in IDENTITY_ARTIFACT
+        assert "Playwright" not in IDENTITY_ARTIFACT
+        # Soft memory attribution (not a rigid marker format).
+        assert "低置信度" in IDENTITY_ARTIFACT or "0.6" in IDENTITY_ARTIFACT
+
+    def test_coding_rules_protect_real_paths(self):
+        assert "backend/capability_policy.json" in CODING_RULES_TEMPLATE
+        assert "backend/app/core/runtime/kernel/" in CODING_RULES_TEMPLATE
+        assert "backend/scripts/check_boundary.py" in CODING_RULES_TEMPLATE
+        assert "sensitive_router.py" not in CODING_RULES_TEMPLATE
+        assert "capability_policy.py" not in CODING_RULES_TEMPLATE
+        # MCP/FILESYSTEM ops live in the separate ops appendix.
+        assert "FILESYSTEM_" not in CODING_RULES_TEMPLATE
+        assert "external_servers" not in CODING_RULES_TEMPLATE
+
+    def test_defaults_match_loaded_artifacts(self):
+        from app.chat.prompt_artifact import DEFAULT_CODING_RULES, DEFAULT_IDENTITY
+
+        assert DEFAULT_IDENTITY == IDENTITY_ARTIFACT
+        assert DEFAULT_CODING_RULES == CODING_RULES_TEMPLATE
+
+
+class TestCodingOpsGate:
+    def test_ops_keywords(self):
+        assert should_include_coding_ops(user_message="请帮我加一个 MCP server")
+        assert should_include_coding_ops(user_message="改 FILESYSTEM_ALLOWED_DIRS")
+        assert not should_include_coding_ops(user_message="修一下 README 的 typo")
+
+    def test_ops_appended_only_when_relevant(self):
+        import asyncio
+
+        loader = PromptArtifactLoader()
+
+        async def _run(msg: str) -> str:
+            return await loader.load(
+                PromptArtifactContext(
+                    available_tools=_CODING_TOOLS,
+                    project_root="/tmp",
+                    stage="chat",
+                    user_message=msg,
+                    intent_tags=frozenset({"coding"}),
+                ),
+            )
+
+        with_ops = asyncio.run(_run("怎么配置 mcp_config.json"))
+        without_ops = asyncio.run(_run("修一下函数命名"))
+        assert "Ops notes" in with_ops
+        assert "external_servers" in with_ops
+        assert "Ops notes" not in without_ops
+
+
+class TestPolicyToolNotes:
+    def test_notes_include_needs_user_and_ingestion(self):
+        notes = build_policy_tool_notes()
+        assert "write_file" in notes
+        assert "shell_exec" in notes
+        assert "check_inbox" in notes
+        assert "fetch_url" in notes
 
 
 class TestRenderCodingRules:
@@ -112,6 +189,8 @@ class TestPromptArtifactLoader:
         assert IDENTITY_ARTIFACT in result
         assert "Personal AI Runtime" in result
         assert "Helpful" in result
+        assert "Gated side-effect tools" in result
+        assert "write_file" in result
 
     @pytest.mark.asyncio
     async def test_coding_rules_render_project_root(self):
@@ -130,7 +209,10 @@ class TestPromptArtifactLoader:
         assert "Never use absolute paths like /README.md" in result
         assert "shell_exec rules:" in result
         assert "list_directory and read_file" in result
-        assert "Protected from agent writes: kernel/" in result
+        assert "Protected from agent writes:" in result
+        assert "backend/app/core/runtime/kernel/" in result
+        assert "backend/capability_policy.json" in result
+        assert "sensitive_router.py" not in result
 
     @pytest.mark.asyncio
     async def test_coding_rules_absent_without_coding_intent(self):
@@ -213,9 +295,10 @@ class TestPromptArtifactLoader:
         second = await loader.load(ctx)
         assert first == second
         identity_pos = first.index("Personal AI Runtime")
+        policy_pos = first.index("Gated side-effect tools")
         coding_pos = first.index("Coding & project changes:")
-        hints_pos = first.index("check_inbox")
-        assert identity_pos < coding_pos < hints_pos
+        hints_pos = first.index("The UI renders check_inbox results as a table")
+        assert identity_pos < policy_pos < coding_pos < hints_pos
 
     @pytest.mark.asyncio
     async def test_custom_coding_rules_with_extra_braces(self, monkeypatch):

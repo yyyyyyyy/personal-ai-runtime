@@ -304,10 +304,10 @@ async def update_prompt_config(body: PromptConfig):
         else:
             runtime_config.save_prompt("coding_rules", "")
 
-    # Also write to prompt files for persistence
-    from pathlib import Path
+    # Also write to prompt files for persistence (same dir the compiler loads).
+    from app.chat.prompt_artifact import PROMPTS_DIR
 
-    prompts_dir = Path(__file__).resolve().parent.parent / "prompts"
+    prompts_dir = PROMPTS_DIR
     prompts_dir.mkdir(parents=True, exist_ok=True)
 
     if body.identity is not None:

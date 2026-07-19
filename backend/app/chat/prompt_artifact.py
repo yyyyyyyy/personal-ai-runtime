@@ -11,13 +11,20 @@ Prompt Artifact is static guidance only — no DB, memory, kernel state, or even
 
 from __future__ import annotations
 
+import json
+import logging
+import re
 from dataclasses import dataclass
+from functools import lru_cache
 from pathlib import Path
+from typing import Any
 
 from app.core.agents.tool_postprocess import build_prompt_hints
 from app.core.runtime.governance.context_policy import CompileStage, analyze_intent_tags
 
-PROMPTS_DIR = Path(__file__).resolve().parent.parent / "prompts"
+logger = logging.getLogger(__name__)
+
+PROMPTS_DIR = Path(__file__).resolve().parents[2] / "prompts"
 
 # Tools whose presence (plus coding intent / post_tool) warrants coding rules.
 _CODING_TOOLS = frozenset(
@@ -42,37 +49,29 @@ _MAIL_HINT_TOOLS = frozenset(
     }
 )
 
-# ── Default identity (fallback if prompt file is missing) ─────────────────
+_OPS_KEYWORDS = re.compile(
+    r"(?i)(\bmcp\b|filesystem|file\s*system|external[_\s-]?server|mcp_config|"
+    r"FILESYSTEM_|\.env\.example)"
+)
 
-DEFAULT_IDENTITY = """You are Personal AI Runtime — a personal AI assistant that helps users manage their life, work, and goals.
+# ── Emergency fallbacks (only if prompt files are missing) ─────────────────
 
-You are:
-- Helpful: Provide clear, actionable responses.
-- Honest: Admit when you don't know something. Never fabricate information.
-- Proactive: When you see an opportunity to help, use tools.
-- Concise: Get to the point. Users value brevity.
+_FALLBACK_IDENTITY = (
+    "You are Personal AI Runtime — a personal AI assistant. "
+    "Be helpful, honest, and concise. All tool calls go through Runtime governance."
+)
 
-Memories may appear in two sections:
-- Self-reported facts: the user's own words; treat as authoritative.
-- System hypotheses: with confidence scores; NOT definitive statements.
-When self-report and system hypothesis conflict, defer to self-report.
+_FALLBACK_CODING_RULES = (
+    "Coding & project changes:\n"
+    "- The project root is: {project_root}. Use paths relative to this root.\n"
+    "- Prefer apply_patch for small edits; use write_file for new files or full rewrites.\n"
+    "- Do not edit kernel/, capability_policy.json, taint.py, check_boundary.py, .env, or .git/."
+)
 
-Use available tools when they help answer the user's query.
-All tool invocations go through the Runtime's governance layer."""
-
-# ── Default coding rules (fallback) ───────────────────────────────────────
-
-DEFAULT_CODING_RULES = """Coding & project changes:
-- The project root is: {project_root}. Use this as the base for all file paths. Never use absolute paths like /README.md or /root/ — always construct paths relative to the project root.
-- Before editing code, read relevant files with read_file and inspect changes with git_diff when useful.
-- Prefer apply_patch for small edits; use write_file only for new files or full rewrites.
-- After code changes, suggest running tests via shell_exec (e.g. make test-backend).
-- Protected from agent writes: kernel/, check_boundary.py, capability_policy.json, taint.py, sensitive_router.py, secret .env files (.env, .env.local, …), and .git/. You may edit .env.example and backend/mcp_config.json.
-- Filesystem tool settings load at backend startup — after changing FILESYSTEM_* env vars, restart the backend.
-- To add an external MCP: edit backend/mcp_config.json (follow existing external_servers entries), update .env.example if needed, tell the user which .env keys to set, and remind them to restart the backend before new tools appear.
-
-shell_exec rules:
-- Use list_directory and read_file to explore the project — do not use shell_exec to list files."""
+_FALLBACK_CODING_OPS = (
+    "Ops notes (filesystem / MCP):\n"
+    "- Restart the backend after changing FILESYSTEM_* env vars or mcp_config.json."
+)
 
 
 def _load_prompt_file(filename: str, default: str) -> str:
@@ -113,6 +112,11 @@ def should_include_coding_rules(
     return stage == "post_tool"
 
 
+def should_include_coding_ops(*, user_message: str) -> bool:
+    """Inject MCP/filesystem ops notes only when the turn is about them."""
+    return bool(_OPS_KEYWORDS.search(user_message or ""))
+
+
 def tools_for_prompt_hints(
     *,
     stage: CompileStage,
@@ -129,13 +133,48 @@ def tools_for_prompt_hints(
     return tools
 
 
+@lru_cache(maxsize=1)
+def _load_capability_policy() -> dict[str, Any]:
+    try:
+        from app.config import settings
+
+        path = Path(settings.capability_policy_path)
+        data = json.loads(path.read_text(encoding="utf-8"))
+        return data if isinstance(data, dict) else {}
+    except Exception as exc:
+        logger.debug("capability_policy unavailable for prompt notes: %s", exc)
+        return {}
+
+
+def build_policy_tool_notes() -> str:
+    """Compact live tool lists from capability_policy.json (keeps identity.md short)."""
+    policy = _load_capability_policy()
+    needs = [str(x) for x in policy.get("needs_user", []) if x]
+    external = [str(x) for x in policy.get("external_ingestion", []) if x]
+    if not needs and not external:
+        return ""
+    lines = ["# Live governance tool lists (from capability_policy.json)"]
+    if needs:
+        lines.append("Gated side-effect tools (need confirmation): " + ", ".join(needs))
+    if external:
+        lines.append("External/untrusted content tools: " + ", ".join(external))
+    return "\n".join(lines)
+
+
 # Public constants (used by tests and callers)
 IDENTITY_FILE = "identity.md"
 CODING_RULES_FILE = "coding_rules.md"
+CODING_RULES_OPS_FILE = "coding_rules_ops.md"
 
-# Load defaults from files or constants
-IDENTITY_ARTIFACT = _load_prompt_file(IDENTITY_FILE, DEFAULT_IDENTITY)
-CODING_RULES_TEMPLATE = _load_prompt_file(CODING_RULES_FILE, DEFAULT_CODING_RULES)
+# Canonical prompt text: backend/prompts/*.md (fallback only if missing).
+IDENTITY_ARTIFACT = _load_prompt_file(IDENTITY_FILE, _FALLBACK_IDENTITY)
+CODING_RULES_TEMPLATE = _load_prompt_file(CODING_RULES_FILE, _FALLBACK_CODING_RULES)
+CODING_RULES_OPS_TEMPLATE = _load_prompt_file(CODING_RULES_OPS_FILE, _FALLBACK_CODING_OPS)
+
+# Settings UI should show the same defaults the chat compiler uses (core rules only).
+DEFAULT_IDENTITY = IDENTITY_ARTIFACT
+DEFAULT_CODING_RULES = CODING_RULES_TEMPLATE
+
 
 # Runtime prompt override cache (app_settings). Cleared on save/invalidate.
 _runtime_prompt_cache: dict[str, str | None] = {}
@@ -156,6 +195,9 @@ class PromptArtifactLoader:
     Identity and coding rules can be overridden via:
     - backend/prompts/identity.md and coding_rules.md (file-based)
     - /api/settings/prompt API (runtime override, stored in app_settings)
+
+    Ops appendix (coding_rules_ops.md) and live policy tool lists are always
+    loaded from disk / capability_policy.json — not user-customizable.
     """
 
     async def load(self, ctx: PromptArtifactContext) -> str:
@@ -166,6 +208,10 @@ class PromptArtifactLoader:
         identity = _load_runtime_prompt("identity") or IDENTITY_ARTIFACT
         parts: list[str] = [identity]
 
+        policy_notes = build_policy_tool_notes()
+        if policy_notes:
+            parts.append(policy_notes)
+
         if should_include_coding_rules(
             stage=ctx.stage,
             intent_tags=intent_tags,
@@ -173,6 +219,8 @@ class PromptArtifactLoader:
         ):
             coding_rules = _load_runtime_prompt("coding_rules") or CODING_RULES_TEMPLATE
             parts.append(render_coding_rules(coding_rules, ctx.project_root))
+            if should_include_coding_ops(user_message=ctx.user_message):
+                parts.append(CODING_RULES_OPS_TEMPLATE)
 
         hint_tools = tools_for_prompt_hints(
             stage=ctx.stage,
@@ -203,6 +251,7 @@ def _load_runtime_prompt(key: str) -> str | None:
 def invalidate_prompt_artifact_cache() -> None:
     """Clear cached runtime prompt overrides (tests / Settings save)."""
     _runtime_prompt_cache.clear()
+    _load_capability_policy.cache_clear()
 
 
 prompt_artifact_loader = PromptArtifactLoader()
