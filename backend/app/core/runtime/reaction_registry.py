@@ -12,12 +12,15 @@ Reactions are declared via ``@reaction`` and fired by ``evaluate_cycle``.
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Callable
 
 if TYPE_CHECKING:
     from app.core.runtime.kernel.event import Event
     from app.core.runtime.kernel.kernel import Kernel
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -113,23 +116,30 @@ class ReactionRegistry:
         self._reactions[reaction.name] = reaction
 
     def _state_gate_passes(self, reaction: Reaction, kernel: "Kernel") -> bool:
-        """Return False when a state threshold is configured and not met."""
+        """Return False when a state threshold is configured and not met.
+
+        Prefer ``count_state`` when the selector supports it; otherwise fall
+        back to ``query_state(limit=count_gte)`` so custom Triggers using
+        non-COUNT selectors keep working.
+        """
         when = reaction.when
         if not when.state_selector or when.count_gte <= 0:
             return True
         try:
+            if kernel.supports_count_state(when.state_selector):
+                count = kernel.count_state(when.state_selector, **when.state_filters)
+                return count >= when.count_gte
             rows = kernel.query_state(
                 when.state_selector,
                 limit=when.count_gte,
                 **when.state_filters,
             )
+            return len(rows) >= when.count_gte
         except Exception:
-            import logging
-            logging.getLogger(__name__).warning(
+            logger.warning(
                 "Reaction state gate query failed for %s", reaction.name, exc_info=True,
             )
             return False
-        return len(rows) >= when.count_gte
 
     def evaluate_cycle(self, kernel: "Kernel") -> int:
         """Called periodically by RuntimeLoop to process timer-based reactions.

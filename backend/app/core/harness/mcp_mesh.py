@@ -527,11 +527,36 @@ class MCPMesh:
             self._discovered.extend(discovered)
             return discovered
 
-    def get_server_status(self) -> dict:
-        """Return connection status for external MCP servers."""
+    def list_server_tools(self, server_name: str) -> list[dict[str, str]]:
+        """Public read of tools for a connected server (empty if disconnected)."""
+        conn = self._connections.get(server_name)
+        if conn is None or conn.session is None:
+            return []
+        return [
+            {
+                "name": t.name,
+                "description": (getattr(t, "description", "") or "")[:100],
+            }
+            for t in conn.tools
+        ]
+
+    def get_server_status(self, server_name: str | None = None) -> dict:
+        """Return connection status for external MCP servers.
+
+        When ``server_name`` is set, returns a single-server dict with
+        ``connected`` / ``tool_count`` (plus status fields). Otherwise returns
+        the full mesh status payload.
+        """
         from app.core.harness.mcp_config import load_external_server_configs, mcp_external_enabled
 
         if not mcp_external_enabled():
+            if server_name is not None:
+                return {
+                    "name": server_name,
+                    "status": "disabled",
+                    "connected": False,
+                    "tool_count": 0,
+                }
             return {
                 "enabled": False,
                 "servers": [],
@@ -575,6 +600,21 @@ class MCPMesh:
                     "tool_count": 0,
                     "startup_connect": config.startup_connect,
                 })
+
+        if server_name is not None:
+            for entry in servers:
+                if entry["name"] == server_name:
+                    status = entry.get("status", "disconnected")
+                    return {
+                        **entry,
+                        "connected": status == "connected",
+                    }
+            return {
+                "name": server_name,
+                "status": "unknown",
+                "connected": False,
+                "tool_count": 0,
+            }
 
         return {
             "enabled": True,

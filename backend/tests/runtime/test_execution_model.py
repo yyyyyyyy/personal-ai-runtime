@@ -100,12 +100,65 @@ def test_work_item_update_status(kernel):
         "execution_id": eid, "completed_at": item.completed_at or "",
     }, actor="scheduler")
 
-    items = kernel.read_work_items(status="completed")
+    items = kernel.read_scheduled_executions(status="completed")
     assert any(w.id == item.id for w in items)
 
 
+def test_count_scheduled_executions_by_status(kernel):
+    from app.core.runtime.kernel.constants import AGGREGATE_EXECUTION
+
+    for status, eid in (("pending", "ex-p"), ("running", "ex-r"), ("completed", "ex-c")):
+        kernel.emit_event(
+            "ExecutionRequested",
+            AGGREGATE_EXECUTION,
+            eid,
+            payload={
+                "execution_id": eid,
+                "actor": "agent:test",
+                "handler_name": "on_test",
+                "trigger_event_id": "evt",
+                "trigger_event_seq": 0,
+                "trigger_event_type": "TaskCreated",
+                "instance_id": "test",
+                "policy": {"timeout": 30.0, "max_retries": 3, "retry_delay": 5.0},
+                "correlation_id": None,
+                "created_at": "2026-01-01T00:00:00Z",
+                "event_seq": 0,
+            },
+            actor="scheduler",
+        )
+        if status == "running":
+            kernel.emit_event(
+                "ExecutionStarted",
+                AGGREGATE_EXECUTION,
+                eid,
+                payload={"execution_id": eid, "attempt": 1, "started_at": "2026-01-01T00:00:01Z"},
+                actor="scheduler",
+            )
+        elif status == "completed":
+            kernel.emit_event(
+                "ExecutionStarted",
+                AGGREGATE_EXECUTION,
+                eid,
+                payload={"execution_id": eid, "attempt": 1, "started_at": "2026-01-01T00:00:01Z"},
+                actor="scheduler",
+            )
+            kernel.emit_event(
+                "ExecutionCompleted",
+                AGGREGATE_EXECUTION,
+                eid,
+                payload={"execution_id": eid, "completed_at": "2026-01-01T00:00:02Z"},
+                actor="scheduler",
+            )
+
+    counts = kernel.count_scheduled_executions_by_status()
+    assert counts.get("pending") == 1
+    assert counts.get("running") == 1
+    assert counts.get("completed") == 1
+
+
 def test_recover_work_items_scans_without_mutating(kernel):
-    """recover_work_items scans running/pending rows but performs NO writes.
+    """recover_scheduled_executions scans running/pending rows but performs NO writes.
 
     Execution 契约 §3: recovery does not issue a bare UPDATE. The running →
     retrying transition is driven by the Scheduler via ExecutionRetried
@@ -143,7 +196,7 @@ def test_recover_work_items_scans_without_mutating(kernel):
                 "execution_id": it.id, "attempt": 1, "started_at": it.started_at or "",
             }, actor="scheduler")
 
-    running, pending = kernel.recover_work_items()
+    running, pending = kernel.recover_scheduled_executions()
 
     # running bucket contains the interrupted item, still 'running' — caller
     # is responsible for transitioning it via events.
@@ -155,7 +208,7 @@ def test_recover_work_items_scans_without_mutating(kernel):
 
     # Scanner must not mutate: the running row stays 'running' in the table
     # until the Scheduler emits ExecutionRetried.
-    rows = kernel.read_work_items(status="running")
+    rows = kernel.read_scheduled_executions(status="running")
     assert any(w.id == running_item.id for w in rows)
 
 

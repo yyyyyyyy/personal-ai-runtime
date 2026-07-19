@@ -96,7 +96,7 @@ class Scheduler:
     def _recover(self) -> None:
         """Recover ScheduledExecutions interrupted by a restart."""
         try:
-            running, pending = self._kernel.recover_work_items()
+            running, pending = self._kernel.recover_scheduled_executions()
         except Exception:
             return  # Table may not exist on first boot
 
@@ -364,17 +364,11 @@ class Scheduler:
 
     def status_counts(self) -> dict[str, int]:
         """Return a snapshot of ScheduledExecution status distribution."""
-        counts: dict[str, int] = {}
         try:
-            items = self._kernel.read_work_items()
-            for item in items:
-                counts[item.status] = counts.get(item.status, 0) + 1
+            return self._kernel.count_scheduled_executions_by_status()
         except Exception:
-            import logging
-            logging.getLogger(__name__).debug(
-                "Scheduler: failed to read scheduled execution counts", exc_info=True
-            )
-        return counts
+            logger.exception("Scheduler: failed to read scheduled execution counts")
+            raise
 
 
 # Global singleton

@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 from app.core.runtime.read_ports._common import kernel
+
+logger = logging.getLogger(__name__)
 
 
 def query_notification(notification_id: str) -> dict[str, Any] | None:
@@ -34,3 +37,11 @@ def query_notifications(
         filters["order"] = order
     return kernel().query_state("notifications", **filters)
 
+
+def query_unread_notification_count() -> int:
+    """Exact unread notification COUNT (not capped by list LIMIT)."""
+    try:
+        return kernel().count_state("notifications", unread_only=True)
+    except Exception:
+        logger.exception("query_unread_notification_count failed")
+        raise

@@ -48,7 +48,7 @@ frozenset({
 })
 ```
 
-`work_type` 区分 `task` / `action` / `background` / `goal`。`query_state("goals", ...)` 是 `work_items WHERE work_type='goal'` 的别名（[`kernel_query_state.py`](../../backend/app/core/runtime/kernel/kernel_query_state.py)）。
+`work_type` 区分 `task` / `action` / `background` / `goal`。目标通过 `query_state("work_items", work_type="goal", ...)` 读取（[`kernel_query_state.py`](../../backend/app/core/runtime/kernel/kernel_query_state.py)）。
 
 ### `memories`
 

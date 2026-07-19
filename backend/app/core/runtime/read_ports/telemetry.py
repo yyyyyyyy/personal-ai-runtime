@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 from app.core.runtime.read_ports._common import kernel
+
+logger = logging.getLogger(__name__)
 
 
 def query_llm_calls(*, days: int | None = None, limit: int = 5000, offset: int = 0) -> list[dict[str, Any]]:
@@ -53,12 +56,18 @@ def summarize_call_failure_rates(*, days: int = 1) -> dict[str, Any]:
 def query_recent_tool_names(*, limit: int = 3) -> list[str]:
     """Return the names of the most recently invoked capabilities."""
     try:
-        events = kernel().read_events(type="CapabilityInvoked", limit=limit, order="desc")
+        # Fetch a wider window so duplicates can be deduped to ``limit`` names.
+        events = kernel().read_events(
+            type="CapabilityInvoked", limit=max(limit * 5, limit), order="desc"
+        )
         names: list[str] = []
         for evt in events:
             name = evt.payload.get("name", "")
             if name and name not in names:
                 names.append(name)
-        return names[:limit]
+            if len(names) >= limit:
+                break
+        return names
     except Exception:
-        return []
+        logger.exception("query_recent_tool_names failed")
+        raise

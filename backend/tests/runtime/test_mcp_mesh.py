@@ -400,3 +400,30 @@ async def test_external_write_tool_taint_escalation(kernel, monkeypatch):
     mcp_hub.unregister_tool(tool_name)
     capability_governance.clear_external_tools()
     taint_registry.clear(corr)
+
+
+def test_get_server_status_single_server(monkeypatch):
+    mesh = MCPMesh()
+    monkeypatch.setattr(
+        "app.core.harness.mcp_config.mcp_external_enabled",
+        lambda: True,
+    )
+
+    class Cfg:
+        name = "email"
+        startup_connect = True
+
+        @staticmethod
+        def is_available():
+            return True
+
+    monkeypatch.setattr(
+        "app.core.harness.mcp_config.load_external_server_configs",
+        lambda: [Cfg()],
+    )
+    status = mesh.get_server_status("email")
+    assert status["name"] == "email"
+    assert status["connected"] is False
+    assert status["status"] == "disconnected"
+    assert status["tool_count"] == 0
+    assert mesh.list_server_tools("email") == []

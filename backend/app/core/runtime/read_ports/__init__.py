@@ -36,6 +36,7 @@ from app.core.runtime.read_ports.events import (
     to_legacy_dict,
 )
 from app.core.runtime.read_ports.inbox import (
+    count_pending_inbox_emails,
     query_inbox_email,
     query_inbox_emails,
     query_pending_inbox_emails,
@@ -59,6 +60,7 @@ from app.core.runtime.read_ports.memory import (
 from app.core.runtime.read_ports.notifications import (
     query_notification,
     query_notifications,
+    query_unread_notification_count,
 )
 from app.core.runtime.read_ports.profile import (
     query_user_profile,
@@ -74,6 +76,8 @@ from app.core.runtime.read_ports.telemetry import (
     summarize_tool_calls,
 )
 from app.core.runtime.read_ports.timers import (
+    count_active_policies,
+    count_active_timers,
     query_active_policies,
     query_active_timers,
     query_background_task,
@@ -135,6 +139,7 @@ __all__ = [
     "query_recent_inbox_emails",
     "search_inbox_emails",
     "query_pending_inbox_emails",
+    "count_pending_inbox_emails",
     "query_inbox_email",
     "query_inbox_emails",
     "query_pending_approval_count",
@@ -143,6 +148,7 @@ __all__ = [
     "query_approvals",
     "query_notification",
     "query_notifications",
+    "query_unread_notification_count",
     "query_llm_calls",
     "query_tool_calls",
     "query_recent_tool_names",
@@ -159,9 +165,11 @@ __all__ = [
     "query_background_task",
     "query_background_tasks",
     "query_active_timers",
+    "count_active_timers",
     "query_timer",
     "query_due_timers",
     "query_active_policies",
+    "count_active_policies",
     "query_user_profile_category",
     "query_user_profile",
     "to_legacy_dict",

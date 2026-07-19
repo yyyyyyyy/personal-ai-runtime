@@ -4,7 +4,7 @@ Telemetry bookkeeping is independently testable and decoupled from the Brain
 orchestrator.
 
 Emits LLMCallRecorded event via Kernel instead of INSERTing directly into the
-llm_calls APP_STORAGE table. The projectors_telemetry module derives the table
+llm_calls APP_STORAGE table. The projectors_governance module derives the table
 row from the event.
 """
 from __future__ import annotations

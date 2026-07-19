@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 from app.core.runtime.read_ports._common import kernel
+
+logger = logging.getLogger(__name__)
 
 
 def query_recent_inbox_emails(
@@ -34,6 +37,15 @@ def query_pending_inbox_emails(*, limit: int = 50) -> list[dict[str, Any]]:
     return kernel().query_state(
         "inbox_emails", status="pending", limit=limit, order="date_desc",
     )
+
+
+def count_pending_inbox_emails() -> int:
+    """Exact pending inbox COUNT (not capped by list LIMIT)."""
+    try:
+        return kernel().count_state("inbox_emails", status="pending")
+    except Exception:
+        logger.exception("count_pending_inbox_emails failed")
+        raise
 
 
 def query_inbox_email(email_id: str) -> dict[str, Any] | None:

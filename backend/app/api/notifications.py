@@ -22,8 +22,7 @@ async def list_notifications(unread_only: bool = False, limit: int = Query(50, g
 @router.get("/unread-count")
 async def unread_count():
     """Get count of unread notifications."""
-    rows = read_ports.query_notifications(unread_only=True, limit=10_000)
-    return {"count": len(rows)}
+    return {"count": read_ports.query_unread_notification_count()}
 
 
 @router.put("/{notification_id}/read")

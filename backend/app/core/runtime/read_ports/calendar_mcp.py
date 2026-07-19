@@ -29,32 +29,31 @@ def query_calendar_today_events() -> dict[str, Any]:
 
 
 def get_mcp_server_status(server_name: str) -> dict[str, Any]:
-    """Get status info for an external MCP server via MCPMesh."""
+    """Get status info for an external MCP server via MCPMesh public API."""
     from app.core.harness.mcp_mesh import mcp_mesh
 
-    conn = mcp_mesh._connections.get(server_name)
-    if conn and conn.session is not None:
-        return {"connected": True, "tool_count": len(conn.tools)}
-    return {"connected": False, "tool_count": 0}
+    status = mcp_mesh.get_server_status(server_name)
+    return {
+        "connected": bool(status.get("connected")),
+        "tool_count": int(status.get("tool_count", 0)),
+        "status": status.get("status", "unknown"),
+    }
 
 
 def get_mcp_server_tools(server_name: str) -> list[dict[str, str]]:
-    """Get list of tools from an external MCP server via MCPMesh."""
+    """Get list of tools from an external MCP server via MCPMesh public API."""
     from app.core.harness.mcp_mesh import mcp_mesh
 
-    conn = mcp_mesh._connections.get(server_name)
-    if not conn or not conn.tools:
-        return []
-    return [
-        {"name": t.name, "description": (getattr(t, "description", "") or "")[:100]}
-        for t in conn.tools
-    ]
+    return mcp_mesh.list_server_tools(server_name)
 
 
 def test_mcp_connection(server_name: str) -> dict[str, Any]:
     """Test connection to an external MCP server."""
     status = get_mcp_server_status(server_name)
     if status.get("connected"):
-        return {"status": "ok", "message": f"连接器 {server_name} 运行正常", "tool_count": status.get("tool_count", 0)}
+        return {
+            "status": "ok",
+            "message": f"连接器 {server_name} 运行正常",
+            "tool_count": status.get("tool_count", 0),
+        }
     return {"status": "error", "message": f"连接器 {server_name} 未连接"}
-

@@ -145,7 +145,7 @@ class MCPHub:
                 result = cast(str, tool.handler(**kwargs))
 
             # tool_calls is a governed projection. Capability* events emitted
-            # by kernel.invoke_capability flow through projectors_telemetry
+            # by kernel.invoke_capability flow through projectors_governance
             # (in projectors_governance), which owns the
             # INSERT. Recording here was a dual-write that could drift.
 

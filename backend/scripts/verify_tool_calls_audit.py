@@ -2,7 +2,7 @@
 """Verify tool_calls ↔ Capability* events 1:1 consistency.
 
 tool_calls is a governed projection derived solely from CapabilityInvoked,
-CapabilityFailed, and CapabilityDenied events via projectors_telemetry.py.
+CapabilityFailed, and CapabilityDenied events via projectors_governance.py.
 This script checks that every tool_calls row has a corresponding event in
 event_log and vice versa.
 

@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 from app.core.runtime.read_ports._common import kernel
+
+logger = logging.getLogger(__name__)
 
 
 def query_pending_actions(*, limit: int = 5) -> list[dict[str, Any]]:
@@ -51,7 +54,8 @@ def query_stagnant_goal_count(*, days: int = 3) -> int:
             last_activity_older_than_days=days,
         )
     except Exception:
-        return 0
+        logger.exception("query_stagnant_goal_count failed")
+        raise
 
 
 def query_work_item(item_id: str) -> dict[str, Any] | None:

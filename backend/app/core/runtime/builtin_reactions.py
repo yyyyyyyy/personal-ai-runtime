@@ -46,13 +46,7 @@ def email_backlog_50(kernel=None) -> None:
     logger = logging.getLogger(__name__)
     kern = kernel or default_kernel
 
-    # Fetch one extra row so len == threshold reliably distinguishes
-    # "exactly at threshold" from "truncated at threshold"; the displayed
-    # count is therefore a lower bound when more are pending.
-    pending = kern.query_state(
-        "inbox_emails", status="pending", limit=_EMAIL_BACKLOG_THRESHOLD + 1,
-    )
-    count = len(pending)
+    count = kern.count_state("inbox_emails", status="pending")
     if count < _EMAIL_BACKLOG_THRESHOLD:
         return
 
@@ -92,7 +86,7 @@ def _check_stagnant_goals(kernel=None) -> None:
     from app.core.runtime.kernel_instance import kernel as k
     kern = kernel or k
 
-    # Prefer work_items(work_type='goal'); goals selector is an alias.
+    # Prefer work_items(work_type='goal').
     stagnant = kern.query_state(
         "work_items", work_type="goal", status="active",
         last_activity_older_than_days=3, limit=5,

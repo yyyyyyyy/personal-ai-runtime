@@ -125,3 +125,35 @@ def test_list_reactions_exposes_gated_by(kernel):
     assert meta["gated_by"] == "state"
     assert meta["state_selector"] == "inbox_emails"
     assert meta["every_cycle"] is True
+
+
+def test_state_gate_falls_back_for_non_count_selector(kernel):
+    """Selectors without count_state still gate via query_state(limit=N)."""
+    calls: list[str] = []
+
+    def handler(kern=None):
+        calls.append("ran")
+
+    get_reaction_registry().register(Reaction(
+        name="conv_gate",
+        when=ReactionWhen(
+            every_cycle=True,
+            state_selector="conversations",
+            count_gte=1,
+        ),
+        handler=handler,
+    ))
+
+    assert kernel.supports_count_state("conversations") is False
+    assert get_reaction_registry().evaluate_cycle(kernel) == 0
+    assert calls == []
+
+    kernel.emit_event(
+        "ConversationCreated",
+        "conversation",
+        "c-gate",
+        payload={"title": "Hi"},
+        actor="user",
+    )
+    assert get_reaction_registry().evaluate_cycle(kernel) == 1
+    assert calls == ["ran"]

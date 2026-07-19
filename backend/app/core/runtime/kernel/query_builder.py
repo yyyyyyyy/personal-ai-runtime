@@ -396,27 +396,43 @@ def query_work_items(db, filters: dict[str, Any]) -> list[dict] | int:
         ).fetchall()
     return [dict(r) for r in rows]
 
-def query_approvals(db, filters: dict[str, Any]) -> list[dict]:
+def query_approvals(db, filters: dict[str, Any]) -> list[dict] | int:
     approval_id = filters.get("id")
     status = filters.get("status")
     limit = filters.get("limit", 50)
+    count_only = bool(filters.get("count_only", False))
 
     with db.get_db() as conn:
         if approval_id:
+            if count_only:
+                row = conn.execute(
+                    "SELECT COUNT(*) AS c FROM approvals WHERE id = ?",
+                    (approval_id,),
+                ).fetchone()
+                return int(row["c"]) if row else 0
             row = conn.execute(
                 "SELECT * FROM approvals WHERE id = ?", (approval_id,)
             ).fetchone()
             return [dict(row)] if row else []
+
+        clauses: list[str] = []
+        params: list[Any] = []
         if status is not None:
-            rows = conn.execute(
-                "SELECT * FROM approvals WHERE status = ? ORDER BY created_at DESC LIMIT ?",
-                (status, limit),
-            ).fetchall()
-        else:
-            rows = conn.execute(
-                "SELECT * FROM approvals ORDER BY created_at DESC LIMIT ?",
-                (limit,),
-            ).fetchall()
+            clauses.append("status = ?")
+            params.append(status)
+        where = f" WHERE {' AND '.join(clauses)}" if clauses else ""
+
+        if count_only:
+            row = conn.execute(
+                f"SELECT COUNT(*) AS c FROM approvals{where}",
+                params,
+            ).fetchone()
+            return int(row["c"]) if row else 0
+
+        rows = conn.execute(
+            f"SELECT * FROM approvals{where} ORDER BY created_at DESC LIMIT ?",
+            [*params, limit],
+        ).fetchall()
     return [dict(r) for r in rows]
 
 def query_memories(db, filters: dict[str, Any]) -> list[dict] | int:
@@ -475,7 +491,7 @@ def query_memories(db, filters: dict[str, Any]) -> list[dict] | int:
         ).fetchall()
     return [dict(r) for r in rows]
 
-def query_notifications(db, filters: dict[str, Any]) -> list[dict]:
+def query_notifications(db, filters: dict[str, Any]) -> list[dict] | int:
     notification_id = filters.get("id")
     notif_type = filters.get("type")
     title = filters.get("title")
@@ -486,6 +502,7 @@ def query_notifications(db, filters: dict[str, Any]) -> list[dict]:
     dedup_key = filters.get("dedup_key")
     limit = filters.get("limit", 50)
     order = filters.get("order", "created_at_desc")
+    count_only = bool(filters.get("count_only", False))
 
     order_clauses = {
         "created_at_desc": "created_at DESC",
@@ -495,6 +512,12 @@ def query_notifications(db, filters: dict[str, Any]) -> list[dict]:
 
     with db.get_db() as conn:
         if notification_id:
+            if count_only:
+                row = conn.execute(
+                    "SELECT COUNT(*) AS c FROM notifications WHERE id = ?",
+                    (notification_id,),
+                ).fetchone()
+                return int(row["c"]) if row else 0
             row = conn.execute(
                 "SELECT * FROM notifications WHERE id = ?", (notification_id,)
             ).fetchone()
@@ -524,6 +547,14 @@ def query_notifications(db, filters: dict[str, Any]) -> list[dict]:
             params.append(dedup_key)
 
         where = f" WHERE {' AND '.join(clauses)}" if clauses else ""
+
+        if count_only:
+            row = conn.execute(
+                f"SELECT COUNT(*) AS c FROM notifications{where}",
+                params,
+            ).fetchone()
+            return int(row["c"]) if row else 0
+
         params.append(limit)
         rows = conn.execute(
             f"SELECT * FROM notifications{where} ORDER BY {order_sql} LIMIT ?",
@@ -550,12 +581,10 @@ def query_conversations(db, filters: dict[str, Any]) -> list[dict]:
     return [dict(r) for r in rows]
 
 def query_messages(db, filters: dict[str, Any]) -> list[dict]:
+    message_id = filters.get("id")
     conversation_id = filters.get("conversation_id")
     limit = filters.get("limit", 20)
     order = filters.get("order", "created_at_desc")
-
-    if not conversation_id:
-        return []
 
     order_clauses = {
         "created_at_desc": "created_at DESC",
@@ -564,6 +593,16 @@ def query_messages(db, filters: dict[str, Any]) -> list[dict]:
     order_sql = order_clauses.get(order, order_clauses["created_at_desc"])
 
     with db.get_db() as conn:
+        if message_id:
+            row = conn.execute(
+                "SELECT * FROM messages WHERE id = ?",
+                (message_id,),
+            ).fetchone()
+            return [dict(row)] if row else []
+
+        if not conversation_id:
+            return []
+
         rows = conn.execute(
             f"""SELECT * FROM messages
                 WHERE conversation_id = ?
@@ -573,7 +612,7 @@ def query_messages(db, filters: dict[str, Any]) -> list[dict]:
         ).fetchall()
     return [dict(r) for r in rows]
 
-def query_inbox_emails(db, filters: dict[str, Any]) -> list[dict]:
+def query_inbox_emails(db, filters: dict[str, Any]) -> list[dict] | int:
     email_id = filters.get("id")
     status = filters.get("status")
     status_not = filters.get("status_not")
@@ -583,6 +622,7 @@ def query_inbox_emails(db, filters: dict[str, Any]) -> list[dict]:
     search = filters.get("search")
     limit = filters.get("limit", 20)
     order = filters.get("order", "date_desc")
+    count_only = bool(filters.get("count_only", False))
 
     order_clauses = {
         "date_desc": "COALESCE(received_at, created_at) DESC",
@@ -594,6 +634,12 @@ def query_inbox_emails(db, filters: dict[str, Any]) -> list[dict]:
 
     with db.get_db() as conn:
         if email_id:
+            if count_only:
+                row = conn.execute(
+                    "SELECT COUNT(*) AS c FROM inbox_emails WHERE id = ?",
+                    (email_id,),
+                ).fetchone()
+                return int(row["c"]) if row else 0
             row = conn.execute(
                 "SELECT * FROM inbox_emails WHERE id = ?", (email_id,)
             ).fetchone()
@@ -624,6 +670,14 @@ def query_inbox_emails(db, filters: dict[str, Any]) -> list[dict]:
             params.extend([pattern, pattern, pattern])
 
         where = f" WHERE {' AND '.join(clauses)}" if clauses else ""
+
+        if count_only:
+            row = conn.execute(
+                f"SELECT COUNT(*) AS c FROM inbox_emails{where}",
+                params,
+            ).fetchone()
+            return int(row["c"]) if row else 0
+
         params.append(limit)
         rows = conn.execute(
             f'SELECT * FROM inbox_emails{where} ORDER BY {order_sql} LIMIT ?',
@@ -631,14 +685,21 @@ def query_inbox_emails(db, filters: dict[str, Any]) -> list[dict]:
         ).fetchall()
     return [dict(r) for r in rows]
 
-def query_timer_events(db, filters: dict[str, Any]) -> list[dict]:
+def query_timer_events(db, filters: dict[str, Any]) -> list[dict] | int:
     timer_id = filters.get("id")
     status = filters.get("status")
     fire_at_lt = filters.get("fire_at_lt")
     limit = filters.get("limit", 50)
+    count_only = bool(filters.get("count_only", False))
 
     with db.get_db() as conn:
         if timer_id:
+            if count_only:
+                row = conn.execute(
+                    "SELECT COUNT(*) AS c FROM timer_events WHERE id = ?",
+                    (timer_id,),
+                ).fetchone()
+                return int(row["c"]) if row else 0
             row = conn.execute(
                 "SELECT * FROM timer_events WHERE id = ?",
                 (timer_id,),
@@ -655,6 +716,14 @@ def query_timer_events(db, filters: dict[str, Any]) -> list[dict]:
             params.append(fire_at_lt)
 
         where = f" WHERE {' AND '.join(clauses)}" if clauses else ""
+
+        if count_only:
+            row = conn.execute(
+                f"SELECT COUNT(*) AS c FROM timer_events{where}",
+                params,
+            ).fetchone()
+            return int(row["c"]) if row else 0
+
         params.append(limit)
         rows = conn.execute(
             f"SELECT * FROM timer_events{where} ORDER BY fire_at ASC LIMIT ?",
@@ -662,10 +731,11 @@ def query_timer_events(db, filters: dict[str, Any]) -> list[dict]:
         ).fetchall()
     return [dict(r) for r in rows]
 
-def query_policy_events(db, filters: dict[str, Any]) -> list[dict]:
+def query_policy_events(db, filters: dict[str, Any]) -> list[dict] | int:
     capability = filters.get("capability")
     status = filters.get("status")
     limit = filters.get("limit", 200)
+    count_only = bool(filters.get("count_only", False))
 
     with db.get_db() as conn:
         clauses: list[str] = []
@@ -678,6 +748,14 @@ def query_policy_events(db, filters: dict[str, Any]) -> list[dict]:
             params.append(status)
 
         where = f" WHERE {' AND '.join(clauses)}" if clauses else ""
+
+        if count_only:
+            row = conn.execute(
+                f"SELECT COUNT(*) AS c FROM policy_events{where}",
+                params,
+            ).fetchone()
+            return int(row["c"]) if row else 0
+
         params.append(limit)
         rows = conn.execute(
             f"SELECT * FROM policy_events{where} ORDER BY capability ASC LIMIT ?",
@@ -716,13 +794,23 @@ def query_background_tasks(db, filters: dict[str, Any]) -> list[dict]:
 
 def query_user_profile(db, filters: dict[str, Any]) -> list[dict]:
     category = filters.get("id")
+    # ``limit`` is optional: omit for a full category listing (small table).
+    limit = filters.get("limit")
     with db.get_db() as conn:
         if category:
             row = conn.execute(
                 "SELECT * FROM user_profile WHERE category = ?", (category,)
             ).fetchone()
             return [dict(row)] if row else []
-        rows = conn.execute("SELECT * FROM user_profile ORDER BY category").fetchall()
+        if limit is None:
+            rows = conn.execute(
+                "SELECT * FROM user_profile ORDER BY category"
+            ).fetchall()
+        else:
+            rows = conn.execute(
+                "SELECT * FROM user_profile ORDER BY category LIMIT ?",
+                (limit,),
+            ).fetchall()
     return [dict(r) for r in rows]
 
 def query_tool_calls(db, filters: dict[str, Any]) -> list[dict]:

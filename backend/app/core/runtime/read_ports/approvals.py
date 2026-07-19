@@ -2,18 +2,21 @@
 
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 from app.core.runtime.read_ports._common import kernel
 
+logger = logging.getLogger(__name__)
+
 
 def query_pending_approval_count() -> int:
-    """Count approvals currently waiting for user decision."""
+    """Count approvals currently waiting for user decision (exact COUNT)."""
     try:
-        rows = kernel().query_state("approvals", status="pending", limit=50)
-        return len(rows)
+        return kernel().count_state("approvals", status="pending")
     except Exception:
-        return 0
+        logger.exception("query_pending_approval_count failed")
+        raise
 
 
 def query_pending_approvals(*, limit: int = 50) -> list[dict[str, Any]]:
@@ -31,4 +34,3 @@ def query_approvals(*, status: str | None = None, limit: int = 50) -> list[dict[
     if status:
         filters["status"] = status
     return kernel().query_state("approvals", **filters)
-

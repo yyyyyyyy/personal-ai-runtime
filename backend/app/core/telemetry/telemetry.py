@@ -2,7 +2,7 @@
 
 Telemetry writes flow exclusively through the Kernel as ``LLMCallRecorded`` /
 ``CapabilityInvoked`` events (see ``brain_telemetry.record_llm_call`` and
-``projectors_telemetry``).
+``projectors_governance``).
 
 Governed-table reads go through ``kernel.query_state`` / ``aggregate_state``
 (``llm_calls`` / ``tool_calls`` / ``memories`` / ``work_items``). Direct SQL is

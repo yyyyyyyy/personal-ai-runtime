@@ -61,13 +61,13 @@ GOVERNED_SCHEMA: dict[str, frozenset[str]] = {
         "full_text", "status", "category", "importance", "reason",
         "notified", "digested", "created_at", "received_at",
     }),
-    # Derived solely from Capability* events via projectors_telemetry.py.
+    # Derived solely from Capability* events via projectors_governance.py.
     # Every row maps 1:1 to a CapabilityInvoked, CapabilityFailed, or
     # CapabilityDenied event in event_log.
     "tool_calls": frozenset({
         "id", "tool_name", "success", "latency_ms", "error_message", "created_at",
     }),
-    # Derived solely from LLMCallRecorded events via projectors_telemetry.py.
+    # Derived solely from LLMCallRecorded events via projectors_governance.py.
     "llm_calls": frozenset({
         "id", "provider", "model", "prompt_tokens", "completion_tokens",
         "latency_ms", "cost", "success", "error_message", "purpose", "created_at",

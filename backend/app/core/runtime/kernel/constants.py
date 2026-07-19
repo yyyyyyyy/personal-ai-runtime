@@ -72,7 +72,7 @@ EVENT_CHAT_DONE = "ChatDone"
 EVENT_APP_CONFIG_CHANGED = "AppConfigChanged"
 # Telemetry LLM calls are event-sourced. brain_telemetry emits
 # this event instead of INSERTing directly into the llm_calls APP_STORAGE
-# table. The projector (projectors_telemetry.py) derives the table row.
+# table. The projector (projectors_governance.py) derives the table row.
 EVENT_LLM_CALL_RECORDED = "LLMCallRecorded"
 
 # ── Execution aggregate ──────────────────────────────────────────

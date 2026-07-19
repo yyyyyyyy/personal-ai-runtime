@@ -36,6 +36,18 @@ async def create_trigger(body: CreateTriggerRequest):
     if not isinstance(state_filters, dict):
         state_filters = {}
 
+    if state_selector and count > 0:
+        from app.core.runtime.kernel.kernel_query_state import COUNT_STATE_SELECTORS
+
+        if state_selector not in COUNT_STATE_SELECTORS:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    f"state_selector {state_selector!r} is not supported for count gates; "
+                    f"use one of: {sorted(COUNT_STATE_SELECTORS)}"
+                ),
+            )
+
     when = ReactionWhen(
         every_cycle=True,
         event_types=condition.get("event_type") and [condition["event_type"]] or [],

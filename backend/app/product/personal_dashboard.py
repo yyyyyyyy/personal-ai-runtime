@@ -177,19 +177,20 @@ def _widget_recent_memories() -> dict:
 def _widget_timer_status() -> dict:
     """Active timers — Time dimension health."""
     try:
-        active = read_ports.query_active_timers(limit=100)
+        active_count = read_ports.count_active_timers()
+        active = read_ports.query_active_timers(limit=5)
     except Exception:
         logger.warning("Dashboard: Failed to fetch timer status widget", exc_info=True)
         return {"active_timers": 0, "items": []}
     return {
-        "active_timers": len(active),
+        "active_timers": active_count,
         "items": [
             {
                 "handler_name": t.get("handler_name", ""),
                 "schedule_type": t.get("schedule_type", ""),
                 "fire_at": t.get("fire_at", ""),
             }
-            for t in active[:5]
+            for t in active
         ],
     }
 
@@ -201,11 +202,11 @@ def _widget_governance_status() -> dict:
     frontend compatibility.
     """
     try:
-        policies = read_ports.query_active_policies(limit=200)
+        active_policies = read_ports.count_active_policies()
     except Exception:
         logger.warning("Dashboard: Failed to fetch governance status widget", exc_info=True)
-        policies = []
+        active_policies = 0
     return {
-        "active_policies": len(policies),
+        "active_policies": active_policies,
         "active_grants": 0,
     }

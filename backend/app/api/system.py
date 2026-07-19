@@ -115,7 +115,7 @@ async def system_info():
 
     # goals table was dropped in v06; goal count comes from work_items now.
     from app.core.runtime import read_ports
-    goal_count = len(read_ports.query_goals(limit=10000))
+    goal_count = read_ports.count_goals()
 
     # Count legacy app events (aggregate_type='event') via kernel
     legacy_event_count = kernel.count_events("event")

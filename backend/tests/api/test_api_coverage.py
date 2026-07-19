@@ -440,6 +440,31 @@ class TestTriggersAPI:
         assert resp.status_code == 200
         assert resp.json()["status"] == "registered"
 
+    def test_create_trigger_rejects_unsupported_count_selector(self, client):
+        resp = client.post("/api/triggers/", json={
+            "name": "bad selector",
+            "trigger_type": "state_count",
+            "condition": {
+                "state_selector": "conversations",
+                "count": 2,
+            },
+        })
+        assert resp.status_code == 400
+        assert "conversations" in resp.json()["detail"]
+
+    def test_create_trigger_accepts_count_selector(self, client):
+        resp = client.post("/api/triggers/", json={
+            "name": "inbox backlog",
+            "trigger_type": "state_count",
+            "condition": {
+                "state_selector": "inbox_emails",
+                "state_filters": {"status": "pending"},
+                "count": 50,
+            },
+        })
+        assert resp.status_code == 200
+        assert resp.json()["status"] == "registered"
+
     def test_delete_trigger_not_found(self, client):
         resp = client.delete("/api/triggers/nonexistent")
         assert resp.status_code == 404

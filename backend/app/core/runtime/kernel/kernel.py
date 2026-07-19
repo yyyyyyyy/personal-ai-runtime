@@ -309,7 +309,7 @@ class Kernel(QueryStateMixin, SovereigntyMixin):
         from . import execution_repository
         return execution_repository.read_scheduled_execution(self._db, execution_id)
 
-    def read_work_items(
+    def read_scheduled_executions(
         self,
         status: str | None = None,
         instance_id: str | None = None,
@@ -323,10 +323,27 @@ class Kernel(QueryStateMixin, SovereigntyMixin):
             self._db, status, instance_id,
         )
 
-    def recover_work_items(self) -> tuple[list, list]:
+    def read_work_items(
+        self,
+        status: str | None = None,
+        instance_id: str | None = None,
+    ) -> list:
+        """Deprecated alias of ``read_scheduled_executions``."""
+        return self.read_scheduled_executions(status=status, instance_id=instance_id)
+
+    def recover_scheduled_executions(self) -> tuple[list, list]:
         """Scan ScheduledExecutions needing recovery (pure read; no writes)."""
         from . import execution_repository
         return execution_repository.recover_scheduled_executions(self._db)
+
+    def count_scheduled_executions_by_status(self) -> dict[str, int]:
+        """Return ``{status: count}`` without loading execution rows."""
+        from . import execution_repository
+        return execution_repository.count_scheduled_executions_by_status(self._db)
+
+    def recover_work_items(self) -> tuple[list, list]:
+        """Deprecated alias of ``recover_scheduled_executions``."""
+        return self.recover_scheduled_executions()
 
     # --- Governance (ex-GovernanceMixin / governance_ops) --------------------
 
