@@ -9,7 +9,6 @@ from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
-
 _CALENDAR_NAME_RE = re.compile(r"^[A-Za-z0-9_-]+$")
 
 

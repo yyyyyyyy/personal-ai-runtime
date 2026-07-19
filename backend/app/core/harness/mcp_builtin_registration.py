@@ -11,7 +11,7 @@ import asyncio
 import functools
 import inspect
 import json
-from collections.abc import Callable, Sequence
+from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import dataclass
 from typing import Any
 
@@ -47,7 +47,7 @@ class BuiltinToolSpec:
     offload: bool = False
 
 
-def _offload(fn: Callable[..., str]) -> Callable[..., object]:
+def _offload(fn: Callable[..., str]) -> Callable[..., Awaitable[str]]:
     """Run a sync tool handler in a worker thread so it won't block the event loop.
 
     The wrapper keeps ``__signature__`` from ``fn`` so ``MCPHub`` kwargs
@@ -67,7 +67,9 @@ def _offload(fn: Callable[..., str]) -> Callable[..., object]:
 
 def _register_specs(hub, specs: Sequence[BuiltinToolSpec]) -> None:
     for spec in specs:
-        handler = _offload(spec.handler) if spec.offload else spec.handler
+        handler: Callable[..., str | Awaitable[str]] = (
+            _offload(spec.handler) if spec.offload else spec.handler
+        )
         hub.register_tool(ToolDef(
             name=spec.name,
             description=spec.description,

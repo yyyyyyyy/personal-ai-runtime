@@ -12,8 +12,12 @@ import json
 import logging
 import tempfile
 from pathlib import Path
+from typing import TYPE_CHECKING, Any
 
 from app.config import settings
+
+if TYPE_CHECKING:
+    from openai import AsyncOpenAI
 
 logger = logging.getLogger(__name__)
 
@@ -22,7 +26,7 @@ class VoiceServer:
     """Async TTS/STT via a dedicated OpenAI-compatible audio API."""
 
     def __init__(self) -> None:
-        self._client = None
+        self._client: AsyncOpenAI | None = None
 
     def _configured(self) -> str | None:
         """Return an error message if voice is not configured, else None."""
@@ -36,7 +40,7 @@ class VoiceServer:
             return "Voice not configured: set VOICE_API_KEY or LLM_API_KEY"
         return None
 
-    def _get_client(self):
+    def _get_client(self) -> tuple[Any | None, str | None]:
         err = self._configured()
         if err:
             return None, err

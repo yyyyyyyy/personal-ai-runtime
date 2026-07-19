@@ -9,7 +9,6 @@ from __future__ import annotations
 import os
 import sys
 
-
 # Locale / temp / identity keys that tools legitimately need, without pulling
 # in credential-bearing variables from the parent process.
 _BASE_KEYS = (
