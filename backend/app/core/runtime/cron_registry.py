@@ -1,11 +1,14 @@
 """Cron scheduler — timer-driven scheduling via Runtime Timer Engine.
 
-``ensure_schedules`` is inlined in RuntimeLoop.
+``ensure_schedules`` is inlined in RuntimeLoop. ``init_scheduler`` seeds
+TimerCreated rows and dependency triggers; ``shutdown_scheduler`` removes
+those event subscriptions (timer scanning itself stays in RuntimeLoop).
 """
 from __future__ import annotations
 
 import logging
 from datetime import UTC, datetime, timedelta
+from typing import Callable
 
 from app.config import settings
 from app.core.runtime import read_ports
@@ -24,11 +27,18 @@ SCHEDULES: list[dict] = [
     {"name": "inbox_digest", "cron_expr": "hour=8,minute=30", "schedule_type": "cron", "handler_name": "inbox_digest"},
 ]
 
+_unsubscribe_hooks: list[Callable[[], None]] = []
+
 
 def init_scheduler():
     """Register timer schedules and dependency triggers."""
-    kernel.subscribe_events(_on_task_completed, type="WorkItemCompleted")
-    kernel.subscribe_events(_on_task_completed, type="WorkItemStatusChanged")
+    shutdown_scheduler()  # idempotent re-init
+    _unsubscribe_hooks.append(
+        kernel.subscribe_events(_on_task_completed, type="WorkItemCompleted")
+    )
+    _unsubscribe_hooks.append(
+        kernel.subscribe_events(_on_task_completed, type="WorkItemStatusChanged")
+    )
     _init_timers()
 
 
@@ -83,9 +93,19 @@ def _deadline_target_dates() -> set:
     return {today + timedelta(days=offset) for offset in (1, 3)}
 
 
-def shutdown_scheduler():
-    """Shutdown stub — timer scanning is now handled by RuntimeLoop."""
-    pass
+def shutdown_scheduler() -> None:
+    """Unsubscribe cron dependency triggers registered by ``init_scheduler``.
+
+    Timer scanning itself remains owned by RuntimeLoop; this only clears
+    WorkItemCompleted / WorkItemStatusChanged subscriptions so tests and
+    process shutdown do not leak handlers across Kernel resets.
+    """
+    while _unsubscribe_hooks:
+        unsub = _unsubscribe_hooks.pop()
+        try:
+            unsub()
+        except Exception:
+            logger.debug("cron unsubscribe failed", exc_info=True)
 
 
 def run_memory_decay(threshold: float = 0.3, decay_to: float = 0.1) -> int:

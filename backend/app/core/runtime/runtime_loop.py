@@ -64,10 +64,22 @@ class RuntimeLoop:
             return
         self._running = True
         self._loop_task = asyncio.create_task(self._loop())
+        try:
+            from app.core.runtime.notification_bridge import set_broadcast_loop
+
+            set_broadcast_loop(asyncio.get_running_loop())
+        except Exception:
+            logger.debug("Could not bind notification broadcast loop", exc_info=True)
         logger.info("RuntimeLoop started (tick=%.0fms)", _TICK_SECONDS * 1000)
 
     async def stop(self) -> None:
         self._running = False
+        try:
+            from app.core.runtime.notification_bridge import set_broadcast_loop
+
+            set_broadcast_loop(None)
+        except Exception:
+            pass
         if self._loop_task:
             try:
                 self._loop_task.cancel()
@@ -264,159 +276,8 @@ class RuntimeLoop:
             logger.exception("Memory index repair worker failed")
 
     def _drain_memory_index_repairs(self) -> None:
-        """Drain repairs while excluding restore and normal vector sync."""
-        from app.core.runtime.kernel.memory_index_sync import (
-            memory_index_operation_lock,
-        )
-
-        with memory_index_operation_lock:
-            self._drain_memory_index_repairs_locked()
-
-    def _drain_memory_index_repairs_locked(self) -> None:
-        """Re-attempt ChromaDB index syncs that previously failed.
-
-        Pulls a bounded batch of pending rows from memory_index_repairs,
-        retries each one, and either deletes the row (success) or bumps
-        retry_count. Rows that exceed the retry budget are marked
-        'failed_permanent' and emit a MemoryIndexRepairFailed event so the
-        operator (and eventually the UI) can see which memories are not
-        recallable.
-        """
-        from datetime import UTC, datetime
-
-        from app.core.runtime.kernel.constants import (
-            EVENT_MEMORY_INDEX_REPAIR_FAILED,
-            EVENT_MEMORY_UPDATED,
-        )
-        from app.core.runtime.kernel.memory_index_sync import (
-            MEMORY_INDEX_RECONCILE_EVENT,
-        )
-
-        if kernel._memory_index is None:
-            return
-
-        max_retries = 5
-        batch_size = 10
-        now_iso = datetime.now(UTC).isoformat()
-        db = kernel._db
-
-        with db.get_db() as conn:
-            rows = conn.execute(
-                "SELECT id, aggregate_id, event_type, event_seq, retry_count "
-                "FROM memory_index_repairs "
-                "WHERE status = 'pending' AND retry_count < ? "
-                "ORDER BY id ASC LIMIT ?",
-                (max_retries, batch_size),
-            ).fetchall()
-
-        for row in rows:
-            repair_id = row["id"]
-            aggregate_id = row["aggregate_id"]
-            event_type = row["event_type"]
-
-            # MemoryDeleted repairs only need a delete; everything else needs re-index.
-            try:
-                if event_type == MEMORY_INDEX_RECONCILE_EVENT:
-                    from app.core.runtime.kernel.sovereignty_ops import (
-                        _reconcile_memory_index_after_restore,
-                    )
-
-                    if not _reconcile_memory_index_after_restore(kernel):
-                        raise RuntimeError("full memory-index reconcile is still unavailable")
-                elif event_type == "MemoryDeleted":
-                    kernel._memory_index.delete_memory(aggregate_id)
-                else:
-                    # Pull current memory content from projection.
-                    mem = read_ports.query_memory(aggregate_id)
-                    if not mem:
-                        # Memory was deleted after the failure; nothing to index.
-                        with db.get_db() as conn:
-                            conn.execute(
-                                "DELETE FROM memory_index_repairs WHERE id = ?",
-                                (repair_id,),
-                            )
-                        continue
-                    content = str(mem.get("content", ""))
-                    if not content:
-                        # Active-but-empty projection must not keep a stale vector.
-                        try:
-                            kernel._memory_index.delete_memory(aggregate_id)
-                        except Exception:
-                            logger.debug(
-                                "Empty-memory vector delete failed for %s",
-                                aggregate_id,
-                                exc_info=True,
-                            )
-                        with db.get_db() as conn:
-                            conn.execute(
-                                "DELETE FROM memory_index_repairs WHERE id = ?",
-                                (repair_id,),
-                            )
-                        continue
-                    embedding_id = kernel._memory_index.index_memory(
-                        content=content,
-                        metadata={
-                            "category": str(mem.get("category", "general")),
-                            "source": str(mem.get("source", "")),
-                        },
-                        memory_id=aggregate_id,
-                    )
-                    # Backfill embedding_id into the projection if still missing.
-                    if not mem.get("embedding_id") and embedding_id:
-                        kernel.emit_event(
-                            EVENT_MEMORY_UPDATED, "memory", aggregate_id,
-                            payload={"embedding_id": embedding_id},
-                            actor="kernel",
-                        )
-                with db.get_db() as conn:
-                    conn.execute(
-                        "DELETE FROM memory_index_repairs WHERE id = ?",
-                        (repair_id,),
-                    )
-                logger.info(
-                    "Memory index repair succeeded for %s (event_seq=%s)",
-                    aggregate_id, row["event_seq"],
-                )
-            except Exception as exc:
-                new_count = row["retry_count"] + 1
-                if new_count >= max_retries:
-                    with db.get_db() as conn:
-                        conn.execute(
-                            "UPDATE memory_index_repairs "
-                            "SET retry_count = ?, status = 'failed_permanent', "
-                            "    last_retry_at = ?, error = ? "
-                            "WHERE id = ?",
-                            (new_count, now_iso, str(exc)[:500], repair_id),
-                        )
-                    kernel.emit_event(
-                        EVENT_MEMORY_INDEX_REPAIR_FAILED, "memory", aggregate_id,
-                        payload={
-                            "aggregate_id": aggregate_id,
-                            "event_seq": row["event_seq"],
-                            "retry_count": new_count,
-                            "error": str(exc)[:500],
-                        },
-                        actor="kernel",
-                    )
-                    logger.error(
-                        "Memory index repair permanently failed for %s after "
-                        "%d attempts — memory will not be recallable until "
-                        "verify_vector_consistency.py reconciles it",
-                        aggregate_id, new_count,
-                        exc_info=True,
-                    )
-                else:
-                    with db.get_db() as conn:
-                        conn.execute(
-                            "UPDATE memory_index_repairs "
-                            "SET retry_count = ?, last_retry_at = ?, error = ? "
-                            "WHERE id = ?",
-                            (new_count, now_iso, str(exc)[:500], repair_id),
-                        )
-                    logger.warning(
-                        "Memory index repair retry %d/%d for %s: %s",
-                        new_count, max_retries, aggregate_id, exc,
-                    )
+        """Delegate durable repair drain to Kernel ABI (no private ``_db``)."""
+        kernel.drain_memory_index_repairs()
 
     async def _check_reactions(self) -> None:
         """Evaluate registered Reactions.

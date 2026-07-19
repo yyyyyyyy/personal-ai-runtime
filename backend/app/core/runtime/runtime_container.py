@@ -25,6 +25,7 @@ if TYPE_CHECKING:
     from app.core.agents.memory_extractor import MemoryExtractor
     from app.core.agents.world_model import WorldModel
     from app.core.harness.mcp_hub import MCPHub
+    from app.core.runtime.agent_scheduler import Scheduler
     from app.core.runtime.capability_governance import CapabilityGovernance
     from app.core.runtime.governance.context_pipeline import ContextPipeline
     from app.core.runtime.kernel.kernel import Kernel
@@ -111,6 +112,7 @@ class RuntimeContainer:
         self._db: "Database | None" = None
         self._vector_store: "VectorStore | None" = None
         self._runtime_loop: "RuntimeLoop | None" = None
+        self._scheduler: "Scheduler | None" = None
         self._world_model: "WorldModel | None" = None
         self._prompt_compiler: "PromptCompiler | None" = None
         self._telemetry: "Telemetry | None" = None
@@ -272,6 +274,16 @@ class RuntimeContainer:
             self._register("runtime_loop", "app.core.runtime.runtime_loop", "RuntimeLoop")
         return self._runtime_loop
 
+    def scheduler_for(self, kernel: "Kernel") -> "Scheduler":
+        """Return the Lane A Scheduler bound to ``kernel`` (lazy singleton)."""
+        if self._scheduler is None:
+            from app.core.runtime.agent_scheduler import Scheduler
+            self._scheduler = Scheduler(kernel)
+            self._register(
+                "scheduler", "app.core.runtime.agent_scheduler", "Scheduler",
+            )
+        return self._scheduler
+
     @property
     def world_model(self) -> "WorldModel":
         if self._world_model is None:
@@ -315,6 +327,7 @@ class RuntimeContainer:
         "_db",
         "_vector_store",
         "_runtime_loop",
+        "_scheduler",
         "_world_model",
         "_prompt_compiler",
         "_telemetry",
@@ -345,8 +358,6 @@ class RuntimeContainer:
             reset_source_registry()
             from app.core.runtime.taint import reset_external_tools
             reset_external_tools()
-            from app.core.runtime.agent_scheduler import reset_scheduler
-            reset_scheduler()
             # agent_bootstrap._started must be cleared alongside the scheduler
             # singleton, otherwise ensure_scheduler short-circuits on the next
             # test and the dispatcher is never rebound to the fresh Kernel.
@@ -363,6 +374,8 @@ class RuntimeContainer:
             # reset synchronously (caches, queues, telemetry instance).
             from app.core.runtime.notification_bridge import reset_sse_queues
             reset_sse_queues()
+            from app.core.runtime.cron_registry import shutdown_scheduler
+            shutdown_scheduler()
             from app.core.runtime.kernel.kernel import clear_pending_memory_index_repairs
             clear_pending_memory_index_repairs()
             from app.core.runtime.execution import reset_identity_resolver

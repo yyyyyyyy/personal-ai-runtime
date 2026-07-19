@@ -474,6 +474,12 @@ async def lifespan(app: FastAPI):
             pass
 
     await runtime_loop.stop()
+    try:
+        from app.core.runtime.cron_registry import shutdown_scheduler
+
+        shutdown_scheduler()
+    except Exception:
+        logging.getLogger(__name__).debug("cron shutdown_scheduler failed", exc_info=True)
 
     global _ws_reserved_slots
     async with _ws_lock:

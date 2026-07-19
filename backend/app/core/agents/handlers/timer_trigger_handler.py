@@ -79,9 +79,12 @@ async def _call_product(
             if digest:
                 from app.core.runtime.notification_channel import notification_router
                 summary = digest.get("summary", "") if isinstance(digest, dict) else str(digest)
+                # generate_inbox_digest already persisted via push_notification;
+                # only fan out to external/desktop channels here.
                 await notification_router.notify(
                     "收件箱摘要", summary[:500],
                     type_="inbox_digest",
+                    persist=False,
                 )
         elif handler_name == "morning_brief":
             from app.core.runtime import read_ports
@@ -116,14 +119,11 @@ async def _call_product(
                 f"⏰ 活跃定时任务: {len(calendar_items)} 个\n\n"
                 f"祝你今天一切顺利！"
             )
-            # Save persistent notification for Dashboard display
-            from app.product.notifications import create_notification
-            create_notification("morning_brief", "早安简报", brief)
-            # Push via all notification channels (desktop, webhook, ntfy)
-            await notification_router.notify("早安简报", brief, type_="morning_brief", priority="normal")
+            await notification_router.notify(
+                "早安简报", brief, type_="morning_brief", priority="normal", persist=True,
+            )
         elif handler_name == "reminder":
             from app.core.runtime.notification_channel import notification_router
-            from app.product.notifications import create_notification
 
             message = payload.get("message", "时间到！")
             title = f"提醒: {message}" if len(message) < 20 else "提醒"
@@ -132,8 +132,9 @@ async def _call_product(
             if timer_id:
                 title = f"{title} ({timer_id})"
 
-            create_notification("reminder", title, message)
-            await notification_router.notify(title, message, type_="reminder", priority="high")
+            await notification_router.notify(
+                title, message, type_="reminder", priority="high", persist=True,
+            )
         else:
             logger.warning("Unknown timer handler: %s", handler_name)
     except Exception as e:

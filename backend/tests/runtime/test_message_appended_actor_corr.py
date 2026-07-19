@@ -103,7 +103,7 @@ def test_save_user_message_idempotent_by_correlation(kernel):
 
 def test_policy_for_chat_requested_matches_tool_loop_budget():
     from app.config import settings
-    from app.core.runtime.work_item import ExecutionPolicy, policy_for_event
+    from app.core.runtime.scheduled_execution import ExecutionPolicy, policy_for_event
 
     chat = policy_for_event("ChatRequested")
     assert chat.timeout_seconds == float(settings.total_tool_loop_timeout)

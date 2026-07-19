@@ -33,7 +33,15 @@ _SHADOW_FIELDS: tuple[str, ...] = (
 
 
 def _shadow_compare(kernel, item) -> list[str]:
-    """Verify ScheduledExecution.to_row() matches handler_executions projection."""
+    """Verify ScheduledExecution.to_row() matches handler_executions projection.
+
+    Opt-in via ``settings.execution_shadow_compare`` (off in production).
+    """
+    from app.config import settings
+
+    if not settings.execution_shadow_compare:
+        return []
+
     import json
 
     def _normalize(row: dict) -> dict:
@@ -371,21 +379,18 @@ class Scheduler:
             raise
 
 
-# Global singleton
-_scheduler: Scheduler | None = None
-
-
 def get_scheduler(kernel: "Kernel") -> Scheduler:
-    global _scheduler
-    if _scheduler is None:
-        _scheduler = Scheduler(kernel)
-    return _scheduler
+    """Return the container-owned Scheduler (created with ``kernel`` if needed)."""
+    from app.core.runtime.runtime_container import runtime
+
+    return runtime.scheduler_for(kernel)
 
 
 def reset_scheduler() -> None:
     """Reset the scheduler singleton. For test use only."""
-    global _scheduler
-    _scheduler = None
+    from app.core.runtime.runtime_container import runtime
+
+    runtime._scheduler = None
 
 
 # ── Agent bootstrap (folded from agent_bootstrap.py) ─────────────────────

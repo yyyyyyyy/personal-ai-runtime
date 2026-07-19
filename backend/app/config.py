@@ -109,6 +109,8 @@ class Settings(BaseSettings):
     # --- Memory ---
     memory_extractor: str = "ollama"
     sensitive_ops_local: bool = True
+    execution_shadow_compare: bool = False
+    """When True, Scheduler verifies handler_executions projection after each emit (debug)."""
 
     # --- Filesystem (agent coding) ---
     filesystem_allowed_dirs: str = ""

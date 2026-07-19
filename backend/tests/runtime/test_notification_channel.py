@@ -111,6 +111,28 @@ class TestNotificationRouterNotify:
         result = asyncio.run(run())
         assert "desktop" in result
 
+    def test_notify_persist_skips_desktop_tip(self, monkeypatch):
+        pushed: list[tuple] = []
+
+        def _fake_push(notif_type, title, content, *, kernel=None):
+            pushed.append((notif_type, title, content))
+            return {"type": notif_type, "title": title, "content": content}
+
+        monkeypatch.setattr(
+            "app.core.runtime.notification_bridge.push_notification",
+            _fake_push,
+        )
+
+        async def run():
+            router = NotificationRouter()
+            return await router.notify("T", "C", type_="reminder", persist=True)
+
+        import asyncio
+        result = asyncio.run(run())
+        assert result.get("persisted") is True
+        assert "desktop" not in result
+        assert pushed == [("reminder", "T", "C")]
+
     def test_notify_with_webhook_url_only(self):
         async def run():
             router = NotificationRouter()

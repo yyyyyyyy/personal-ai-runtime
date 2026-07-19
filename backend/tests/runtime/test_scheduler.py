@@ -58,12 +58,21 @@ async def test_on_task_completed_starts_dependents(tmp_path, monkeypatch):
     assert task2["status"] == "running"
 
 
-def test_shutdown_scheduler_stops_timer_engine():
-    """shutdown_scheduler is a no-op stub (timer scanning lives in RuntimeLoop).
+def test_shutdown_scheduler_unsubscribes_triggers(tmp_path, monkeypatch):
+    """shutdown_scheduler clears WorkItem* subscriptions from init_scheduler."""
+    from app.core.runtime import cron_registry as cr
+    from app.core.runtime.kernel import Kernel
+    from app.store.database import Database
 
-    It must be callable without side effects — the real cleanup is handled
-    by RuntimeLoop._maintenance.
-    """
-    from app.core.runtime.cron_registry import shutdown_scheduler
-
-    shutdown_scheduler()  # No-op — must not raise.
+    k = Kernel(db=Database(db_path=str(tmp_path / "cron_unsub.db")))
+    monkeypatch.setattr("app.core.runtime.cron_registry.kernel", k)
+    monkeypatch.setattr(
+        "app.core.runtime.cron_registry.read_ports.query_timer",
+        lambda name: {"id": name},
+    )
+    cr.shutdown_scheduler()
+    before = len(k._subscribers)
+    cr.init_scheduler()
+    assert len(k._subscribers) == before + 2
+    cr.shutdown_scheduler()
+    assert len(k._subscribers) == before

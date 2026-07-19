@@ -183,15 +183,12 @@ def test_reset_clears_module_singletons_fragments():
 def test_reset_clears_module_singletons_scheduler():
     """reset() must reset scheduler singleton so tests do not leak scheduler state."""
     from app.core.runtime.agent_scheduler import get_scheduler
-
-    # Force creation of scheduler singleton by querying it once.
     from app.core.runtime.kernel_instance import kernel
-    get_scheduler(kernel)
-
-    from app.core.runtime import agent_scheduler
-    assert agent_scheduler._scheduler is not None
-
     from app.core.runtime.runtime_container import runtime
+
+    get_scheduler(kernel)
+    assert runtime._scheduler is not None
+
     runtime.reset()
 
-    assert agent_scheduler._scheduler is None
+    assert runtime._scheduler is None

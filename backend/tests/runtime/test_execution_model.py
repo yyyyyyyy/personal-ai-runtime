@@ -33,7 +33,7 @@ def kernel(tmp_path):
 
 def test_work_item_state_machine():
     """WorkItem transitions through pending → running → completed."""
-    from app.core.runtime.work_item import WorkItem
+    from app.core.runtime.scheduled_execution import WorkItem
 
     item = WorkItem(
         event_type="TaskCreated",
@@ -54,7 +54,7 @@ def test_work_item_state_machine():
 
 def test_work_item_retry_limits():
     """WorkItem respects max_retries and can_retry checks."""
-    from app.core.runtime.work_item import ExecutionPolicy, WorkItem
+    from app.core.runtime.scheduled_execution import ExecutionPolicy, WorkItem
 
     policy = ExecutionPolicy(max_retries=2, retry_delay_seconds=0.1)
     item = WorkItem(
@@ -74,7 +74,7 @@ def test_work_item_retry_limits():
 def test_work_item_update_status(kernel):
     """WorkItem status transitions through Execution events."""
     from app.core.runtime.kernel.constants import AGGREGATE_EXECUTION
-    from app.core.runtime.work_item import WorkItem
+    from app.core.runtime.scheduled_execution import WorkItem
 
     item = WorkItem(
         event_type="TaskCreated",
@@ -166,7 +166,7 @@ def test_recover_work_items_scans_without_mutating(kernel):
     (running, pending) tuple and leaves handler_executions untouched.
     """
     from app.core.runtime.kernel.constants import AGGREGATE_EXECUTION
-    from app.core.runtime.work_item import WorkItem
+    from app.core.runtime.scheduled_execution import WorkItem
 
     running_item = WorkItem(
         event_type="TaskCreated",
@@ -214,7 +214,7 @@ def test_recover_work_items_scans_without_mutating(kernel):
 
 def test_work_item_to_row_roundtrip(kernel):
     """WorkItem.to_row() and from_row() are symmetric."""
-    from app.core.runtime.work_item import ExecutionPolicy, WorkItem
+    from app.core.runtime.scheduled_execution import ExecutionPolicy, WorkItem
 
     policy = ExecutionPolicy(timeout_seconds=10.0, max_retries=5, retry_delay_seconds=2.0)
     original = WorkItem(

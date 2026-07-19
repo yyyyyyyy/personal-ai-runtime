@@ -1,8 +1,11 @@
-"""Notification Channel — unified notification delivery for desktop, webhook, ntfy.
+"""Notification Channel — pluggable external delivery (desktop, webhook, ntfy).
 
-This module replaces the hard-coded Telegram notifier with a pluggable
-notification channel abstraction. Cron job results (Belief, Morning Brief,
-Goal Stuck, Inbox Digest) route through this module.
+In-app / WebSocket fan-out stays in ``notification_bridge`` (persist + WS).
+This module is for *external* channels used by cron digests and product jobs.
+
+Use ``NotificationRouter.notify(..., persist=True)`` when the alert should also
+appear in the in-app notification center (replaces separate
+``create_notification`` + ``notify`` call pairs).
 """
 
 from __future__ import annotations
@@ -10,6 +13,10 @@ from __future__ import annotations
 import json
 import logging
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from app.core.runtime.kernel import Kernel
 
 logger = logging.getLogger(__name__)
 
@@ -30,20 +37,17 @@ class BaseChannel:
 
 
 class DesktopChannel(BaseChannel):
-    """Desktop notification via WebSocket broadcast to the UI.
-
-    The backend WebSocket endpoint broadcasts the notification to all
-    connected clients. The Electron wrapper will handle native OS notifications.
-    """
+    """Desktop / UI tip via the shared notification_bridge transport."""
 
     async def send(self, payload: NotificationPayload) -> bool:
         try:
-            from app.main import broadcast_notification
+            from app.core.runtime.notification_bridge import broadcast_event
 
-            await broadcast_notification({
+            broadcast_event({
                 "type": "desktop_notification",
                 "title": payload.title,
                 "content": payload.content,
+                "notification_type": payload.type,
             })
             return True
         except Exception:
@@ -118,7 +122,7 @@ class NtfyChannel(BaseChannel):
 
 
 class NotificationRouter:
-    """Route notification to all configured channels."""
+    """Route notification to configured channels (+ optional in-app persist)."""
 
     def __init__(self):
         self.desktop = DesktopChannel()
@@ -147,14 +151,28 @@ class NotificationRouter:
         content: str,
         type_: str = "system",
         priority: str = "normal",
+        *,
+        persist: bool = False,
+        kernel: "Kernel | None" = None,
     ) -> dict:
+        """Deliver to desktop/webhook/ntfy.
+
+        When ``persist=True``, also write an in-app notification via
+        ``notification_bridge.push_notification`` (and skip the extra
+        desktop WS tip — the persist path already broadcasts).
+        """
         payload = NotificationPayload(
             title=title, content=content, type=type_, priority=priority
         )
-        results = {}
+        results: dict[str, bool] = {}
 
-        # Desktop always enabled
-        results["desktop"] = await self.desktop.send(payload)
+        if persist:
+            from app.core.runtime.notification_bridge import push_notification
+
+            push_notification(type_, title, content, kernel=kernel)
+            results["persisted"] = True
+        else:
+            results["desktop"] = await self.desktop.send(payload)
 
         if self.webhook:
             results["webhook"] = await self.webhook.send(payload)

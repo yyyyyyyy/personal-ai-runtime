@@ -14,11 +14,13 @@ without inspecting which context they happen to run in:
 
 - **Async context (running event loop)**: schedule ``_broadcast`` as a
   fire-and-forget task on the current loop. Returns immediately.
-- **Sync context (no running loop)**: run ``_broadcast`` to completion via
-  ``asyncio.run``. This blocks the caller briefly but guarantees delivery.
+- **Bound main loop** (set via :func:`set_broadcast_loop`, typically by
+  ``RuntimeLoop.start``): schedule onto that loop from sync threads via
+  ``run_coroutine_threadsafe`` — avoids a nested ``asyncio.run``.
+- **Sync context (no loop at all)**: run ``_broadcast`` to completion via
+  ``asyncio.run``. Prefer calling from an async context when possible.
 
-The two branches diverge only in *when* the WebSocket write happens, not in
-*whether*. Failures inside ``_broadcast`` are always swallowed at DEBUG —
+Failures inside ``_broadcast`` are logged at WARNING and never raised —
 transport must never roll back governed storage.
 """
 
@@ -34,6 +36,17 @@ if TYPE_CHECKING:
     from app.core.runtime.kernel import Kernel
 
 logger = logging.getLogger(__name__)
+
+# Main asyncio loop registered by RuntimeLoop so sync callers (Kernel emit
+# paths) can schedule broadcasts without asyncio.run on a worker thread.
+_broadcast_loop: asyncio.AbstractEventLoop | None = None
+_PENDING_BROADCASTS: set[asyncio.Task] = set()
+
+
+def set_broadcast_loop(loop: asyncio.AbstractEventLoop | None) -> None:
+    """Register (or clear) the process main event loop for sync broadcasts."""
+    global _broadcast_loop
+    _broadcast_loop = loop
 
 
 def push_notification(
@@ -71,32 +84,37 @@ def broadcast_event(event: dict) -> None:
     async/sync dispatch contract shared with :func:`push_notification`.
     """
     try:
-        asyncio.get_running_loop()
+        loop = asyncio.get_running_loop()
     except RuntimeError:
-        # Sync context: run to completion so delivery is deterministic.
-        # This is the path taken by tests and by fire-and-forget extractors
-        # invoked outside an event loop.
+        loop = None
+
+    if loop is not None:
+        task = loop.create_task(_broadcast(event))
+        _PENDING_BROADCASTS.add(task)
+        task.add_done_callback(_PENDING_BROADCASTS.discard)
+        return
+
+    bound = _broadcast_loop
+    if bound is not None and bound.is_running():
         try:
-            asyncio.run(_broadcast(event))
+            fut = asyncio.run_coroutine_threadsafe(_broadcast(event), bound)
+            fut.result(timeout=5.0)
         except Exception:
-            logger.debug(
-                "broadcast_event failed in sync context for %s",
+            logger.warning(
+                "broadcast_event failed via bound loop for %s",
                 event.get("type"),
                 exc_info=True,
             )
         return
 
-    # Async context: fire-and-forget on the running loop. Hold a strong
-    # reference on the loop's default executor context by attaching the
-    # task to a module-level set so it isn't garbage-collected before
-    # completion ("task was destroyed but it is pending" warning).
-    loop = asyncio.get_running_loop()
-    task = loop.create_task(_broadcast(event))
-    _PENDING_BROADCASTS.add(task)
-    task.add_done_callback(_PENDING_BROADCASTS.discard)
-
-
-_PENDING_BROADCASTS: set[asyncio.Task] = set()
+    try:
+        asyncio.run(_broadcast(event))
+    except Exception:
+        logger.warning(
+            "broadcast_event failed in sync context for %s",
+            event.get("type"),
+            exc_info=True,
+        )
 
 
 async def _broadcast(event: dict) -> None:
@@ -104,11 +122,12 @@ async def _broadcast(event: dict) -> None:
         from app.main import broadcast_notification
         await broadcast_notification(event)
     except Exception:
-        logger.debug(
+        logger.warning(
             "broadcast_notification failed for %s",
             event.get("type"),
             exc_info=True,
         )
+
 
 # ── SSE queue registry (folded from sse_queue_registry.py) ────────────────
 
@@ -147,3 +166,4 @@ async def push(correlation_id: str, payload: dict) -> None:
 def reset_sse_queues() -> None:
     """Clear the in-memory SSE queue registry (test isolation)."""
     _registry.clear()
+    set_broadcast_loop(None)

@@ -54,27 +54,33 @@ class TestStateManager:
             state_manager.validate_transition(TaskStatus.PENDING, TaskStatus.RETRYING)
 
 
-class TestWorkItemTransitionValidation:
-    """WorkItem.transition_to must enforce StateManager rules."""
+class TestScheduledExecutionTransitionValidation:
+    """ScheduledExecution.transition_to uses the Lane A FSM (not domain TaskStatus)."""
 
     def test_valid_transition_succeeds(self):
-        from app.core.runtime.work_item import WorkItem
-        item = WorkItem(event_type="X")
+        from app.core.runtime.scheduled_execution import ScheduledExecution
+        item = ScheduledExecution(event_type="X")
         item.transition_to("running")
         assert item.status == "running"
         assert item.started_at is not None
 
     def test_invalid_transition_raises(self):
-        from app.core.runtime.work_item import WorkItem
-        item = WorkItem(event_type="X", status="completed")
+        from app.core.runtime.scheduled_execution import ScheduledExecution
+        item = ScheduledExecution(event_type="X", status="completed")
         with pytest.raises(ValueError):
             item.transition_to("running")
 
     def test_running_to_retrying_succeeds(self):
-        from app.core.runtime.work_item import WorkItem
-        item = WorkItem(event_type="X", status="running")
+        from app.core.runtime.scheduled_execution import ScheduledExecution
+        item = ScheduledExecution(event_type="X", status="running")
         item.transition_to("retrying")
         assert item.status == "retrying"
         # retrying → pending is the recovery path used by Scheduler._recover
         item.transition_to("pending")
         assert item.status == "pending"
+
+    def test_domain_only_status_rejected(self):
+        from app.core.runtime.scheduled_execution import ScheduledExecution
+        item = ScheduledExecution(event_type="X", status="running")
+        with pytest.raises(ValueError):
+            item.transition_to("waiting_approval")  # type: ignore[arg-type]

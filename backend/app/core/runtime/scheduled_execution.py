@@ -24,6 +24,15 @@ ScheduledExecutionStatus = Literal[
 # Backward-compatible alias for status type name used in some docs/tests.
 WorkItemStatus = ScheduledExecutionStatus
 
+# Lane A only — deliberately narrower than domain ``task_engine.TaskStatus``.
+_LANE_A_TRANSITIONS: dict[str, frozenset[str]] = {
+    "pending": frozenset({"running", "failed"}),
+    "running": frozenset({"completed", "failed", "retrying"}),
+    "retrying": frozenset({"pending", "running", "failed"}),
+    "completed": frozenset(),
+    "failed": frozenset({"retrying", "pending"}),
+}
+
 
 @dataclass(frozen=True)
 class ExecutionPolicy:
@@ -77,12 +86,11 @@ class ScheduledExecution:
     _event: object | None = field(default=None, repr=False, compare=False)
 
     def transition_to(self, status: ScheduledExecutionStatus) -> None:
-        from app.core.runtime.task_engine import TaskStatus, state_manager
-
-        state_manager.validate_transition(
-            TaskStatus(self.status),
-            TaskStatus(status),
-        )
+        allowed = _LANE_A_TRANSITIONS.get(self.status, frozenset())
+        if status not in allowed:
+            raise ValueError(
+                f"Invalid ScheduledExecution transition: {self.status!r} → {status!r}"
+            )
         self.status = status
         if status == "running" and self.started_at is None:
             self.started_at = datetime.now(UTC).isoformat()

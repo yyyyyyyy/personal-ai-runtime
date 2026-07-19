@@ -6,6 +6,10 @@ tool runs.
 
 Lives outside ``handlers/`` so expiry / governance can clear entries without
 importing the handler package (side-effect ``@subscribe`` registration).
+
+**Durability:** entries are process-memory only. A restart drops pending
+resumes; the approval row still exists, but automatic plan continuation
+will not. Persisting resumes would be a separate feature (event / projection).
 """
 
 from __future__ import annotations

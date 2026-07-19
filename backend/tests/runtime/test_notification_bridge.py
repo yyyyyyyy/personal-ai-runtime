@@ -1,5 +1,6 @@
 """Tests for notification bridge."""
 
+import asyncio
 import os
 from unittest.mock import AsyncMock, patch
 
@@ -101,6 +102,31 @@ def test_broadcast_event_swallows_transport_failure(monkeypatch):
     # Sync path — should swallow.
     with patch.object(nb.asyncio, "get_running_loop", side_effect=RuntimeError):
         nb.broadcast_event({"type": "memory_changed"})  # must not raise
+
+
+@pytest.mark.asyncio
+async def test_broadcast_event_uses_bound_loop_from_sync_thread(monkeypatch):
+    """Sync callers prefer the RuntimeLoop-bound loop over asyncio.run."""
+    from app.core.runtime import notification_bridge as nb
+
+    seen: list[dict] = []
+    monkeypatch.setattr(
+        "app.main.broadcast_notification",
+        AsyncMock(side_effect=lambda e: seen.append(e)),
+    )
+    loop = asyncio.get_running_loop()
+    nb.set_broadcast_loop(loop)
+
+    def _from_worker():
+        with patch.object(nb.asyncio, "get_running_loop", side_effect=RuntimeError):
+            with patch.object(nb.asyncio, "run") as run_mock:
+                nb.broadcast_event({"type": "memory_changed", "memory_id": "bound"})
+                run_mock.assert_not_called()
+
+    await asyncio.to_thread(_from_worker)
+    await asyncio.sleep(0.05)
+    assert any(e.get("memory_id") == "bound" for e in seen)
+    nb.set_broadcast_loop(None)
 
 
 @pytest.mark.asyncio

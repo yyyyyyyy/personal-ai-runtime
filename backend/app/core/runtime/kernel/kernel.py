@@ -27,6 +27,7 @@ from .kernel_query_state import QueryStateMixin
 from .kernel_sovereignty import SovereigntyMixin
 from .memory_index_sync import (  # noqa: F401 — re-exported for tests / RuntimeContainer
     clear_pending_memory_index_repairs,
+    drain_memory_index_repairs,
     get_pending_memory_index_repairs,
     sync_memory_index,
 )
@@ -163,6 +164,10 @@ class Kernel(QueryStateMixin, SovereigntyMixin):
     def _sync_memory_index(self, event: Event) -> None:
         """Post-commit MemoryIndexPort sync (see memory_index_sync)."""
         sync_memory_index(self, event)
+
+    def drain_memory_index_repairs(self) -> None:
+        """Retry durable memory_index_repairs rows (Kernel Space ABI)."""
+        drain_memory_index_repairs(self)
 
     def _notify_memory_changed(self, event: Event, content: str) -> None:
         """Push a lightweight WS event so frontends can invalidate caches.

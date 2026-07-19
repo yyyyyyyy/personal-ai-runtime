@@ -385,8 +385,11 @@ class SensitiveRouter:
     def is_sensitive_capability(self, name: str, args: dict | None = None) -> bool:
         if not settings.sensitive_ops_local:
             return False
-        write_tools = {"apply_patch", "write_file", "shell_exec", "send_email"}
-        if name in write_tools:
+        # Single source: capability_policy ``needs_user`` (not dynamic mesh tools —
+        # those escalate only via taint + is_write_class_tool).
+        from app.core.runtime.taint import WRITE_CLASS_TOOLS
+
+        if name in WRITE_CLASS_TOOLS:
             return True
         if args:
             blob = str(args)
