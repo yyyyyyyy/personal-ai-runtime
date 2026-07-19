@@ -20,7 +20,11 @@ from app.core.runtime.governance.fragment_selector import (
     CORE_TIER_FRAGMENT_IDS,
     FragmentSelector,
 )
-from app.core.runtime.governance.query_analyzer import AnalysisResult, QueryAnalyzer
+from app.core.runtime.governance.query_analyzer import (
+    AnalysisResult,
+    QueryAnalyzer,
+    get_default_analyzer,
+)
 
 __all__ = [
     "AnalysisResult",
@@ -35,4 +39,5 @@ __all__ = [
     "QueryAnalyzer",
     "context_pipeline",
     "default_context_policy",
+    "get_default_analyzer",
 ]

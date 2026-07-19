@@ -1,7 +1,7 @@
 """Query Analyzer — 从用户消息中分析意图标签。
 
 第一版仅规则匹配，不依赖 LLM，不依赖数据库，纯函数。
-支持英文词边界匹配（\b），避免 "decode" 误命中 "code"。
+支持英文词边界匹配（\\b），避免 "decode" 误命中 "code"。
 """
 
 from __future__ import annotations
@@ -11,12 +11,11 @@ from dataclasses import dataclass, field
 
 # ── 意图关键词映射 ────────────────────────────────────────────────────────
 
-# Format: intent → {keyword: pattern}
-# English keywords use \b word boundary matching.
-# Chinese keywords use exact substring matching.
+# Format: intent → patterns (English use \\b; Chinese use substring).
+# ``schedule`` is calendar-only to avoid also tagging planning.
 _INTENT_PATTERNS: dict[str, list[str]] = {
     "planning": [
-        r"\bplan\b", r"\bschedule\b", r"\broadmap\b",
+        r"\bplan\b", r"\broadmap\b",
         "规划", "计划", "安排", "下周", "本周", "本月", "接下来", "要做",
         "安排任务", "新目标",
     ],
@@ -57,6 +56,23 @@ _INTENT_PATTERNS: dict[str, list[str]] = {
 }
 
 
+def _compile_patterns(
+    raw: dict[str, list[str]],
+) -> dict[str, list[re.Pattern[str]]]:
+    compiled: dict[str, list[re.Pattern[str]]] = {}
+    for intent, patterns in raw.items():
+        compiled[intent] = []
+        for pat in patterns:
+            try:
+                compiled[intent].append(re.compile(pat))
+            except re.error:
+                continue
+    return compiled
+
+
+_COMPILED_INTENT_PATTERNS = _compile_patterns(_INTENT_PATTERNS)
+
+
 @dataclass
 class AnalysisResult:
     """Query Analysis 结果。"""
@@ -78,9 +94,15 @@ class AnalysisResult:
 class QueryAnalyzer:
     """从用户消息分析意图标签。
 
-    第一版仅规则匹配。英文关键词使用 \b 词边界，中文使用子串匹配。
+    第一版仅规则匹配。英文关键词使用 \\b 词边界，中文使用子串匹配。
     未来可升级为 LLM-based 分析器。
     """
+
+    def __init__(
+        self,
+        patterns: dict[str, list[re.Pattern[str]]] | None = None,
+    ) -> None:
+        self._patterns = patterns or _COMPILED_INTENT_PATTERNS
 
     def analyze(self, message: str) -> AnalysisResult:
         """分析用户消息，返回匹配的意图标签。"""
@@ -90,13 +112,18 @@ class QueryAnalyzer:
         tags: set[str] = set()
         text_lower = message.lower()
 
-        for intent, patterns in _INTENT_PATTERNS.items():
+        for intent, patterns in self._patterns.items():
             for pat in patterns:
-                try:
-                    if re.search(pat, text_lower):
-                        tags.add(intent)
-                        break
-                except re.error:
-                    continue
-
+                if pat.search(text_lower):
+                    tags.add(intent)
+                    break
         return AnalysisResult(tags=tags)
+
+
+# Shared singleton for hot paths (PromptCompiler / Artifact).
+_default_analyzer = QueryAnalyzer()
+
+
+def get_default_analyzer() -> QueryAnalyzer:
+    """Public accessor for the process-wide QueryAnalyzer singleton."""
+    return _default_analyzer

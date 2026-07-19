@@ -15,6 +15,11 @@ the pre_approved path, and user principals still skip the approval request
 Gate 1: policy_events projection (forbidden check)
 Gate 2: pre-approved fast path (consume pre-approved approval)
 Gate 3: risk assessment + approval deferral
+
+Plan runners (``executor`` / ``background``) may *defer* high-risk tools to
+human approval even though they resolve to the system principal — they
+orchestrate user-initiated plans. Other system actors (``scheduler``,
+``kernel``, bare ``system``) still auto-deny high risk.
 """
 
 from __future__ import annotations
@@ -34,6 +39,9 @@ if TYPE_CHECKING:
     from app.core.runtime.kernel.kernel import Kernel
 
 logger = logging.getLogger(__name__)
+
+# System-principal actors that may pause a plan for human approval.
+_PLAN_DEFER_ACTORS = frozenset({"executor", "background"})
 
 
 @dataclass(frozen=True)
@@ -263,10 +271,13 @@ class CapabilityGovernance:
         pre_approved: bool = False,
         approval_id: str | None = None,
         execution_id: str | None = None,
+        invoking_actor: str | None = None,
     ) -> CapabilityDecision:
         """3-gate capability authorization decision."""
         from app.core.harness.mcp_hub import mcp_hub
         from app.core.runtime.taint import is_write_class_tool, taint_registry
+
+        actor_for_policy = invoking_actor or principal.actor
 
         # Gate 1: forbidden by event-sourced policy
         policy_risk = self.risk_for(
@@ -286,7 +297,8 @@ class CapabilityGovernance:
 
         # System/kernel principals running background loops cannot be
         # escalated to a human — a tainted write-class tool auto-denies
-        # even on the pre_approved path (fail-closed).
+        # even on the pre_approved path (fail-closed). Plan runners are
+        # included: taint must not be laundered via executor/background.
         if tainted_write and principal.type != "user":
             return CapabilityDecision(
                 "deny", f"tainted_write_{principal.type}_auto_denied",
@@ -312,15 +324,17 @@ class CapabilityGovernance:
         if tainted_write:
             risk = "high"
 
-        # Only user principal can defer for human approval on high risk.
-        # System/kernel principals running background loops cannot be
-        # escalated to a human — high risk auto-denies instead.
+        # High risk: user + plan runners (executor/background) may defer;
+        # other system actors auto-deny (no human in the loop).
         if risk == "high" and principal.type != "user":
-            return CapabilityDecision("deny", f"high_risk_{principal.type}_auto_denied")
+            if actor_for_policy not in _PLAN_DEFER_ACTORS:
+                return CapabilityDecision(
+                    "deny", f"high_risk_{principal.type}_auto_denied",
+                )
 
         approval = kernel.request_approval(
             action=capability, risk=risk, ctx={"args": args},
-            actor=principal.actor, correlation_id=correlation_id,
+            actor=actor_for_policy, correlation_id=correlation_id,
         )
         if approval["status"] != "approved":
             return CapabilityDecision(

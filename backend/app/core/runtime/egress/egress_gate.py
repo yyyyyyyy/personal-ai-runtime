@@ -6,11 +6,14 @@ messages are passed through unchanged — no redaction or sanitization.
 
 from __future__ import annotations
 
+import logging
 import re
 import uuid
 from typing import Any
 
 from app.core.runtime import kernel_instance
+
+logger = logging.getLogger(__name__)
 
 # Structural field-name patterns for audit classification (not doc-example literals).
 _AUDIT_CLASSIFIERS = (
@@ -35,6 +38,7 @@ def classify_llm_payload(messages: list[dict[str, Any]]) -> dict[str, Any]:
         "categories": categories,
         "message_count": len(messages),
         "char_count": len(combined),
+        "purpose_hint": None,
     }
 
 
@@ -47,8 +51,10 @@ def audit_llm_egress(
     """Audit outbound LLM call, emit EgressAudited, return (messages, audit_meta).
 
     Messages are returned unchanged — this is audit-only, not a redaction boundary.
+    Emit failures are swallowed so audit never blocks the LLM call path.
     """
     classification = classify_llm_payload(messages)
+    classification["purpose_hint"] = purpose
     identity_surface = "identity_surface" in classification["categories"]
 
     audit = {
@@ -57,22 +63,17 @@ def audit_llm_egress(
         "identity_surface_detected": identity_surface,
     }
 
-    k = kernel_instance.kernel
-    k.emit_event(
-        "EgressAudited",
-        "egress",
-        f"egress_{uuid.uuid4().hex[:12]}",
-        payload=audit,
-        actor=actor,
-    )
+    try:
+        k = kernel_instance.kernel
+        k.emit_event(
+            "EgressAudited",
+            "egress",
+            f"egress_{uuid.uuid4().hex[:12]}",
+            payload=audit,
+            actor=actor,
+        )
+    except Exception:
+        logger.exception("EgressAudited emit failed (purpose=%s); continuing", purpose)
+        audit["emit_failed"] = True
 
     return messages, audit
-
-
-def audit_llm_egress_sync(
-    messages: list[dict[str, Any]],
-    *,
-    purpose: str,
-    actor: str = "kernel",
-) -> tuple[list[dict[str, Any]], dict[str, Any]]:
-    return audit_llm_egress(messages, purpose=purpose, actor=actor)

@@ -46,10 +46,9 @@ def test_taint_escalates_write_tool_to_high(kernel):
 
 
 def test_high_risk_system_principal_auto_denied(kernel):
-    """High-risk tools are auto-denied for non-user principals (system).
+    """High-risk tools are auto-denied for bare system/kernel actors.
 
-    Only user principals can defer high-risk tools to human approval; system
-    principals (background loops, kernel) cannot.
+    Plan runners (executor/background) may defer; other system actors cannot.
     """
     from app.core.runtime.capability_governance import capability_governance
     from app.core.runtime.execution import Principal
@@ -60,9 +59,27 @@ def test_high_risk_system_principal_auto_denied(kernel):
         "shell_exec",
         {},
         kernel,
+        invoking_actor="system",
     )
     assert decision.decision == "deny"
     assert "high_risk_system_auto_denied" in decision.reason
+
+
+def test_high_risk_executor_defers_for_human_approval(kernel):
+    """executor/background may defer high-risk tools (plan pause → Approve)."""
+    from app.core.runtime.capability_governance import capability_governance
+    from app.core.runtime.execution import Principal
+
+    for actor in ("executor", "background"):
+        decision = capability_governance.decide(
+            Principal.system(),
+            "shell_exec",
+            {},
+            kernel,
+            invoking_actor=actor,
+        )
+        assert decision.decision == "defer", actor
+        assert decision.approval_id
 
 
 def test_low_risk_system_principal_gets_auto_approved(kernel):

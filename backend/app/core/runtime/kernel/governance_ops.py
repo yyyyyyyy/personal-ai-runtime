@@ -86,17 +86,21 @@ def expire_stale_approvals(kernel) -> int:
 
     expired_ids = [(row["id"], row["action"] or "") for row in rows]
 
-    for approval_id, action in expired_ids:
-        kernel.emit_event(
-            type="ApprovalDenied",
-            aggregate_type="approval",
-            aggregate_id=approval_id,
-            payload={"action": action, "reason": "auto_expired"},
-            actor="kernel",
-        )
-        _notify_approval_changed(kernel,
-            approval_id, status="expired", action=action, event_type="ApprovalDenied",
-        )
+    if expired_ids:
+        from app.core.runtime.plan_resume import take_plan_resume
+
+        for approval_id, action in expired_ids:
+            take_plan_resume(approval_id)
+            kernel.emit_event(
+                type="ApprovalDenied",
+                aggregate_type="approval",
+                aggregate_id=approval_id,
+                payload={"action": action, "reason": "auto_expired"},
+                actor="kernel",
+            )
+            _notify_approval_changed(kernel,
+                approval_id, status="expired", action=action, event_type="ApprovalDenied",
+            )
     return len(expired_ids)
 
 def grant_approval(
@@ -242,6 +246,7 @@ async def invoke_capability(
         pre_approved=pre_approved,
         approval_id=approval_id,
         execution_id=resolved_execution_id,
+        invoking_actor=actor,
     )
 
     if decision.decision == "deny":

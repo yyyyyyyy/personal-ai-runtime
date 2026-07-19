@@ -10,12 +10,65 @@ import logging
 from typing import TYPE_CHECKING
 
 from app.core.runtime.handler_registry import subscribe
+from app.core.runtime.plan_resume import (
+    PlanResume,
+    peek_plan_resume,
+    register_plan_resume,
+    take_plan_resume,
+)
 
 if TYPE_CHECKING:
     from app.core.runtime.execution import ExecutionContext
     from app.core.runtime.kernel.event import Event
 
 logger = logging.getLogger(__name__)
+
+
+def _dispatch_plan_resume(
+    ctx: "ExecutionContext",
+    event: "Event",
+    resume: PlanResume,
+) -> bool:
+    """Re-enqueue the remainder of an execute/background plan after approval.
+
+    Returns True when a resume event was emitted.
+    """
+    if resume.kind == "execute" and resume.action_id:
+        ctx.emit(
+            "ExecuteRequested",
+            "action",
+            f"exec_{resume.action_id}",
+            payload={
+                "action_id": resume.action_id,
+                "resume_from": resume.resume_from,
+                "previous_output": resume.previous_output or {},
+            },
+            caused_by=event.id,
+        )
+        return True
+    if resume.kind == "background" and resume.task_id:
+        from app.core.runtime.kernel.constants import (
+            AGGREGATE_BACKGROUND_TASK,
+            EVENT_BG_TASK_REQUESTED,
+        )
+
+        ctx.emit(
+            EVENT_BG_TASK_REQUESTED,
+            AGGREGATE_BACKGROUND_TASK,
+            f"bg_{resume.task_id}",
+            payload={
+                "task_id": resume.task_id,
+                "plan_json": resume.plan_json or "{}",
+                "resume_from": resume.resume_from,
+                "previous_output": resume.previous_output or {},
+            },
+            caused_by=event.id,
+        )
+        return True
+    logger.error(
+        "Approve: plan resume missing action_id/task_id (kind=%s)", resume.kind
+    )
+    return False
 
 
 @subscribe("ApproveRequested")
@@ -39,6 +92,7 @@ async def on_approve_requested(ctx: "ExecutionContext", event: "Event") -> None:
         return
 
     if decision == "deny":
+        take_plan_resume(approval_id)  # drop any queued plan resume
         kernel.deny_approval(approval_id, action=tool_name, actor="user", reason="user_denied")
         ctx.emit(
             "ApproveCompleted", "approval", f"approve_{approval_id}",
@@ -85,6 +139,31 @@ async def on_approve_requested(ctx: "ExecutionContext", event: "Event") -> None:
         except Exception as exc:
             logger.warning("Approve: conversation resume failed: %s", exc)
 
+    # After the approved tool runs, continue any paused execute/background plan.
+    plan_resumed = False
+    if cap_result["status"] == "success":
+        resume = peek_plan_resume(approval_id)
+        if resume is not None:
+            # Fold the just-approved step output into previous_output for
+            # depends_on_output on subsequent steps.
+            approved_step = max(resume.resume_from - 1, 0)
+            updated = resume.with_step_output(approved_step, result_str)
+            try:
+                if _dispatch_plan_resume(ctx, event, updated):
+                    take_plan_resume(approval_id)
+                    plan_resumed = True
+                else:
+                    # Invalid resume record — drop it.
+                    take_plan_resume(approval_id)
+            except Exception:
+                logger.exception(
+                    "Approve: failed to dispatch plan resume for %s", approval_id
+                )
+                # Keep updated resume so a retry/manual re-dispatch can succeed.
+                register_plan_resume(approval_id, updated)
+    else:
+        take_plan_resume(approval_id)
+
     ctx.emit(
         "ApproveCompleted", "approval", f"approve_{approval_id}",
         payload={
@@ -94,6 +173,7 @@ async def on_approve_requested(ctx: "ExecutionContext", event: "Event") -> None:
             "conv_id": conv_id,
             "tool_call_id": tool_call_id,
             "assistant_message": assistant_message or "",
+            "plan_resumed": plan_resumed,
         },
         caused_by=event.id,
     )

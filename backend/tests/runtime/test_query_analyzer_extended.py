@@ -40,3 +40,10 @@ class TestQueryAnalyzerExtended:
     def test_python_optimize_is_coding(self):
         qa = QueryAnalyzer()
         assert "coding" in qa.analyze("这段 Python 怎么优化").tags
+
+    def test_schedule_is_calendar_not_planning(self):
+        """``schedule`` must not also tag planning (fragment over-selection)."""
+        qa = QueryAnalyzer()
+        tags = qa.analyze("please schedule a meeting tomorrow")
+        assert "calendar" in tags.tags
+        assert "planning" not in tags.tags

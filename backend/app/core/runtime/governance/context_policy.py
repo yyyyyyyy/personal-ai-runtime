@@ -143,7 +143,9 @@ def _resolve_stage_budget(stage: CompileStage, requested: int) -> int:
 
 def analyze_intent_tags(message: str) -> frozenset[str]:
     """Shared intent tags for Artifact / Pipeline consumers outside Policy."""
-    return frozenset(QueryAnalyzer().analyze(message).tags)
+    from app.core.runtime.governance.query_analyzer import get_default_analyzer
+
+    return frozenset(get_default_analyzer().analyze(message).tags)
 
 
 default_context_policy = DefaultContextPolicy()
