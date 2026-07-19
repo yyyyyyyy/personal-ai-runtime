@@ -1,4 +1,9 @@
-"""Web Search MCP Server — DuckDuckGo HTML + optional Instant Answer API."""
+"""Web Search MCP Server — DuckDuckGo HTML + optional Instant Answer API.
+
+Free zero-config fallback. When Brave/Tavily external MCP servers are
+connected they provide richer results; this builtin remains available
+without API keys.
+"""
 
 import json
 import re
@@ -14,7 +19,7 @@ DUCKDUCKGO_HTML = "https://html.duckduckgo.com/html/"
 
 
 class WebSearchServer:
-    """Web search with DuckDuckGo HTML results (primary) and Instant Answer fallback."""
+    """DuckDuckGo HTML search with Instant Answer fallback (no API key)."""
 
     async def search(self, query: str, max_results: int = 5) -> str:
         max_results = max(1, min(max_results, 10))

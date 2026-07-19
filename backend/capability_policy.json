@@ -12,8 +12,6 @@
     "read_inbox_email",
     "mark_inbox_email_read",
     "mark_inbox_email_unread",
-    "open_web_page",
-    "search_and_extract",
     "get_clipboard",
     "ocr_image",
     "git_status",
@@ -48,9 +46,7 @@
     "check_inbox",
     "read_inbox_email",
     "web_search",
-    "fetch_url",
-    "search_and_extract",
-    "open_web_page"
+    "fetch_url"
   ],
   "forbidden": []
 }

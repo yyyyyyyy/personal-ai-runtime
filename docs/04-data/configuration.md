@@ -76,7 +76,7 @@ flowchart LR
 | `builtin_tools_enabled` | `*` | `BUILTIN_TOOLS_ENABLED` |
 | `builtin_tool_categories` | `""` | `BUILTIN_TOOL_CATEGORIES` |
 
-`BUILTIN_TOOL_CATEGORIES` 控制 advanced 类别（computer_use/voice/clipboard_ocr）opt-in；留空则只注册 core 类别（time/filesystem/web/calendar/email/browser/shell/git/telegram/goals）。
+`BUILTIN_TOOL_CATEGORIES` 控制 advanced 类别（telegram/computer_use/voice/clipboard_ocr）opt-in；留空则只注册 core 类别（time/filesystem/web/calendar/email/shell/git/goals）。浏览器自动化走外部 Playwright MCP。
 
 ### 外部 MCP 凭据
 

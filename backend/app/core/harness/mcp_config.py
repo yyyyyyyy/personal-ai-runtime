@@ -2,12 +2,20 @@
 
 from __future__ import annotations
 
+import fnmatch
 import json
+import logging
 import re
-import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
+
+logger = logging.getLogger(__name__)
+
+_VALID_POLICY_DEFAULTS = frozenset({"auto_allow", "needs_user", "forbidden"})
+
+# (path_str, mtime, parsed_data)
+_mcp_config_cache: tuple[str, float, dict[str, Any]] | None = None
 
 
 def normalize_tool_name(name: str) -> str:
@@ -35,6 +43,13 @@ def parse_builtin_tools_enabled() -> set[str] | None:
     if not raw or raw == "*":
         return None
     return {part.strip() for part in raw.split(",") if part.strip()}
+
+
+def _matches_tool_pattern(tool_name: str, pattern: str) -> bool:
+    """Match tool names with fnmatch globs (``create_*``) or exact equality."""
+    if any(ch in pattern for ch in "*?["):
+        return fnmatch.fnmatchcase(tool_name, pattern)
+    return tool_name == pattern
 
 
 @dataclass
@@ -70,8 +85,25 @@ class ExternalMCPServerConfig:
         return True
 
     def resolve_env(self) -> dict[str, str]:
-        import os
+        from app.config import settings
+        from app.core.harness.subprocess_env import minimal_subprocess_env
 
+        settings_env = {
+            "BRAVE_API_KEY": settings.brave_api_key,
+            "CONTEXT7_API_KEY": settings.context7_api_key,
+            "GITHUB_PERSONAL_ACCESS_TOKEN": settings.github_personal_access_token,
+            "TAVILY_API_KEY": settings.tavily_api_key,
+            "NOTION_TOKEN": settings.notion_token,
+        }
+        # Minimal base env + config file overrides + credential keys from settings.
+        extra = dict(self.env)
+        for key in self.required_env + self.optional_env:
+            val = settings_env.get(key, "").strip()
+            if val:
+                extra[key] = val
+        return minimal_subprocess_env(extra=extra)
+
+    def has_required_credentials(self) -> bool:
         from app.config import settings
 
         settings_env = {
@@ -81,32 +113,13 @@ class ExternalMCPServerConfig:
             "TAVILY_API_KEY": settings.tavily_api_key,
             "NOTION_TOKEN": settings.notion_token,
         }
-        # Minimal necessary environment for subprocess — never inherit the full
-        # parent env (which contains LLM_API_KEY, EMAIL_PASS, etc.).
-        merged = {
-            "PATH": os.environ.get("PATH", ""),
-        }
-        # Locale + temp dir keep npx/node MCP servers from failing on systems
-        # that require them, without leaking secrets.
-        for optional_key in ("TMPDIR", "TMP", "TEMP", "LANG", "LC_ALL"):
-            val = os.environ.get(optional_key)
-            if val:
-                merged[optional_key] = val
-        if sys.platform == "win32":
-            merged["SYSTEMROOT"] = os.environ.get("SYSTEMROOT", "")
-            merged["USERPROFILE"] = os.environ.get("USERPROFILE", "")
-        else:
-            merged["HOME"] = os.environ.get("HOME", "")
-        merged.update(self.env)
-        for key in self.required_env + self.optional_env:
-            val = settings_env.get(key, "").strip()
-            if val:
-                merged[key] = val
-        return merged
-
-    def has_required_credentials(self) -> bool:
-        env = self.resolve_env()
-        return all(env.get(key, "").strip() for key in self.required_env)
+        for key in self.required_env:
+            if self.env.get(key, "").strip():
+                continue
+            if settings_env.get(key, "").strip():
+                continue
+            return False
+        return True
 
     def should_expose_tool(self, tool_name: str) -> bool:
         if not self.enabled_tools:
@@ -117,9 +130,7 @@ class ExternalMCPServerConfig:
         if tool_name in self.needs_user_tools:
             return True
         for pattern in self.needs_user_patterns:
-            if pattern in tool_name or (
-                pattern.endswith("*") and tool_name.startswith(pattern[:-1])
-            ):
+            if _matches_tool_pattern(tool_name, pattern):
                 return True
         return self.policy_default == "needs_user"
 
@@ -127,20 +138,35 @@ class ExternalMCPServerConfig:
         if tool_name in self.ingestion_tools:
             return True
         for pattern in self.ingestion_patterns:
-            if pattern in tool_name or (
-                pattern.endswith("*") and tool_name.startswith(pattern[:-1])
-            ):
+            if _matches_tool_pattern(tool_name, pattern):
                 return True
         return False
+
+
+def clear_mcp_config_cache() -> None:
+    """Test helper — drop the mtime-based config cache."""
+    global _mcp_config_cache
+    _mcp_config_cache = None
 
 
 def load_mcp_config(path: str | Path | None = None) -> dict[str, Any]:
     from app.config import settings
 
+    global _mcp_config_cache
+
     config_path = Path(path or settings.mcp_config_path)
     if not config_path.is_file():
         return {"servers": [], "external_servers": []}
-    return json.loads(config_path.read_text(encoding="utf-8"))
+
+    path_key = str(config_path.resolve())
+    mtime = config_path.stat().st_mtime
+    cached = _mcp_config_cache
+    if cached is not None and cached[0] == path_key and cached[1] == mtime:
+        return cached[2]
+
+    data = json.loads(config_path.read_text(encoding="utf-8"))
+    _mcp_config_cache = (path_key, mtime, data)
+    return data
 
 
 def load_external_server_configs(path: str | Path | None = None) -> list[ExternalMCPServerConfig]:
@@ -161,6 +187,15 @@ def load_external_server_configs(path: str | Path | None = None) -> list[Externa
             continue
         if allowed is not None and name not in allowed:
             continue
+        policy_default = str(raw.get("policy_default", "auto_allow"))
+        if policy_default not in _VALID_POLICY_DEFAULTS:
+            # Fail closed: a typo must not silently open the whole server.
+            logger.warning(
+                "MCP server %r has invalid policy_default %r; skipping server",
+                name,
+                policy_default,
+            )
+            continue
         call_timeout = float(raw.get("call_timeout_seconds", settings.tool_timeout_seconds))
         configs.append(
             ExternalMCPServerConfig(
@@ -170,7 +205,7 @@ def load_external_server_configs(path: str | Path | None = None) -> list[Externa
                 env=dict(raw.get("env", {})),
                 enabled=bool(raw.get("enabled", True)),
                 tool_prefix=str(raw.get("tool_prefix", "")),
-                policy_default=str(raw.get("policy_default", "auto_allow")),
+                policy_default=policy_default,
                 needs_user_tools=list(raw.get("needs_user_tools", [])),
                 needs_user_patterns=list(raw.get("needs_user_patterns", [])),
                 ingestion_tools=list(raw.get("ingestion_tools", [])),

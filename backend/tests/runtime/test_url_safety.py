@@ -79,6 +79,39 @@ def test_pin_url_to_ipv6_loopback_rejected_by_resolver():
         _resolve_and_check("fc00::1")  # IPv6 ULA (private)
 
 
+def test_ipv4_mapped_loopback_and_link_local_blocked():
+    """IPv4-mapped IPv6 must honor the embedded IPv4 block rules."""
+    from app.core.harness.url_safety import _is_blocked_ip, _resolve_and_check
+    import ipaddress
+
+    assert _is_blocked_ip(ipaddress.ip_address("::ffff:127.0.0.1"))
+    assert _is_blocked_ip(ipaddress.ip_address("::ffff:169.254.169.254"))
+    assert _is_blocked_ip(ipaddress.ip_address("::ffff:10.0.0.1"))
+    assert not _is_blocked_ip(ipaddress.ip_address("::ffff:8.8.8.8"))
+
+    with pytest.raises(UnsafeUrlError):
+        _resolve_and_check("::ffff:127.0.0.1")
+    with pytest.raises(UnsafeUrlError):
+        validate_http_url("http://[::ffff:127.0.0.1]/")
+
+
+def test_dns_resolve_not_cached_across_calls():
+    """Each pre-flight must re-resolve so DNS rebinding cannot ride a positive cache."""
+    from app.core.harness.url_safety import _resolve_and_check
+
+    with patch(
+        "app.core.harness.url_safety.socket.getaddrinfo",
+        side_effect=[
+            [(2, 1, 6, "", ("93.184.216.34", 0))],
+            [(2, 1, 6, "", ("127.0.0.1", 0))],
+        ],
+    ) as mock_gai:
+        assert _resolve_and_check("flip.example") == ["93.184.216.34"]
+        with pytest.raises(UnsafeUrlError, match="blocked address"):
+            _resolve_and_check("flip.example")
+        assert mock_gai.call_count == 2
+
+
 def test_transport_pins_request_to_resolved_ip():
     """The transport rewrites the request URL to the resolved IP literal."""
     import asyncio

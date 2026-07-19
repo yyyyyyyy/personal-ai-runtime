@@ -33,14 +33,10 @@ BUILTIN_TOOLS = {
     "mark_inbox_email_read",
     "mark_inbox_email_unread",
     "send_email",
-    "open_web_page",
-    "search_and_extract",
     "shell_exec",
     "git_status",
     "git_log",
     "git_diff",
-    "telegram_send",
-    "telegram_updates",
     "create_goal",
     "update_goal_progress",
     "complete_goal",
@@ -52,6 +48,8 @@ BUILTIN_TOOLS = {
 # explicitly enables them. They remain in capability_policy.json so the
 # governance decision is defined before the tool is ever loaded.
 ADVANCED_TOOLS = {
+    "telegram_send",
+    "telegram_updates",
     "get_clipboard",
     "ocr_image",
     "computer_screenshot",
@@ -90,7 +88,7 @@ def test_capability_policy_covers_all_registered_tools():
     assert not missing, f"Builtin tools missing from capability_policy: {missing}"
     assert not extra, f"Unknown tools in capability_policy: {extra}"
     assert not overlap, f"Tools in both auto_allow and needs_user: {overlap}"
-    assert len(BUILTIN_TOOLS) == 30
+    assert len(BUILTIN_TOOLS) == 26
 
 
 def make_kernel(tmp_path):

@@ -10,6 +10,7 @@ import sys
 from pathlib import Path
 
 from app.config import BASE_DIR, settings
+from app.core.harness.subprocess_env import minimal_subprocess_env
 from app.core.harness.url_safety import UnsafeUrlError, validate_http_url
 
 
@@ -48,12 +49,14 @@ class ShellServer:
         # Compression
         "tar", "gzip", "gunzip", "zip", "unzip",
         # Text processing
+        # Intentionally omitted: ``xargs`` (launches arbitrary binaries).
         "grep", "egrep", "rg", "awk", "sed", "sort", "uniq", "cut",
-        "tr", "diff", "find", "xargs", "tee",
+        "tr", "diff", "find", "tee",
         # Formatting
         "jq", "yq",
-        # System state
-        "env", "export", "source", "which", "type",
+        # System state — ``env``/``export``/``source`` omitted (secret leak /
+        # shell builtins that do not work with shell=False).
+        "which", "type",
     ]
 
     # High-risk commands — only enabled when listed in SHELL_EXTRA_COMMANDS.
@@ -153,7 +156,8 @@ class ShellServer:
                 groups[-1].append(tok)
         return [" ".join(shlex.quote(t) for t in g) for g in groups if g]
 
-    # Dangerous flags for interpreters that can execute arbitrary code.
+    # Dangerous flags for interpreters / tools that can execute arbitrary code
+    # or mutate the filesystem beyond the whitelist's intent.
     DANGEROUS_FLAGS: dict[str, frozenset[str]] = {
         "python": frozenset({"-c", "-m"}),
         "python3": frozenset({"-c", "-m"}),
@@ -169,6 +173,12 @@ class ShellServer:
         "ssh": frozenset({"-o", "ProxyCommand"}),
         "awk": frozenset({"-e", "--exec"}),
         "sed": frozenset({"-e", "--expression"}),
+        # find -exec/-execdir/+ form bypasses the command whitelist; -delete
+        # mutates the tree. Semicolon terminator is already blocked by
+        # _METACHAR_RE, but ``find . -exec cmd {} +`` does not need ``;``.
+        "find": frozenset({
+            "-exec", "-execdir", "-ok", "-okdir", "-delete",
+        }),
     }
 
     def _parse_argv(self, command: str) -> list[str] | str:
@@ -321,6 +331,7 @@ class ShellServer:
                 text=True,
                 timeout=timeout_seconds,
                 cwd=effective_cwd,
+                env=minimal_subprocess_env(),
             )
             output = result.stdout or result.stderr
             return json.dumps({

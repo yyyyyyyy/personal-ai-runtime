@@ -1,7 +1,7 @@
 """Computer Use MCP Server — screenshot, mouse click, keyboard input.
 
 All operations go through the Runtime's governance layer (4-Gate CapabilityGateway).
-Screenshot is auto_allow; click/type are needs_user (high risk).
+Most actions (including screenshot) are needs_user; screen_size is auto_allow.
 """
 
 from __future__ import annotations
@@ -9,8 +9,7 @@ from __future__ import annotations
 import base64
 import json
 import logging
-import tempfile
-from pathlib import Path
+import sys
 from typing import Any
 
 logger = logging.getLogger(__name__)
@@ -44,12 +43,30 @@ class ComputerUseServer:
                     "Computer Use requires 'pyautogui' library. Install: pip install pyautogui"
                 )
 
-    def screenshot(self, region: str = "full") -> str:
-        """Take a screenshot and return base64-encoded PNG.
+    @staticmethod
+    def _set_clipboard(text: str) -> None:
+        try:
+            import pyperclip
+            pyperclip.copy(text)
+            return
+        except Exception:
+            pass
+        import tkinter as tk
+        root = tk.Tk()
+        root.withdraw()
+        root.clipboard_clear()
+        root.clipboard_append(text)
+        root.update()
+        root.destroy()
 
-        Args:
-            region: "full" for entire screen, or "primary" for primary monitor only.
-        """
+    def _paste_text(self) -> None:
+        if sys.platform == "darwin":
+            self._pyautogui.hotkey("command", "v")
+        else:
+            self._pyautogui.hotkey("ctrl", "v")
+
+    def screenshot(self, region: str = "full") -> str:
+        """Take a screenshot and return base64-encoded PNG."""
         try:
             self._ensure_mss()
             with self._screenshot_module.mss() as sct:
@@ -59,35 +76,21 @@ class ComputerUseServer:
                     monitor = sct.monitors[0]
 
                 img = sct.grab(monitor)
-
-                # Save to temp file and read as base64
-                with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmp:
-                    self._screenshot_module.tools.to_png(img.rgb, img.size, output=tmp.name)
-                    tmp_path = Path(tmp.name)
-
-                data = tmp_path.read_bytes()
-                tmp_path.unlink()
-
-                b64 = base64.b64encode(data).decode("utf-8")
+                png_bytes = self._screenshot_module.tools.to_png(img.rgb, img.size)
+                b64 = base64.b64encode(png_bytes).decode("utf-8")
                 return json.dumps({
                     "status": "ok",
                     "image_base64": b64,
                     "width": img.width,
                     "height": img.height,
-                    "size_bytes": len(data),
+                    "size_bytes": len(png_bytes),
                     "hint": "Image is base64-encoded PNG. Use screen coordinates (x,y) for click/type operations.",
                 })
         except Exception as e:
             return json.dumps({"status": "error", "error": str(e)})
 
     def click(self, x: int, y: int, button: str = "left") -> str:
-        """Click at screen coordinates.
-
-        Args:
-            x: X coordinate (pixels from left).
-            y: Y coordinate (pixels from top).
-            button: "left", "right", or "middle".
-        """
+        """Click at screen coordinates."""
         try:
             self._ensure_pyautogui()
             self._pyautogui.click(x, y, button=button)
@@ -103,32 +106,32 @@ class ComputerUseServer:
     def type_text(self, text: str, interval: float = 0.05) -> str:
         """Type text at the current cursor position.
 
-        Args:
-            text: The text to type.
-            interval: Seconds between keystrokes (slower = safer with complex UIs).
+        ASCII uses keystroke simulation; non-ASCII (e.g. CJK) uses clipboard
+        paste because ``typewrite`` can't emit those characters.
         """
         if not text:
             return json.dumps({"status": "error", "error": "Empty text"})
 
         try:
             self._ensure_pyautogui()
-            self._pyautogui.typewrite(text, interval=interval)
+            method = "typewrite"
+            if any(ord(ch) > 127 for ch in text):
+                self._set_clipboard(text)
+                self._paste_text()
+                method = "clipboard_paste"
+            else:
+                self._pyautogui.typewrite(text, interval=interval)
             return json.dumps({
                 "status": "ok",
                 "action": "type",
                 "length": len(text),
+                "method": method,
             })
         except Exception as e:
             return json.dumps({"status": "error", "error": str(e)})
 
     def move(self, x: int, y: int, duration: float = 0.3) -> str:
-        """Move mouse to coordinates (no click).
-
-        Args:
-            x: X coordinate.
-            y: Y coordinate.
-            duration: Movement animation duration in seconds.
-        """
+        """Move mouse to coordinates (no click)."""
         try:
             self._ensure_pyautogui()
             self._pyautogui.moveTo(x, y, duration=duration)
@@ -141,11 +144,7 @@ class ComputerUseServer:
             return json.dumps({"status": "error", "error": str(e)})
 
     def scroll(self, clicks: int = 3) -> str:
-        """Scroll the mouse wheel.
-
-        Args:
-            clicks: Positive = scroll up, negative = scroll down.
-        """
+        """Scroll the mouse wheel."""
         try:
             self._ensure_pyautogui()
             self._pyautogui.scroll(clicks)
@@ -158,11 +157,7 @@ class ComputerUseServer:
             return json.dumps({"status": "error", "error": str(e)})
 
     def press_key(self, key: str) -> str:
-        """Press a keyboard key or combination.
-
-        Args:
-            key: Key name (e.g. "enter", "escape", "ctrl+c", "alt+tab").
-        """
+        """Press a keyboard key or combination."""
         try:
             self._ensure_pyautogui()
             self._pyautogui.hotkey(*key.split("+"))

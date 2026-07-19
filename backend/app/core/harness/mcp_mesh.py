@@ -17,14 +17,40 @@ from app.core.harness.mcp_config import (
     external_tool_id,
     load_external_server_configs,
 )
-from app.core.harness.url_safety import UnsafeUrlError, validate_http_url
+from app.core.harness.url_safety import UnsafeUrlError, validate_http_url_async
 
 logger = logging.getLogger(__name__)
 
-# Playwright tools that accept outbound URLs — validated before invoke.
-_PLAYWRIGHT_URL_TOOLS: dict[str, str] = {
-    "browser_navigate": "url",
-}
+# Known URL argument fields (case-insensitive) used when scanning tool args.
+_URL_ARG_KEYS = frozenset({
+    "url", "uri", "href", "link", "endpoint", "target_url", "page_url",
+    "base_url", "website",
+})
+
+# Substrings that suggest a dead transport rather than an application error.
+_TRANSPORT_ERROR_MARKERS = (
+    "closed",
+    "not connected",
+    "connection reset",
+    "broken pipe",
+    "eof",
+    "transport",
+    "session terminated",
+    "broken resource",
+)
+
+
+def _is_transport_failure(exc: BaseException) -> bool:
+    """True when retrying after reconnect is likely safe/useful.
+
+    Intentionally narrow: do not treat generic ``OSError`` / app errors as
+    transport failures (avoids double-executing non-idempotent tools).
+    """
+    if isinstance(exc, (ConnectionError, BrokenPipeError, EOFError)):
+        return True
+    name = type(exc).__name__.lower()
+    msg = str(exc).lower()
+    return any(m in name or m in msg for m in _TRANSPORT_ERROR_MARKERS)
 
 
 @dataclass
@@ -56,18 +82,46 @@ class _ServerConnection:
                 args=self.config.args,
                 env=self.config.resolve_env(),
             )
-            transport = stdio_client(params)
-            read, write = await transport.__aenter__()
-            session = ClientSession(read, write)
-            await session.__aenter__()
-            await asyncio.wait_for(
-                session.initialize(),
-                timeout=self.config.connect_timeout_seconds,
-            )
-            listed = await asyncio.wait_for(
-                session.list_tools(),
-                timeout=self.config.connect_timeout_seconds,
-            )
+            transport = None
+            session = None
+            try:
+                transport = stdio_client(params)
+                read, write = await transport.__aenter__()
+                session = ClientSession(read, write)
+                await session.__aenter__()
+                await asyncio.wait_for(
+                    session.initialize(),
+                    timeout=self.config.connect_timeout_seconds,
+                )
+                listed = await asyncio.wait_for(
+                    session.list_tools(),
+                    timeout=self.config.connect_timeout_seconds,
+                )
+            except Exception:
+                # Partial __aenter__ success must not leak transport/session.
+                if session is not None:
+                    try:
+                        await session.__aexit__(None, None, None)
+                    except Exception:
+                        logger.warning(
+                            "Error cleaning up failed MCP session for %s",
+                            self.config.name,
+                            exc_info=True,
+                        )
+                if transport is not None:
+                    try:
+                        await transport.__aexit__(None, None, None)
+                    except Exception:
+                        logger.warning(
+                            "Error cleaning up failed MCP transport for %s",
+                            self.config.name,
+                            exc_info=True,
+                        )
+                self.session = None
+                self._transport = None
+                self.tools = []
+                raise
+
             self.session = session
             self._transport = (transport, read, write)
             self.tools = list(listed.tools)
@@ -100,12 +154,25 @@ class MCPMesh:
     def __init__(self) -> None:
         self._connections: dict[str, _ServerConnection] = {}
         self._pending_configs: dict[str, ExternalMCPServerConfig] = {}
+        # Keep configs for reconnect after a live connection dies.
+        self._configs: dict[str, ExternalMCPServerConfig] = {}
         self._tool_index: dict[str, tuple[str, str]] = {}
         self._discovered: list[DiscoveredMCPTool] = []
+        # Servers that already completed tool discovery (including forbidden-only).
+        self._discovered_servers: set[str] = set()
         self._started = False
         self._start_lock = asyncio.Lock()
         self._register_lock = asyncio.Lock()
+        # Per-server connect locks — prevent lazy + ensure_server double-spawn.
+        self._server_locks: dict[str, asyncio.Lock] = {}
         self._lazy_task: asyncio.Task | None = None
+
+    def _lock_for(self, server_name: str) -> asyncio.Lock:
+        lock = self._server_locks.get(server_name)
+        if lock is None:
+            lock = asyncio.Lock()
+            self._server_locks[server_name] = lock
+        return lock
 
     @property
     def discovered_tools(self) -> list[DiscoveredMCPTool]:
@@ -123,6 +190,8 @@ class MCPMesh:
             startup_configs = [c for c in configs if c.is_available() and c.startup_connect]
             lazy_configs = [c for c in configs if c.is_available() and not c.startup_connect]
 
+            for config in configs:
+                self._configs[config.name] = config
             for config in lazy_configs:
                 self._pending_configs[config.name] = config
 
@@ -169,13 +238,21 @@ class MCPMesh:
                     logger.exception("Error closing MCP server '%s'", conn.config.name)
             self._connections.clear()
             self._pending_configs.clear()
+            self._configs.clear()
             self._tool_index.clear()
             self._discovered.clear()
+            self._discovered_servers.clear()
+            self._server_locks.clear()
             self._started = False
 
     async def call_tool(self, registered_name: str, arguments: dict[str, Any]) -> str:
         if registered_name not in self._tool_index:
             return json.dumps({"error": f"Unknown external tool: {registered_name}"})
+
+        from app.core.runtime.capability_governance import capability_governance
+
+        if capability_governance.is_forbidden(registered_name):
+            return json.dumps({"error": f"Tool forbidden: {registered_name}"})
 
         server_name, original_name = self._tool_index[registered_name]
         try:
@@ -183,14 +260,13 @@ class MCPMesh:
         except Exception as exc:
             return json.dumps({"error": f"MCP server unavailable ({server_name}): {exc}"})
 
-        url_err = self._validate_tool_arguments(original_name, arguments)
+        url_err = await self._validate_tool_arguments(original_name, arguments)
         if url_err:
             return json.dumps({"error": url_err})
 
         try:
-            result = await asyncio.wait_for(
-                conn.session.call_tool(original_name, arguments),  # type: ignore[union-attr]
-                timeout=conn.config.call_timeout_seconds,
+            result = await self._call_with_reconnect(
+                conn, server_name, original_name, arguments, registered_name
             )
         except asyncio.TimeoutError:
             return json.dumps({"error": f"MCP tool timed out: {registered_name}"})
@@ -207,6 +283,58 @@ class MCPMesh:
         if result.isError:
             return json.dumps({"error": "\n".join(parts) or "MCP tool returned error"})
         return "\n".join(parts) if parts else json.dumps({"status": "ok", "result": None})
+
+    async def _call_with_reconnect(
+        self,
+        conn: _ServerConnection,
+        server_name: str,
+        original_name: str,
+        arguments: dict[str, Any],
+        registered_name: str,
+    ) -> Any:
+        """Invoke once; reconnect+retry only on transport-level failures.
+
+        Application / protocol errors are not retried — avoids double-executing
+        non-idempotent tools when the server already applied the side effect.
+        """
+        try:
+            return await asyncio.wait_for(
+                conn.session.call_tool(original_name, arguments),  # type: ignore[union-attr]
+                timeout=conn.config.call_timeout_seconds,
+            )
+        except asyncio.TimeoutError:
+            raise
+        except Exception as first_exc:
+            if not _is_transport_failure(first_exc):
+                raise
+            logger.warning(
+                "MCP tool %s failed on %s (%s); attempting reconnect",
+                registered_name,
+                server_name,
+                type(first_exc).__name__,
+            )
+            await self._mark_disconnected(server_name)
+            conn = await self._ensure_server(server_name)
+            return await asyncio.wait_for(
+                conn.session.call_tool(original_name, arguments),  # type: ignore[union-attr]
+                timeout=conn.config.call_timeout_seconds,
+            )
+
+    async def _mark_disconnected(self, server_name: str) -> None:
+        async with self._lock_for(server_name):
+            conn = self._connections.pop(server_name, None)
+            if conn is not None:
+                try:
+                    await conn.close()
+                except Exception:
+                    logger.warning(
+                        "Error closing dead MCP session for %s",
+                        server_name,
+                        exc_info=True,
+                    )
+            config = self._configs.get(server_name)
+            if config is not None:
+                self._pending_configs[server_name] = config
 
     async def _connect_servers_parallel(self, configs: list[ExternalMCPServerConfig]) -> None:
         results = await asyncio.gather(
@@ -236,11 +364,19 @@ class MCPMesh:
     async def _connect_server_safe(self, config: ExternalMCPServerConfig) -> list[DiscoveredMCPTool]:
         discovered = await self._connect_server(config)
         await self._register_discovered_tools(discovered)
-        logger.info(
-            "MCP server '%s' connected with %d tools",
-            config.name,
-            len(discovered),
-        )
+        if discovered:
+            logger.info(
+                "MCP server '%s' connected with %d tools",
+                config.name,
+                len(discovered),
+            )
+        else:
+            # Empty when already connected (lazy/ensure race) or server exposed
+            # no tools — avoid implying a fresh zero-tool connect.
+            logger.debug(
+                "MCP server '%s' connect returned 0 new tools",
+                config.name,
+            )
         return discovered
 
     async def _register_discovered_tools(self, discovered: list[DiscoveredMCPTool]) -> None:
@@ -256,7 +392,11 @@ class MCPMesh:
         if conn is not None and conn.session is not None:
             return conn
 
-        config = self._pending_configs.get(server_name)
+        config = (
+            self._pending_configs.get(server_name)
+            or self._configs.get(server_name)
+            or (conn.config if conn is not None else None)
+        )
         if config is None:
             raise RuntimeError(f"server not connected: {server_name}")
 
@@ -267,63 +407,125 @@ class MCPMesh:
             raise RuntimeError(f"server connect failed: {server_name}")
         return conn
 
-    def _validate_tool_arguments(self, original_name: str, arguments: dict[str, Any]) -> str | None:
-        url_field = _PLAYWRIGHT_URL_TOOLS.get(original_name)
-        if not url_field:
-            return None
-        url = arguments.get(url_field)
-        if not url or not isinstance(url, str):
-            return None
-        try:
-            validate_http_url(url)
-        except UnsafeUrlError as exc:
-            return f"Blocked URL: {exc}"
+    async def _validate_tool_arguments(
+        self, original_name: str, arguments: dict[str, Any]
+    ) -> str | None:
+        """Reject SSRF-prone URLs in external MCP tool arguments.
+
+        Validates http(s) strings nested up to a small depth, plus common
+        URL-named fields — not only Playwright's ``browser_navigate``.
+        ``original_name`` is kept for call-site clarity / future per-tool
+        allowlists. DNS runs off the event loop via ``validate_http_url_async``.
+        """
+        _ = original_name
+        for url in self._iter_url_candidates(arguments):
+            try:
+                await validate_http_url_async(url)
+            except UnsafeUrlError as exc:
+                return f"Blocked URL: {exc}"
         return None
 
+    @classmethod
+    def _iter_url_candidates(cls, arguments: dict[str, Any], *, max_depth: int = 3) -> list[str]:
+        """Collect http(s) URL strings from tool arguments (depth-limited walk)."""
+        candidates: list[str] = []
+
+        def _maybe_add(key: str, value: str) -> None:
+            stripped = value.strip()
+            if not stripped:
+                return
+            if stripped.startswith("http://") or stripped.startswith("https://"):
+                candidates.append(stripped)
+            elif key.lower() in _URL_ARG_KEYS and "://" in stripped:
+                candidates.append(stripped)
+
+        def _walk(obj: Any, key: str, depth: int) -> None:
+            if depth > max_depth:
+                return
+            if isinstance(obj, str):
+                _maybe_add(key, obj)
+            elif isinstance(obj, dict):
+                for child_key, child in obj.items():
+                    _walk(child, str(child_key), depth + 1)
+            elif isinstance(obj, (list, tuple)):
+                for item in obj:
+                    _walk(item, key, depth + 1)
+
+        _walk(arguments, "", 0)
+        return candidates
+
     async def _connect_server(self, config: ExternalMCPServerConfig) -> list[DiscoveredMCPTool]:
-        conn = _ServerConnection(config)
-        await conn.connect()
-        self._connections[config.name] = conn
+        async with self._lock_for(config.name):
+            self._configs[config.name] = config
+            existing = self._connections.get(config.name)
+            if existing is not None and existing.session is not None:
+                # Already connected (e.g. lazy task raced with ensure_server).
+                return []
 
-        discovered: list[DiscoveredMCPTool] = []
-        for tool in conn.tools:
-            if not config.should_expose_tool(tool.name):
-                continue
+            if existing is not None:
+                # Dead session left behind — close before replacing.
+                try:
+                    await existing.close()
+                except Exception:
+                    logger.warning(
+                        "Error closing stale MCP connection for %s",
+                        config.name,
+                        exc_info=True,
+                    )
+                self._connections.pop(config.name, None)
 
-            registered = external_tool_id(config.registration_prefix, tool.name)
-            if registered in self._tool_index:
-                registered = external_tool_id(config.name, tool.name)
+            conn = _ServerConnection(config)
+            await conn.connect()
+            self._connections[config.name] = conn
 
-            needs_user = config.tool_needs_user(tool.name)
-            ingestion = config.tool_is_ingestion(tool.name)
-            if config.policy_default == "forbidden":
-                risk = "forbidden"
-            elif needs_user:
-                risk = "high"
-            else:
-                risk = "low"
+            # Reconnect after a prior successful discovery (including forbidden-only
+            # servers that never entered ``_tool_index``): reuse existing index.
+            if config.name in self._discovered_servers:
+                return []
 
-            parameters = tool.inputSchema if isinstance(tool.inputSchema, dict) else {
-                "type": "object",
-                "properties": {},
-            }
+            discovered: list[DiscoveredMCPTool] = []
+            for tool in conn.tools:
+                if not config.should_expose_tool(tool.name):
+                    continue
 
-            discovered.append(
-                DiscoveredMCPTool(
-                    registered_name=registered,
-                    server_name=config.name,
-                    original_name=tool.name,
-                    description=tool.description or f"MCP tool {tool.name} from {config.name}",
-                    parameters=parameters,
-                    requires_confirmation=needs_user,
-                    is_ingestion=ingestion,
-                    policy_risk=risk,
+                registered = external_tool_id(config.registration_prefix, tool.name)
+                if registered in self._tool_index:
+                    registered = external_tool_id(config.name, tool.name)
+
+                needs_user = config.tool_needs_user(tool.name)
+                ingestion = config.tool_is_ingestion(tool.name)
+                if config.policy_default == "forbidden":
+                    risk = "forbidden"
+                elif needs_user:
+                    risk = "high"
+                else:
+                    risk = "low"
+
+                parameters = tool.inputSchema if isinstance(tool.inputSchema, dict) else {
+                    "type": "object",
+                    "properties": {},
+                }
+
+                discovered.append(
+                    DiscoveredMCPTool(
+                        registered_name=registered,
+                        server_name=config.name,
+                        original_name=tool.name,
+                        description=tool.description or f"MCP tool {tool.name} from {config.name}",
+                        parameters=parameters,
+                        requires_confirmation=needs_user,
+                        is_ingestion=ingestion,
+                        policy_risk=risk,
+                    )
                 )
-            )
-            self._tool_index[registered] = (config.name, tool.name)
+                # Forbidden tools stay in discovered (governance deny) but are
+                # not callable via the mesh index.
+                if risk != "forbidden":
+                    self._tool_index[registered] = (config.name, tool.name)
 
-        self._discovered.extend(discovered)
-        return discovered
+            self._discovered_servers.add(config.name)
+            self._discovered.extend(discovered)
+            return discovered
 
     def get_server_status(self) -> dict:
         """Return connection status for external MCP servers."""
@@ -336,7 +538,11 @@ class MCPMesh:
                 "total_tools": 0,
             }
 
-        connected = set(self._connections.keys())
+        connected = {
+            name
+            for name, conn in self._connections.items()
+            if conn.session is not None
+        }
         servers = []
         for config in load_external_server_configs():
             if not config.is_available():

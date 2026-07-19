@@ -19,6 +19,10 @@ async def start_mcp_mesh() -> int:
 
 
 async def stop_mcp_mesh() -> None:
-    """Disconnect external MCP servers and unregister tools."""
-    if mcp_external_enabled():
-        await mcp_mesh.stop()
+    """Disconnect external MCP servers and unregister tools.
+
+    Always invoke ``stop`` (idempotent) so a runtime flip of
+    ``mcp_external_enabled`` cannot leave stdio children / registered tools
+    behind.
+    """
+    await mcp_mesh.stop()

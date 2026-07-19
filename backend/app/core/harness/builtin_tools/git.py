@@ -4,9 +4,17 @@ import json
 import subprocess
 from pathlib import Path
 
+from app.core.harness.builtin_tools.filesystem import filesystem_server
+from app.core.harness.subprocess_env import minimal_subprocess_env
+
 
 class GitServer:
-    """Git operations via subprocess with safety constraints."""
+    """Git operations via subprocess with safety constraints.
+
+    Repository paths must fall inside the same allowed directories as the
+    filesystem tools — otherwise auto-allow ``git_status``/``git_log``/``git_diff``
+    could probe arbitrary local repos.
+    """
 
     def status(self, repo_path: str = ".") -> str:
         """Get the git status of a repository."""
@@ -23,23 +31,24 @@ class GitServer:
             args.append("--staged")
         return self._run_git(repo_path, args)
 
-    def branch(self, repo_path: str = ".") -> str:
-        """List branches."""
-        return self._run_git(repo_path, ["branch", "-a"])
-
-    def stash_list(self, repo_path: str = ".") -> str:
-        """List stashes."""
-        return self._run_git(repo_path, ["stash", "list"])
-
     def _run_git(self, repo_path: str, args: list[str]) -> str:
         repo = Path(repo_path).expanduser().resolve()
+        if not filesystem_server.is_path_allowed(str(repo)):
+            return json.dumps({
+                "error": "Access denied: path outside allowed directories",
+                "path": str(repo),
+            })
         if not (repo / ".git").exists():
             return json.dumps({"error": f"Not a git repository: {repo_path}"})
 
         try:
             result = subprocess.run(
-                ["git"] + args, cwd=str(repo),
-                capture_output=True, text=True, timeout=15,
+                ["git"] + args,
+                cwd=str(repo),
+                capture_output=True,
+                text=True,
+                timeout=15,
+                env=minimal_subprocess_env(),
             )
             return json.dumps({
                 "command": f"git {' '.join(args)}",

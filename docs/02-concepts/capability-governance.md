@@ -83,7 +83,7 @@ flowchart TB
 
 - `TaintRegistry`（[`taint.py`](../../backend/app/core/runtime/taint.py)）按 `correlation_id` 维护污染标记，**实例级 dict**（非 ContextVar，避免 `asyncio.gather` 扇出 bug），TTL 300s。
 - 工具分类集合：
-  - `_BUILTIN_EXTERNAL_INGESTION_TOOLS`（[`taint.py`](../../backend/app/core/runtime/taint.py)）：`check_inbox`、`read_inbox_email`、`web_search`、`fetch_url`、`search_and_extract`、`open_web_page`。
+  - `_BUILTIN_EXTERNAL_INGESTION_TOOLS`（[`taint.py`](../../backend/app/core/runtime/taint.py)）：`check_inbox`、`read_inbox_email`、`web_search`、`fetch_url`（另含外部 MCP ingestion 工具）。
   - `WRITE_CLASS_TOOLS`（[`taint.py`](../../backend/app/core/runtime/taint.py)）：`apply_patch`、`write_file`、`add_calendar_event`、`send_email`、`shell_exec`、`telegram_send`、`computer_click`/`type`/`key`。
 - 集成点：`Kernel.invoke_capability` 在摄入类工具成功后调用 `taint_registry.mark(correlation_id, source="external_ingestion", reason=name)`（[`kernel.py`](../../backend/app/core/runtime/kernel/kernel.py)）。
 - Brain 在每次回合开始时清空该 `correlation_id` 的 taint。

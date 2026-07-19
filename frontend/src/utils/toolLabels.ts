@@ -35,16 +35,6 @@ const TOOL_LABELS: Record<string, ToolLabel> = {
     icon: "📥",
     describeArgs: (a) => `🔗 ${a.url || "?"}`,
   },
-  open_web_page: {
-    label: "打开网页",
-    icon: "🌍",
-    describeArgs: (a) => `🔗 ${a.url || "?"}`,
-  },
-  search_and_extract: {
-    label: "搜索并提取网页内容",
-    icon: "🔎",
-    describeArgs: (a) => `🔎 ${a.query || "?"}`,
-  },
   list_calendar_events: { label: "查看日历日程", icon: "📅" },
   add_calendar_event: { label: "添加日历日程", icon: "📅" },
   get_upcoming_events: { label: "查看近期日程", icon: "📅" },

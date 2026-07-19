@@ -123,3 +123,30 @@ def test_mark_inbox_email_read_by_mid_alias(monkeypatch):
     assert data["success"] is True
     assert data.get("method") == "imap_search"
     assert store_calls == [("100", "+FLAGS", "\\Seen")]
+
+
+def test_email_config_refresh_is_ttl_cached(monkeypatch):
+    server = EmailServer()
+    calls = {"n": 0}
+
+    def fake_creds():
+        calls["n"] += 1
+        return {
+            "imap_host": "imap.example.com",
+            "smtp_host": "smtp.example.com",
+            "smtp_port": "465",
+            "user": "u",
+            "password": "p",
+        }
+
+    monkeypatch.setattr(
+        "app.core.runtime.runtime_config.runtime_config.get_email_credentials",
+        fake_creds,
+    )
+    server._refresh_config(force=True)
+    server._refresh_config()
+    server._get_credentials()
+    assert calls["n"] == 1
+    # Force bypasses TTL.
+    server._refresh_config(force=True)
+    assert calls["n"] == 2

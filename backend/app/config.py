@@ -86,11 +86,9 @@ class Settings(BaseSettings):
     builtin_tools_enabled: str = "*"
     """Comma-separated MCP server names to load, or * for all in mcp_config.json."""
     builtin_tool_categories: str = ""
-    """Comma-separated builtin tool CATEGORIES to register, or empty for the
-    default core set. Advanced categories (computer_use, voice, clipboard_ocr)
-    are off by default to keep the LLM tool list lean; add them here to enable.
-    Core categories always registered: time, filesystem, web, calendar, email,
-    browser, shell, git, telegram, goals."""
+    """Comma-separated advanced builtin CATEGORIES to enable *in addition to*
+    the core set (time, filesystem, web, calendar, email, shell, git, goals).
+    Empty = core only. Opt-in: telegram, computer_use, voice, clipboard_ocr."""
 
     # External MCP credentials (optional — servers skip connect when required keys missing)
     brave_api_key: str = ""
@@ -98,6 +96,15 @@ class Settings(BaseSettings):
     github_personal_access_token: str = ""
     tavily_api_key: str = ""
     notion_token: str = ""
+
+    # --- Voice (TTS/STT) — requires an OpenAI-compatible audio endpoint ---
+    voice_base_url: str = ""
+    """Audio API base URL (e.g. https://api.openai.com/v1). Empty disables voice tools.
+    Do not point this at chat-only providers (DeepSeek etc.) — they lack tts/whisper."""
+    voice_api_key: str = ""
+    """API key for voice endpoint. Falls back to LLM_API_KEY when empty."""
+    voice_tts_model: str = "tts-1"
+    voice_stt_model: str = "whisper-1"
 
     # --- Memory ---
     memory_extractor: str = "ollama"

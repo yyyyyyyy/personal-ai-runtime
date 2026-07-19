@@ -29,18 +29,48 @@ class TestComputerUseServer:
 
     def test_type_empty_text(self):
         s = ComputerUseServer()
-        # Mock pyautogui to avoid ImportError
+
         class FakePyautogui:
             FAILSAFE = True
+
             @staticmethod
-            def typewrite(text, interval=0.05): return None
-        import app.core.harness.builtin_tools.computer_use as m
-        m.pyautogui = FakePyautogui()  # type: ignore[attr-defined]
+            def typewrite(text, interval=0.05):
+                return None
+
+            @staticmethod
+            def hotkey(*_args):
+                return None
+
         try:
             s._pyautogui = FakePyautogui()
             result = json.loads(s.type_text(""))
             assert result["status"] == "error"
             assert "empty" in result["error"].lower()
+        finally:
+            s._pyautogui = None
+
+    def test_type_cjk_uses_clipboard_paste(self, monkeypatch):
+        s = ComputerUseServer()
+        pasted: list[str] = []
+
+        class FakePyautogui:
+            FAILSAFE = True
+
+            @staticmethod
+            def typewrite(text, interval=0.05):
+                raise AssertionError("typewrite must not be used for CJK")
+
+            @staticmethod
+            def hotkey(*args):
+                pasted.append("+".join(args))
+
+        monkeypatch.setattr(s, "_set_clipboard", lambda text: None)
+        try:
+            s._pyautogui = FakePyautogui()
+            result = json.loads(s.type_text("你好"))
+            assert result["status"] == "ok"
+            assert result["method"] == "clipboard_paste"
+            assert pasted
         finally:
             s._pyautogui = None
 

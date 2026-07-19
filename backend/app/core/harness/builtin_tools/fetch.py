@@ -2,6 +2,7 @@
 
 import json
 import re
+from html import unescape
 
 import httpx
 
@@ -117,15 +118,7 @@ class FetchServer:
 
         # Remove remaining HTML tags
         html = re.sub(r"<[^>]+>", " ", html)
-
-        # Decode common HTML entities
-        html = html.replace("&amp;", "&")
-        html = html.replace("&lt;", "<")
-        html = html.replace("&gt;", ">")
-        html = html.replace("&quot;", '"')
-        html = html.replace("&#39;", "'")
-        html = html.replace("&nbsp;", " ")
-        html = re.sub(r"&#\d+;", " ", html)
+        html = unescape(html)
 
         # Collapse whitespace
         lines = [line.strip() for line in html.splitlines()]

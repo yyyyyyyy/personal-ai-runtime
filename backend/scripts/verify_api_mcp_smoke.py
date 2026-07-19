@@ -28,14 +28,10 @@ EXPECTED_TOOLS = {
     "read_inbox_email",
     "mark_inbox_email_read",
     "send_email",
-    "open_web_page",
-    "search_and_extract",
     "shell_exec",
     "git_status",
     "git_log",
     "git_diff",
-    "telegram_send",
-    "telegram_updates",
     "create_goal",
     "update_goal_progress",
     "complete_goal",
@@ -80,8 +76,7 @@ def verify_mcp_tools() -> None:
         assert mcp_hub.needs_confirmation(tool_name), (
             f"{tool_name} must require confirmation"
         )
-    for tool_name in ("web_search", "telegram_send"):
-        assert mcp_hub.is_async(tool_name), f"{tool_name} must be asynchronous"
+    assert mcp_hub.is_async("web_search"), "web_search must be asynchronous"
 
     print(f"OK: {len(tools)} MCP tools registered")
 

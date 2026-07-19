@@ -68,8 +68,8 @@ class FilesystemServer:
             for p in raw_protected
         ]
 
-    def _is_safe(self, path: str) -> bool:
-        """Check if a path is within allowed directories."""
+    def is_path_allowed(self, path: str) -> bool:
+        """Return True if ``path`` resolves inside an allowed directory."""
         try:
             p = Path(path).expanduser().resolve()
             for allowed in self.allowed_dirs:
@@ -79,6 +79,10 @@ class FilesystemServer:
             return False
         except Exception:
             return False
+
+    def _is_safe(self, path: str) -> bool:
+        """Backward-compatible alias for :meth:`is_path_allowed`."""
+        return self.is_path_allowed(path)
 
     def _is_env_secret_file(self, p: Path) -> bool:
         """Block .env secrets in any directory; allow .env.example templates."""

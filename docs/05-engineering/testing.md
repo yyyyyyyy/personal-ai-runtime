@@ -56,7 +56,7 @@ flowchart TB
 - **执行模型（Execution 契约 §1–5）**：`test_execution_model.py`、`test_execution_events.py`、`test_principal.py`（含 ExecutionContext）、`test_execution_recovery.py`、`test_execution_shadow_compare.py`、`test_execution_ownership.py`
 - **Scheduler / timer / reaction / 隔离**：`test_scheduler.py`、`test_scheduler_deadline.py`、`test_scheduler_extended.py`、`test_d1_concurrent_isolation.py`、`test_coverage_engines.py`
 - **能力治理与策略（T2/A3/C3）**：`test_capability_approval.py`、`test_capability_decision.py`、`test_capability_forbidden.py`、`test_c3_mcp_policy_eventsourcing.py`、`test_runtime_config.py`、`test_taint.py`、`test_sensitive_router.py`
-- **出口与连接器**：`test_egress.py`、`test_connector.py`、`test_browser_ssrf.py`、`test_fetch_ssrf.py`、`test_url_safety.py`、`test_web_search_html.py`
+- **出口与连接器**：`test_egress.py`、`test_connector.py`、`test_fetch_ssrf.py`、`test_url_safety.py`、`test_web_search_html.py`
 - **MCP / filesystem / shell / email server**：`test_filesystem_server.py`、`test_shell_server.py`、`test_email_server.py`、`test_mcp_config.py`、`test_mcp_mesh.py`
 - **记忆 / 通知 / 后台**：`test_memory_extractor.py`、`test_memory_ws_notify.py`、`test_notification_bridge.py`、`test_notification_channel.py`、`test_sse_queue_registry.py`、`test_background_worker_extended.py`、`test_background_task_event_chain.py`
 - **Product / 主权 / fragment**：`test_dashboard_data.py`、`test_dashboard_extended.py`、`test_sovereignty_basic.py`、`test_governance_fragment.py`、`test_scenario_fragments.py`、`test_mail_fragments.py`、`test_fragment_read_boundary.py`、`test_fragment_cleanup_phase5.py`、`test_runtime_container.py`

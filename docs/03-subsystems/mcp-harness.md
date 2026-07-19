@@ -10,10 +10,10 @@
 
 | 常量 | 行 | 内容 |
 |---|---|---|
-| `CORE_CATEGORIES` | [`mcp_hub.py`](../../backend/app/core/harness/mcp_hub.py) | time、filesystem、web、calendar、email、browser、shell、git、telegram、goals |
-| `ADVANCED_CATEGORIES` | [`mcp_hub.py`](../../backend/app/core/harness/mcp_hub.py) | computer_use、voice、clipboard_ocr（经 `settings.builtin_tool_categories` opt-in） |
+| `CORE_CATEGORIES` | [`mcp_hub.py`](../../backend/app/core/harness/mcp_hub.py) | time、filesystem、web、calendar、email、shell、git、goals |
+| `ADVANCED_CATEGORIES` | [`mcp_hub.py`](../../backend/app/core/harness/mcp_hub.py) | telegram、computer_use、voice、clipboard_ocr（经 `settings.builtin_tool_categories` **叠加** opt-in，不替换 CORE） |
 
-`_register_*_tools` 方法注册具体的 `ToolDef`，指向 [`builtin_tools/`](../../backend/app/core/harness/builtin_tools/) 模块。许多带 `requires_confirmation=True`：`write_file`、`apply_patch`、`add_calendar_event`、`send_email`、`shell_exec`、`telegram_send`、`computer_click`/`type`/`key`。
+表驱动注册见 [`mcp_builtin_registration.py`](../../backend/app/core/harness/mcp_builtin_registration.py)（`BuiltinToolSpec` + `_CATEGORY_BUILDERS`）。许多工具带 `requires_confirmation=True`：`write_file`、`apply_patch`、`add_calendar_event`、`send_email`、`shell_exec`、`telegram_send`、`computer_click`/`type`/`key`。
 
 ### Mesh 集成
 
@@ -74,18 +74,19 @@
 | 模块 | 用途 |
 |---|---|
 | `filesystem` | 读/写/列目录/apply_patch（受 `filesystem_allowed_dirs`/`filesystem_protected_paths` 限制） |
-| `web_search` | Brave/Tavily 搜索 |
+| `web_search` | DuckDuckGo 免费搜索兜底（有 key 时可用外部 brave/tavily） |
 | `fetch` | URL 抓取（SSRF 校验） |
-| `calendar` | 日历事件 |
+| `calendar` | 本地 ICS 日历 |
 | `email` | IMAP 读 / SMTP 发 |
-| `browser` | Playwright 浏览器自动化 |
 | `shell` | shell 命令执行 |
-| `git` | git 操作 |
-| `telegram_bot` | Telegram 消息发送 |
+| `git` | 本地 git status/log/diff |
 | `goals` | 目标/任务操作 |
+| `telegram_bot` | Telegram 消息（高级，opt-in） |
 | `computer_use` | 截图/点击/输入/按键（高级，opt-in） |
 | `voice` | TTS/STT（高级，opt-in） |
 | `clipboard_ocr` | 剪贴板/OCR（高级，opt-in） |
+
+浏览器自动化由外部 MCP `@playwright/mcp` 提供，不再内建 `browser` 模块。
 
 ## 外部 MCP 配置文件
 

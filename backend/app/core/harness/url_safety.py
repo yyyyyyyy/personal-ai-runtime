@@ -15,6 +15,7 @@ Two layers of defense:
 
 from __future__ import annotations
 
+import asyncio
 import ipaddress
 import socket
 from typing import Any
@@ -28,14 +29,24 @@ class UnsafeUrlError(ValueError):
 
 
 def _is_blocked_ip(addr: ipaddress.IPv4Address | ipaddress.IPv6Address) -> bool:
-    return bool(
+    """Return True if ``addr`` must not be contacted outbound.
+
+    IPv4-mapped IPv6 (``::ffff:x.x.x.x``) is checked via the embedded IPv4
+    address as well — some platforms report misleading flags on the mapped form.
+    """
+    if (
         addr.is_private
         or addr.is_loopback
         or addr.is_link_local
         or addr.is_multicast
         or addr.is_reserved
         or addr.is_unspecified
-    )
+    ):
+        return True
+    mapped = getattr(addr, "ipv4_mapped", None)
+    if mapped is not None:
+        return _is_blocked_ip(mapped)
+    return False
 
 
 def _resolve_and_check(hostname: str) -> list[str]:
@@ -44,6 +55,10 @@ def _resolve_and_check(hostname: str) -> list[str]:
     Raises UnsafeUrlError if the host is blocked or cannot be resolved.
     All returned addresses are individually validated, so a hostname with a mix
     of public and private records is rejected wholesale.
+
+    No cross-request DNS cache: a positive cache would let pre-flight gates
+    (shell curl/wget, mesh Playwright args) approve a host whose A/AAAA record
+    later flips to a private address within the TTL window.
     """
     host = hostname.strip().lower().rstrip(".")
     if not host:
@@ -81,6 +96,11 @@ def _resolve_and_check(hostname: str) -> list[str]:
     return ips
 
 
+async def resolve_and_check_async(hostname: str) -> list[str]:
+    """Async wrapper — runs blocking DNS off the event loop."""
+    return await asyncio.to_thread(_resolve_and_check, hostname)
+
+
 def _hostname_blocked(hostname: str) -> bool:
     """Backward-compatible boolean wrapper for pre-flight checks."""
     try:
@@ -88,6 +108,22 @@ def _hostname_blocked(hostname: str) -> bool:
     except UnsafeUrlError:
         return True
     return False
+
+
+def _validate_url_parts(url: str) -> tuple[str, str]:
+    """Parse and check scheme/credentials/hostname presence. Returns (normalized, hostname)."""
+    parsed = urlparse(url.strip())
+    if parsed.scheme not in {"http", "https"}:
+        raise UnsafeUrlError(f"Unsupported URL scheme: {parsed.scheme or '(none)'}")
+
+    hostname = parsed.hostname
+    if not hostname:
+        raise UnsafeUrlError("URL missing hostname")
+
+    if parsed.username or parsed.password:
+        raise UnsafeUrlError("URLs with embedded credentials are not allowed")
+
+    return parsed.geturl(), hostname
 
 
 def validate_http_url(url: str) -> str:
@@ -98,22 +134,20 @@ def validate_http_url(url: str) -> str:
     httpx callers additionally use ``create_ssrf_safe_async_client`` to pin the
     connection to the resolved IP at socket time.
     """
-    parsed = urlparse(url.strip())
-    if parsed.scheme not in {"http", "https"}:
-        raise UnsafeUrlError(f"Unsupported URL scheme: {parsed.scheme or '(none)'}")
-
-    hostname = parsed.hostname
-    if not hostname:
-        raise UnsafeUrlError("URL missing hostname")
-
+    normalized, hostname = _validate_url_parts(url)
     if _hostname_blocked(hostname):
         raise UnsafeUrlError(f"Blocked hostname: {hostname}")
+    return normalized
 
-    # Reject credentials in URL
-    if parsed.username or parsed.password:
-        raise UnsafeUrlError("URLs with embedded credentials are not allowed")
 
-    return parsed.geturl()
+async def validate_http_url_async(url: str) -> str:
+    """Async variant of ``validate_http_url`` — DNS via ``asyncio.to_thread``."""
+    normalized, hostname = _validate_url_parts(url)
+    try:
+        await resolve_and_check_async(hostname)
+    except UnsafeUrlError as exc:
+        raise UnsafeUrlError(f"Blocked hostname: {hostname}") from exc
+    return normalized
 
 
 def _pin_url_to_ip(url: str, ip: str) -> str:
@@ -167,7 +201,7 @@ class SSRFSafeTransport(httpx.AsyncBaseTransport):
         if not hostname:
             raise UnsafeUrlError("URL missing hostname")
 
-        ips = _resolve_and_check(hostname)
+        ips = await resolve_and_check_async(hostname)
         pinned_ip = ips[0]
         # Host header should preserve the original port so HTTP vhost routing
         # on non-standard ports works correctly. For SNI only the name matters,
@@ -208,7 +242,7 @@ async def _validate_redirect_target(response: httpx.Response) -> None:
     redirect targets (defense in depth).
     """
     if response.is_redirect and response.next_request is not None:
-        validate_http_url(str(response.next_request.url))
+        await validate_http_url_async(str(response.next_request.url))
 
 
 def create_ssrf_safe_async_client(**kwargs: Any) -> httpx.AsyncClient:

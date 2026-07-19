@@ -100,10 +100,74 @@ class TestCalendarServer:
 
         assert result["success"] is True
         assert result["location"] == "Lab"
+        assert result["uid"]
+        assert f"UID:{result['uid']}" in content
         assert "LOCATION:Lab" in content
         assert "DTSTART:" in content and "DTEND:" in content
         listed = json.loads(server.list_events(date=today, days=1))
         assert listed["events"][0]["location"] == "Lab"
+
+    def test_list_events_filters_by_calendar_file(self, tmp_path: Path):
+        today = datetime.now().strftime("%Y-%m-%d")
+        ymd = today.replace("-", "")
+        _write_ics(
+            tmp_path / "work.ics",
+            "BEGIN:VEVENT\n"
+            f"DTSTART:{ymd}T100000\n"
+            "SUMMARY:Work only\n"
+            "UID:work-1\n"
+            "END:VEVENT\n",
+        )
+        _write_ics(
+            tmp_path / "default.ics",
+            "BEGIN:VEVENT\n"
+            f"DTSTART:{ymd}T110000\n"
+            "SUMMARY:Default only\n"
+            "UID:default-1\n"
+            "END:VEVENT\n",
+        )
+        server = CalendarServer(ics_dir=str(tmp_path))
+        work = json.loads(server.list_events(calendar="work", date=today, days=1))
+        assert work["count"] == 1
+        assert work["events"][0]["title"] == "Work only"
+        upcoming = json.loads(server.get_upcoming(days=1))
+        titles = {e["title"] for e in upcoming["events"]}
+        assert titles == {"Work only", "Default only"}
+
+    def test_invalid_calendar_name_rejected(self, tmp_path: Path):
+        server = CalendarServer(ics_dir=str(tmp_path))
+        err = json.loads(server.add_event(title="x", date="2026-07-19", calendar="../evil"))
+        assert "error" in err
+
+    def test_folded_ics_lines_are_unfolded(self, tmp_path: Path):
+        today = datetime.now().strftime("%Y-%m-%d")
+        ymd = today.replace("-", "")
+        # SUMMARY folded across two lines per RFC 5545.
+        _write_ics(
+            tmp_path / "default.ics",
+            "BEGIN:VEVENT\n"
+            f"DTSTART:{ymd}T090000\n"
+            "SUMMARY:Folded \n"
+            " Title\n"
+            "UID:fold-1\n"
+            "END:VEVENT\n",
+        )
+        server = CalendarServer(ics_dir=str(tmp_path))
+        data = json.loads(server.list_events(date=today, days=1))
+        assert data["count"] == 1
+        assert data["events"][0]["title"] == "Folded Title"
+
+    def test_init_does_not_create_calendar_dir(self, tmp_path: Path):
+        missing = tmp_path / "no_such_calendar_dir"
+        server = CalendarServer(ics_dir=str(missing))
+        assert not missing.exists()
+        listed = json.loads(server.list_events())
+        assert listed["count"] == 0
+        # Writing creates the directory lazily.
+        today = datetime.now().strftime("%Y-%m-%d")
+        result = json.loads(server.add_event(title="Lazy", date=today))
+        assert result["success"] is True
+        assert missing.is_dir()
 
 
 class TestCalendarFragments:

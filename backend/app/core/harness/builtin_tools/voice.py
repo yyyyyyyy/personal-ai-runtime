@@ -1,12 +1,17 @@
 """Voice MCP Server — text-to-speech (TTS) and speech-to-text (STT).
 
-Uses OpenAI-compatible API for both. Falls back gracefully when API key is missing.
+Requires an OpenAI-compatible *audio* endpoint via ``VOICE_BASE_URL``.
+Chat-only providers (e.g. default DeepSeek) are not used — they lack
+``tts-1`` / ``whisper-1`` and would fail at call time.
 """
 
 from __future__ import annotations
 
+import base64
 import json
 import logging
+import tempfile
+from pathlib import Path
 
 from app.config import settings
 
@@ -14,92 +19,87 @@ logger = logging.getLogger(__name__)
 
 
 class VoiceServer:
-    """Text-to-speech and speech-to-text via OpenAI-compatible API."""
+    """Async TTS/STT via a dedicated OpenAI-compatible audio API."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self._client = None
 
+    def _configured(self) -> str | None:
+        """Return an error message if voice is not configured, else None."""
+        if not settings.voice_base_url.strip():
+            return (
+                "Voice not configured: set VOICE_BASE_URL to an OpenAI-compatible "
+                "audio endpoint (e.g. https://api.openai.com/v1)"
+            )
+        key = (settings.voice_api_key or settings.llm_api_key or "").strip()
+        if not key:
+            return "Voice not configured: set VOICE_API_KEY or LLM_API_KEY"
+        return None
+
     def _get_client(self):
+        err = self._configured()
+        if err:
+            return None, err
         if self._client is None:
             try:
                 from openai import AsyncOpenAI
+
                 self._client = AsyncOpenAI(
-                    api_key=settings.llm_api_key,
-                    base_url=getattr(settings, 'llm_base_url', 'https://api.deepseek.com/v1'),
+                    api_key=(settings.voice_api_key or settings.llm_api_key).strip(),
+                    base_url=settings.voice_base_url.strip(),
                     timeout=float(settings.llm_timeout_seconds),
                     max_retries=3,
                 )
-            except Exception:
-                return None
-        return self._client
+            except Exception as exc:
+                return None, f"LLM client not available: {exc}"
+        return self._client, None
 
-    def tts(self, text: str, voice: str = "alloy") -> str:
-        """Generate speech audio from text. Returns base64-encoded MP3.
-
-        Args:
-            text: The text to convert to speech.
-            voice: Voice style: alloy, echo, fable, onyx, nova, shimmer.
-        """
-        client = self._get_client()
-        if not client:
-            return json.dumps({"status": "error", "error": "LLM client not available"})
-
+    async def tts(self, text: str, voice: str = "alloy") -> str:
+        """Generate speech audio from text. Returns base64-encoded MP3."""
         if not text or len(text) > 4096:
-            return json.dumps({"status": "error", "error": "Text too long (max 4096 chars)"})
+            return json.dumps({
+                "status": "error",
+                "error": "Text empty or too long (max 4096 chars)",
+            })
+
+        client, err = self._get_client()
+        if err or client is None:
+            return json.dumps({"status": "error", "error": err or "LLM client not available"})
 
         try:
-            import asyncio
-            return asyncio.run(self._tts_async(client, text, voice))
+            resp = await client.audio.speech.create(
+                model=settings.voice_tts_model,
+                voice=voice,
+                input=text,
+            )
+            audio = base64.b64encode(resp.content).decode("utf-8")
+            return json.dumps({
+                "status": "ok",
+                "audio_base64": audio,
+                "format": "mp3",
+                "length_chars": len(text),
+                "voice": voice,
+            })
         except Exception as e:
+            logger.exception("voice_tts failed")
             return json.dumps({"status": "error", "error": str(e)})
 
-    async def _tts_async(self, client, text: str, voice: str) -> str:
-        resp = await client.audio.speech.create(
-            model="tts-1",
-            voice=voice,
-            input=text,
-        )
-        import base64
-        audio = base64.b64encode(resp.content).decode("utf-8")
-        return json.dumps({
-            "status": "ok",
-            "audio_base64": audio,
-            "format": "mp3",
-            "length_chars": len(text),
-            "voice": voice,
-        })
+    async def stt(self, audio_base64: str, language: str = "zh") -> str:
+        """Transcribe speech audio to text."""
+        client, err = self._get_client()
+        if err or client is None:
+            return json.dumps({"status": "error", "error": err or "LLM client not available"})
 
-    def stt(self, audio_base64: str, language: str = "zh") -> str:
-        """Transcribe speech audio to text. Returns the transcript.
-
-        Args:
-            audio_base64: Base64-encoded audio bytes.
-            language: Language code (zh, en, ja, etc).
-        """
-        client = self._get_client()
-        if not client:
-            return json.dumps({"status": "error", "error": "LLM client not available"})
-
+        tmp_path: Path | None = None
         try:
-            import asyncio
-            return asyncio.run(self._stt_async(client, audio_base64, language))
-        except Exception as e:
-            return json.dumps({"status": "error", "error": str(e)})
+            audio_bytes = base64.b64decode(audio_base64)
+            with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp:
+                tmp.write(audio_bytes)
+                tmp_path = Path(tmp.name)
 
-    async def _stt_async(self, client, audio_base64: str, language: str) -> str:
-        import base64
-        import tempfile
-        from pathlib import Path
-
-        audio_bytes = base64.b64decode(audio_base64)
-        with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp:
-            tmp.write(audio_bytes)
-            tmp_path = Path(tmp.name)
-
-        try:
             with open(tmp_path, "rb") as f:
                 resp = await client.audio.transcriptions.create(
-                    model="whisper-1",
+                    model=settings.voice_stt_model,
                     file=f,
                     language=language,
                 )
@@ -108,8 +108,12 @@ class VoiceServer:
                 "text": resp.text,
                 "language": language,
             })
+        except Exception as e:
+            logger.exception("voice_stt failed")
+            return json.dumps({"status": "error", "error": str(e)})
         finally:
-            tmp_path.unlink()
+            if tmp_path is not None:
+                tmp_path.unlink(missing_ok=True)
 
 
 voice_server = VoiceServer()

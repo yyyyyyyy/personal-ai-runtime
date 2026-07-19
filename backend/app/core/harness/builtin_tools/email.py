@@ -8,6 +8,7 @@ import json
 import os
 import re
 import smtplib
+import time
 from datetime import timezone
 from email.header import decode_header
 from email.mime.text import MIMEText
@@ -85,10 +86,27 @@ def _extract_body(msg: email.message.Message, max_len: int = 300) -> str:
 class EmailServer:
     """Email operations: read inbox via IMAP, send via SMTP (requires approval)."""
 
-    def __init__(self):
-        self._refresh_config()
+    # How long to reuse loaded credentials before re-reading runtime_config.
+    _CONFIG_TTL_SECONDS = 30.0
 
-    def _refresh_config(self):
+    def __init__(self):
+        self._imap_host = ""
+        self._smtp_host = ""
+        self._smtp_port = 465
+        self._user = ""
+        self._password = ""
+        self._config_loaded_at = 0.0
+        self._refresh_config(force=True)
+
+    def _refresh_config(self, *, force: bool = False) -> None:
+        now = time.monotonic()
+        if (
+            not force
+            and self._config_loaded_at
+            and (now - self._config_loaded_at) < self._CONFIG_TTL_SECONDS
+        ):
+            return
+
         from app.core.runtime.runtime_config import runtime_config
 
         creds = runtime_config.get_email_credentials()
@@ -97,6 +115,7 @@ class EmailServer:
         self._smtp_port = int(str(creds.get("smtp_port") or os.getenv("EMAIL_SMTP_PORT", "465")))
         self._user = str(creds.get("user") or os.getenv("EMAIL_USER", ""))
         self._password = str(creds.get("password") or os.getenv("EMAIL_PASS", ""))
+        self._config_loaded_at = now
 
     def _get_credentials(self):
         self._refresh_config()

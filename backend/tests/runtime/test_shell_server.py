@@ -235,3 +235,52 @@ def test_default_cwd_is_project_root():
     # BASE_DIR is the repo root; pwd should resolve under it.
     from app.config import BASE_DIR
     assert str(Path(BASE_DIR).resolve()) in result["output"] or result["exit_code"] == 0
+
+
+def test_find_exec_blocked():
+    """find -exec must not bypass the command whitelist (``+`` form needs no ``;``)."""
+    err = _error(shell_server.execute("find . -exec echo pwned {} +"))
+    assert "not allowed" in err.lower() or "Blocked" in err, err
+
+
+def test_find_execdir_and_delete_blocked():
+    assert "not allowed" in _error(shell_server.execute("find . -execdir rm {} +")).lower()
+    assert "not allowed" in _error(shell_server.execute("find . -delete")).lower()
+
+
+def test_xargs_removed_from_whitelist():
+    assert "not in whitelist" in _error(shell_server.execute("xargs rm"))
+
+
+def test_env_command_removed_from_whitelist():
+    assert "not in whitelist" in _error(shell_server.execute("env"))
+
+
+def test_subprocess_env_does_not_inherit_secrets(monkeypatch, tmp_path):
+    """Shell children must not see parent secrets like LLM_API_KEY."""
+    monkeypatch.setenv("LLM_API_KEY", "super-secret-key-should-not-leak")
+    monkeypatch.setenv("EMAIL_PASS", "mailbox-password")
+    # python -c is blocked; use a tiny script under allowed cwd instead.
+    script = tmp_path / "print_env.py"
+    # Ensure tmp_path is an allowed cwd for this server instance.
+    monkeypatch.setattr(
+        "app.core.harness.builtin_tools.shell.settings.shell_allowed_cwd",
+        str(tmp_path),
+    )
+    from app.core.harness.builtin_tools.shell import ShellServer
+
+    server = ShellServer()
+    script.write_text(
+        "import os, json\n"
+        "print(json.dumps({"
+        "'llm': os.environ.get('LLM_API_KEY'), "
+        "'email': os.environ.get('EMAIL_PASS')"
+        "}))\n",
+        encoding="utf-8",
+    )
+    result = json.loads(server.execute(f"python3 {script.name}", cwd=str(tmp_path)))
+    assert "error" not in result, result
+    assert result["exit_code"] == 0
+    payload = json.loads(result["output"].strip())
+    assert payload["llm"] is None
+    assert payload["email"] is None

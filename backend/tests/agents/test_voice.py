@@ -1,6 +1,8 @@
 """Unit tests for Voice MCP server (import-safe, no API key needed)."""
 import json
 
+import pytest
+
 from app.core.harness.builtin_tools.voice import VoiceServer
 
 
@@ -9,39 +11,41 @@ class TestVoiceServer:
         s = VoiceServer()
         assert s._client is None
 
-    def test_tts_no_api_key(self):
+    @pytest.mark.asyncio
+    async def test_tts_not_configured(self, monkeypatch):
+        monkeypatch.setattr(
+            "app.core.harness.builtin_tools.voice.settings.voice_base_url",
+            "",
+        )
         s = VoiceServer()
-        result = json.loads(s.tts("hello world"))
+        result = json.loads(await s.tts("hello world"))
         assert result["status"] == "error"
+        assert "VOICE_BASE_URL" in result["error"]
 
-    def test_tts_empty_text(self):
+    @pytest.mark.asyncio
+    async def test_tts_empty_text(self):
         s = VoiceServer()
-        result = json.loads(s.tts(""))
+        result = json.loads(await s.tts(""))
         assert result["status"] == "error"
-        assert "Text too long" in result.get("error", "")
+        assert "empty" in result.get("error", "").lower() or "too long" in result.get("error", "").lower()
 
-    def test_tts_too_long(self):
+    @pytest.mark.asyncio
+    async def test_tts_too_long(self):
         s = VoiceServer()
-        result = json.loads(s.tts("x" * 4097))
+        result = json.loads(await s.tts("x" * 4097))
         assert result["status"] == "error"
         assert "too long" in result.get("error", "").lower()
 
-    def test_tts_different_voices(self):
+    @pytest.mark.asyncio
+    async def test_stt_not_configured(self, monkeypatch):
+        monkeypatch.setattr(
+            "app.core.harness.builtin_tools.voice.settings.voice_base_url",
+            "",
+        )
         s = VoiceServer()
-        for voice in ("alloy", "echo", "fable", "onyx", "nova", "shimmer"):
-            result = json.loads(s.tts("test", voice=voice))
-            assert result["status"] == "error"  # no API key, but format is valid
-
-    def test_stt_no_api_key(self):
-        s = VoiceServer()
-        result = json.loads(s.stt("dGVzdA=="))  # "test" in base64
+        result = json.loads(await s.stt("dGVzdA=="))
         assert result["status"] == "error"
-
-    def test_stt_different_languages(self):
-        s = VoiceServer()
-        for lang in ("zh", "en", "ja"):
-            result = json.loads(s.stt("dGVzdA==", language=lang))
-            assert result["status"] == "error"
+        assert "VOICE_BASE_URL" in result["error"]
 
     def test_server_singleton(self):
         from app.core.harness.builtin_tools.voice import voice_server
