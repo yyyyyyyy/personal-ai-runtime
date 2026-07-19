@@ -42,13 +42,14 @@ def test_sanitize_startup_strips_sensitive_fields():
                 "base_url": "https://api.example.com/v1",
             },
             "auth": {"enabled": True, "host": "127.0.0.1"},
-            "email": {"configured": False},
+            "email": {"configured": False, "password": "should-not-leak"},
             "mcp": {
                 "servers": [
                     {"name": "email", "status": "connected", "startup_connect": True},
                     {"name": "calendar", "status": "disconnected", "startup_connect": True},
                 ]
             },
+            "runtime_loop": {"status": "failed", "error": "boom with /secret/path"},
         },
     }
     public = sanitize_startup_for_public(snapshot)
@@ -58,9 +59,41 @@ def test_sanitize_startup_strips_sensitive_fields():
     storage = public["checks"]["storage"]
     assert "data_dir" not in storage
     assert storage["sqlite_exists"] is False
+    assert public["checks"]["llm"] == {"configured": True}
+    assert "model" not in public["checks"]["llm"]
     assert "base_url" not in public["checks"]["llm"]
     assert "host" not in public["checks"]["auth"]
+    assert public["checks"]["email"] == {"configured": False}
     assert public["checks"]["mcp"] == {"total": 2, "connected": 1, "failed": 1}
+    assert public["checks"]["runtime_loop"] == {"status": "failed"}
+
+
+def test_sanitize_startup_projects_unknown_status_keys():
+    public = sanitize_startup_for_public(
+        {
+            "status": "degraded",
+            "warnings": ["scheduler failed"],
+            "checks": {
+                "scheduler": {"status": "failed", "error": "boom /secret"},
+                "context_pipeline": {"fragment_registration": "ok"},
+            },
+        }
+    )
+    assert public is not None
+    assert public["checks"]["scheduler"] == {"status": "failed"}
+    assert public["checks"]["context_pipeline"] == {"status": "ok"}
+
+
+def test_sanitize_startup_hides_mcp_error_text():
+    public = sanitize_startup_for_public(
+        {
+            "status": "degraded",
+            "warnings": ["MCP status unavailable"],
+            "checks": {"mcp": {"error": "connection refused at /secret"}},
+        }
+    )
+    assert public is not None
+    assert public["checks"]["mcp"] == {"error": True}
 
 
 def test_enrich_with_mcp_status_marks_disconnected_as_degraded(monkeypatch):

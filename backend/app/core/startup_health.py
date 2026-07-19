@@ -14,6 +14,19 @@ logger = logging.getLogger(__name__)
 
 _MCP_FAILURE_STATUSES = frozenset({"disconnected", "unavailable"})
 
+# Fields allowed on the unauthenticated /health startup payload.
+_PUBLIC_STORAGE_FIELDS = frozenset({
+    "data_dir_exists",
+    "data_dir_writable",
+    "sqlite_exists",
+})
+_PUBLIC_LLM_FIELDS = frozenset({"configured"})
+_PUBLIC_AUTH_FIELDS = frozenset({"enabled"})
+_PUBLIC_EMAIL_FIELDS = frozenset({"configured"})
+# Named checks handled explicitly below; everything else with a status field
+# is projected as status-only so new lifespan keys need no whitelist update.
+_NAMED_PUBLIC_CHECKS = frozenset({"storage", "llm", "auth", "email", "mcp"})
+
 
 def _mcp_server_failed(server: dict[str, Any]) -> bool:
     """True when a server expected at startup did not connect."""
@@ -22,6 +35,10 @@ def _mcp_server_failed(server: dict[str, Any]) -> bool:
     if not server.get("startup_connect", True):
         return False
     return server.get("status") in _MCP_FAILURE_STATUSES
+
+
+def _pick_fields(source: dict[str, Any], allowed: frozenset[str]) -> dict[str, Any]:
+    return {key: source[key] for key in allowed if key in source}
 
 
 def run_startup_checks() -> dict[str, Any]:
@@ -137,38 +154,43 @@ def _summarize_mcp_for_public(mcp_status: dict[str, Any]) -> dict[str, Any]:
 
 
 def sanitize_startup_for_public(snapshot: dict[str, Any] | None) -> dict[str, Any] | None:
-    """Return a public-safe view of startup diagnostics (no paths or secrets)."""
+    """Return a public-safe view of startup diagnostics (no paths, secrets, or error text)."""
     if not snapshot:
         return snapshot
 
     checks = snapshot.get("checks", {})
-    storage = checks.get("storage", {})
-    llm = checks.get("llm", {})
-    auth_check = checks.get("auth", {})
+    if not isinstance(checks, dict):
+        checks = {}
 
-    public_checks: dict[str, Any] = {
-        "storage": {
-            "data_dir_exists": storage.get("data_dir_exists"),
-            "data_dir_writable": storage.get("data_dir_writable"),
-            "sqlite_exists": storage.get("sqlite_exists"),
-        },
-        "llm": {
-            "configured": llm.get("configured"),
-            "model": llm.get("model"),
-        },
-        "auth": {"enabled": auth_check.get("enabled")},
-        "email": checks.get("email", {}),
-    }
-    if "mcp" in checks:
-        mcp = checks["mcp"]
-        if isinstance(mcp, dict) and "servers" in mcp:
+    public_checks: dict[str, Any] = {}
+
+    storage = checks.get("storage")
+    if isinstance(storage, dict):
+        public_checks["storage"] = _pick_fields(storage, _PUBLIC_STORAGE_FIELDS)
+
+    llm = checks.get("llm")
+    if isinstance(llm, dict):
+        public_checks["llm"] = _pick_fields(llm, _PUBLIC_LLM_FIELDS)
+
+    auth_check = checks.get("auth")
+    if isinstance(auth_check, dict):
+        public_checks["auth"] = _pick_fields(auth_check, _PUBLIC_AUTH_FIELDS)
+
+    email = checks.get("email")
+    if isinstance(email, dict):
+        public_checks["email"] = _pick_fields(email, _PUBLIC_EMAIL_FIELDS)
+
+    mcp = checks.get("mcp")
+    if isinstance(mcp, dict):
+        if "servers" in mcp:
             public_checks["mcp"] = _summarize_mcp_for_public(mcp)
-        elif isinstance(mcp, dict) and "error" in mcp:
+        elif "error" in mcp:
+            # Never expose exception text to unauthenticated callers.
             public_checks["mcp"] = {"error": True}
 
-    # Status-only view of lifespan step results (no exception text).
-    for key in ("governance_seed", "runtime_loop", "context_pipeline"):
-        entry = checks.get(key)
+    for key, entry in checks.items():
+        if key in _NAMED_PUBLIC_CHECKS or key in public_checks:
+            continue
         if not isinstance(entry, dict):
             continue
         status = entry.get("status") or entry.get("fragment_registration")

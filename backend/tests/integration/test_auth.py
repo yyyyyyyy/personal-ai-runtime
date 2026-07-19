@@ -69,13 +69,15 @@ def test_rate_limit_always_active_without_auth(client: TestClient):
 
 
 def test_rate_limit_return_429_body(client: TestClient):
-    """429 response has a proper json body."""
+    """429 response has a proper json body and Retry-After."""
     for _ in range(31):
         client.get("/api/chat/conversations")
     r = client.get("/api/chat/conversations")
     assert r.status_code == 429
     body = r.json()
     assert "detail" in body
+    assert r.headers.get("retry-after") is not None
+    assert int(r.headers["retry-after"]) >= 1
 
 
 def test_public_endpoints_never_rate_limited(client: TestClient):

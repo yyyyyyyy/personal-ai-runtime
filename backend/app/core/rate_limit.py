@@ -1,36 +1,75 @@
 """Simple in-memory rate limiter for API protection.
 
-Uses a token-bucket algorithm per endpoint pattern. Designed for
+Uses a sliding-window counter per endpoint pattern. Designed for
 single-process local-first deployment; for distributed setups,
 replace with Redis-backed limiter.
 """
 
 from __future__ import annotations
 
+import hashlib
+import math
 import threading
 import time
 from collections import defaultdict
+from dataclasses import dataclass
 
-# ── Rate limit config ─────────────────────────────────────────────────────
 
-# (pattern, max_requests, window_seconds, exact, bucket_id)
-# exact=True means only match path == pattern (no prefix matching).
-# exact=False means match path == pattern OR path.startswith(pattern + "/")
-# bucket_id: optional shared bucket name so related paths share one quota
-# (e.g. plaintext + encrypted import both use "system-restore").
-_RATE_LIMITS: list[tuple[str, int, float, bool, str | None]] = [
-    ("/api/chat", 30, 60, False, None),
-    ("/api/settings/llm/test", 5, 60, True, None),
-    ("/api/settings/email/test", 5, 60, True, None),
-    ("/api/inbox/poll", 10, 60, True, None),
-    ("/api/system/export", 3, 60, True, "system-export"),
-    ("/api/system/export/encrypted", 3, 60, True, "system-export"),
+@dataclass(frozen=True, slots=True)
+class RateLimitRule:
+    """One path pattern and its quota."""
+
+    pattern: str
+    max_requests: int
+    window_seconds: float
+    exact: bool = False
+    bucket_id: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class RateLimitDecision:
+    """Outcome of a rate-limit check.
+
+    Truthy when the request is allowed so existing ``if not check_rate_limit``
+    call sites keep working.
+    """
+
+    allowed: bool
+    retry_after: int | None = None
+
+    def __bool__(self) -> bool:
+        return self.allowed
+
+
+# exact=True: only path == pattern.
+# exact=False: path == pattern OR path.startswith(pattern + "/").
+# bucket_id: optional shared bucket so related paths share one quota.
+_RATE_LIMITS: tuple[RateLimitRule, ...] = (
+    RateLimitRule("/api/chat", 30, 60),
+    RateLimitRule("/api/settings/llm/test", 5, 60, exact=True),
+    RateLimitRule("/api/settings/email/test", 5, 60, exact=True),
+    RateLimitRule("/api/inbox/poll", 10, 60, exact=True),
+    RateLimitRule("/api/system/export", 3, 60, exact=True, bucket_id="system-export"),
+    RateLimitRule(
+        "/api/system/export/encrypted", 3, 60, exact=True, bucket_id="system-export"
+    ),
     # Destructive restores share one quota so callers cannot double-dip via
     # plaintext then encrypted (or vice versa) within the same window.
-    ("/api/system/import", 1, 300, True, "system-restore"),
-    ("/api/system/import/encrypted", 1, 300, True, "system-restore"),
-    ("/api/system/data", 1, 300, True, None),
-]
+    RateLimitRule("/api/system/import", 1, 300, exact=True, bucket_id="system-restore"),
+    RateLimitRule(
+        "/api/system/import/encrypted", 1, 300, exact=True, bucket_id="system-restore"
+    ),
+    RateLimitRule("/api/system/data", 1, 300, exact=True),
+    # High-cost write paths: approvals + connector mutations.
+    RateLimitRule("/api/approvals", 20, 60),
+    RateLimitRule(
+        "/api/connectors/install", 5, 60, exact=True, bucket_id="connector-mutate"
+    ),
+    RateLimitRule(
+        "/api/connectors/uninstall", 5, 60, exact=True, bucket_id="connector-mutate"
+    ),
+    RateLimitRule("/api/connectors", 15, 60),
+)
 
 _BUCKETS: dict[tuple[str, str], list[float]] = defaultdict(list)
 _BUCKETS_LOCK = threading.Lock()
@@ -64,6 +103,14 @@ def _clean_expired(bucket: list[float], window: float) -> None:
         bucket.pop(0)
 
 
+def _retry_after_seconds(bucket: list[float], window: float, now: float) -> int:
+    """Seconds until the oldest request in the window falls out."""
+    if not bucket:
+        return 1
+    remaining = window - (now - bucket[0])
+    return max(1, int(math.ceil(remaining)))
+
+
 def _evict_stale_buckets() -> None:
     """Drop empty or stale buckets to bound memory.
 
@@ -77,8 +124,7 @@ def _evict_stale_buckets() -> None:
     stale_cutoff = now - _STALE_EVICT_SECONDS
     # First pass: drop empty or stale buckets (no recent activity).
     stale_keys = [
-        k for k, bucket in _BUCKETS.items()
-        if not bucket or bucket[-1] < stale_cutoff
+        k for k, bucket in _BUCKETS.items() if not bucket or bucket[-1] < stale_cutoff
     ]
     for k in stale_keys:
         del _BUCKETS[k]
@@ -92,20 +138,35 @@ def _evict_stale_buckets() -> None:
             del _BUCKETS[k]
 
 
-def check_rate_limit(path: str, key: str = "anonymous") -> bool:
-    """Return True if the request is allowed, False if rate-limited."""
-    for pattern, max_req, window, exact, bucket_id in _RATE_LIMITS:
-        if _matches(path, pattern, exact):
-            bucket_key = (bucket_id or pattern, key)
-            with _BUCKETS_LOCK:
-                _evict_stale_buckets()
-                bucket = _BUCKETS[bucket_key]
-                _clean_expired(bucket, window)
-                if len(bucket) >= max_req:
-                    return False
-                bucket.append(time.monotonic())
-            return True
-    return True
+def check_rate_limit(path: str, key: str = "anonymous") -> RateLimitDecision:
+    """Return whether the request is allowed, plus Retry-After when denied."""
+    for rule in _RATE_LIMITS:
+        if not _matches(path, rule.pattern, rule.exact):
+            continue
+        bucket_key = (rule.bucket_id or rule.pattern, key)
+        with _BUCKETS_LOCK:
+            _evict_stale_buckets()
+            bucket = _BUCKETS[bucket_key]
+            _clean_expired(bucket, rule.window_seconds)
+            now = time.monotonic()
+            if len(bucket) >= rule.max_requests:
+                return RateLimitDecision(
+                    allowed=False,
+                    retry_after=_retry_after_seconds(
+                        bucket, rule.window_seconds, now
+                    ),
+                )
+            bucket.append(now)
+        return RateLimitDecision(allowed=True)
+    return RateLimitDecision(allowed=True)
+
+
+def hash_caller_key(raw: str) -> str:
+    """Stable short hash for secret-like rate-limit keys (e.g. bearer tokens).
+
+    Keeps full tokens out of the in-memory bucket map.
+    """
+    return hashlib.sha256(raw.encode("utf-8")).hexdigest()[:16]
 
 
 def reset_rate_limits() -> None:

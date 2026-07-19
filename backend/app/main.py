@@ -9,7 +9,6 @@ import uuid
 from asyncio import Lock
 from collections.abc import MutableMapping
 from contextlib import asynccontextmanager
-from contextvars import ContextVar
 from typing import Any
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
@@ -35,6 +34,7 @@ from app.api import (
 )
 from app.config import settings
 from app.core.logging_config import configure_logging
+from app.core.request_context import get_request_id, request_id_var
 from app.core.runtime.cron_registry import init_scheduler
 from app.core.runtime.runtime_loop import runtime_loop
 from app.core.startup_health import (
@@ -56,16 +56,6 @@ _WS_MAX_NOAUTH_CONNECTIONS = 8  # burst rate when exposed without auth token
 _WS_MAX_NOAUTH_CONCURRENT = 16  # concurrent limit when exposed without auth
 _WS_NOAUTH_CONNECTION_WINDOW = 10.0  # seconds — burst window for exposed WS
 _WS_NOAUTH_CONNECTION_TIMESTAMPS: list[float] = []  # under _ws_lock
-
-# ── Request ID context ─────────────────────────────────────────────────────
-# Populated by RequestIDMiddleware on every HTTP request so structured logs
-# can correlate all log lines within a single request.
-request_id_var: ContextVar[str] = ContextVar("request_id", default="")
-
-
-def get_request_id() -> str:
-    """Return the current request id (empty string outside a request)."""
-    return request_id_var.get()
 
 
 # ── Auth middleware ──────────────────────────────────────────────────────────
@@ -225,7 +215,7 @@ class AuthMiddleware:
         # Rate limiting is always active for protected paths — independent of
         # whether AUTH_TOKEN is set. The loopback-default, no-token experience
         # is preserved but cannot be abused at high frequency.
-        from app.core.rate_limit import check_rate_limit
+        from app.core.rate_limit import check_rate_limit, hash_caller_key
 
         client_ip = _extract_client_ip(scope)
 
@@ -233,8 +223,9 @@ class AuthMiddleware:
         if not expected:
             # No auth configured — rate-limit per client IP so one attacker
             # cannot exhaust the quota for all other users.
-            if not check_rate_limit(path, key=client_ip):
-                await self._too_many_requests(send)
+            decision = check_rate_limit(path, key=client_ip)
+            if not decision:
+                await self._too_many_requests(send, decision.retry_after)
                 return
             await self.app(scope, receive, send)
             return
@@ -243,14 +234,17 @@ class AuthMiddleware:
         if not _tokens_match(token, expected):
             # Invalid token — rate-limit per IP under a separate "bad-auth"
             # namespace so attackers cannot exhaust the legitimate bucket.
-            if not check_rate_limit(path, key=f"bad-auth:{client_ip}"):
-                await self._too_many_requests(send)
+            decision = check_rate_limit(path, key=f"bad-auth:{client_ip}")
+            if not decision:
+                await self._too_many_requests(send, decision.retry_after)
                 return
             await self._unauthorized(send)
             return
 
-        if not check_rate_limit(path, key=token):
-            await self._too_many_requests(send)
+        # Hash the bearer so the raw token never becomes a bucket map key.
+        decision = check_rate_limit(path, key=hash_caller_key(token))
+        if not decision:
+            await self._too_many_requests(send, decision.retry_after)
             return
 
         await self.app(scope, receive, send)
@@ -281,17 +275,25 @@ class AuthMiddleware:
         await send({"type": "http.response.body", "body": body})
 
     @staticmethod
-    async def _too_many_requests(send: Send) -> None:
+    async def _too_many_requests(
+        send: Send,
+        retry_after: int | None = None,
+    ) -> None:
         body = json.dumps(
             {"detail": "Too many requests. Please slow down."}
         ).encode("utf-8")
+        headers = [
+            (b"content-type", b"application/json"),
+            (b"content-length", str(len(body)).encode("ascii")),
+        ]
+        if retry_after is not None:
+            headers.append(
+                (b"retry-after", str(max(1, int(retry_after))).encode("ascii"))
+            )
         await send({
             "type": "http.response.start",
             "status": 429,
-            "headers": [
-                (b"content-type", b"application/json"),
-                (b"content-length", str(len(body)).encode("ascii")),
-            ],
+            "headers": headers,
         })
         await send({"type": "http.response.body", "body": body})
 
