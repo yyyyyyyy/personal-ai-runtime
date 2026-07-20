@@ -9,12 +9,9 @@ via ``_invoke_send_message``.
 """
 
 import json
-import os
 from typing import Any
 
 import pytest
-
-os.environ.setdefault("LLM_API_KEY", "test-key")
 
 
 # ── helpers ────────────────────────────────────────────────────────────

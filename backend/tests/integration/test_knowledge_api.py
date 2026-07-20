@@ -1,7 +1,7 @@
 """Integration tests for Knowledge Base API."""
 import io
 
-from starlette.testclient import TestClient
+from fastapi.testclient import TestClient
 
 
 def test_list_empty_documents(client: TestClient):

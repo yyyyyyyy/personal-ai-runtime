@@ -1,5 +1,4 @@
 """Conftest for tests/integration.
 
-``client`` / ``authed_client`` are provided by ``tests/conftest.py`` so API and
-integration suites share one app-build + TestClient path.
+``client`` / ``authed_client`` / ``fake_brain`` come from ``tests/conftest.py``.
 """

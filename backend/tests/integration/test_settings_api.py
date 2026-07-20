@@ -1,24 +1,9 @@
-"""Integration tests for settings API."""
+"""Integration tests for settings API — paths not covered by api smoke."""
 
-from starlette.testclient import TestClient
-
-
-def test_get_llm_settings(client: TestClient):
-    r = client.get("/api/settings/llm")
-    assert r.status_code == 200
-    data = r.json()
-    assert "config" in data
-    assert "providers_status" in data
-    assert "presets" in data
-    assert data["config"]["default_provider"]
+from fastapi.testclient import TestClient
 
 
-def test_update_llm_settings(client: TestClient, tmp_path, monkeypatch):
-    monkeypatch.setenv("DATA_DIR", str(tmp_path))
-    from app.config import reset_settings
-
-    reset_settings()
-
+def test_update_llm_settings_persists_generation_params(client: TestClient):
     r = client.put(
         "/api/settings/llm",
         json={
@@ -44,20 +29,7 @@ def test_update_llm_settings(client: TestClient, tmp_path, monkeypatch):
     assert body["config"]["max_tokens"] == 2048
 
 
-def test_get_email_settings(client: TestClient):
-    r = client.get("/api/settings/email")
-    assert r.status_code == 200
-    data = r.json()
-    assert data["provider"] == "gmail"
-    assert "config" in data
-
-
-def test_update_email_settings(client: TestClient, tmp_path, monkeypatch):
-    monkeypatch.setenv("DATA_DIR", str(tmp_path))
-    from app.config import reset_settings
-
-    reset_settings()
-
+def test_update_email_settings(client: TestClient):
     r = client.put(
         "/api/settings/email",
         json={

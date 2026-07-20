@@ -5,7 +5,7 @@ event chain for a memory, enabling the "explainable memory" UI.
 """
 
 
-from starlette.testclient import TestClient
+from fastapi.testclient import TestClient
 
 
 def test_provenance_returns_event_chain(client: TestClient):

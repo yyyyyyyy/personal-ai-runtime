@@ -1,4 +1,7 @@
-"""Integration tests for B2: Inbox / Knowledge audit events in event_log."""
+"""Runtime audit: Inbox / Knowledge events land in event_log (B2).
+
+Not an HTTP integration test — lives under tests/runtime.
+"""
 
 import json
 from unittest.mock import AsyncMock, patch

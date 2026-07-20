@@ -3,7 +3,7 @@
 import asyncio
 
 import pytest
-from starlette.testclient import TestClient
+from fastapi.testclient import TestClient
 
 
 def test_api_open_when_auth_disabled(client: TestClient):
@@ -101,23 +101,25 @@ def test_rate_limit_works_with_auth(authed_client: TestClient):
     assert 429 in statuses
 
 
-def test_sse_chat_not_buffered_by_auth_middleware(client: TestClient):
-    """The chat SSE endpoint streams token-level responses.
+def test_sse_chat_not_buffered_by_auth_middleware(client: TestClient, fake_brain):
+    """AuthMiddleware must expose chat SSE headers and stream body (not buffer)."""
+    fake_brain.set_script([
+        {"type": "text_delta", "content": "ping"},
+        {"type": "done"},
+    ])
+    conv = client.post("/api/chat/conversations", params={"title": "SSE auth"})
+    assert conv.status_code == 200
+    conv_id = conv.json()["id"]
 
-    Because AuthMiddleware is pure ASGI (not BaseHTTPMiddleware),
-    streaming endpoints must not be buffered.
-    """
-    # Send a request to the chat messages endpoint — it should respond
-    # (even if it fails to find a conversation, it must not hang
-    # or buffer due to middleware).  This verifies the middleware
-    # does not break streaming.
     r = client.post(
-        "/api/chat/conversations/test-sse/messages",
+        f"/api/chat/conversations/{conv_id}/messages",
         json={"content": "hello"},
     )
-    # The endpoint exists; it may 404 or produce an error, but must not be
-    # swallowed by middleware buffering.
-    assert r.status_code in (200, 404, 422, 500)
+    assert r.status_code == 200
+    assert "text/event-stream" in r.headers.get("content-type", "")
+    assert r.headers.get("cache-control") == "no-cache"
+    assert "data:" in r.text
+    assert "ping" in r.text or "done" in r.text
 
 
 @pytest.mark.asyncio

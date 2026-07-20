@@ -1,6 +1,6 @@
 """Integration tests for data sovereignty system API."""
 
-from starlette.testclient import TestClient
+from fastapi.testclient import TestClient
 
 
 def test_export_requires_confirm(client: TestClient):

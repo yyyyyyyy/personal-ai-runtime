@@ -1,4 +1,7 @@
-"""Integration tests for D2 closure: AppConfigChanged audit events in event_log."""
+"""Runtime audit: AppConfigChanged events land in event_log (D2).
+
+Not an HTTP integration test — lives under tests/runtime.
+"""
 
 import pytest
 

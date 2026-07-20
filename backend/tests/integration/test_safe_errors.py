@@ -1,71 +1,11 @@
 """Integration tests: safe error responses (no raw exception leaks)."""
 
-import importlib
-
-import pytest
 from fastapi.testclient import TestClient
 
 
-async def _noop_start_mcp_mesh() -> int:
-    return 0
-
-
-async def _noop_stop_mcp_mesh() -> None:
-    return None
-
-
-@pytest.fixture
-def safe_client(tmp_path, monkeypatch):
-    """Test client without auth — uses the global exception handler."""
-    db_path = str(tmp_path / "api_test.db")
-    monkeypatch.setenv("SQLITE_PATH", db_path)
-    monkeypatch.setenv("DATA_DIR", str(tmp_path))
-    monkeypatch.setenv("VECTOR_DIR", str(tmp_path / "vectors"))
-    monkeypatch.setenv("LLM_API_KEY", "test-key")
-    monkeypatch.setenv("MCP_EXTERNAL_ENABLED", "false")
-    monkeypatch.setenv("AUTH_TOKEN", "")
-
-    import app.config
-    app.config.reset_settings()
-
-    # Modules that capture ``settings`` at import time must be refreshed after
-    # the isolated environment is installed.
-    import app.core.runtime.runtime_config
-    import app.store.database
-    importlib.reload(app.store.database)
-    importlib.reload(app.core.runtime.runtime_config)
-    from app.core.runtime.runtime_container import runtime
-    runtime.reset()
-    app.core.runtime.runtime_config.invalidate_runtime_config_cache()
-
-    monkeypatch.setattr(
-        "app.core.harness.mcp_lifecycle.start_mcp_mesh",
-        _noop_start_mcp_mesh,
-    )
-    monkeypatch.setattr(
-        "app.core.harness.mcp_lifecycle.stop_mcp_mesh",
-        _noop_stop_mcp_mesh,
-    )
-
-    import app.api.system
-    import app.main
-    from app.core.rate_limit import reset_rate_limits
-    from app.core.startup_health import enrich_with_mcp_status, run_startup_checks
-
-    importlib.reload(app.api.system)
-    importlib.reload(app.main)
-    reset_rate_limits()
-
-    app = app.main.app
-    app.state.startup_health = enrich_with_mcp_status(run_startup_checks())
-
-    yield TestClient(app)
-
-
-def test_unhandled_exception_returns_safe_500(safe_client: TestClient, monkeypatch):
+def test_unhandled_exception_returns_safe_500(client: TestClient, monkeypatch):
     """When a route raises unhandled Exception, client sees generic 500."""
 
-    # Force the inbox endpoint to raise an unexpected exception.
     def _evil(*_args, **_kwargs):
         raise RuntimeError("secret file /etc/shadow not readable")
 
@@ -74,7 +14,7 @@ def test_unhandled_exception_returns_safe_500(safe_client: TestClient, monkeypat
         _evil,
     )
 
-    r = safe_client.patch("/api/inbox/fake-id/status", json={"status": "read"})
+    r = client.patch("/api/inbox/fake-id/status", json={"status": "read"})
     assert r.status_code == 500
     body = r.json()
     assert body["detail"] == "Internal server error"
@@ -83,13 +23,13 @@ def test_unhandled_exception_returns_safe_500(safe_client: TestClient, monkeypat
     assert "request_id" in body
 
 
-def test_global_handler_includes_request_id(safe_client: TestClient, monkeypatch):
+def test_global_handler_includes_request_id(client: TestClient, monkeypatch):
     def _evil(*_args, **_kwargs):
         raise RuntimeError("boom")
 
     monkeypatch.setattr("app.api.inbox.mark_inbox_email_status", _evil)
 
-    r = safe_client.patch(
+    r = client.patch(
         "/api/inbox/fake-id/status",
         json={"status": "read"},
         headers={"Origin": "http://localhost:5173"},
@@ -101,9 +41,8 @@ def test_global_handler_includes_request_id(safe_client: TestClient, monkeypatch
     assert r.headers["access-control-allow-origin"] == "http://localhost:5173"
 
 
-def test_settings_capability_policy_does_not_leak_os_error(safe_client: TestClient, monkeypatch):
+def test_settings_capability_policy_does_not_leak_os_error(client: TestClient, monkeypatch):
     """Verifies the raw OS error text is not in the response body."""
-    # Monkeypatch the file read at the source: path.read_text.
     from pathlib import Path
 
     original_read = Path.read_text
@@ -115,16 +54,15 @@ def test_settings_capability_policy_does_not_leak_os_error(safe_client: TestClie
 
     monkeypatch.setattr(Path, "read_text", _failing_read)
 
-    r = safe_client.get("/api/settings/capability-policy")
+    r = client.get("/api/settings/capability-policy")
     assert r.status_code == 500
     body = r.json()
     assert body["detail"] == "Failed to read capability policy"
-    # Raw path must not leak.
     assert "/secret" not in str(body)
     assert "denied" not in str(body)
 
 
-def test_llm_test_endpoint_safe_error(safe_client: TestClient, monkeypatch):
+def test_llm_test_endpoint_safe_error(client: TestClient, monkeypatch):
     """LLM test failures return generic message, not raw exception text."""
     sensitive_marker = "SECRET_MARKER_/private/provider"
 
@@ -152,7 +90,7 @@ def test_llm_test_endpoint_safe_error(safe_client: TestClient, monkeypatch):
         }],
     )
 
-    r = safe_client.post("/api/settings/llm/test", json={})
+    r = client.post("/api/settings/llm/test", json={})
     assert r.status_code == 200
     body = r.json()
     assert body["ok"] is False

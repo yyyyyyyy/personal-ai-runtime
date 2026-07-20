@@ -1,10 +1,9 @@
-"""Integration test: approval flow via Kernel."""
+"""Kernel-level approval flow (pending → pre_approved retry).
 
-import os
+Not an HTTP integration test — lives under tests/runtime.
+"""
 
 import pytest
-
-os.environ.setdefault("LLM_API_KEY", "test-key")
 
 from app.core.runtime.kernel import Kernel
 from app.store.database import Database
