@@ -1,14 +1,42 @@
 # 架构
 
-本文档描述 Personal AI Runtime 的整体架构与组件交互。核心概念（事件溯源、Kernel 边界、能力治理、上下文管线）在 [02-concepts/](../02-concepts/) 中分章详述，本文只给出整体视图。
+本文档描述 Personal AI Runtime 的整体架构与组件交互。核心概念（Runtime Algebra、事件溯源、Kernel 边界、能力治理、上下文管线）在 [02-concepts/](../02-concepts/) 中分章详述，本文只给出整体视图。
 
-## 三层架构
+## 职责视图：Runtime 与 Product
 
-系统在源码层面被划分为清晰的层次。下表对应 [`backend/app/store/table_registry.py`](../../backend/app/store/table_registry.py) 的表分类与 [`backend/scripts/check_boundary.py`](../../backend/scripts/check_boundary.py) 强制的代码边界。
+系统按职责划分为 Runtime（机制）与 Product（领域策略）。Runtime 通过六原语组合扩展；Product 通过 Kernel ABI 使用原语。详见 [architecture-principles.md](../02-concepts/architecture-principles.md) 与 [runtime-algebra.md](../02-concepts/runtime-algebra.md)。
+
+```mermaid
+flowchart TB
+    subgraph Product[Product Space]
+        API[API / UI]
+        Dom[领域逻辑与产品能力]
+        Frag[Fragments / Reactions]
+    end
+
+    subgraph Runtime[Runtime Space]
+        ABI[Kernel ABI]
+        Prim[Event / State / Capability<br/>Work / Context / Transport]
+    end
+
+    subgraph Storage[Storage]
+        SQ[(SQLite + ChromaDB)]
+    end
+
+    API --> ABI
+    Dom --> ABI
+    Frag -->|read_ports / 注册| ABI
+    ABI --> Prim
+    Prim --> SQ
+```
+
+## 权限视图：三层架构
+
+系统在存储与写入权限上划分为清晰的层次。下表对应 [`backend/app/store/table_registry.py`](../../backend/app/store/table_registry.py) 的表分类与 [`backend/scripts/check_boundary.py`](../../backend/scripts/check_boundary.py) 强制的代码边界。
 
 | 层 | 职责 | 谁能写入 | 对应代码 |
 |---|---|---|---|
-| **User Space**（用户空间） | API router、前端、agent handlers、fragments | 只能通过 Kernel ABI 读写 governed 数据 | `backend/app/api/`、`backend/app/fragments/`、`backend/app/core/agents/` |
+| **User Space**（用户空间） | API router、前端、agent handlers、fragments、Product 模块 | 只能通过 Kernel ABI 读写 governed 数据 | `backend/app/api/`、`backend/app/product/`、`backend/app/fragments/`、`backend/app/core/agents/` |
 | **Kernel Space**（内核空间） | 唯一写入 `event_log` 与 governed 投影表的实体；管理 ChromaDB 索引 | Kernel 自身 | `backend/app/core/runtime/kernel/` |
 | **App Storage**（应用存储） | 可观测性、缓存、本地配置 | 任意模块直访 SQLite | `backend/app/store/database.py`（针对 `APP_STORAGE_TABLES`） |
 
@@ -134,12 +162,14 @@ sequenceDiagram
 
 ## 关键设计决策（从代码可见）
 
-1. **SSE 流不经 event_log**：聊天文本增量（`text_delta`）通过内存 `asyncio.Queue`（[`backend/app/core/runtime/notification_bridge.py`](../../backend/app/core/runtime/notification_bridge.py)）直送 HTTP，避免每个 turn 写入数百条事件。`ChatCompleted`/`ChatDone` 才进 `event_log`。
-2. **统一 RuntimeLoop 替代多个守护线程**：[`backend/app/core/runtime/runtime_loop.py`](../../backend/app/core/runtime/runtime_loop.py) 用 100ms 单循环驱动 timer 扫描（每 10 tick）、维护（每 100 tick：stale agent 清理、审批过期、停滞目标提醒、后台任务派发）。阻塞型维护操作（ChromaDB repair、reaction 评估）通过 `asyncio.to_thread` 卸载到工作线程,后台任务派发为 fire-and-forget,确保 event loop 不被同步 IO 或长超时阻塞。
-3. **execution_scope ContextVar**：所有 agent/scheduler/executor/background 触发的 capability 调用必须绑定 `execution_id`（[`backend/app/core/runtime/execution.py`](../../backend/app/core/runtime/execution.py)），用于归属与崩溃恢复。
-4. **WorkItem 持久化崩溃恢复**：Scheduler `__init__` 调 `_recover()` 扫描中断的 `handler_executions`，重放为 `ExecutionRetried(reason=interrupted)`（见 [`scripts/soak_recovery.py`](../../scripts/soak_recovery.py) 验证）。
-5. **投影快照增量重建**：`kernel.rebuild(aggregate_type)` 从 `projection_checkpoints.last_applied_seq` 增量重放而非全量（[`scripts/verify_snapshot_rebuild.py`](../../backend/scripts/verify_snapshot_rebuild.py) 验证）。
+1. **Transport ≠ Event**：聊天文本增量（`text_delta`）经 TRANSPORT（[`notification_bridge.py`](../../backend/app/core/runtime/notification_bridge.py) 的内存队列 / SSE / WS）推送，不入 `event_log`。`ChatCompleted`/`ChatDone` 等完成态事实才持久化。见 [runtime-algebra.md §1.6](../02-concepts/runtime-algebra.md)。
+2. **统一 RuntimeLoop**：[`runtime_loop.py`](../../backend/app/core/runtime/runtime_loop.py) 用 100ms 单循环驱动 timer 扫描与维护（审批过期、索引修复、reaction 评估、后台任务派发）。阻塞型维护经 `asyncio.to_thread` 卸载，避免卡住 event loop。
+3. **execution_scope ContextVar**：所有 capability 调用必须绑定 `execution_id`（[`execution.py`](../../backend/app/core/runtime/execution.py)），用于归属与崩溃恢复。
+4. **调度 Work 崩溃恢复**：Scheduler 扫描中断的 `handler_executions`，重放为 `ExecutionRetried(reason=interrupted)`。
+5. **投影快照增量重建**：`kernel.rebuild(aggregate_type)` 从 `projection_checkpoints.last_applied_seq` 增量重放（[`verify_snapshot_rebuild.py`](../../backend/scripts/verify_snapshot_rebuild.py)）。
 
 ## 下一步
 
-进入 [02-concepts/](../02-concepts/) 深入核心设计概念。
+- 原语与概念纪律：[runtime-algebra.md](../02-concepts/runtime-algebra.md)
+- 原则与 Forbidden：[architecture-principles.md](../02-concepts/architecture-principles.md)
+- 不变量清单：[runtime-invariants.md](../02-concepts/runtime-invariants.md)

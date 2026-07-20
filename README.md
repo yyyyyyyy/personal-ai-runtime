@@ -34,6 +34,7 @@ make dev
 |------|------|
 | 项目概览 | [docs/01-overview/project-overview.md](docs/01-overview/project-overview.md) |
 | 架构 | [docs/01-overview/architecture.md](docs/01-overview/architecture.md) |
+| Runtime Algebra | [docs/02-concepts/runtime-algebra.md](docs/02-concepts/runtime-algebra.md) |
 | 开发指南 | [docs/05-engineering/development.md](docs/05-engineering/development.md) |
 | API 参考 | [docs/06-reference/api-endpoints.md](docs/06-reference/api-endpoints.md) |
 

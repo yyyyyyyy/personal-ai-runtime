@@ -19,17 +19,16 @@
 - [ ] 本 PR 新增了**投影表**？ → 是否可以用现有表表达？
 - [ ] 本 PR 新增了**`query_state` selector**？ → 是否有等价 selector 被删除？
 
-### 一年测试
+### 持久性测试
 
-- [ ] 新增的每一个概念：一年后还会以独立身份存在吗？
-  - 不确定 → 标注 `// EXPERIMENTAL: review by 20xx-xx`
-  - 一定不存在 → 标注 `// DEPRECATED: migrate to X by vx.x`
+- [ ] 新增的每一个概念：去掉它，系统是否无法表达某类问题？
+  - 不确定 → 不做，或标为实验性实现细节
 
 ### 吞并测试
 
-- [ ] 新增概念能否用现有五原语（Event / State / Capability / Work / Context）组合表达？
+- [ ] 新增概念能否用现有六原语（Event / State / Capability / Work / Context / Transport）组合表达？
   - 能 → 写为声明/实例，不要加新模块
-  - 不能 → 在 PR 描述中解释为什么五原语不够
+  - 不能 → 在 PR 描述中解释为什么六原语不够
 
 ---
 

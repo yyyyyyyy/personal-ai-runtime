@@ -134,7 +134,7 @@ cron 表达式解析 `_next_cron_fire(cron_expr, from_ts)`（[`runtime_loop.py`]
 
 ### 单 Agent 模型
 
-Runtime 使用单一持久 agent。`agent:primary` 字符串直接由 [`agent_scheduler.py`](../../backend/app/core/runtime/agent_scheduler.py) 内联使用，作为 `ensure_scheduler(kernel)` 内部的 actor 标识。所有事件路由都通过 Scheduler + `@subscribe` handler 注册机制（详见 [02-concepts/runtime-algebra.md](../02-concepts/runtime-algebra.md) §4）。
+Runtime 使用单一持久 agent。`agent:primary` 字符串直接由 [`agent_scheduler.py`](../../backend/app/core/runtime/agent_scheduler.py) 内联使用，作为 `ensure_scheduler(kernel)` 内部的 actor 标识。所有事件路由都通过 Scheduler + `@subscribe` handler 注册机制（详见 [runtime-algebra.md](../02-concepts/runtime-algebra.md) 与 [execution-model.md](../02-concepts/execution-model.md)）。
 
 ### Event Handlers
 

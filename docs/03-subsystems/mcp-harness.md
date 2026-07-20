@@ -15,6 +15,8 @@
 
 表驱动注册见 [`mcp_builtin_registration.py`](../../backend/app/core/harness/mcp_builtin_registration.py)（`BuiltinToolSpec` + `_CATEGORY_BUILDERS`）。许多工具带 `requires_confirmation=True`：`write_file`、`apply_patch`、`add_calendar_event`、`send_email`、`shell_exec`、`telegram_send`、`computer_click`/`type`/`key`。
 
+按 [architecture-principles.md](../02-concepts/architecture-principles.md)：`mcp_hub` / `mcp_mesh` / 安全与注册基础设施属于 Runtime（Capability 载体）；邮件、日历、Telegram 等**领域工具实现**属于 Product 职责——即使当前源码位于 `core/harness/builtin_tools/`，扩展时也不应把产品策略继续堆进 Runtime 原语层。
+
 ### Mesh 集成
 
 `register_mesh_tools(discovered)`（[`mcp_hub.py`](../../backend/app/core/harness/mcp_hub.py)）：每个发现的工具包一层 async handler 调 `mcp_mesh.call_tool`，然后经 `capability_governance.register_external_tool(risk=item.policy_risk)` 注册并分类 taint。

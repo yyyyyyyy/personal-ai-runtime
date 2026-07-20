@@ -2,11 +2,20 @@
 
 本文档解释 Kernel 边界——系统最重要的架构不变量。它定义了谁能写 governed 数据、谁能直访存储、以及这套规则如何在 CI 中被机器强制。
 
+职责上的 Runtime / Product 划分见 [architecture-principles.md](architecture-principles.md)；本文专注**表级与 ABI 级**边界。
+
 ## GOLDEN RULE
 
-> User Space（API router、agent handler、fragment、前端）永远不直接读写 governed 投影表与 `event_log`。所有访问必须通过 Kernel ABI。
+> User Space（API router、Product 模块、agent handler、fragment、前端）永远不直接读写 governed 投影表与 `event_log`。所有访问必须通过 Kernel ABI。
 
 这条规则定义于 [`backend/app/store/table_registry.py`](../../backend/app/store/table_registry.py) 的表分类，由 [`backend/scripts/check_boundary.py`](../../backend/scripts/check_boundary.py) 在 CI 中静态扫描强制。
+
+## Runtime / Product 与本边界的关系
+
+- **Kernel 边界**回答：谁能碰 governed 存储。
+- **Runtime / Product 边界**回答：谁拥有机制、谁拥有领域策略。
+
+二者正交：Product 代码必须遵守 GOLDEN RULE；落在 `core/` 下的领域工具实现仍是 Product 职责，不应因目录位置获得直访 governed 表的特权。
 
 ## 表分类
 

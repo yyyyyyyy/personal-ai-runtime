@@ -10,7 +10,7 @@
 
 **首次接触本项目**：从 [01-overview/project-overview.md](01-overview/project-overview.md) 开始，了解项目形态与三大子系统，然后阅读 [01-overview/architecture.md](01-overview/architecture.md) 理解整体架构。
 
-**理解核心设计**：阅读 [02-concepts/](02-concepts/) 下的概念文档——事件溯源、Kernel 边界、能力治理、上下文管线是理解所有后续文档的基础。
+**理解核心设计**：阅读 [02-concepts/](02-concepts/) 下的概念文档——Runtime Algebra、架构原则、事件溯源、Kernel 边界、能力治理、上下文管线是理解所有后续文档的基础。
 
 **深入子系统实现**：根据关注点选择 [03-subsystems/](03-subsystems/) 中的对应文档。
 
@@ -27,13 +27,15 @@
 | 文档 | 内容 |
 |---|---|
 | [project-overview.md](01-overview/project-overview.md) | 项目是什么、为什么存在、整体形态 |
-| [architecture.md](01-overview/architecture.md) | 三层架构、事件溯源 + Kernel 边界、组件关系图 |
+| [architecture.md](01-overview/architecture.md) | Runtime/Product 职责视图、三层权限视图、事件流与组件关系 |
 
 ### 02 · 核心概念
 
 | 文档 | 内容 |
 |---|---|
-| [runtime-algebra.md](02-concepts/runtime-algebra.md) | ⭐ 五原语（Event/State/Capability/Work/Context）、三条判据、概念压缩契约 |
+| [runtime-algebra.md](02-concepts/runtime-algebra.md) | ⭐ 六原语（Event/State/Capability/Work/Context/Transport）、三条判据、概念压缩契约 |
+| [architecture-principles.md](02-concepts/architecture-principles.md) | Runtime/Product 边界、演化原则、Forbidden、概念压缩与边界漂移 |
+| [runtime-invariants.md](02-concepts/runtime-invariants.md) | 按原语分组的 Strong/Medium/Weak 不变量 |
 | [execution-model.md](02-concepts/execution-model.md) | 三车道执行语义（Scheduled Work / Sync Capability / Maintenance） |
 | [kernel-abi.md](02-concepts/kernel-abi.md) | Kernel 冻结 ABI 与「新能力默认不改 Kernel」纪律 |
 | [event-sourcing.md](02-concepts/event-sourcing.md) | `event_log` → projectors → 投影表的数据流 |
@@ -80,7 +82,8 @@
 
 ## 文档约定
 
-- 所有事实陈述均可追溯到具体 `file:line` 引用。
-- 代码中无法确认的内容标记为「代码库中证据不足」，不做推测。
+- **本目录是架构与工程文档的唯一权威来源（Single Source of Truth）**。不以平行的 audit / review / V2 目录描述架构。
+- 所有事实陈述均可追溯到具体代码或脚本；无法确认的内容标记为「代码库中证据不足」。
 - 代码标识符、文件路径、命令、配置项保留英文原文；叙述性文字使用中文。
 - 文档之间通过相对链接交叉引用，避免内容重复。
+- 概念红线数字仅作为 CI 契约出现（见 [runtime-algebra.md §4.4](02-concepts/runtime-algebra.md)），不作为架构叙事中的规模预测。
