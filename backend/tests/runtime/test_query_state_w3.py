@@ -362,3 +362,43 @@ def test_read_events_type_filter(isolated_kernel):
     assert len(events) == 1
     assert events[0].type == "WorkItemCreated"
     assert events[0].aggregate_id == "goal_evt"
+
+
+def test_query_messages_by_conversation(isolated_kernel):
+    k, db = isolated_kernel
+    with db.get_db() as conn:
+        conn.execute(
+            "INSERT INTO conversations (id, title, created_at) VALUES (?, ?, datetime('now'))",
+            ("c1", "Test"),
+        )
+        conn.execute(
+            """INSERT INTO messages (id, conversation_id, role, content, created_at)
+               VALUES (?, ?, ?, ?, datetime('now'))""",
+            ("m1", "c1", "user", "Hello"),
+        )
+    rows = k.query_state("messages", conversation_id="c1", limit=10)
+    assert len(rows) == 1
+    assert rows[0]["content"] == "Hello"
+
+
+def test_query_inbox_status_not_and_search(isolated_kernel):
+    k, db = isolated_kernel
+    with db.get_db() as conn:
+        conn.execute(
+            """INSERT INTO inbox_emails
+               (id, sender, subject, preview, received_at, category, importance, status, created_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))""",
+            ("e1", "a@test.com", "Hello", "preview", "2026-06-18", "important", 1, "unread"),
+        )
+        conn.execute(
+            """INSERT INTO inbox_emails
+               (id, sender, subject, preview, received_at, category, importance, status, created_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))""",
+            ("e2", "b@test.com", "Archived", "old", "2026-06-17", "ignorable", 0, "archived"),
+        )
+    recent = k.query_state("inbox_emails", status_not="archived", limit=10)
+    assert len(recent) == 1
+    assert recent[0]["subject"] == "Hello"
+    search = k.query_state("inbox_emails", search="Archived", limit=10)
+    assert len(search) == 1
+    assert search[0]["id"] == "e2"

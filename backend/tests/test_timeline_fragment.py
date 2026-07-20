@@ -90,3 +90,39 @@ class TestTimelineCollect:
         )
         assert seen["pending"]["limit"] == 5
         assert seen["events"]["limit"] == 7
+
+    @pytest.mark.asyncio
+    async def test_pending_and_events_format(self, monkeypatch):
+        monkeypatch.setattr(
+            "app.core.runtime.read_ports.query_pending_actions",
+            lambda **kwargs: [
+                {"status": "pending", "title": "Task A"},
+                {"status": "pending", "title": "Task B"},
+            ],
+        )
+        monkeypatch.setattr(
+            "app.core.runtime.read_ports.query_recent_legacy_events",
+            lambda **kwargs: [
+                {"summary": "Goal created: Learn Rust", "timestamp": "2026-06-18T12:00:00"},
+            ],
+        )
+        r = await TimelineContextFragment().collect(RuntimeContext())
+        assert "## 待办动作" in r.content
+        assert "[pending] Task A" in r.content
+        assert r.content.count("- [") == 2
+        assert "## 近期事件" in r.content
+        assert "Goal created: Learn Rust" in r.content
+        assert "(2026-06-18)" in r.content
+
+    @pytest.mark.asyncio
+    async def test_empty_actions_and_events_returns_empty(self, monkeypatch):
+        monkeypatch.setattr(
+            "app.core.runtime.read_ports.query_pending_actions",
+            lambda **kwargs: [],
+        )
+        monkeypatch.setattr(
+            "app.core.runtime.read_ports.query_recent_legacy_events",
+            lambda **kwargs: [],
+        )
+        r = await TimelineContextFragment().collect(RuntimeContext())
+        assert r.content == ""

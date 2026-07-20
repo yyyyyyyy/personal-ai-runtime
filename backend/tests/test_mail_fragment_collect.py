@@ -32,6 +32,12 @@ class TestExtractMailSearchTerms:
 
 
 class TestMailFragmentCollect:
+    def test_mail_fragments_hold_no_kernel(self):
+        for f in (RecentEmailsFragment(), EmailSearchFragment()):
+            assert not hasattr(f, "_kernel")
+            assert not hasattr(f, "emit_event")
+            assert not hasattr(f, "invoke_capability")
+
     @pytest.mark.asyncio
     async def test_recent_formats_category_status_preview(self, monkeypatch):
         monkeypatch.setattr(

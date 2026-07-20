@@ -58,6 +58,25 @@ class TestFragmentRegistryAudit:
         register_all_fragments(registry)
         assert "runtime.identity" not in registry.list_ids()
 
+    def test_mail_fragments_registered(self):
+        registry = FragmentRegistry()
+        ids = register_all_fragments(registry)
+        assert "mail.recent_emails" in ids
+        assert "mail.email_search" in ids
+        assert "mail.email_thread" not in ids
+
+    def test_no_runtime_identity_module(self):
+        from pathlib import Path
+
+        path = (
+            Path(__file__).resolve().parent.parent
+            / "app"
+            / "fragments"
+            / "universal"
+            / "runtime_identity.py"
+        )
+        assert not path.is_file()
+
     def test_core_goals_always_selected(self):
         registry = FragmentRegistry()
         register_all_fragments(registry)
@@ -118,4 +137,5 @@ class TestIdentitySingleSource:
                 stage="chat",
             ),
         )
+        assert "Helpful" in result
         assert result.count("Personal AI Runtime") == 1

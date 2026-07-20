@@ -37,7 +37,7 @@ flowchart TB
 | `product/` | 基于 Kernel 的产品层：dashboard、encrypted_sync、inbox、notifications |
 | `runtime/` | kernel/执行/治理核心（~80 文件） |
 
-顶层还有：`test_context_policy.py`、`test_context_runtime_stage3.py`、`test_core_tier_fragments.py`、`test_pipeline_integration.py`、`test_prompt_artifact.py`、`test_policy_coverage.py`、`test_fragment_cleanup_phase5.py`、`test_fragment_read_boundary.py`、`test_mail_fragments.py`、`test_version.py`。
+顶层还有：`test_context_policy.py`、`test_context_assembler.py`、`test_core_tier_fragments.py`、`test_pipeline_integration.py`、`test_prompt_artifact.py`、`test_policy_coverage.py`、`test_fragment_registry_audit.py`、`test_fragment_read_boundary.py`、`test_mail_fragment_collect.py`、`test_version.py`。
 
 ### conftest 隔离
 
@@ -59,7 +59,7 @@ flowchart TB
 - **出口与连接器**：`test_egress.py`、`test_connector.py`、`test_fetch_ssrf.py`、`test_url_safety.py`、`test_web_search_html.py`
 - **MCP / filesystem / shell / email server**：`test_filesystem_server.py`、`test_shell_server.py`、`test_email_server.py`、`test_mcp_config.py`、`test_mcp_mesh.py`
 - **记忆 / 通知 / 后台**：`test_memory_extractor.py`、`test_memory_ws_notify.py`、`test_notification_bridge.py`、`test_notification_channel.py`、`test_sse_queue_registry.py`、`test_background_worker_extended.py`、`test_background_task_event_chain.py`
-- **Product / 主权 / fragment**：`tests/product/`（dashboard / inbox / notifications / encrypted_sync）、`test_sovereignty_basic.py`、`test_governance_fragment.py`、`test_scenario_fragments.py`、`test_mail_fragments.py`、`test_fragment_read_boundary.py`、`test_fragment_cleanup_phase5.py`、`test_runtime_container.py`、`test_knowledge_fragment.py`
+- **Product / 主权 / fragment**：`tests/product/`（dashboard / inbox / notifications / encrypted_sync）、`test_sovereignty_basic.py`、`test_governance_fragment.py`、`test_scenario_fragments.py`、`test_mail_fragment_collect.py`、`test_fragment_read_boundary.py`、`test_fragment_registry_audit.py`、`test_runtime_container.py`、`test_knowledge_fragment.py`
 
 ### 运行
 

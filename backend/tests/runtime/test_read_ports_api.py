@@ -232,3 +232,18 @@ def test_get_mcp_server_status_uses_public_api(monkeypatch):
     assert calls == ["email"]
     tools = read_ports.get_mcp_server_tools("email")
     assert tools == [{"name": "t1", "description": "d"}]
+
+
+def test_query_top_active_goals_delegates_status_in(monkeypatch):
+    calls: list[tuple] = []
+
+    class FakeKernel:
+        def query_state(self, selector: str, **filters):
+            calls.append((selector, filters))
+            return [{"title": "Test Goal", "status": "active"}]
+
+    monkeypatch.setattr("app.core.runtime.kernel_instance.kernel", FakeKernel())
+    rows = read_ports.query_top_active_goals(limit=3)
+    assert rows[0]["title"] == "Test Goal"
+    assert calls[0][0] == "work_items"
+    assert calls[0][1]["status_in"] == ("active", "in_progress")
