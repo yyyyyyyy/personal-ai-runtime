@@ -1,9 +1,12 @@
-.PHONY: install setup init-db dev demo screenshots test test-backend test-backend-coverage test-frontend test-e2e test-e2e-real ci-local backend-ci-core backend-compileall backend-smoke lint typecheck dependency-sync desktop desktop-test desktop-build boundary docs-links docs-table-sync docs-line-refs policy-consistency rebuild-verify export-roundtrip-verify snapshot-verify egress-verify connector-verify alembic-verify vector-consistency-verify memory-repair-verify architecture-check architecture-check-strict architecture-snapshot architecture-record dashboard dashboard-write docker-up docker-down projection-provenance conversation-rebuild goal-rebuild work-items-goal-rebuild memory-lifecycle-verify inbox-audit-verify lockfile secrets-scan
+.PHONY: install setup init-db dev demo screenshots test test-backend test-backend-coverage test-frontend test-e2e test-e2e-real ci-local backend-ci-core backend-ci-static backend-ci-runtime backend-compileall backend-smoke lint typecheck dependency-sync desktop desktop-test desktop-build boundary docs-links docs-table-sync docs-line-refs policy-consistency rebuild-verify export-roundtrip-verify snapshot-verify egress-verify connector-verify alembic-verify vector-consistency-verify memory-repair-verify tool-calls-audit-verify architecture-check architecture-check-strict architecture-snapshot architecture-record dashboard dashboard-write docker-up docker-down projection-provenance conversation-rebuild goal-rebuild work-items-goal-rebuild memory-lifecycle-verify inbox-audit-verify lockfile secrets-scan
 
 # Backend
 BACKEND_DIR := backend
 FRONTEND_DIR := frontend
 DESKTOP_DIR := desktop
+
+# Parallelism for layered CI (override: make backend-ci-core JOBS=8)
+JOBS ?= $(shell getconf _NPROCESSORS_ONLN 2>/dev/null || nproc 2>/dev/null || echo 4)
 
 install: dependency-sync
 	cd $(BACKEND_DIR) && python3 -m pip install --require-hashes -r requirements.lock
@@ -30,7 +33,7 @@ dev:
 	wait
 
 demo:
-	cd $(BACKEND_DIR) && LLM_API_KEY=$${LLM_API_KEY:-demo-seed} python3 scripts/seed_demo.py
+	cd $(BACKEND_DIR) && LLM_API_KEY=$${LLM_API_KEY:-demo-seed} python3 -m scripts.seed_demo
 
 screenshots:
 	cd docs/assets && npm install && npx playwright install chromium && npm run screenshots
@@ -55,19 +58,36 @@ lint:
 	cd $(BACKEND_DIR) && ruff check app/
 
 typecheck:
-	cd $(BACKEND_DIR) && mypy app/ scripts/ --ignore-missing-imports
+	cd $(BACKEND_DIR) && python3 -m mypy app/ scripts/ --ignore-missing-imports
 
 dependency-sync:
-	cd $(BACKEND_DIR) && python3 scripts/check_dependency_sync.py
+	cd $(BACKEND_DIR) && python3 -m scripts.check_dependency_sync
 
-BACKEND_CI_TARGETS := dependency-sync backend-compileall lint typecheck test-backend-coverage \
-	alembic-verify backend-smoke version-sync policy-consistency docs-links docs-table-sync \
-	docs-line-refs boundary execution-ownership architecture-check projection-provenance \
-	rebuild-verify snapshot-verify conversation-rebuild goal-rebuild work-items-goal-rebuild \
-	export-roundtrip-verify memory-lifecycle-verify inbox-audit-verify egress-verify \
-	connector-verify vector-consistency-verify memory-repair-verify
+# Static checks — no shared DB; safe to run in parallel.
+BACKEND_CI_STATIC := dependency-sync backend-compileall lint typecheck version-sync \
+	policy-consistency docs-links docs-table-sync docs-line-refs boundary \
+	execution-ownership architecture-check
 
-backend-ci-core: $(BACKEND_CI_TARGETS)
+# Runtime verifies — ephemeral DBs / tmp paths; parallel after static wave.
+BACKEND_CI_RUNTIME := alembic-verify backend-smoke test-backend-coverage \
+	projection-provenance rebuild-verify snapshot-verify conversation-rebuild \
+	goal-rebuild work-items-goal-rebuild export-roundtrip-verify \
+	memory-lifecycle-verify inbox-audit-verify egress-verify connector-verify \
+	vector-consistency-verify memory-repair-verify tool-calls-audit-verify
+
+BACKEND_CI_TARGETS := $(BACKEND_CI_STATIC) $(BACKEND_CI_RUNTIME)
+
+backend-ci-static: $(BACKEND_CI_STATIC)
+	@echo "backend-ci-static checks passed"
+
+backend-ci-runtime: $(BACKEND_CI_RUNTIME)
+	@echo "backend-ci-runtime checks passed"
+
+# Two-wave parallel CI: static first (no shared process state), then runtime.
+# Runtime jobs use per-script ephemeral/tmp DBs; safe to -j within the wave.
+backend-ci-core:
+	$(MAKE) -j$(JOBS) backend-ci-static
+	$(MAKE) -j$(JOBS) backend-ci-runtime
 	@echo "backend-ci-core checks passed"
 
 ci-local: backend-ci-core test-frontend test-e2e test-e2e-real desktop-test
@@ -80,7 +100,7 @@ backend-compileall:
 	cd $(BACKEND_DIR) && python3 -m compileall app/ -q
 
 backend-smoke:
-	cd $(BACKEND_DIR) && python3 scripts/verify_api_mcp_smoke.py
+	cd $(BACKEND_DIR) && python3 -m scripts.verify_api_mcp_smoke
 
 desktop:
 	cd $(DESKTOP_DIR) && npm start
@@ -92,101 +112,101 @@ desktop-build:
 	cd $(DESKTOP_DIR) && npm run build
 
 boundary:
-	cd $(BACKEND_DIR) && python3 scripts/check_boundary.py
+	cd $(BACKEND_DIR) && python3 -m scripts.check_boundary
 
 docs-links:
-	cd $(BACKEND_DIR) && python3 scripts/check_doc_links.py
+	cd $(BACKEND_DIR) && python3 -m scripts.check_doc_links
 
 docs-table-sync:
-	cd $(BACKEND_DIR) && python3 scripts/check_doc_table_sync.py
+	cd $(BACKEND_DIR) && python3 -m scripts.check_doc_table_sync
 
 docs-line-refs:
-	cd $(BACKEND_DIR) && python3 scripts/check_doc_line_refs.py
+	cd $(BACKEND_DIR) && python3 -m scripts.check_doc_line_refs
 
 policy-consistency:
-	cd $(BACKEND_DIR) && python3 scripts/check_capability_policy_consistency.py
+	cd $(BACKEND_DIR) && python3 -m scripts.check_capability_policy_consistency
 
 version-sync:
-	cd $(BACKEND_DIR) && python3 scripts/check_version_sync.py
+	cd $(BACKEND_DIR) && python3 -m scripts.check_version_sync
 
 boundary-inventory:
-	cd $(BACKEND_DIR) && python3 scripts/check_boundary.py --inventory
+	cd $(BACKEND_DIR) && python3 -m scripts.check_boundary --inventory
 
 boundary-strict:
-	cd $(BACKEND_DIR) && python3 scripts/check_boundary.py --strict
+	cd $(BACKEND_DIR) && python3 -m scripts.check_boundary --strict
 
 execution-ownership:
-	cd $(BACKEND_DIR) && python3 scripts/check_execution_ownership.py
+	cd $(BACKEND_DIR) && python3 -m scripts.check_execution_ownership
 
 execution-ownership-inventory:
-	cd $(BACKEND_DIR) && python3 scripts/check_execution_ownership.py --inventory
+	cd $(BACKEND_DIR) && python3 -m scripts.check_execution_ownership --inventory
 
 execution-ownership-strict:
-	cd $(BACKEND_DIR) && python3 scripts/check_execution_ownership.py --strict
+	cd $(BACKEND_DIR) && python3 -m scripts.check_execution_ownership --strict
 
 # Architecture Contract — enforces runtime-algebra.md §5.2 (Concept Compression)
-# Fails CI when any concept metric grows (files, event types, fragments, tables,
-# projectors, God-Object LOC, dead-code files).
 architecture-check:
-	cd $(BACKEND_DIR) && python3 scripts/check_concept_growth.py
+	cd $(BACKEND_DIR) && python3 -m scripts.check_concept_growth
 
 architecture-check-strict:
-	cd $(BACKEND_DIR) && python3 scripts/check_concept_growth.py --strict
+	cd $(BACKEND_DIR) && python3 -m scripts.check_concept_growth --strict
 
 architecture-snapshot:
-	cd $(BACKEND_DIR) && python3 scripts/check_concept_growth.py --snapshot
+	cd $(BACKEND_DIR) && python3 -m scripts.check_concept_growth --snapshot
 
 architecture-record:
-	cd $(BACKEND_DIR) && python3 scripts/check_concept_growth.py --record
+	cd $(BACKEND_DIR) && python3 -m scripts.check_concept_growth --record
 
 dashboard:
-	cd $(BACKEND_DIR) && python3 scripts/health_dashboard.py
+	cd $(BACKEND_DIR) && python3 -m scripts.health_dashboard
 
 dashboard-write:
-	cd $(BACKEND_DIR) && python3 scripts/health_dashboard.py --write
+	cd $(BACKEND_DIR) && python3 -m scripts.health_dashboard --write
 
 projection-provenance:
-	cd $(BACKEND_DIR) && python3 scripts/check_projection_provenance.py
+	cd $(BACKEND_DIR) && python3 -m scripts.check_projection_provenance
 
 conversation-rebuild:
-	cd $(BACKEND_DIR) && python3 scripts/verify_conversation_rebuild.py
+	cd $(BACKEND_DIR) && python3 -m scripts.verify_conversation_rebuild
 
 goal-rebuild:
-	cd $(BACKEND_DIR) && python3 scripts/verify_goal_rebuild.py
+	cd $(BACKEND_DIR) && python3 -m scripts.verify_goal_rebuild
 
 work-items-goal-rebuild:
-	cd $(BACKEND_DIR) && python3 scripts/verify_work_items_goal_rebuild.py
+	cd $(BACKEND_DIR) && python3 -m scripts.verify_work_items_goal_rebuild
 
 rebuild-verify:
-	cd $(BACKEND_DIR) && python3 scripts/verify_rebuild.py
+	cd $(BACKEND_DIR) && python3 -m scripts.verify_rebuild
 
 export-roundtrip-verify:
-	cd $(BACKEND_DIR) && python3 scripts/verify_export_roundtrip.py
+	cd $(BACKEND_DIR) && python3 -m scripts.verify_export_roundtrip
 
 snapshot-verify:
-	cd $(BACKEND_DIR) && python3 scripts/verify_snapshot_rebuild.py
+	cd $(BACKEND_DIR) && python3 -m scripts.verify_snapshot_rebuild
 
 egress-verify:
-	cd $(BACKEND_DIR) && python3 scripts/verify_egress.py
+	cd $(BACKEND_DIR) && python3 -m scripts.verify_egress
 
 vector-consistency-verify:
-	cd $(BACKEND_DIR) && python3 scripts/verify_vector_consistency.py
+	cd $(BACKEND_DIR) && python3 -m scripts.verify_vector_consistency
 
 connector-verify:
-	cd $(BACKEND_DIR) && python3 scripts/verify_connector.py
+	cd $(BACKEND_DIR) && python3 -m scripts.verify_connector
 
 memory-lifecycle-verify:
-	cd $(BACKEND_DIR) && python3 scripts/verify_memory_lifecycle.py
+	cd $(BACKEND_DIR) && python3 -m scripts.verify_memory_lifecycle
 
 inbox-audit-verify:
-	cd $(BACKEND_DIR) && python3 scripts/verify_inbox_audit.py
+	cd $(BACKEND_DIR) && python3 -m scripts.verify_inbox_audit
 
 memory-repair-verify:
-	cd $(BACKEND_DIR) && python3 scripts/verify_memory_index_repairs.py
+	cd $(BACKEND_DIR) && python3 -m scripts.verify_memory_index_repairs
 
-# Alembic schema initialization
+tool-calls-audit-verify:
+	cd $(BACKEND_DIR) && python3 -m scripts.verify_tool_calls_audit
+
 alembic-verify:
-	cd $(BACKEND_DIR) && python3 scripts/verify_alembic.py
+	cd $(BACKEND_DIR) && python3 -m scripts.verify_alembic
 
 docker-up:
 	docker compose up --build
@@ -194,16 +214,12 @@ docker-up:
 docker-down:
 	docker compose down
 
-# Generate a pinned, hash-verified lockfile from runtime and development inputs.
-# Commit backend/requirements.lock so CI installs exactly the same versions.
 lockfile:
 	cd $(BACKEND_DIR) && python3 -c "import piptools" 2>/dev/null || python3 -m pip install --user pip-tools==7.5.3
 	cd $(BACKEND_DIR) && python3 -m piptools compile --generate-hashes --output-file requirements.lock requirements-dev.txt
-	cd $(BACKEND_DIR) && python3 scripts/check_dependency_sync.py --stamp-lock
+	cd $(BACKEND_DIR) && python3 -m scripts.check_dependency_sync --stamp-lock
 	@echo "Created backend/requirements.lock — commit it for reproducible installs."
 
-# Scan the working tree for leaked secrets using gitleaks.
-# Install via: brew install gitleaks (macOS) or see https://github.com/gitleaks/gitleaks
 secrets-scan:
 	@gitleaks detect --config .gitleaks.toml --source . --no-banner --redact || \
 		echo "gitleaks not installed — install from https://github.com/gitleaks/gitleaks"

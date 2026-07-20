@@ -129,7 +129,7 @@ fi
 
 section "3/5  安装 Python 依赖"
 cd "$BACKEND_DIR"
-python3 scripts/check_dependency_sync.py
+python3 -m scripts.check_dependency_sync
 python3 -m pip install --require-hashes -r requirements.lock --quiet
 success "Python 依赖安装完成"
 

@@ -14,16 +14,17 @@ Philosophy: INV-P7 is enforced by CI join checks, not by source_event_* columns.
 from __future__ import annotations
 
 import argparse
-import os
 import sys
 from pathlib import Path
 from typing import Any, TextIO
 
-_BACKEND_ROOT = Path(__file__).resolve().parent.parent
-if str(_BACKEND_ROOT) not in sys.path:
-    sys.path.insert(0, str(_BACKEND_ROOT))
+_BACKEND = str(Path(__file__).resolve().parents[1])
+if _BACKEND not in sys.path:
+    sys.path.insert(0, _BACKEND)
 
-os.environ.setdefault("LLM_API_KEY", "test-key")
+from scripts._bootstrap import ephemeral_kernel, prepare_script_env
+
+prepare_script_env()
 
 from app.core.runtime.kernel.constants import (  # noqa: E402
     AGGREGATE_APPROVAL,
@@ -231,7 +232,8 @@ def bootstrap_sample_scenario(kernel: Any) -> None:
         payload={"title": "provenance sample", "work_type": "task"},
         actor="verify",
     )
-    assert trigger.seq is not None
+    if trigger.seq is None:
+        raise RuntimeError("bootstrap: WorkItemCreated missing seq")
 
     kernel.emit_event(
         "WorkItemCreated",
@@ -352,27 +354,21 @@ def main(argv: list[str] | None = None) -> int:
         from app.store.database import Database
 
         db = Database(db_path=str(args.db))
-        with db.get_db() as conn:
-            violations = check_provenance(conn)
+        try:
+            with db.get_db() as conn:
+                violations = check_provenance(conn)
+        finally:
+            close = getattr(db, "close", None)
+            if callable(close):
+                try:
+                    close()
+                except Exception:
+                    pass
     else:
-        from app.core.runtime.kernel import Kernel
-        from app.store.database import Database
-
-        db_path = _BACKEND_ROOT / "data" / "verify_provenance.db"
-        db_path.parent.mkdir(parents=True, exist_ok=True)
-        try:
-            db_path.unlink(missing_ok=True)
-        except PermissionError:
-            pass
-        db = Database(db_path=str(db_path))
-        kernel = Kernel(db=db)
-        bootstrap_sample_scenario(kernel)
-        with db.get_db() as conn:
-            violations = check_provenance(conn)
-        try:
-            db_path.unlink(missing_ok=True)
-        except PermissionError:
-            pass
+        with ephemeral_kernel("verify_provenance.db") as (db, kernel):
+            bootstrap_sample_scenario(kernel)
+            with db.get_db() as conn:
+                violations = check_provenance(conn)
 
     if violations:
         print_violations(violations)

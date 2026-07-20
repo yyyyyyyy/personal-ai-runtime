@@ -16,7 +16,7 @@
 | 目标 | 命令 | 说明 |
 |---|---|---|
 | `dev` | `Makefile:25-30` | 后台启 uvicorn（8000）+ `wait_for_health.sh` 门控 + vite（5173），`wait` 阻塞 |
-| `demo` | `Makefile:32-33` | `LLM_API_KEY=${LLM_API_KEY:-demo-seed} python3 scripts/seed_demo.py` |
+| `demo` | `Makefile` | `LLM_API_KEY=${LLM_API_KEY:-demo-seed} python3 -m scripts.seed_demo` |
 | `screenshots` | `Makefile:35-36` | `cd docs/assets && npm install && npx playwright install chromium && npm run screenshots` |
 | `desktop` | `Makefile:60-61` | `cd desktop && npm start` |
 | `desktop-build` | `Makefile:63-64` | `cd desktop && npm run build`（electron-builder） |
@@ -41,8 +41,10 @@
 | `typecheck` | `Makefile:54-55` | `mypy app/ scripts/ --ignore-missing-imports` |
 | `dependency-sync` | `Makefile` | 检查 `pyproject.toml` dependencies 与权威 `requirements.txt` 完全一致 |
 | `backend-compileall` | `Makefile` | `python3 -m compileall app/ -q` |
-| `backend-smoke` | [`verify_api_mcp_smoke.py`](../../backend/scripts/verify_api_mcp_smoke.py) | 验证核心 API 路由与 MCP 工具/安全标志 |
-| `backend-ci-core` | `Makefile` | GitHub Actions 与本地共用的唯一后端核心门禁入口 |
+| `backend-smoke` | [`verify_api_mcp_smoke.py`](../../backend/scripts/verify_api_mcp_smoke.py) | 验证核心 API 路由与 MCP 工具/安全标志（CORE 注册表派生 + CRITICAL 钉选） |
+| `backend-ci-static` | `Makefile` | 静态门禁并行波次（`make -j$(JOBS)`） |
+| `backend-ci-runtime` | `Makefile` | 运行时 verify / coverage 并行波次 |
+| `backend-ci-core` | `Makefile` | 先 static 再 runtime；GitHub Actions 与本地共用入口 |
 | `ci-local` | `Makefile` | `backend-ci-core` + frontend 单测/E2E/real-E2E + desktop smoke |
 
 ## 架构不变量验证
@@ -61,7 +63,7 @@
 | `docs-line-refs` | [`check_doc_line_refs.py`](../../backend/scripts/check_doc_line_refs.py) | 禁止易漂移的 Python 行号引用 |
 | `policy-consistency` | [`check_capability_policy_consistency.py`](../../backend/scripts/check_capability_policy_consistency.py) | capability policy 与运行时声明一致 |
 | `conversation-rebuild` | [`verify_conversation_rebuild.py`](../../backend/scripts/verify_conversation_rebuild.py) | 对话消息可重建且可溯源 |
-| `goal-rebuild` | [`verify_goal_rebuild.py`](../../backend/scripts/verify_goal_rebuild.py) | 目标 parent_id/progress 重建后保留 |
+| `goal-rebuild` | [`verify_goal_rebuild.py`](../../backend/scripts/verify_goal_rebuild.py) | 目标 parent_goal_id/progress 重建后保留 |
 | `work-items-goal-rebuild` | [`verify_work_items_goal_rebuild.py`](../../backend/scripts/verify_work_items_goal_rebuild.py) | work_items 目标字段与进度可重建 |
 | `rebuild-verify` | [`verify_rebuild.py`](../../backend/scripts/verify_rebuild.py) | 旗舰：全量重建字节一致 |
 | `export-roundtrip-verify` | [`verify_export_roundtrip.py`](../../backend/scripts/verify_export_roundtrip.py) | export → import 无损 |
@@ -72,7 +74,8 @@
 | `vector-consistency-verify` | [`verify_vector_consistency.py`](../../backend/scripts/verify_vector_consistency.py) | SQLite memories vs Chroma 对账 |
 | `connector-verify` | [`verify_connector.py`](../../backend/scripts/verify_connector.py) | 日历连接器审计 |
 | `memory-repair-verify` | [`verify_memory_index_repairs.py`](../../backend/scripts/verify_memory_index_repairs.py) | durable repair queue 自测 |
-| `alembic-verify` | [`verify_alembic.py`](../../backend/scripts/verify_alembic.py) | 19 张必需表存在 + PRAGMA foreign_keys |
+| `tool-calls-audit-verify` | [`verify_tool_calls_audit.py`](../../backend/scripts/verify_tool_calls_audit.py) | tool_calls ↔ Capability* 事件 1:1 |
+| `alembic-verify` | [`verify_alembic.py`](../../backend/scripts/verify_alembic.py) | ephemeral DB 上校验 `ALL_CLASSIFIED_TABLES` + PRAGMA foreign_keys |
 
 ## 容器
 
@@ -88,14 +91,15 @@
 | `lockfile` | `Makefile` | 固定 `pip-tools==7.5.3`，生成带包哈希和输入文件 SHA-256 的 `requirements.lock` |
 | `secrets-scan` | `Makefile:130-132` | `gitleaks detect --config .gitleaks.toml --source . --no-banner --redact`（未装则提示安装链接） |
 
-## Makefile.ps1（Windows 子集）
+## Makefile.ps1（Windows）
 
-[`Makefile.ps1`](../../Makefile.ps1) 用 `switch` on `$Task`，提供：`help`、`install`、`install-hooks`、`dev`（手动两终端）、`test-backend`、`test-frontend`、`lint`、`typecheck`、`boundary`、`docker-up`、`docker-down`。未知任务报错。
+[`Makefile.ps1`](../../Makefile.ps1) 用 `switch` on `$Task`，提供：`help`、`install`、`install-hooks`、`test-backend`、`test-frontend`、`lint`、`typecheck`、`boundary`、`backend-ci-static`、`backend-ci-runtime`、`backend-ci-core`、`docker-up`、`docker-down`。
 
 注意差异：
 
-- `typecheck` 的 agents 文件列表不同（`planner.py`/`critic.py`/`llm_router.py` vs Unix 的 `llm_failover.py`/`conversation.py`/`memory_engine.py`/`memory_extractor.py`），且包含 `app/product/`、`app/api/`、`app/main.py`。
-- Windows 不提供 verify 脚本目标（仅 `boundary`）与 ci-local 聚合。
+- 脚本统一通过 `python -m scripts.<name>` 调用（与 Makefile 一致）。
+- Unix `make backend-ci-core` 两波 `-j` 并行；PowerShell 为可靠退出码改为顺序执行。需要并行时用 make/WSL。
+- Windows `backend-ci-runtime` 跑 pytest 全量（非 coverage 门限），verify 清单与 Makefile 对齐。
 
 ## 根级脚本（非 Make 目标）
 

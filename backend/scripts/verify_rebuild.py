@@ -7,21 +7,18 @@ Non-zero exit means the Event Log cannot reconstruct State — a Runtime invaria
 violation that must block CI.
 """
 
-import os
-import sys
+from __future__ import annotations
+
 from pathlib import Path
 
-# Running as `python scripts/verify_rebuild.py` puts scripts/ on sys.path, not backend/.
-_BACKEND_ROOT = Path(__file__).resolve().parent.parent
-if str(_BACKEND_ROOT) not in sys.path:
-    sys.path.insert(0, str(_BACKEND_ROOT))
-
-os.environ.setdefault("LLM_API_KEY", "test-key")
-
+import sys
 from typing import Any
 
-from app.core.runtime.kernel import Kernel
-from app.store.database import Database
+_BACKEND = str(Path(__file__).resolve().parents[1])
+if _BACKEND not in sys.path:
+    sys.path.insert(0, _BACKEND)
+
+from scripts._bootstrap import ephemeral_kernel
 
 SAMPLE_SCENARIO: list[tuple[str, str, str, dict[str, Any]]] = [
     # Goals
@@ -88,7 +85,7 @@ SAMPLE_SCENARIO: list[tuple[str, str, str, dict[str, Any]]] = [
 ]
 
 
-def snapshot(db: Database, tables: list[str]) -> dict:
+def snapshot(db: Any, tables: list[str]) -> dict:
     with db.get_db() as conn:
         return {
             t: [dict(r) for r in conn.execute(f"SELECT * FROM {t} ORDER BY rowid").fetchall()]
@@ -96,48 +93,39 @@ def snapshot(db: Database, tables: list[str]) -> dict:
         }
 
 
-def main():
-    db_path = Path(__file__).resolve().parent.parent / "data" / "verify_rebuild.db"
-    db_path.parent.mkdir(parents=True, exist_ok=True)
-    db = Database(db_path=str(db_path))
-    k = Kernel(db=db)
-
-    tables = ["work_items", "approvals", "memories", "conversations", "messages", "notifications", "timer_events", "policy_events"]
-
-    # 1. Emit sample scenario
-    for evt in SAMPLE_SCENARIO:
-        k.emit_event(*evt[:3], payload=evt[3] if len(evt) > 3 else {}, actor="verify")
-
-    before = snapshot(db, tables)
-
-    # 2. Rebuild all registered aggregate types
-    result = k.rebuild_all()
-    for at in sorted(result):
-        print(f"  rebuild({at!r}): {result[at]} events")
-
-    after = snapshot(db, tables)
-
-    # 3. Assert identity
+def main() -> int:
+    tables = [
+        "work_items", "approvals", "memories", "conversations",
+        "messages", "notifications", "timer_events", "policy_events",
+    ]
     failed = False
-    for t in tables:
-        if before.get(t) != after.get(t):
-            print(f"FAIL: {t!r} projection differs after rebuild", file=sys.stderr)
-            print(f"  before: {len(before.get(t, []))} rows", file=sys.stderr)
-            print(f"  after:  {len(after.get(t, []))} rows", file=sys.stderr)
-            failed = True
 
-    # Cleanup (best-effort; may fail on Windows due to WAL locks)
-    try:
-        db_path.unlink(missing_ok=True)
-    except PermissionError:
-        pass
+    with ephemeral_kernel("verify_rebuild.db") as (db, k):
+        for evt in SAMPLE_SCENARIO:
+            k.emit_event(*evt[:3], payload=evt[3] if len(evt) > 3 else {}, actor="verify")
+
+        before = snapshot(db, tables)
+
+        result = k.rebuild_all()
+        for at in sorted(result):
+            print(f"  rebuild({at!r}): {result[at]} events")
+
+        after = snapshot(db, tables)
+
+        for t in tables:
+            if before.get(t) != after.get(t):
+                print(f"FAIL: {t!r} projection differs after rebuild", file=sys.stderr)
+                print(f"  before: {len(before.get(t, []))} rows", file=sys.stderr)
+                print(f"  after:  {len(after.get(t, []))} rows", file=sys.stderr)
+                failed = True
 
     if failed:
         print("REBUILD VERIFICATION FAILED — Event Log cannot reconstruct State", file=sys.stderr)
-        sys.exit(1)
+        return 1
 
     print("REBUILD VERIFICATION PASSED — all projections byte-identical after rebuild")
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

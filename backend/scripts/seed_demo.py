@@ -7,15 +7,17 @@ Requires LLM_API_KEY in environment (use any non-empty value for seeding only).
 
 from __future__ import annotations
 
-import os
 import sys
 import uuid
+from pathlib import Path
 
-os.environ.setdefault("LLM_API_KEY", "demo-seed-only")
-
-_BACKEND = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+_BACKEND = str(Path(__file__).resolve().parents[1])
 if _BACKEND not in sys.path:
     sys.path.insert(0, _BACKEND)
+
+from scripts._bootstrap import prepare_script_env
+
+prepare_script_env(llm_key="demo-seed-only")
 
 DEMO_GOAL_TITLE = "【Demo】完成用户验证访谈"
 DEMO_CONV_TITLE = "【Demo】规划本周工作"

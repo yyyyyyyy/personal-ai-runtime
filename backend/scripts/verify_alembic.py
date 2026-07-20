@@ -1,62 +1,58 @@
 #!/usr/bin/env python
 """Database schema verification — required tables and FK settings.
 
-Mirrors the CI schema check in .github/workflows/ci.yml.
-Non-zero exit means the local SQLite schema is incomplete or misconfigured.
+Uses an ephemeral SQLite DB so parallel CI jobs never touch the developer's
+default ``personal_ai.db``. Table inventory is sourced from
+``app.store.table_registry.ALL_CLASSIFIED_TABLES``.
 """
 
-import os
+from __future__ import annotations
+
 import sys
 from pathlib import Path
 
-_BACKEND_ROOT = Path(__file__).resolve().parent.parent
-if str(_BACKEND_ROOT) not in sys.path:
-    sys.path.insert(0, str(_BACKEND_ROOT))
+_BACKEND = str(Path(__file__).resolve().parents[1])
+if _BACKEND not in sys.path:
+    sys.path.insert(0, _BACKEND)
 
-os.environ.setdefault("LLM_API_KEY", "test-key")
+from scripts._bootstrap import ephemeral_db_path, prepare_script_env
 
-REQUIRED_TABLES = [
-    "conversations",
-    "messages",
-    "work_items",
-    "memories",
-    "notifications",
-    "activity_log",
-    "llm_calls",
-    "tool_calls",
-    "approvals",
-    "background_tasks",
-    "user_profile",
-    "inbox_emails",
-    "app_settings",
-    "event_log",
-    "projection_checkpoints",
-    "handler_executions",
-    "timer_events",
-    "policy_events",
-    "memory_index_repairs",
-]
+prepare_script_env()
+
+from app.store.table_registry import ALL_CLASSIFIED_TABLES  # noqa: E402
+
+REQUIRED_TABLES = tuple(sorted(ALL_CLASSIFIED_TABLES))
 
 
 def main() -> int:
-    from app.store.database import db
+    from app.store.database import Database
 
-    with db.get_db() as conn:
-        tables = {
-            row["name"]
-            for row in conn.execute(
-                'SELECT name FROM sqlite_master WHERE type="table"'
-            ).fetchall()
-        }
-        missing = [name for name in REQUIRED_TABLES if name not in tables]
-        if missing:
-            print(f"FAIL: missing tables: {missing}", file=sys.stderr)
-            return 1
+    with ephemeral_db_path("verify_alembic.db", prepare=False) as db_path:
+        db = Database(db_path=str(db_path))
+        try:
+            with db.get_db() as conn:
+                tables = {
+                    row["name"]
+                    for row in conn.execute(
+                        'SELECT name FROM sqlite_master WHERE type="table"'
+                    ).fetchall()
+                }
+                missing = [name for name in REQUIRED_TABLES if name not in tables]
+                if missing:
+                    print(f"FAIL: missing tables: {missing}", file=sys.stderr)
+                    return 1
 
-        fk_on = conn.execute("PRAGMA foreign_keys").fetchone()[0]
-        if fk_on != 1:
-            print("FAIL: foreign keys are OFF", file=sys.stderr)
-            return 1
+                fk_on = conn.execute("PRAGMA foreign_keys").fetchone()[0]
+                if fk_on != 1:
+                    print("FAIL: foreign keys are OFF", file=sys.stderr)
+                    return 1
+        finally:
+            close = getattr(db, "close", None)
+            if callable(close):
+                try:
+                    close()
+                except Exception:
+                    pass
 
     print(f"OK: {len(REQUIRED_TABLES)} tables, FK=ON")
     return 0

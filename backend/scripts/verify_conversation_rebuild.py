@@ -7,18 +7,17 @@ Verifies that after Event Log rebuild:
 3. The conversation_id on each message has an event_log trace
 """
 
-import os
-import sys
+from __future__ import annotations
+
 from pathlib import Path
 
-_BACKEND_ROOT = Path(__file__).resolve().parent.parent
-if str(_BACKEND_ROOT) not in sys.path:
-    sys.path.insert(0, str(_BACKEND_ROOT))
+import sys
 
-os.environ.setdefault("LLM_API_KEY", "test-key")
+_BACKEND = str(Path(__file__).resolve().parents[1])
+if _BACKEND not in sys.path:
+    sys.path.insert(0, _BACKEND)
 
-from app.core.runtime.kernel import Kernel
-from app.store.database import Database
+from scripts._bootstrap import ephemeral_kernel
 
 SAMPLE_EVENTS = [
     ("ConversationCreated", "conversation", "conv_rebuild_1",
@@ -32,62 +31,48 @@ SAMPLE_EVENTS = [
 ]
 
 
-def main():
-    db_path = _BACKEND_ROOT / "data" / "verify_conv_rebuild.db"
-    db_path.parent.mkdir(parents=True, exist_ok=True)
-    try:
-        db_path.unlink(missing_ok=True)
-    except PermissionError:
-        pass
+def main() -> int:
+    with ephemeral_kernel("verify_conv_rebuild.db") as (db, k):
+        for evt in SAMPLE_EVENTS:
+            type_, agg_type, agg_id, payload = evt
+            k.emit_event(type_, agg_type, agg_id, payload=payload, actor="verify")  # type: ignore[arg-type]
 
-    db = Database(db_path=str(db_path))
-    k = Kernel(db=db)
+        k.rebuild_all()
 
-    for evt in SAMPLE_EVENTS:
-        type_, agg_type, agg_id, payload = evt
-        k.emit_event(type_, agg_type, agg_id, payload=payload, actor="verify")  # type: ignore[arg-type]
+        with db.get_db() as conn:
+            rows = conn.execute(
+                "SELECT id, conversation_id, source_event_id FROM messages ORDER BY id"
+            ).fetchall()
 
-    k.rebuild_all()
+            if len(rows) != 2:
+                print(f"FAIL: expected 2 messages, got {len(rows)}", file=sys.stderr)
+                return 1
 
-    with db.get_db() as conn:
-        rows = conn.execute(
-            "SELECT id, conversation_id, source_event_id FROM messages ORDER BY id"
-        ).fetchall()
+            for row in rows:
+                msg_id = row["id"]
+                source = row["source_event_id"]
+                conv_id = row["conversation_id"]
 
-        if len(rows) != 2:
-            print(f"FAIL: expected 2 messages, got {len(rows)}", file=sys.stderr)
-            sys.exit(1)
+                if not source:
+                    print(f"FAIL: message {msg_id} has empty source_event_id",
+                          file=sys.stderr)
+                    return 1
 
-        for row in rows:
-            msg_id = row["id"]
-            source = row["source_event_id"]
-            conv_id = row["conversation_id"]
+                found = conn.execute(
+                    "SELECT 1 FROM event_log WHERE id = ? LIMIT 1", (source,)
+                ).fetchone()
+                if not found:
+                    print(
+                        f"FAIL: message {msg_id} source_event_id "
+                        f"{source!r} not in event_log",
+                        file=sys.stderr,
+                    )
+                    return 1
 
-            if not source:
-                print(f"FAIL: message {msg_id} has empty source_event_id",
-                      file=sys.stderr)
-                sys.exit(1)
-
-            found = conn.execute(
-                "SELECT 1 FROM event_log WHERE id = ? LIMIT 1", (source,)
-            ).fetchone()
-            if not found:
-                print(
-                    f"FAIL: message {msg_id} source_event_id "
-                    f"{source!r} not in event_log",
-                    file=sys.stderr,
-                )
-                sys.exit(1)
-
-            if conv_id != "conv_rebuild_1":
-                print(f"FAIL: message {msg_id} unexpected conversation_id "
-                      f"{conv_id!r}", file=sys.stderr)
-                sys.exit(1)
-
-    try:
-        db_path.unlink(missing_ok=True)
-    except PermissionError:
-        pass
+                if conv_id != "conv_rebuild_1":
+                    print(f"FAIL: message {msg_id} unexpected conversation_id "
+                          f"{conv_id!r}", file=sys.stderr)
+                    return 1
 
     print("CONVERSATION REBUILD VERIFICATION PASSED — "
           "messages traceable to event_log")

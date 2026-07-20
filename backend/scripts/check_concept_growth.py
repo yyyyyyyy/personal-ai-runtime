@@ -8,9 +8,9 @@ This script is the CI enforcement of the Concept Compression Contract
 the table in docs/02-concepts/runtime-algebra.md §4.4.
 
 Usage:
-    python scripts/check_concept_growth.py            # check against baseline
-    python scripts/check_concept_growth.py --snapshot # print current values
-    python scripts/check_concept_growth.py --strict   # also fail on non-zero dead_code_files
+    python -m scripts.check_concept_growth            # check against baseline
+    python -m scripts.check_concept_growth --snapshot # print current values
+    python -m scripts.check_concept_growth --strict   # also fail on non-zero dead_code_files
 """
 from __future__ import annotations
 

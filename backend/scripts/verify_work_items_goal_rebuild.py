@@ -11,21 +11,18 @@ Exit codes:
 """
 from __future__ import annotations
 
-import os
-import sys
 from pathlib import Path
 
-_BACKEND_ROOT = Path(__file__).resolve().parent.parent
-if str(_BACKEND_ROOT) not in sys.path:
-    sys.path.insert(0, str(_BACKEND_ROOT))
+import sys
+from typing import Any
 
-os.environ.setdefault("LLM_API_KEY", "test-key")
+_BACKEND = str(Path(__file__).resolve().parents[1])
+if _BACKEND not in sys.path:
+    sys.path.insert(0, _BACKEND)
 
-from app.core.runtime.kernel import Kernel
-from app.store.database import Database
+from scripts._bootstrap import ephemeral_kernel
 
 SCENARIO: list[tuple] = [
-    # Create a parent goal
     ("WorkItemCreated", "work_item", "wg_1", {
         "title": "Run a marathon",
         "work_type": "goal",
@@ -35,12 +32,10 @@ SCENARIO: list[tuple] = [
         "urgency": 0.4,
         "deadline": "2026-12-01T00:00:00Z",
     }),
-    # Update goal fields
     ("WorkItemUpdated", "work_item", "wg_1", {
         "progress": 0.1,
         "urgency": 0.6,
     }),
-    # Children linked via parent_work_id (v1.0 unified)
     ("WorkItemCreated", "work_item", "wc_1", {
         "title": "Buy running shoes",
         "work_type": "task",
@@ -51,9 +46,7 @@ SCENARIO: list[tuple] = [
         "work_type": "task",
         "parent_work_id": "wg_1",
     }),
-    # Complete one child — projector should recompute parent progress to 0.5
     ("WorkItemStatusChanged", "work_item", "wc_1", {"status": "completed"}),
-    # Children linked via parent_goal_id (legacy pattern from /api/goals/{id}/actions)
     ("WorkItemCreated", "work_item", "wc_3", {
         "title": "Legacy action",
         "work_type": "task",
@@ -62,7 +55,7 @@ SCENARIO: list[tuple] = [
 ]
 
 
-def snapshot(db: Database, table: str) -> list[dict]:
+def snapshot(db: Any, table: str) -> list[dict]:
     with db.get_db() as conn:
         return [
             dict(r) for r in conn.execute(
@@ -73,58 +66,53 @@ def snapshot(db: Database, table: str) -> list[dict]:
 
 
 def main() -> int:
-    db_path = _BACKEND_ROOT / "data" / "verify_work_items_goal_rebuild.db"
-    db_path.parent.mkdir(parents=True, exist_ok=True)
-    try:
-        db_path.unlink(missing_ok=True)
-    except PermissionError:
-        pass
+    with ephemeral_kernel("verify_work_items_goal_rebuild.db") as (db, kernel):
+        for evt in SCENARIO:
+            evt_type, agg_type, agg_id, payload = evt
+            kernel.emit_event(evt_type, agg_type, agg_id, payload=payload, actor="verify")
 
-    db = Database(db_path=str(db_path))
-    kernel = Kernel(db=db)
+        before = snapshot(db, "work_items")
 
-    for evt in SCENARIO:
-        evt_type, agg_type, agg_id, payload = evt
-        kernel.emit_event(evt_type, agg_type, agg_id, payload=payload, actor="verify")
+        parent_before = next((r for r in before if r["id"] == "wg_1"), None)
+        if parent_before is None:
+            print("FAIL: parent goal missing", file=sys.stderr)
+            return 1
+        if parent_before["work_type"] != "goal":
+            print(f"FAIL: expected work_type=goal, got {parent_before['work_type']!r}",
+                  file=sys.stderr)
+            return 1
+        if parent_before["importance"] != 0.9:
+            print(f"FAIL: expected importance=0.9, got {parent_before['importance']!r}",
+                  file=sys.stderr)
+            return 1
+        if parent_before["deadline"] != "2026-12-01T00:00:00Z":
+            print(f"FAIL: unexpected deadline {parent_before['deadline']!r}",
+                  file=sys.stderr)
+            return 1
+        if abs(parent_before["progress"] - 1 / 3) >= 1e-6:
+            print(
+                f"FAIL: expected progress 1/3, got {parent_before['progress']}",
+                file=sys.stderr,
+            )
+            return 1
 
-    before = snapshot(db, "work_items")
+        result = kernel.rebuild("work_item")
+        print(f"  rebuild('work_item'): {result} events")
 
-    # Sanity assertions before rebuild
-    parent_before = next((r for r in before if r["id"] == "wg_1"), None)
-    assert parent_before is not None, "parent goal missing"
-    assert parent_before["work_type"] == "goal"
-    assert parent_before["importance"] == 0.9
-    assert parent_before["deadline"] == "2026-12-01T00:00:00Z"
-    # 1 of 3 children completed → progress = 1/3
-    assert abs(parent_before["progress"] - 1/3) < 1e-6, (
-        f"expected progress 1/3, got {parent_before['progress']}"
-    )
+        after = snapshot(db, "work_items")
 
-    # Rebuild
-    result = kernel.rebuild("work_item")
-    print(f"  rebuild('work_item'): {result} events")
-
-    after = snapshot(db, "work_items")
-
-    # Byte-identical assertion
-    if before != after:
-        print("WORK_ITEMS GOAL REBUILD FAILED — drift detected", file=sys.stderr)
-        for b, a in zip(before, after):
-            if b != a:
-                print(f"  row {b['id']}:", file=sys.stderr)
-                for k in set(b) | set(a):
-                    if b.get(k) != a.get(k):
-                        print(f"    {k}: before={b.get(k)!r} after={a.get(k)!r}", file=sys.stderr)
-        try:
-            db_path.unlink(missing_ok=True)
-        except PermissionError:
-            pass
-        return 1
-
-    try:
-        db_path.unlink(missing_ok=True)
-    except PermissionError:
-        pass
+        if before != after:
+            print("WORK_ITEMS GOAL REBUILD FAILED — drift detected", file=sys.stderr)
+            for b, a in zip(before, after):
+                if b != a:
+                    print(f"  row {b['id']}:", file=sys.stderr)
+                    for key in set(b) | set(a):
+                        if b.get(key) != a.get(key):
+                            print(
+                                f"    {key}: before={b.get(key)!r} after={a.get(key)!r}",
+                                file=sys.stderr,
+                            )
+            return 1
 
     print("WORK_ITEMS GOAL REBUILD PASSED — goal fields + derived progress byte-identical")
     return 0

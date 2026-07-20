@@ -15,7 +15,7 @@ SCRIPT = BACKEND / "scripts" / "check_projection_provenance.py"
 
 def run_check(*args: str) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
-        [sys.executable, str(SCRIPT), *args],
+        [sys.executable, "-m", "scripts.check_projection_provenance", *args],
         cwd=str(BACKEND),
         capture_output=True,
         text=True,

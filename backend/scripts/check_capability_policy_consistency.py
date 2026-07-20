@@ -24,18 +24,25 @@ Exit code 0 = consistent; 1 = drift detected.
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import argparse
 import json
 import os
 import sys
-from pathlib import Path
 
-REPO_ROOT = Path(__file__).resolve().parent.parent.parent
-BACKEND_DIR = REPO_ROOT / "backend"
-POLICY_PATH = BACKEND_DIR / "capability_policy.json"
+_BACKEND = str(Path(__file__).resolve().parents[1])
+if _BACKEND not in sys.path:
+    sys.path.insert(0, _BACKEND)
+
+from scripts._bootstrap import BACKEND_ROOT, prepare_script_env
+
+prepare_script_env(llm_key="check-only")
+
+POLICY_PATH = BACKEND_ROOT / "capability_policy.json"
 
 
-def _load_policy(path: Path) -> dict:
+def _load_policy(path) -> dict:
     data = json.loads(path.read_text(encoding="utf-8"))
     return {
         "auto_allow": set(data.get("auto_allow", [])),
@@ -47,10 +54,7 @@ def _load_policy(path: Path) -> dict:
 def _build_hub_with_all_categories():
     """Build an MCPHub with core + advanced categories so every tool registers."""
     os.environ.setdefault("MCP_EXTERNAL_ENABLED", "false")
-    os.environ.setdefault("LLM_API_KEY", "check-only")
-    # Ensure backend is importable.
-    sys.path.insert(0, str(BACKEND_DIR))
-    from app.core.harness.mcp_hub import MCPHub  # noqa: E402
+    from app.core.harness.mcp_hub import MCPHub
 
     all_categories = MCPHub.CORE_CATEGORIES | MCPHub.ADVANCED_CATEGORIES
     return MCPHub(enabled_categories=set(all_categories))
@@ -69,7 +73,6 @@ def check(quiet: bool = False) -> list[str]:
         in_forbidden = name in policy["forbidden"]
         in_auto_allow = name in policy["auto_allow"]
 
-        # Rule 1: requires_confirmation=True must be backed by needs_user/forbidden.
         if wants_confirmation and not (in_needs_user or in_forbidden):
             drifts.append(
                 f"{name}: requires_confirmation=True but not in "
@@ -77,7 +80,6 @@ def check(quiet: bool = False) -> list[str]:
                 f"(add to needs_user, or set requires_confirmation=False)"
             )
 
-        # Rule 2: auto_allow tools must not demand confirmation.
         if in_auto_allow and wants_confirmation:
             drifts.append(
                 f"{name}: in capability_policy.json auto_allow but "
@@ -85,7 +87,6 @@ def check(quiet: bool = False) -> list[str]:
                 f"(auto_allow means no approval — drop requires_confirmation)"
             )
 
-        # Rule 3: a tool missing from ALL policy lists is unclassified.
         if not (in_needs_user or in_forbidden or in_auto_allow):
             drifts.append(
                 f"{name}: not classified in capability_policy.json "

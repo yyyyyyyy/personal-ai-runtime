@@ -6,15 +6,17 @@ from __future__ import annotations
 import argparse
 import importlib
 import os
-import shutil
 import sys
+import tempfile
 from pathlib import Path
 
-_BACKEND_ROOT = Path(__file__).resolve().parent.parent
-if str(_BACKEND_ROOT) not in sys.path:
-    sys.path.insert(0, str(_BACKEND_ROOT))
+_BACKEND = str(Path(__file__).resolve().parents[1])
+if _BACKEND not in sys.path:
+    sys.path.insert(0, _BACKEND)
 
-os.environ.setdefault("LLM_API_KEY", "test-key")
+from scripts._bootstrap import prepare_script_env
+
+prepare_script_env()
 
 
 def sqlite_memory_ids(db_path: str) -> set[str]:
@@ -85,35 +87,42 @@ def _reload_app_paths() -> None:
 
 def run_self_test() -> list[str]:
     """Create isolated DB + vector dir, emit memories, expect consistency."""
-    base = _BACKEND_ROOT / "data" / "verify_vector_consistency"
-    db_path = base / "test.db"
-    vector_dir = base / "vectors"
+    with tempfile.TemporaryDirectory(
+        prefix="verify_vector_consistency_",
+        ignore_cleanup_errors=True,
+    ) as tmp:
+        base = Path(tmp)
+        db_path = base / "test.db"
+        vector_dir = base / "vectors"
+        vector_dir.mkdir(parents=True, exist_ok=True)
 
-    if base.exists():
-        shutil.rmtree(base, ignore_errors=True)
-    base.mkdir(parents=True, exist_ok=True)
+        os.environ["DATA_DIR"] = str(base)
+        os.environ["VECTOR_DIR"] = str(vector_dir)
+        _reload_app_paths()
 
-    os.environ["DATA_DIR"] = str(base)
-    os.environ["VECTOR_DIR"] = str(vector_dir)
-    _reload_app_paths()
+        from app.core.runtime.kernel import Kernel
+        from app.store.database import Database
+        from app.store.vector import vector_store
 
-    from app.core.runtime.kernel import Kernel
-    from app.store.database import Database
-    from app.store.vector import vector_store
-
-    db = Database(db_path=str(db_path))
-    kernel = Kernel(db=db, memory_index=vector_store)
-
-    for mid, content in (("m1", "alpha memory"), ("m2", "beta memory")):
-        kernel.emit_event(
-            "MemoryDerived",
-            "memory",
-            mid,
-            payload={"content": content, "category": "general", "source": "verify"},
-            actor="verify",
-        )
-
-    return reconcile(str(db_path), str(vector_dir))
+        db = Database(db_path=str(db_path))
+        try:
+            kernel = Kernel(db=db, memory_index=vector_store)
+            for mid, content in (("m1", "alpha memory"), ("m2", "beta memory")):
+                kernel.emit_event(
+                    "MemoryDerived",
+                    "memory",
+                    mid,
+                    payload={"content": content, "category": "general", "source": "verify"},
+                    actor="verify",
+                )
+            return reconcile(str(db_path), str(vector_dir))
+        finally:
+            close = getattr(db, "close", None)
+            if callable(close):
+                try:
+                    close()
+                except Exception:
+                    pass
 
 
 def main() -> int:

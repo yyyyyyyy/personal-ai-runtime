@@ -85,7 +85,7 @@ CI 报告用 `--cov-report=term-missing` 让缺失部分可见，开发者按需
 
 ## 层 2：架构不变量脚本
 
-独立脚本位于 [`backend/scripts/`](../../backend/scripts/)，每个验证一个不变量。它们通过 Makefile 的 `backend-ci-core` 单一入口同时接入 `make ci-local` 与 GitHub Actions，清单由 `BACKEND_CI_TARGETS` 统一维护。
+独立脚本位于 [`backend/scripts/`](../../backend/scripts/)，每个验证一个不变量。它们通过 Makefile 的 `backend-ci-core` 单一入口同时接入 `make ci-local` 与 GitHub Actions：先并行跑 `backend-ci-static`，再并行跑 `backend-ci-runtime`；清单由 `BACKEND_CI_STATIC` / `BACKEND_CI_RUNTIME` 维护。调用约定为 `python -m scripts.<name>`（从 `backend/` 目录）。
 
 ### 边界 / 归属 / 溯源
 
@@ -99,10 +99,10 @@ CI 报告用 `--cov-report=term-missing` 让缺失部分可见，开发者按需
 
 | 脚本 | 验证 |
 |---|---|
-| [`verify_rebuild.py`](../../backend/scripts/verify_rebuild.py) | 旗舰：发大型 `SAMPLE_SCENARIO`（goals/approvals/memories/tasks/actions/conversation+message/notification/policy/grant/timer），快照 11 张投影表，`rebuild_all()`，再快照，字节比对 |
-| [`verify_snapshot_rebuild.py`](../../backend/scripts/verify_snapshot_rebuild.py) | 增量重建：`save_projection_snapshot("goal")` 后发 2 个事件，`rebuild("goal")`，验证只重放 2 个事件；再发 `GoalUpdated` 后 export，验证 checkpoint 的 `last_applied_seq` 严格前进 |
+| [`verify_rebuild.py`](../../backend/scripts/verify_rebuild.py) | 旗舰：发大型 `SAMPLE_SCENARIO`（work_items/approvals/memories/conversation+message/notification/policy/timer），快照 8 张投影表，`rebuild_all()`，再快照，字节比对 |
+| [`verify_snapshot_rebuild.py`](../../backend/scripts/verify_snapshot_rebuild.py) | 增量重建：`save_projection_snapshot("work_item")` 后发 2 个事件，`rebuild("work_item")`，验证只重放 2 个事件；再发 `WorkItemUpdated` 后保存 checkpoint，验证 `last_applied_seq` 严格前进 |
 | [`verify_conversation_rebuild.py`](../../backend/scripts/verify_conversation_rebuild.py) | 发 ConversationCreated + 2 MessageAppended，rebuild，验证 2 条消息且 `source_event_id` 可溯源 |
-| [`verify_goal_rebuild.py`](../../backend/scripts/verify_goal_rebuild.py) | 父子目标 + GoalUpdated，验证 `parent_id`/`progress` 重建后保留 |
+| [`verify_goal_rebuild.py`](../../backend/scripts/verify_goal_rebuild.py) | 父子目标（`work_type='goal'`）+ WorkItemUpdated，验证 `parent_goal_id`/`progress` 重建后保留 |
 | [`verify_work_items_goal_rebuild.py`](../../backend/scripts/verify_work_items_goal_rebuild.py) | work_items 中 goal 字段、子任务派生进度在重建后字节一致 |
 | [`verify_memory_lifecycle.py`](../../backend/scripts/verify_memory_lifecycle.py) | MemoryDerived → Updated(0.7→0.9) → rebuild → 验证 0.9 保留 → Deleted → 验证消失 |
 
@@ -110,15 +110,16 @@ CI 报告用 `--cov-report=term-missing` 让缺失部分可见，开发者按需
 
 | 脚本 | 验证 |
 |---|---|
-| [`verify_export_roundtrip.py`](../../backend/scripts/verify_export_roundtrip.py) | 源 DB 播种 goal+memory+2 消息会话+notification，`export_all()`，新 DB `import_all(read_only=False)`，验证 event_log/conversations/messages/goals/memories/notifications 计数一致 + 内容可还原 |
+| [`verify_export_roundtrip.py`](../../backend/scripts/verify_export_roundtrip.py) | 源 DB 播种 goal+memory+2 消息会话+notification，`snapshot()` → 新 DB `restore(read_only=False)`，验证 event_log/conversations/messages/memories/notifications 计数一致 + work_items 内容可还原 |
 
 ### 审计链
 
 | 脚本 | 验证 |
 |---|---|
 | [`verify_egress.py`](../../backend/scripts/verify_egress.py) | 装 Kernel 单例，调 `audit_llm_egress` 含 identity 关键词 payload，验证分类为 `identity_surface`、`identity_surface_detected`、消息原样返回、`EgressAudited` 事件已发；benign payload 分类为 `general` |
-| [`verify_inbox_audit.py`](../../backend/scripts/verify_inbox_audit.py) | 发 `InboxEmailRecorded`（`caused_by="evt_trigger_001"`），验证事件在 event_log 且 `caused_by` 链保留 |
+| [`verify_inbox_audit.py`](../../backend/scripts/verify_inbox_audit.py) | 发 `InboxEmailRecorded`（`caused_by="evt_trigger_001"`），验证 `caused_by` 链保留；再验证 inbox_emails ↔ 事件 1:1 及漂移可检测 |
 | [`verify_connector.py`](../../backend/scripts/verify_connector.py) | 写最小 `.ics`，swap CalendarServer 单例，调 `capture_calendar_observations`，验证 `ObservationRecorded` 事件存在且 actor 以 `connector:` 开头 |
+| [`verify_tool_calls_audit.py`](../../backend/scripts/verify_tool_calls_audit.py) | 自测：发 CapabilityInvoked/Failed/Denied，验证 `tool_calls` ↔ Capability* 事件 1:1；可选 `--db` 对账真实库 |
 
 ### 一致性
 
@@ -126,7 +127,7 @@ CI 报告用 `--cov-report=term-missing` 让缺失部分可见，开发者按需
 |---|---|
 | [`verify_vector_consistency.py`](../../backend/scripts/verify_vector_consistency.py) | 自测：发 2 个 MemoryDerived，比对 SQLite `memories` id 集合 vs Chroma `memories` collection；可选 `--db`/`--vector-dir`/`--check-default` 对账真实数据目录 |
 | [`verify_memory_index_repairs.py`](../../backend/scripts/verify_memory_index_repairs.py) | 强制索引失败，验证 durable repair queue 落盘且重试未过早进入永久失败 |
-| [`verify_alembic.py`](../../backend/scripts/verify_alembic.py) | 开 db 单例，查 `sqlite_master`，验证 19 张 `REQUIRED_TABLES` 存在 + `PRAGMA foreign_keys=1` |
+| [`verify_alembic.py`](../../backend/scripts/verify_alembic.py) | 在 ephemeral DB 上查 `sqlite_master`，验证 `table_registry.ALL_CLASSIFIED_TABLES`（当前 19 张）存在 + `PRAGMA foreign_keys=1` |
 
 ### 演示
 

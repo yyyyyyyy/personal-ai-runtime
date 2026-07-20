@@ -31,7 +31,7 @@ jobs:
 
       - name: Verify dependency metadata is synchronized
         working-directory: backend
-        run: python scripts/check_dependency_sync.py
+        run: python -m scripts.check_dependency_sync
 
       - name: Install locked dependencies
         run: |
@@ -60,7 +60,7 @@ jobs:
 
       - name: Verify dependency metadata
         working-directory: backend
-        run: python scripts/check_dependency_sync.py
+        run: python -m scripts.check_dependency_sync
 
       - name: Install locked dependencies
         working-directory: backend
@@ -152,7 +152,7 @@ jobs:
       - name: Install backend deps
         working-directory: backend
         run: |
-          python scripts/check_dependency_sync.py
+          python -m scripts.check_dependency_sync
           python -m pip install --require-hashes -r requirements.lock
 
       - name: Install frontend deps

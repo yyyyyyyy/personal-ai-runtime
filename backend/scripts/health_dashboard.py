@@ -4,8 +4,8 @@ Reads the architecture history file (append-only JSONL) and generates a
 markdown report showing current values, 7-day trends, and all-time deltas.
 
 Usage:
-    python scripts/health_dashboard.py              # print report to stdout
-    python scripts/health_dashboard.py --write      # write to data/architecture_report.md
+    python -m scripts.health_dashboard              # print report to stdout
+    python -m scripts.health_dashboard --write      # write to data/architecture_report.md
 """
 
 from __future__ import annotations

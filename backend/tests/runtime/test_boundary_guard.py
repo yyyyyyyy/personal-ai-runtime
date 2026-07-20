@@ -10,7 +10,7 @@ SCRIPT = BACKEND / "scripts" / "check_boundary.py"
 
 def run_check(*args: str) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
-        [sys.executable, str(SCRIPT), *args],
+        [sys.executable, "-m", "scripts.check_boundary", *args],
         cwd=str(BACKEND),
         capture_output=True,
         text=True,

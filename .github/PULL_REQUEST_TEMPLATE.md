@@ -46,7 +46,7 @@
 | God Object 最大 LOC | | | |
 | Dead Code 文件数 | | | |
 
-> 运行 `python backend/scripts/check_concept_growth.py --snapshot` 获取当前基线。
+> 运行 `cd backend && python -m scripts.check_concept_growth --snapshot` 获取当前基线。
 
 ---
 

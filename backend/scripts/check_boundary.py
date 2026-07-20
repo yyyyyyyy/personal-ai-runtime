@@ -19,22 +19,18 @@ import sys
 from pathlib import Path
 from typing import TextIO
 
-PROJECTION_TABLES = (
-    "work_items",  # v1.0: unified tasks + actions + goals
-    "approvals",
-    "memories",
-    "messages",
-    "conversations",
-    "notifications",
-    "event_log",
-    "timer_events",
-    "policy_events",
-    "inbox_emails",  # governed (projectors_inbox.py)
-    "llm_calls",  # governed telemetry
-    "tool_calls",
-    "handler_executions",
-    "projection_checkpoints",
-)
+_BACKEND = str(Path(__file__).resolve().parents[1])
+if _BACKEND not in sys.path:
+    sys.path.insert(0, _BACKEND)
+
+from scripts._bootstrap import prepare_script_env
+
+prepare_script_env()
+
+from app.store.table_registry import GOVERNED_TABLES  # noqa: E402
+
+# Authoritative governed projection inventory (sorted for stable regex).
+PROJECTION_TABLES = tuple(sorted(GOVERNED_TABLES))
 
 # Kernel files allowed to perform GOVERNED DML outside projectors_*.py
 # (event_log append, sovereignty rebuild/erase, projector-adjacent sync).
