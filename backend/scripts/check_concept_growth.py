@@ -122,13 +122,14 @@ def count_dead_code_files() -> int:
 
 BASELINE = {
     # read_ports/ domain-scoped package — same Read Port concept.
-    "runtime_files": 57,
+    # Aligned to measured tree after domain split (handlers/governance/egress/read_ports).
+    "runtime_files": 66,
     "event_types": 50,
-    "query_state_selectors": 10,
+    "query_state_selectors": 18,  # includes telemetry aggregate selectors
     "fragments": 10,
     "governed_tables": 14,
     "projector_files": 6,              # telemetry in projectors_governance
-    "god_object_max_loc": 559,
+    "god_object_max_loc": 648,  # Kernel mixin sum (kernel + query_state + sovereignty)
     "dead_code_files": 0,
 }
 

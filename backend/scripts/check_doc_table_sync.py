@@ -11,21 +11,14 @@ Exit codes:
 """
 from __future__ import annotations
 
-from pathlib import Path
-
 import re
 import sys
-
-_BACKEND = str(Path(__file__).resolve().parents[1])
-if _BACKEND not in sys.path:
-    sys.path.insert(0, _BACKEND)
 
 from scripts._bootstrap import BACKEND_ROOT, prepare_script_env
 
 prepare_script_env()
 
 _ROOT = BACKEND_ROOT.parent
-_BACKEND = BACKEND_ROOT
 
 
 def registry_tables() -> tuple[set[str], set[str]]:
