@@ -4,7 +4,7 @@
       "name": "playwright",
       "type": "stdio",
       "enabled": true,
-      "startup_connect": true,
+      "startup_connect": false,
       "command": "npx",
       "args": ["-y", "@playwright/mcp@0.0.78", "--headless"],
       "connect_timeout_seconds": 60,

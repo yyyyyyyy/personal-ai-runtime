@@ -43,28 +43,88 @@ def _get_connector_status(config: ExternalMCPServerConfig) -> dict:
     }
 
 
-def _get_connector_description(name: str) -> str:
-    """Get human-readable description for known connectors."""
-    descriptions = {
-        "brave": "网页搜索 (Brave Search)",
-        "github": "GitHub 代码仓库集成",
-        "notion": "Notion 文档和知识库",
-        "calendar": "日历事件管理",
-        "mail": "邮件收发管理",
-        "tavily": "AI 搜索引擎 (Tavily)",
-        "context7": "文档上下文增强 (Context7)",
-    }
-    return descriptions.get(name, f"外部连接器: {name}")
+_BUILTIN_DESCRIPTIONS = {
+    "mail": "邮件收发管理",
+    "calendar": "日历事件管理",
+}
+
+# (mtime, parsed entries) — invalidate when mcp_registry.json changes on disk.
+_registry_cache: tuple[float, list[dict]] | None = None
 
 
 def _load_registry() -> list[dict]:
+    global _registry_cache
     if not _REGISTRY_PATH.exists():
+        _registry_cache = None
         return []
     try:
-        return _json.loads(_REGISTRY_PATH.read_text(encoding="utf-8"))
+        mtime = _REGISTRY_PATH.stat().st_mtime
+        cached = _registry_cache
+        if cached is not None and cached[0] == mtime:
+            return cached[1]
+        data = _json.loads(_REGISTRY_PATH.read_text(encoding="utf-8"))
+        if not isinstance(data, list):
+            logger.warning("mcp_registry.json must be a list at %s", _REGISTRY_PATH)
+            return []
+        _registry_cache = (mtime, data)
+        return data
     except Exception:
         logger.warning("Failed to load connector registry from %s", _REGISTRY_PATH, exc_info=True)
         return []
+
+
+def _registry_entry(name: str) -> dict | None:
+    for server in _load_registry():
+        if isinstance(server, dict) and server.get("name") == name:
+            return server
+    return None
+
+
+def _get_connector_description(name: str) -> str:
+    """Prefer marketplace description from mcp_registry.json."""
+    entry = _registry_entry(name)
+    if entry:
+        description = entry.get("description")
+        if isinstance(description, str) and description.strip():
+            return description.strip()
+    return _BUILTIN_DESCRIPTIONS.get(name, f"外部连接器: {name}")
+
+
+def _runtime_entry_from_registry(entry: dict) -> dict:
+    """Build an mcp_config external_servers item from registry metadata.
+
+    ``env_vars`` values are UI hints only — never copied into runtime ``env``.
+    """
+    optional_env = entry.get("optional_env")
+    if not isinstance(optional_env, list):
+        optional_env = []
+
+    required_env = entry.get("required_env")
+    if not isinstance(required_env, list):
+        env_vars = entry.get("env_vars") or {}
+        keys = list(env_vars.keys()) if isinstance(env_vars, dict) else []
+        optional_set = set(optional_env)
+        required_env = [key for key in keys if key not in optional_set]
+
+    new_entry: dict = {
+        "name": entry["name"],
+        "type": "stdio",
+        "enabled": True,
+        "command": entry["install_command"],
+        "args": list(entry.get("install_args") or []),
+        "policy_default": entry.get("policy_default") or "auto_allow",
+        "startup_connect": bool(entry.get("startup_connect", True)),
+        "required_env": required_env,
+        "optional_env": optional_env,
+        "enabled_tools": list(entry.get("enabled_tools") or []),
+        "needs_user_tools": list(entry.get("needs_user_tools") or []),
+        "ingestion_tools": list(entry.get("ingestion_tools") or []),
+        "description": entry.get("description") or "",
+    }
+    timeout = entry.get("connect_timeout_seconds")
+    if isinstance(timeout, (int, float)) and timeout > 0:
+        new_entry["connect_timeout_seconds"] = timeout
+    return new_entry
 
 
 def _get_builtin_tools(name: str) -> list[dict]:
@@ -171,13 +231,7 @@ async def install_new_connector(body: InstallConnectorRequest):
     external = existing.get("external_servers", [])
     if any(s.get("name") == server_name for s in external):
         return {"ok": False, "message": f"'{server_name}' is already installed"}
-    new_entry = {
-        "name": server_name, "type": "stdio",
-        "command": entry["install_command"], "args": entry.get("install_args", []),
-        "env": entry.get("env_vars", {}), "enabled_tools": entry.get("enabled_tools", ["*"]),
-        "policy_default": "auto_allow", "startup_connect": True,
-        "description": entry.get("description", ""),
-    }
+    new_entry = _runtime_entry_from_registry(entry)
     external.append(new_entry)
     existing["external_servers"] = external
     MCP_CONFIG_PATH.write_text(_json.dumps(existing, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")

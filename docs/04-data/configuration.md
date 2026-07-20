@@ -172,7 +172,7 @@ LLM provider 增删后调 `llm_router.reload()` 重建。
 
 ### `backend/mcp_registry.json`
 
-用户面向 UI 目录（marketplace 元数据），镜像同样 6 个服务器，附中文描述、类别、安装命令、中文环境变量提示、图标名。
+用户面向 UI 目录（marketplace 元数据），镜像同样 6 个服务器；`install_args` 与 `mcp_config.json` 保持同 pin，并携带安装时复制到 config 的运行时字段。`env_vars` 仅为中文环境变量提示（不写入运行时 env）。
 
 ## Prompt 文件
 
@@ -196,6 +196,8 @@ agent 在本代码库工作时注入的短 prompt 片段。固定项目根、要
 - `AUTH_TOKEN=${AUTH_TOKEN:-}`（生产必需，注释明确警告）
 - 命名卷 `backend-data` 挂到 `/app/backend/data`
 - `working_dir: /app/backend`
+
+Backend 镜像（[`backend/Dockerfile`](../../backend/Dockerfile)）为多阶段构建：venv 安装 `requirements.lock` 后卸载 pytest/ruff/mypy 及其主要传递依赖；运行阶段含 `nodejs`/`npm`，以便 stdio MCP 通过 `npx` 启动。Playwright 仍需浏览器二进制与系统库（镜像未预装），故 `playwright` 默认 `startup_connect: false`，避免容器启动时强连失败。
 
 frontend service 设 `VITE_API_HOST=backend`、`VITE_API_PORT=8000`。
 

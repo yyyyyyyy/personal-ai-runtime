@@ -1,56 +1,129 @@
 [
   {
     "name": "playwright",
-    "description": "Browser automation - navigate pages, take screenshots, click elements",
+    "description": "浏览器自动化 — 导航页面、截图、点击元素",
     "category": "browser",
     "install_command": "npx",
-    "install_args": ["-y", "@playwright/mcp@latest", "--headless"],
+    "install_args": ["-y", "@playwright/mcp@0.0.78", "--headless"],
     "env_vars": {},
-    "icon": "globe"
+    "icon": "globe",
+    "startup_connect": false,
+    "connect_timeout_seconds": 60,
+    "policy_default": "auto_allow",
+    "enabled_tools": [
+      "browser_navigate",
+      "browser_snapshot",
+      "browser_take_screenshot",
+      "browser_click",
+      "browser_type",
+      "browser_tabs",
+      "browser_close"
+    ],
+    "needs_user_tools": ["browser_click", "browser_type"],
+    "ingestion_tools": [
+      "browser_navigate",
+      "browser_snapshot",
+      "browser_take_screenshot",
+      "browser_tabs"
+    ]
   },
   {
     "name": "brave",
-    "description": "Brave web search API - search the web for real-time information",
+    "description": "Brave 网页搜索 — 实时检索公开网页信息",
     "category": "search",
     "install_command": "npx",
     "install_args": ["-y", "@brave/brave-search-mcp-server"],
     "env_vars": {"BRAVE_API_KEY": "从 https://brave.com/search/api/ 获取"},
-    "icon": "search"
+    "required_env": ["BRAVE_API_KEY"],
+    "icon": "search",
+    "startup_connect": false,
+    "policy_default": "auto_allow",
+    "enabled_tools": ["brave_web_search"],
+    "ingestion_tools": ["brave_web_search"]
   },
   {
     "name": "context7",
-    "description": "Developer documentation search - query libraries and frameworks docs",
+    "description": "开发文档检索 — 查询库与框架文档",
     "category": "developer",
     "install_command": "npx",
     "install_args": ["-y", "@upstash/context7-mcp"],
-    "env_vars": {},
-    "icon": "book"
+    "env_vars": {"CONTEXT7_API_KEY": "可选；有则提升限额"},
+    "optional_env": ["CONTEXT7_API_KEY"],
+    "icon": "book",
+    "startup_connect": true,
+    "connect_timeout_seconds": 30,
+    "policy_default": "auto_allow",
+    "ingestion_tools": ["resolve-library-id", "query-docs"]
   },
   {
     "name": "github",
-    "description": "GitHub API - manage repos, issues, PRs from AI",
+    "description": "GitHub 集成 — 仓库、Issue、PR 查询",
     "category": "developer",
     "install_command": "npx",
     "install_args": ["-y", "@modelcontextprotocol/server-github"],
     "env_vars": {"GITHUB_PERSONAL_ACCESS_TOKEN": "GitHub 个人访问令牌"},
-    "icon": "github"
+    "required_env": ["GITHUB_PERSONAL_ACCESS_TOKEN"],
+    "icon": "github",
+    "startup_connect": false,
+    "policy_default": "auto_allow",
+    "enabled_tools": [
+      "search_repositories",
+      "search_code",
+      "search_issues",
+      "get_pull_request",
+      "get_file_contents",
+      "list_pull_requests",
+      "get_pull_request_files",
+      "get_pull_request_status"
+    ],
+    "ingestion_tools": [
+      "search_repositories",
+      "search_code",
+      "search_issues",
+      "get_file_contents",
+      "get_pull_request",
+      "list_pull_requests",
+      "get_pull_request_files",
+      "get_pull_request_status"
+    ]
   },
   {
     "name": "tavily",
-    "description": "Tavily AI search - deep web search and content extraction",
+    "description": "Tavily AI 搜索 — 深度网页检索与内容提取",
     "category": "search",
     "install_command": "npx",
-    "install_args": ["-y", "tavily-mcp@latest"],
+    "install_args": ["-y", "tavily-mcp@0.2.21"],
     "env_vars": {"TAVILY_API_KEY": "从 https://tavily.com 获取"},
-    "icon": "search"
+    "optional_env": ["TAVILY_API_KEY"],
+    "icon": "search",
+    "startup_connect": true,
+    "connect_timeout_seconds": 30,
+    "policy_default": "auto_allow",
+    "enabled_tools": ["tavily_search", "tavily_extract"],
+    "ingestion_tools": ["tavily_search", "tavily_extract"]
   },
   {
     "name": "notion",
-    "description": "Notion integration - search and retrieve Notion pages",
+    "description": "Notion 集成 — 搜索与读取 Notion 页面",
     "category": "productivity",
     "install_command": "npx",
     "install_args": ["-y", "@notionhq/notion-mcp-server"],
     "env_vars": {"NOTION_TOKEN": "Notion 集成令牌"},
-    "icon": "file-text"
+    "required_env": ["NOTION_TOKEN"],
+    "icon": "file-text",
+    "startup_connect": false,
+    "policy_default": "auto_allow",
+    "enabled_tools": [
+      "API-post-search",
+      "API-retrieve-a-page",
+      "API-get-block-children",
+      "API-query-data-source"
+    ],
+    "ingestion_tools": [
+      "API-post-search",
+      "API-retrieve-a-page",
+      "API-get-block-children",
+      "API-query-data-source"
+    ]
   }
 ]
