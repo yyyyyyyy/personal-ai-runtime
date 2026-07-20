@@ -5,40 +5,40 @@ up fixtures (mirroring the production write path).
 """
 
 import json
-import os
 from unittest.mock import AsyncMock, patch
 
 import pytest
 
-os.environ.setdefault("LLM_API_KEY", "test-key")
-
-from app.core.runtime.kernel import Kernel, constants
+from app.core.runtime.kernel import constants
 from app.product.inbox import apply_inbox_poll_payload, generate_inbox_digest, poll_inbox
-from app.store.database import Database
 
 
-@pytest.fixture
-def inbox_db(tmp_path, monkeypatch):
-    db = Database(db_path=str(tmp_path / "inbox.db"))
-    k = Kernel(db=db)
-    monkeypatch.setattr("app.product.inbox.kernel", k)
-    monkeypatch.setattr("app.core.runtime.kernel_instance.kernel", k)
-    monkeypatch.setattr("app.store.database.db", db)
-    return db, k
-
-
-def _seed_inbox_email(kernel, *, email_id, sender="x@y.z", subject="t",
-                     preview="", received_at="", category="actionable",
-                     importance=0.5, reason="", status="pending"):
+def _seed_inbox_email(
+    kernel,
+    *,
+    email_id,
+    sender="x@y.z",
+    subject="t",
+    preview="",
+    received_at="",
+    category="actionable",
+    importance=0.5,
+    reason="",
+    status="pending",
+):
     """Helper: emit an InboxEmailRecorded (+ optional status change) event."""
     kernel.emit_event(
         constants.EVENT_INBOX_EMAIL_RECORDED,
         constants.AGGREGATE_INBOX_EMAIL,
         email_id,
         payload={
-            "sender": sender, "subject": subject, "preview": preview,
-            "received_at": received_at, "category": category,
-            "importance": importance, "reason": reason,
+            "sender": sender,
+            "subject": subject,
+            "preview": preview,
+            "received_at": received_at,
+            "category": category,
+            "importance": importance,
+            "reason": reason,
         },
         actor="test",
     )
@@ -53,8 +53,8 @@ def _seed_inbox_email(kernel, *, email_id, sender="x@y.z", subject="t",
 
 
 @pytest.mark.asyncio
-async def test_poll_inbox_syncs_read_status(inbox_db):
-    db, k = inbox_db
+async def test_poll_inbox_syncs_read_status(product_kernel):
+    k = product_kernel
     _seed_inbox_email(k, email_id="msg-read", subject="Read mail",
                       received_at="2026-06-10T00:00:00Z")
     _seed_inbox_email(k, email_id="msg-unread", sender="a@b.com",
@@ -90,9 +90,9 @@ async def test_poll_inbox_syncs_read_status(inbox_db):
 
 
 @pytest.mark.asyncio
-async def test_poll_does_not_mark_read_when_unread_beyond_email_limit(inbox_db):
+async def test_poll_does_not_mark_read_when_unread_beyond_email_limit(product_kernel):
     """Pending mail still UNSEEN on IMAP must not be marked read when absent from truncated emails list."""
-    db, k = inbox_db
+    k = product_kernel
     _seed_inbox_email(k, email_id="msg-old-unread", sender="old@b.com",
                       subject="Older unread", received_at="2026-06-18T00:00:00Z")
 
@@ -120,8 +120,8 @@ async def test_poll_does_not_mark_read_when_unread_beyond_email_limit(inbox_db):
 
 
 @pytest.mark.asyncio
-async def test_poll_marks_read_when_absent_from_full_unread_set(inbox_db):
-    db, k = inbox_db
+async def test_poll_marks_read_when_absent_from_full_unread_set(product_kernel):
+    k = product_kernel
     _seed_inbox_email(k, email_id="msg-read-elsewhere", subject="Read mail",
                       received_at="2026-06-18T00:00:00Z")
 
@@ -141,17 +141,17 @@ async def test_poll_marks_read_when_absent_from_full_unread_set(inbox_db):
 
 
 @pytest.mark.asyncio
-async def test_poll_inbox_dedupes_and_notifies_important(inbox_db):
-    db, k = inbox_db
+async def test_poll_inbox_dedupes_and_notifies_important(product_kernel):
+    k = product_kernel
     sample = {
-      "count": 2,
-      "emails": [
-          {"message_id": "msg-1", "from": "boss@corp.com", "subject": "Urgent",
-           "preview": "Please review", "date": "2026-06-10"},
-          {"message_id": "msg-2", "from": "news@shop.com", "subject": "Sale",
-           "preview": "50% off", "date": "2026-06-10"},
-      ],
-  }
+        "count": 2,
+        "emails": [
+            {"message_id": "msg-1", "from": "boss@corp.com", "subject": "Urgent",
+             "preview": "Please review", "date": "2026-06-10"},
+            {"message_id": "msg-2", "from": "news@shop.com", "subject": "Sale",
+             "preview": "50% off", "date": "2026-06-10"},
+        ],
+    }
 
     async def fake_invoke(name, args=None, actor="system", **kwargs):
         assert name == "check_inbox"
@@ -175,12 +175,8 @@ async def test_poll_inbox_dedupes_and_notifies_important(inbox_db):
 
     rows = k.query_state("inbox_emails", limit=10)
     assert len(rows) == 2
+    assert len(k.read_events(type="InboxEmailRecorded")) == 2
 
-    # C1: verify InboxEmailRecorded events in event_log
-    events = k.read_events(type="InboxEmailRecorded")
-    assert len(events) == 2
-
-    # Second poll should skip duplicates
     with patch("app.product.inbox.kernel.invoke_capability", side_effect=fake_invoke):
         with patch("app.product.inbox.kernel._handler_execution_exists", return_value=True):
             with patch("app.product.inbox._classify_emails", new=AsyncMock(return_value=classified)):
@@ -189,8 +185,8 @@ async def test_poll_inbox_dedupes_and_notifies_important(inbox_db):
 
 
 @pytest.mark.asyncio
-async def test_mark_inbox_email_status_syncs_unread_to_imap(inbox_db):
-    db, k = inbox_db
+async def test_mark_inbox_email_status_syncs_unread_to_imap(product_kernel):
+    k = product_kernel
     _seed_inbox_email(k, email_id="msg-sync-unread", status="read")
 
     async def fake_invoke(name, args=None, actor="user", **kwargs):
@@ -207,21 +203,26 @@ async def test_mark_inbox_email_status_syncs_unread_to_imap(inbox_db):
     assert rows[0]["status"] == "pending"
 
 
-def test_digest_idempotent(inbox_db, monkeypatch):
-    db, k = inbox_db
+def test_digest_idempotent(product_kernel):
+    k = product_kernel
 
-    monkeypatch.setattr("app.core.runtime.kernel_instance.kernel", k)
-    monkeypatch.setattr("app.product.notifications.default_kernel", k)
-
-    _seed_inbox_email(k, email_id="m1", sender="a@b.com", subject="Test",
-                      preview="preview", received_at="2026-07-05T00:00:00Z",
-                      category="actionable", importance=0.5, reason="test")
+    _seed_inbox_email(
+        k,
+        email_id="m1",
+        sender="a@b.com",
+        subject="Test",
+        preview="preview",
+        received_at="2026-07-05T00:00:00Z",
+        category="actionable",
+        importance=0.5,
+        reason="test",
+    )
 
     from app.product.notifications import create_notification
 
     with patch(
         "app.core.runtime.notification_bridge.push_notification",
-        side_effect=lambda t, title, content: create_notification(t, title, content),
+        side_effect=lambda t, title, content: create_notification(t, title, content, kernel=k),
     ) as push:
         first = generate_inbox_digest()
         second = generate_inbox_digest()

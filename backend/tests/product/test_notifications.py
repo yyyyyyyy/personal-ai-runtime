@@ -1,27 +1,11 @@
 """Tests for notification related-id handling and event-sourced writes."""
 
-import os
-
-import pytest
-
-os.environ.setdefault("LLM_API_KEY", "test-key")
-
-from app.core.runtime.kernel import Kernel  # noqa: E402
-from app.product.notifications import create_notification  # noqa: E402
-from app.store.database import Database  # noqa: E402
+from app.product.notifications import create_notification
 
 
-@pytest.fixture
-def notif_env(tmp_path, monkeypatch):
-    db = Database(db_path=str(tmp_path / "notifications.db"))
-    k = Kernel(db=db)
-    monkeypatch.setattr("app.core.runtime.kernel_instance.kernel", k)
-    monkeypatch.setattr("app.product.notifications.default_kernel", k, raising=False)
-    return db, k
+def test_create_notification_stores_related_id_in_column(product_kernel):
+    k = product_kernel
 
-
-def test_create_notification_stores_related_id_in_column(notif_env):
-    db, k = notif_env
     first = create_notification("alert", "提醒 A", "old content", kernel=k)
     assert first["content"] == "old content"
     assert first.get("related_id") is None
@@ -35,7 +19,7 @@ def test_create_notification_stores_related_id_in_column(notif_env):
         kernel=k,
     )
     assert second["id"] == first["id"]
-    assert second["content"] == "old content"  # content unchanged on idempotent hit
+    assert second["content"] == "old content"
     assert second["related_id"] == "entity-001"
 
     rows = k.query_state("notifications", related_id="entity-001")
@@ -44,8 +28,8 @@ def test_create_notification_stores_related_id_in_column(notif_env):
     assert not rows[0]["content"].startswith("@related:")
 
 
-def test_create_notification_related_id_on_create(notif_env):
-    _, k = notif_env
+def test_create_notification_related_id_on_create(product_kernel):
+    k = product_kernel
     n = create_notification(
         "goal_stagnant",
         "目标停滞: X",
@@ -60,8 +44,8 @@ def test_create_notification_related_id_on_create(notif_env):
     assert rows[0]["related_id"] == "goal-1"
 
 
-def test_notification_rebuild(notif_env):
-    db, k = notif_env
+def test_notification_rebuild(product_kernel):
+    k = product_kernel
     create_notification("alert", "Test alert", "Body", related_id="r1", kernel=k)
     before = k.query_state("notifications")
     k.rebuild("notification")

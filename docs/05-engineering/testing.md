@@ -59,7 +59,7 @@ flowchart TB
 - **出口与连接器**：`test_egress.py`、`test_connector.py`、`test_fetch_ssrf.py`、`test_url_safety.py`、`test_web_search_html.py`
 - **MCP / filesystem / shell / email server**：`test_filesystem_server.py`、`test_shell_server.py`、`test_email_server.py`、`test_mcp_config.py`、`test_mcp_mesh.py`
 - **记忆 / 通知 / 后台**：`test_memory_extractor.py`、`test_memory_ws_notify.py`、`test_notification_bridge.py`、`test_notification_channel.py`、`test_sse_queue_registry.py`、`test_background_worker_extended.py`、`test_background_task_event_chain.py`
-- **Product / 主权 / fragment**：`test_dashboard_data.py`、`test_dashboard_extended.py`、`test_sovereignty_basic.py`、`test_governance_fragment.py`、`test_scenario_fragments.py`、`test_mail_fragments.py`、`test_fragment_read_boundary.py`、`test_fragment_cleanup_phase5.py`、`test_runtime_container.py`
+- **Product / 主权 / fragment**：`tests/product/`（dashboard / inbox / notifications / encrypted_sync）、`test_sovereignty_basic.py`、`test_governance_fragment.py`、`test_scenario_fragments.py`、`test_mail_fragments.py`、`test_fragment_read_boundary.py`、`test_fragment_cleanup_phase5.py`、`test_runtime_container.py`、`test_knowledge_fragment.py`
 
 ### 运行
 
