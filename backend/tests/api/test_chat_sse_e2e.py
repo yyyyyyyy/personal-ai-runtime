@@ -4,8 +4,8 @@ These tests call ``send_message`` directly (bypassing HTTP) and consume its
 ``StreamingResponse`` as SSE frames.  FakeBrain (from tests/conftest.py)
 replaces the real Brain so no LLM is called.
 
-The ``app`` fixture ensures env vars, DB path, and handler registration are
-set up so that ``send_message`` finds a valid kernel and registered handlers.
+Conversation setup uses the shared sync ``client``; streaming stays async
+via ``_invoke_send_message``.
 """
 
 import json
@@ -49,11 +49,17 @@ async def _invoke_send_message(conv_id: str, content: str) -> list[dict[str, Any
     return _parse_sse_frames(lines)
 
 
+def _create_conversation(client, title: str) -> str:
+    conv = client.post("/api/chat/conversations", params={"title": title})
+    assert conv.status_code == 200, conv.text
+    return conv.json()["id"]
+
+
 # ── tests ──────────────────────────────────────────────────────────────
 
 
 @pytest.mark.anyio
-async def test_chat_sse_happy_path(fake_brain, app, http_client):
+async def test_chat_sse_happy_path(fake_brain, client):
     """Normal chat: text_delta stream → done, ChatCompleted written to event_log."""
     from app.core.runtime.kernel_instance import kernel
 
@@ -63,10 +69,7 @@ async def test_chat_sse_happy_path(fake_brain, app, http_client):
         {"type": "done"},
     ])
 
-    # Create conversation via HTTP (simple GET/POST works fine)
-    conv = await http_client.post("/api/chat/conversations", params={"title": "SSE E2E"})
-    conv_id = conv.json()["id"]
-
+    conv_id = _create_conversation(client, "SSE E2E")
     frames = await _invoke_send_message(conv_id, "Hi there")
 
     types = [f.get("type") for f in frames]
@@ -88,15 +91,13 @@ async def test_chat_sse_happy_path(fake_brain, app, http_client):
 
 
 @pytest.mark.anyio
-async def test_chat_sse_error_path(fake_brain, app, http_client):
+async def test_chat_sse_error_path(fake_brain, client):
     """LLM failure → error frame → stream closes cleanly."""
     fake_brain.set_script([
         {"type": "error", "content": "LLM API error: rate limited"},
     ])
 
-    conv = await http_client.post("/api/chat/conversations", params={"title": "SSE Err"})
-    conv_id = conv.json()["id"]
-
+    conv_id = _create_conversation(client, "SSE Err")
     frames = await _invoke_send_message(conv_id, "trigger error")
 
     types = [f.get("type") for f in frames]
@@ -105,7 +106,7 @@ async def test_chat_sse_error_path(fake_brain, app, http_client):
 
 
 @pytest.mark.anyio
-async def test_chat_sse_tool_call_path(fake_brain, app, http_client):
+async def test_chat_sse_tool_call_path(fake_brain, client):
     """Tool call: tool_call_start → tool_result → text_delta → done."""
     fake_brain.set_script([
         {"type": "tool_call_start", "tool_calls": [{"id": "tc1", "function": {"name": "get_current_time", "arguments": "{}"}}]},
@@ -114,9 +115,7 @@ async def test_chat_sse_tool_call_path(fake_brain, app, http_client):
         {"type": "done"},
     ])
 
-    conv = await http_client.post("/api/chat/conversations", params={"title": "SSE Tool"})
-    conv_id = conv.json()["id"]
-
+    conv_id = _create_conversation(client, "SSE Tool")
     frames = await _invoke_send_message(conv_id, "What time is it?")
 
     types = [f.get("type") for f in frames]
@@ -126,7 +125,7 @@ async def test_chat_sse_tool_call_path(fake_brain, app, http_client):
 
 
 @pytest.mark.anyio
-async def test_chat_sse_confirmation_required_path(fake_brain, app, http_client):
+async def test_chat_sse_confirmation_required_path(fake_brain, client):
     """Approval suspension: done.result carries pending=True + approval_id.
 
     ChatHandler does not push confirmation_required as a separate SSE frame;
@@ -141,9 +140,7 @@ async def test_chat_sse_confirmation_required_path(fake_brain, app, http_client)
         {"type": "done"},
     ])
 
-    conv = await http_client.post("/api/chat/conversations", params={"title": "SSE Appr"})
-    conv_id = conv.json()["id"]
-
+    conv_id = _create_conversation(client, "SSE Appr")
     frames = await _invoke_send_message(conv_id, "Write a file")
 
     types = [f.get("type") for f in frames]

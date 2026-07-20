@@ -23,10 +23,14 @@ class _FakeProvider:
 
 
 def test_telemetry_prefers_provider_usage():
-    """When usage is provided, tiktoken is NOT consulted."""
+    """When usage is provided, tiktoken helpers are NOT consulted."""
     usage = SimpleNamespace(prompt_tokens=42, completion_tokens=7)
     provider = _FakeProvider()
-    with patch("app.core.agents.brain_telemetry.kernel") as mock_kernel:
+    with (
+        patch("app.core.agents.brain_telemetry.kernel") as mock_kernel,
+        patch("app.core.agents.brain_telemetry.count_message_tokens") as mock_msg,
+        patch("app.core.agents.brain_telemetry.count_text_tokens") as mock_txt,
+    ):
         tokens = record_llm_call(
             messages=[{"role": "user", "content": "hello"}],
             assistant_content="hi",
@@ -38,12 +42,20 @@ def test_telemetry_prefers_provider_usage():
             usage=usage,
         )
     assert tokens == 42
-    # Verify emit_event was called with an LLMCallRecorded event
+    mock_msg.assert_not_called()
+    mock_txt.assert_not_called()
     mock_kernel.emit_event.assert_called_once()
     call_args = mock_kernel.emit_event.call_args
     assert call_args.args[0] == "LLMCallRecorded"
-    assert call_args.kwargs["payload"]["prompt_tokens"] == 42
-    assert call_args.kwargs["payload"]["completion_tokens"] == 7
+    payload = call_args.kwargs["payload"]
+    assert payload["prompt_tokens"] == 42
+    assert payload["completion_tokens"] == 7
+    expected_cost = (
+        42 * provider.price_per_prompt_token
+        + 7 * provider.price_per_completion_token
+    )
+    assert payload["cost"] == expected_cost
+    assert payload["success"] is True
 
 
 def test_telemetry_falls_back_to_tiktoken_without_usage():
@@ -84,6 +96,7 @@ def test_record_llm_outcome_failure():
     assert payload["success"] is False
     assert payload["purpose"] == "memory_extract"
     assert payload["error_message"] == "connection refused"
+    assert payload["cost"] == 0.0
 
 
 def test_llm_call_projector_persists_purpose(tmp_path, monkeypatch):

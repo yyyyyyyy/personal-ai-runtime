@@ -1,46 +1,5 @@
 """Tests for /api/work-items endpoints."""
 
-import os
-
-os.environ.setdefault("LLM_API_KEY", "test-key")
-
-import pytest
-from fastapi.testclient import TestClient
-
-
-@pytest.fixture
-def client(tmp_path, monkeypatch):
-    """Isolated TestClient with fresh Kernel + DB."""
-    db_path = str(tmp_path / "work_items_api.db")
-    monkeypatch.setenv("SQLITE_PATH", db_path)
-    monkeypatch.setenv("DATA_DIR", str(tmp_path))
-    monkeypatch.setenv("VECTOR_DIR", str(tmp_path / "vectors"))
-    monkeypatch.setenv("LLM_API_KEY", "test-key")
-    monkeypatch.setenv("MCP_EXTERNAL_ENABLED", "false")
-    monkeypatch.setenv("AUTH_TOKEN", "")
-
-    async def _noop_start():
-        return 0
-
-    async def _noop_stop():
-        return None
-
-    monkeypatch.setattr("app.core.harness.mcp_lifecycle.start_mcp_mesh", _noop_start)
-    monkeypatch.setattr("app.core.harness.mcp_lifecycle.stop_mcp_mesh", _noop_stop)
-
-    import importlib
-
-    import app.api.system
-    import app.config
-    import app.main
-
-    app.config.reset_settings()
-    importlib.reload(app.api.system)
-    importlib.reload(app.main)
-
-    app_obj = app.main.app
-    yield TestClient(app_obj)
-
 
 def test_create_goal_work_item(client):
     """POST /api/work-items/ with work_type='goal' persists goal fields."""

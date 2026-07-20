@@ -6,8 +6,6 @@ import logging
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from app.config import settings
-
 if TYPE_CHECKING:
     from app.store.database import Database
 
@@ -16,7 +14,9 @@ logger = logging.getLogger(__name__)
 
 def uses_alembic(db_path: str) -> bool:
     """Return True when db_path is the configured production SQLite file."""
-    return Path(db_path).resolve() == Path(settings.sqlite_path).resolve()
+    from app.config import settings as live_settings
+
+    return Path(db_path).resolve() == Path(live_settings.sqlite_path).resolve()
 
 
 def apply_projection_ddl(db: Database) -> None:

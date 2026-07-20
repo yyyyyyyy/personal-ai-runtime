@@ -12,8 +12,6 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import TYPE_CHECKING, Generator
 
-from app.config import settings
-
 logger = logging.getLogger(__name__)
 # Each Database path gets its own SQLite connection per thread; the connection
 # is reused across get_db() calls within the same thread and cleaned up on close().
@@ -32,7 +30,11 @@ def _tls_connections() -> dict[str, sqlite3.Connection]:
 
 class Database:
     def __init__(self, db_path: str | None = None):
-        self.db_path = db_path or settings.sqlite_path
+        # Resolve settings at construction time (not import time) so
+        # ``reset_settings()`` in tests is honored.
+        from app.config import settings as live_settings
+
+        self.db_path = db_path or live_settings.sqlite_path
         Path(self.db_path).parent.mkdir(parents=True, exist_ok=True)
         self._init_schema()
         # Set durable pragmas once at startup (WAL mode is a DB property)

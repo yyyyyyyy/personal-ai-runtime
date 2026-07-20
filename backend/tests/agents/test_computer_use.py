@@ -1,5 +1,9 @@
 """Unit tests for Computer Use MCP server (import-safe, no hardware required)."""
+from __future__ import annotations
+
 import json
+
+import pytest
 
 from app.core.harness.builtin_tools.computer_use import ComputerUseServer
 
@@ -21,11 +25,6 @@ class TestComputerUseServer:
         result = json.loads(s.click(100, 100))
         assert result["status"] == "error"
         assert "pyautogui" in result["error"].lower()
-
-    def test_type_text_without_pyautogui(self):
-        s = ComputerUseServer()
-        result = json.loads(s.type_text("hello"))
-        assert result["status"] == "error"
 
     def test_type_empty_text(self):
         s = ComputerUseServer()
@@ -74,71 +73,37 @@ class TestComputerUseServer:
         finally:
             s._pyautogui = None
 
-    def test_move_without_pyautogui(self):
-        s = ComputerUseServer()
-        result = json.loads(s.move(100, 100))
-        assert result["status"] == "error"
-
-    def test_scroll_without_pyautogui(self):
-        s = ComputerUseServer()
-        result = json.loads(s.scroll(3))
-        assert result["status"] == "error"
-
-    def test_press_key_without_pyautogui(self):
-        s = ComputerUseServer()
-        result = json.loads(s.press_key("enter"))
-        assert result["status"] == "error"
-
-    def test_screen_size_without_pyautogui(self):
-        s = ComputerUseServer()
-        result = json.loads(s.screen_size())
-        assert result["status"] == "error"
-
     def test_server_singleton(self):
         from app.core.harness.builtin_tools.computer_use import computer_use_server
+
         assert isinstance(computer_use_server, ComputerUseServer)
 
     def test_screenshot_full_vs_primary(self):
         s = ComputerUseServer()
         r1 = json.loads(s.screenshot("full"))
         r2 = json.loads(s.screenshot("primary"))
-        assert r1["status"] == r2["status"]  # both fail the same way
+        assert r1["status"] == r2["status"]
 
 
-class TestComputerUseServerEdgeCases:
-    def test_screenshot_region_unknown_is_full(self):
-        s = ComputerUseServer()
-        r = json.loads(s.screenshot("unknown"))
-        assert r["status"] == "error"
-
-    def test_click_right_button(self):
-        s = ComputerUseServer()
-        r = json.loads(s.click(0, 0, button="right"))
-        assert r["status"] == "error"
-
-    def test_click_middle_button(self):
-        s = ComputerUseServer()
-        r = json.loads(s.click(0, 0, button="middle"))
-        assert r["status"] == "error"
-
-    def test_move_with_duration(self):
-        s = ComputerUseServer()
-        r = json.loads(s.move(50, 50, duration=1.0))
-        assert r["status"] == "error"
-
-    def test_scroll_up_and_down(self):
-        s = ComputerUseServer()
-        r1 = json.loads(s.scroll(5))
-        r2 = json.loads(s.scroll(-3))
-        assert r1["status"] == "error"
-        assert r2["status"] == "error"
-
-    def test_press_key_combo(self):
-        s = ComputerUseServer()
-        r = json.loads(s.press_key("ctrl+v"))
-        assert r["status"] == "error"
-
-    def test_type_with_interval(self):
-        s = ComputerUseServer()
-        r = json.loads(s.type_text("x", interval=0.1))
-        assert r["status"] == "error"
+@pytest.mark.parametrize(
+    ("method", "args", "kwargs"),
+    [
+        ("type_text", ("hello",), {}),
+        ("move", (100, 100), {}),
+        ("scroll", (3,), {}),
+        ("press_key", ("enter",), {}),
+        ("screen_size", (), {}),
+        ("screenshot", ("unknown",), {}),
+        ("click", (0, 0), {"button": "right"}),
+        ("click", (0, 0), {"button": "middle"}),
+        ("move", (50, 50), {"duration": 1.0}),
+        ("scroll", (-3,), {}),
+        ("press_key", ("ctrl+v",), {}),
+        ("type_text", ("x",), {"interval": 0.1}),
+    ],
+)
+def test_methods_error_without_deps(method, args, kwargs):
+    """Missing pyautogui/mss must fail closed for all input variants."""
+    s = ComputerUseServer()
+    result = json.loads(getattr(s, method)(*args, **kwargs))
+    assert result["status"] == "error"

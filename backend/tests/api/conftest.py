@@ -1,12 +1,5 @@
-"""Conftest for tests/api — async HTTP client fixture."""
+"""Conftest for tests/api.
 
-import httpx
-import pytest
-
-
-@pytest.fixture
-async def http_client(app) -> httpx.AsyncClient:
-    """Async HTTP client wired directly to the FastAPI ASGI app."""
-    transport = httpx.ASGITransport(app=app)
-    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
-        yield client
+HTTP ``client`` lives in ``tests/conftest.py`` (shared with integration).
+SSE e2e still drives ``send_message`` directly; conversation setup uses ``client``.
+"""
