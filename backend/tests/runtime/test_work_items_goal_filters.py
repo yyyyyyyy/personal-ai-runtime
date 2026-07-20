@@ -1,21 +1,14 @@
 """Tests for _query_work_items goal-style filters."""
 
-import os
-
-os.environ.setdefault("LLM_API_KEY", "test-key")
-
 import pytest
 
 
 @pytest.fixture
-def kernel_with_goal_work_items(tmp_path):
+def kernel_with_goal_work_items(isolated_kernel):
     """Seed work_items with goal rows for filter testing."""
     from datetime import UTC, datetime, timedelta
 
-    from app.core.runtime.kernel import Kernel
-    from app.store.database import Database
-
-    k = Kernel(db=Database(db_path=str(tmp_path / "work_items_goals.db")))
+    k, _db = isolated_kernel
 
     now = datetime.now(UTC)
     old  = (now - timedelta(days=10)).strftime("%Y-%m-%dT%H:%M:%SZ")

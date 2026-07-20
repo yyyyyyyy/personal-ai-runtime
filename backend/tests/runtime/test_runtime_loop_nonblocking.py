@@ -9,18 +9,12 @@ Validates that:
 """
 
 import asyncio
-import os
-
 import pytest
 
-os.environ.setdefault("LLM_API_KEY", "test-key")
-
-
 @pytest.fixture
-def kernel(tmp_path):
-    from app.core.runtime.kernel import Kernel
-    from app.store.database import Database
-    return Kernel(db=Database(db_path=str(tmp_path / "nonblock.db")))
+def kernel(isolated_kernel):
+    k, _db = isolated_kernel
+    return k
 
 
 @pytest.fixture(autouse=True)
@@ -199,3 +193,76 @@ def test_spawn_background_task_holds_reference_and_cleans_up(kernel):
         assert completed["done"], "task must have run to completion"
 
     asyncio.run(run())
+
+@pytest.mark.asyncio
+async def test_scan_fires_due_timer(isolated_kernel):
+    from datetime import UTC, datetime, timedelta
+
+    from app.core.runtime.runtime_loop import RuntimeLoop
+
+    k, db = isolated_kernel
+    past = (datetime.now(UTC) - timedelta(minutes=5)).isoformat()
+    k.emit_event(
+        "TimerCreated", "timer", "timer_scan_test",
+        payload={
+            "handler_name": "test_handler",
+            "schedule_type": "cron",
+            "cron_expr": "hour=0,minute=0",
+            "fire_at": past,
+        },
+        actor="verify",
+    )
+    import app.core.runtime.runtime_loop as rl_mod
+
+    original = rl_mod.kernel
+    rl_mod.kernel = k
+    try:
+        loop = RuntimeLoop()
+        await loop._check_timers()
+    finally:
+        rl_mod.kernel = original
+
+    with db.get_db() as conn:
+        conn.execute("PRAGMA foreign_keys = OFF")
+        fired = conn.execute(
+            "SELECT 1 FROM event_log WHERE type='TimerFired' "
+            "AND aggregate_id='timer_scan_test' LIMIT 1"
+        ).fetchone()
+    assert fired is not None
+
+
+@pytest.mark.asyncio
+async def test_scan_skips_future_timer(isolated_kernel):
+    from datetime import UTC, datetime, timedelta
+
+    from app.core.runtime.runtime_loop import RuntimeLoop
+
+    k, db = isolated_kernel
+    future = (datetime.now(UTC) + timedelta(hours=1)).isoformat()
+    k.emit_event(
+        "TimerCreated", "timer", "timer_future",
+        payload={
+            "handler_name": "test_handler",
+            "schedule_type": "cron",
+            "cron_expr": "hour=0,minute=0",
+            "fire_at": future,
+        },
+        actor="verify",
+    )
+    import app.core.runtime.runtime_loop as rl_mod
+
+    original = rl_mod.kernel
+    rl_mod.kernel = k
+    try:
+        loop = RuntimeLoop()
+        await loop._check_timers()
+    finally:
+        rl_mod.kernel = original
+
+    with db.get_db() as conn:
+        conn.execute("PRAGMA foreign_keys = OFF")
+        fired = conn.execute(
+            "SELECT 1 FROM event_log WHERE type='TimerFired' "
+            "AND aggregate_id='timer_future' LIMIT 1"
+        ).fetchone()
+    assert fired is None

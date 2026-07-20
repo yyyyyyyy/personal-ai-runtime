@@ -2,21 +2,14 @@
 
 from __future__ import annotations
 
-import os
 from unittest.mock import AsyncMock, patch
 
 import pytest
 
-os.environ.setdefault("LLM_API_KEY", "test-key")
-
-
 @pytest.fixture
-def kernel(tmp_path):
-    from app.core.runtime.kernel import Kernel
-    from app.store.database import Database
-
-    return Kernel(db=Database(db_path=str(tmp_path / "ownership.db")))
-
+def kernel(isolated_kernel):
+    k, _db = isolated_kernel
+    return k
 
 @pytest.fixture(autouse=True)
 def _reset_scheduler():
@@ -25,7 +18,6 @@ def _reset_scheduler():
     reset_scheduler()
     yield
     reset_scheduler()
-
 
 def _seed_execution(kernel, execution_id: str = "wi_test_ownership") -> None:
     from app.core.runtime.kernel.constants import AGGREGATE_EXECUTION, EVENT_EXECUTION_REQUESTED
@@ -47,7 +39,6 @@ def _seed_execution(kernel, execution_id: str = "wi_test_ownership") -> None:
         actor="scheduler",
     )
 
-
 @pytest.mark.asyncio
 async def test_runtime_actor_denies_missing_execution_id(kernel):
     with patch(
@@ -67,7 +58,6 @@ async def test_runtime_actor_denies_missing_execution_id(kernel):
     events = kernel.read_events(type="CapabilityDenied")
     assert any(e.payload.get("reason") == "missing_execution_id" for e in events)
 
-
 @pytest.mark.asyncio
 async def test_agent_actor_denies_missing_execution_id(kernel):
     with patch(
@@ -84,7 +74,6 @@ async def test_agent_actor_denies_missing_execution_id(kernel):
     assert result["status"] == "error"
     assert result["error"] == "missing_execution_id"
     mock_invoke.assert_not_called()
-
 
 @pytest.mark.asyncio
 async def test_invalid_execution_id_denied(kernel):
@@ -104,7 +93,6 @@ async def test_invalid_execution_id_denied(kernel):
     assert result["error"] == "invalid_execution_id"
     mock_invoke.assert_not_called()
 
-
 @pytest.mark.asyncio
 async def test_user_actor_allows_missing_execution_id(kernel):
     with patch(
@@ -121,7 +109,6 @@ async def test_user_actor_allows_missing_execution_id(kernel):
 
     assert result["status"] == "success"
     mock_invoke.assert_called_once()
-
 
 @pytest.mark.asyncio
 async def test_execution_scope_binds_capability_caused_by(kernel):
@@ -146,7 +133,6 @@ async def test_execution_scope_binds_capability_caused_by(kernel):
     invoked = [e for e in kernel.read_events(type="CapabilityInvoked")]
     assert invoked
     assert invoked[-1].caused_by == "wi_scope_bind"
-
 
 @pytest.mark.asyncio
 async def test_valid_execution_id_allows_runtime_actor(kernel):

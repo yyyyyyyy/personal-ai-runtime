@@ -1,12 +1,8 @@
 """Additional scheduler handler coverage via timer_trigger_handler."""
 
-import os
 from unittest.mock import patch
 
 import pytest
-
-os.environ.setdefault("LLM_API_KEY", "test-key")
-
 
 @pytest.mark.asyncio
 @patch("app.core.runtime.cron_registry.run_memory_decay")

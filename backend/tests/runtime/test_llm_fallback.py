@@ -1,10 +1,5 @@
 """LLM router fallback clients."""
 
-import os
-
-os.environ.setdefault("LLM_API_KEY", "test-key")
-
-
 def test_fallback_clients_excludes_default():
     from app.core.agents.llm_failover import llm_router
 

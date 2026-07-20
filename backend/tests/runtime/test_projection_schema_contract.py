@@ -1,9 +1,5 @@
 """Schema contract tests — governed projections must match expected columns."""
 
-import os
-
-os.environ.setdefault("LLM_API_KEY", "test-key")
-
 from app.core.runtime.kernel import Kernel
 from app.store.database import Database
 from app.store.table_registry import (

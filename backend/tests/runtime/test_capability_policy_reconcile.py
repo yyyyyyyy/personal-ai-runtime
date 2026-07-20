@@ -18,17 +18,13 @@ from app.store.database import Database
 
 POLICY_PATH = Path(__file__).resolve().parents[2] / "capability_policy.json"
 
-
 @pytest.fixture
-def kernel(tmp_path):
-    db = Database(db_path=str(tmp_path / "policy_reconcile.db"))
-    k = Kernel(db=db)
+def kernel(isolated_kernel):
+    k, _db = isolated_kernel
     return k
-
 
 def _read_policy_json() -> dict:
     return json.loads(POLICY_PATH.read_text(encoding="utf-8"))
-
 
 def test_computer_screenshot_is_needs_user_in_seed():
     """Contract: computer_screenshot/move/scroll must be needs_user after P1."""
@@ -42,7 +38,6 @@ def test_computer_screenshot_is_needs_user_in_seed():
     # computer_screen_size stays auto_allow (no privacy risk).
     assert "computer_screen_size" in policy["auto_allow"]
 
-
 def test_seed_marks_computer_screenshot_high(kernel):
     """Fresh seed → risk_for(computer_screenshot) == 'high'."""
     capability_governance.seed_from_json(kernel)
@@ -50,7 +45,6 @@ def test_seed_marks_computer_screenshot_high(kernel):
     assert capability_governance.risk_for("computer_move", kernel=kernel) == "high"
     assert capability_governance.risk_for("computer_scroll", kernel=kernel) == "high"
     assert capability_governance.risk_for("computer_screen_size", kernel=kernel) == "low"
-
 
 def test_seed_reconciles_stale_low_risk(kernel):
     """Already-initialised DB with stale low-risk row → seed emits PolicyUpdated."""
@@ -83,3 +77,17 @@ def test_seed_reconciles_stale_low_risk(kernel):
     capability_governance.seed_from_json(kernel)
     count_after = len(kernel.read_events(aggregate_type="policy"))
     assert count_after == count_before, "second seed should not emit new events"
+
+def test_policy_updated_projector(kernel):
+    kernel.emit_event(
+        "PolicyCreated", "policy", "pol_proj",
+        payload={"capability": "read_file", "risk_level": "low"},
+        actor="admin",
+    )
+    kernel.emit_event(
+        "PolicyUpdated", "policy", "pol_proj",
+        payload={"risk_level": "high"},
+        actor="admin",
+    )
+    rows = kernel.query_state("policy_events", id="pol_proj")
+    assert rows[0]["risk_level"] == "high"

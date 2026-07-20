@@ -1,10 +1,6 @@
 """ConversationRecorded — Experience Episode in event_log."""
 
-import os
-
 import pytest
-
-os.environ.setdefault("LLM_API_KEY", "test-key")
 
 from app.core.agents.handlers.chat_completed_handlers import record_conversation_turn
 from app.core.runtime.kernel import Kernel
@@ -55,3 +51,50 @@ def test_event_formatting_maps_conversation_type(tmp_path):
     assert legacy["type"] == "conversation"
     assert "hello" in legacy["summary"]
 
+def test_conversation_updated_with_summary(isolated_kernel):
+    k, db = isolated_kernel
+    k.emit_event(
+        "ConversationCreated", "conversation", "conv_upd",
+        payload={"title": "Test Conversation"},
+        actor="user",
+    )
+    k.emit_event(
+        "ConversationUpdated", "conversation", "conv_upd",
+        payload={"title": "Updated Title", "summary": "A summary"},
+        actor="user",
+    )
+    with db.get_db() as conn:
+        row = conn.execute(
+            "SELECT * FROM conversations WHERE id = ?", ("conv_upd",)
+        ).fetchone()
+    assert row is not None
+    row_dict = dict(row)
+    assert row_dict["title"] == "Updated Title"
+    assert row_dict["summary"] == "A summary"
+
+
+def test_conversation_deleted_projector(isolated_kernel):
+    k, db = isolated_kernel
+    k.emit_event(
+        "ConversationCreated", "conversation", "conv_del",
+        payload={"title": "To Delete"},
+        actor="user",
+    )
+    k.emit_event(
+        "MessageAppended", "message", "conv_del",
+        payload={"message_id": "msg_del", "role": "user", "content": "hi"},
+        actor="user",
+    )
+    k.emit_event(
+        "ConversationDeleted", "conversation", "conv_del",
+        payload={}, actor="user",
+    )
+    with db.get_db() as conn:
+        conv_row = conn.execute(
+            "SELECT * FROM conversations WHERE id = ?", ("conv_del",)
+        ).fetchone()
+        msg_row = conn.execute(
+            "SELECT * FROM messages WHERE conversation_id = ?", ("conv_del",)
+        ).fetchone()
+    assert conv_row is None
+    assert msg_row is None

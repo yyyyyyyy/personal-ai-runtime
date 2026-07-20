@@ -2,21 +2,14 @@
 
 from __future__ import annotations
 
-import os
 from unittest.mock import AsyncMock, patch
 
 import pytest
 
-os.environ.setdefault("LLM_API_KEY", "test-key")
-
-
 @pytest.fixture
-def kernel(tmp_path):
-    from app.core.runtime.kernel import Kernel
-    from app.store.database import Database
-
-    return Kernel(db=Database(db_path=str(tmp_path / "forbidden.db")))
-
+def kernel(isolated_kernel):
+    k, _db = isolated_kernel
+    return k
 
 def test_forbidden_policy_gateway_gate1(kernel):
     """Gate 1: policy_events risk_level=forbidden → deny before principal checks."""
@@ -39,7 +32,6 @@ def test_forbidden_policy_gateway_gate1(kernel):
     )
     assert decision.decision == "deny"
     assert decision.reason == "forbidden_by_policy"
-
 
 @pytest.mark.asyncio
 async def test_forbidden_policy_denies_capability(kernel):

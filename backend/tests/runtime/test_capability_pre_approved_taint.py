@@ -7,19 +7,12 @@ tainted_write before Gate 2 and fail-closed denies for system principals
 even on the pre_approved path.
 """
 
-import os
-
 import pytest
 
-os.environ.setdefault("LLM_API_KEY", "test-key")
-
-
 @pytest.fixture
-def kernel(tmp_path):
-    from app.core.runtime.kernel import Kernel
-    from app.store.database import Database
-    return Kernel(db=Database(db_path=str(tmp_path / "pre_taint.db")))
-
+def kernel(isolated_kernel):
+    k, _db = isolated_kernel
+    return k
 
 def _make_pending_approval(kernel, capability, args, principal_actor):
     """Create a pending approval row that pre_approved path can consume.
@@ -33,7 +26,6 @@ def _make_pending_approval(kernel, capability, args, principal_actor):
     )
     assert approval["status"] == "pending", "helper must produce a pending approval"
     return approval["approval_id"]
-
 
 def test_pre_approved_tainted_write_system_principal_denied(kernel):
     """Tainted correlation + write tool + system principal → deny even if pre_approved."""
@@ -57,7 +49,6 @@ def test_pre_approved_tainted_write_system_principal_denied(kernel):
     taint_registry.clear(corr)
     assert decision.decision == "deny"
     assert "tainted_write" in decision.reason
-
 
 def test_pre_approved_tainted_write_user_principal_allowed(kernel):
     """Tainted correlation + write tool + user principal + valid approval → allow.
@@ -90,7 +81,6 @@ def test_pre_approved_tainted_write_user_principal_allowed(kernel):
     assert decision.decision == "allow"
     assert decision.reason == "pre_approved"
 
-
 def test_pre_approved_untainted_normal_path_still_works(kernel):
     """Regression: normal (non-tainted) pre_approved path must still allow."""
     from app.core.runtime.capability_governance import capability_governance
@@ -110,7 +100,6 @@ def test_pre_approved_untainted_normal_path_still_works(kernel):
 
     assert decision.decision == "allow"
     assert decision.reason == "pre_approved"
-
 
 def test_pre_approved_tainted_non_write_tool_system_principal_allowed(kernel):
     """Tainted correlation + non-write tool → no taint escalation.

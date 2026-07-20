@@ -4,24 +4,11 @@ The decisive test (per docs/RUNTIME_SPEC.md): after wiping the `goals` projectio
 replaying the Event Log alone must reconstruct it identically.
 """
 
-import os
-
-os.environ.setdefault("LLM_API_KEY", "test-key")
-
 import pytest
 
-from app.core.runtime.kernel import Kernel
-from app.store.database import Database
-
-
-def make_kernel(tmp_path):
-    db = Database(db_path=str(tmp_path / "es.db"))
-    return Kernel(db=db), db
-
-
 class TestEventSourcing:
-    def test_goal_created_projects_to_state(self, tmp_path):
-        kernel, _ = make_kernel(tmp_path)
+    def test_goal_created_projects_to_state(self, isolated_kernel):
+        kernel, _db = isolated_kernel
         kernel.emit_event(
             "WorkItemCreated", "work_item", "g1", {'work_type': 'goal', "title": "Learn Rust", "importance": 0.8}
         )
@@ -30,8 +17,8 @@ class TestEventSourcing:
         assert goals[0]["title"] == "Learn Rust"
         assert goals[0]["importance"] == 0.8
 
-    def test_rebuild_from_event_log(self, tmp_path):
-        kernel, _ = make_kernel(tmp_path)
+    def test_rebuild_from_event_log(self, isolated_kernel):
+        kernel, _db = isolated_kernel
         kernel.emit_event("WorkItemCreated", "work_item", "g1", {'work_type': 'goal', "title": "A", "importance": 0.9})
         kernel.emit_event("WorkItemCreated", "work_item", "g2", {'work_type': 'goal', "title": "B"})
         kernel.emit_event("WorkItemUpdated", "work_item", "g1", {"title": "A2", "progress": 0.5})
@@ -52,8 +39,8 @@ class TestEventSourcing:
         assert by_id["g2"]["status"] == "completed"  # set in WorkItemCreated payload
         assert by_id["g2"]["progress"] >= 0  # v1.0: progress tested in work_items_goal_fields
 
-    def test_event_log_is_append_only(self, tmp_path):
-        kernel, db = make_kernel(tmp_path)
+    def test_event_log_is_append_only(self, isolated_kernel):
+        kernel, db = isolated_kernel
         ev = kernel.emit_event("WorkItemCreated", "work_item", "g1", {'work_type': 'goal', "title": "A"})
 
         with pytest.raises(Exception):
@@ -64,15 +51,15 @@ class TestEventSourcing:
             with db.get_db() as conn:
                 conn.execute("DELETE FROM event_log WHERE id = ?", (ev.id,))
 
-    def test_seq_is_monotonic(self, tmp_path):
-        kernel, _ = make_kernel(tmp_path)
+    def test_seq_is_monotonic(self, isolated_kernel):
+        kernel, _db = isolated_kernel
         e1 = kernel.emit_event("WorkItemCreated", "work_item", "g1", {'work_type': 'goal', "title": "A"})
         e2 = kernel.emit_event("WorkItemCreated", "work_item", "g2", {'work_type': 'goal', "title": "B"})
         assert e1.seq == 1
         assert e2.seq == 2
 
-    def test_subscribe_events_push(self, tmp_path):
-        kernel, _ = make_kernel(tmp_path)
+    def test_subscribe_events_push(self, isolated_kernel):
+        kernel, _db = isolated_kernel
         seen = []
         unsubscribe = kernel.subscribe_events(
             lambda e: seen.append(e.type), aggregate_type="work_item"
@@ -82,9 +69,9 @@ class TestEventSourcing:
         kernel.emit_event("WorkItemUpdated", "work_item", "g1", {"title": "B"})
         assert seen == ["WorkItemCreated"]
 
-    def test_subscribe_isolation(self, tmp_path):
+    def test_subscribe_isolation(self, isolated_kernel):
         """A failing subscriber must not block others or event persistence."""
-        kernel, _ = make_kernel(tmp_path)
+        kernel, _db = isolated_kernel
         seen: list[str] = []
 
         def bad_handler(_event):
@@ -102,8 +89,8 @@ class TestEventSourcing:
         assert len(goals) == 1
         assert goals[0]["title"] == "A"
 
-    def test_correlation_id_traces_a_chain(self, tmp_path):
-        kernel, _ = make_kernel(tmp_path)
+    def test_correlation_id_traces_a_chain(self, isolated_kernel):
+        kernel, _db = isolated_kernel
         cid = "report_abc"
         kernel.emit_event("WorkItemCreated", "work_item", "g1", {'work_type': 'goal', "title": "Weekly report"}, correlation_id=cid)
         kernel.emit_event("WorkItemUpdated", "work_item", "g1", {"progress": 0.3}, correlation_id=cid)
@@ -112,3 +99,18 @@ class TestEventSourcing:
         trace = kernel.read_events(correlation_id=cid)
         assert len(trace) == 2
         assert [e.type for e in trace] == ["WorkItemCreated", "WorkItemUpdated"]
+
+def test_emit_event_with_caused_by(isolated_kernel):
+    kernel, _db = isolated_kernel
+    evt1 = kernel.emit_event(
+        "WorkItemCreated", "work_item", "goal_cause",
+        payload={"title": "Cause chain"},
+        actor="verify",
+    )
+    evt2 = kernel.emit_event(
+        "WorkItemUpdated", "work_item", "goal_cause",
+        payload={"progress": 0.5},
+        actor="verify",
+        caused_by=evt1.id,
+    )
+    assert evt2.caused_by == evt1.id

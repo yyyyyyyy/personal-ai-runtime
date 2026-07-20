@@ -8,12 +8,7 @@ Verifies that:
      MemoryIndexRepairFailed.
 """
 
-import os
 import threading
-
-os.environ.setdefault("LLM_API_KEY", "test-key")
-
-
 
 def _fresh_kernel(tmp_path, *, memory_index=None):
     """Build an isolated Kernel against tmp_path with optional memory_index."""

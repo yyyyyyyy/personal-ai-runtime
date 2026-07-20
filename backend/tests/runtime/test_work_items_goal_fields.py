@@ -9,20 +9,12 @@ Verifies:
   4. rebuild('work_item') preserves all goal fields byte-identical.
 """
 
-import os
-
-os.environ.setdefault("LLM_API_KEY", "test-key")
-
 import pytest
 
-
 @pytest.fixture
-def kernel(tmp_path):
-    from app.core.runtime.kernel import Kernel
-    from app.store.database import Database
-
-    return Kernel(db=Database(db_path=str(tmp_path / "v1_goal_work.db")))
-
+def kernel(isolated_kernel):
+    k, _db = isolated_kernel
+    return k
 
 def test_work_item_created_goal_populates_v1_columns(kernel):
     """WorkItemCreated with work_type='goal' populates progress/importance/..."""
@@ -49,7 +41,6 @@ def test_work_item_created_goal_populates_v1_columns(kernel):
     assert row["deadline"] == "2026-12-31T00:00:00Z"
     assert row["last_activity_at"] == "2026-07-05T00:00:00Z"
 
-
 def test_work_item_created_task_uses_defaults(kernel):
     """WorkItemCreated with work_type='task' gets schema defaults for v1 columns."""
     kernel.emit_event(
@@ -67,7 +58,6 @@ def test_work_item_created_task_uses_defaults(kernel):
     assert row["urgency"] == 0.5
     assert row["deadline"] is None
     assert row["last_activity_at"] is None
-
 
 def test_work_item_updated_changes_goal_fields(kernel):
     """WorkItemUpdated can update progress/importance/urgency/deadline."""
@@ -100,7 +90,6 @@ def test_work_item_updated_changes_goal_fields(kernel):
     # Unspecified fields retain original values
     assert row["importance"] == 0.8
 
-
 def test_rebuild_preserves_goal_fields_byte_identical(kernel):
     """rebuild('work_item') must reproduce goal fields exactly."""
     kernel.emit_event(
@@ -129,7 +118,6 @@ def test_rebuild_preserves_goal_fields_byte_identical(kernel):
     assert dict(before) == dict(after), (
         f"rebuild drift: before={dict(before)} after={dict(after)}"
     )
-
 
 def test_legacy_work_item_created_without_goal_fields_still_works(kernel):
     """A WorkItemCreated event emitted by pre-v1.0 code paths (no goal fields

@@ -11,17 +11,8 @@ from pathlib import Path
 
 import pytest
 
-from app.core.runtime.kernel.kernel import Kernel
-from app.store.database import Database
-
-
-def _kernel(tmp_path, name: str) -> Kernel:
-    db = Database(str(tmp_path / f"{name}.db"))
-    return Kernel(db=db)
-
-
-def test_expire_stale_approvals_emit_only_projects_expired(tmp_path):
-    k = _kernel(tmp_path, "inv_expire")
+def test_expire_stale_approvals_emit_only_projects_expired(isolated_kernel):
+    k, _db = isolated_kernel
     k.emit_event(
         "WorkItemCreated", "work_item", "ge",
         payload={"work_type": "goal", "title": "Expiry"},
@@ -58,9 +49,8 @@ def test_expire_stale_approvals_emit_only_projects_expired(tmp_path):
     assert len(events) == 1
     assert events[0].payload.get("reason") == "auto_expired"
 
-
-def test_expire_idempotent_when_already_expired(tmp_path):
-    k = _kernel(tmp_path, "inv_expire_idem")
+def test_expire_idempotent_when_already_expired(isolated_kernel):
+    k, _db = isolated_kernel
     k.emit_event(
         "ApprovalRequested",
         "approval",
@@ -81,7 +71,6 @@ def test_expire_idempotent_when_already_expired(tmp_path):
     assert k.expire_stale_approvals() == 1
     assert k.expire_stale_approvals() == 0  # no longer pending
     assert k.query_state("approvals", id="app-idem")[0]["status"] == "expired"
-
 
 def test_governance_ops_has_no_approvals_dml():
     """Static invariant: governance_ops must not UPDATE/INSERT/DELETE approvals."""

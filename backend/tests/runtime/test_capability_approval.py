@@ -1,16 +1,11 @@
 """T2 acceptance test: Capability invocation with approval gating through Kernel."""
 
 import json
-import os
 from pathlib import Path
-
-os.environ.setdefault("LLM_API_KEY", "test-key")
 
 import pytest
 
 from app.core.harness.mcp_hub import mcp_hub
-from app.core.runtime.kernel import Kernel
-from app.store.database import Database
 
 POLICY_PATH = Path(__file__).resolve().parents[2] / "capability_policy.json"
 
@@ -91,15 +86,10 @@ def test_capability_policy_covers_all_registered_tools():
     assert len(BUILTIN_TOOLS) == 26
 
 
-def make_kernel(tmp_path):
-    db = Database(db_path=str(tmp_path / "t2.db"))
-    return Kernel(db=db), db
-
-
 @pytest.mark.asyncio
 class TestCapabilityApproval:
-    async def test_low_risk_auto_allow(self, tmp_path):
-        k, _ = make_kernel(tmp_path)
+    async def test_low_risk_auto_allow(self, isolated_kernel):
+        k, _ = isolated_kernel
         result = await k.invoke_capability(
             "get_current_time", {}, actor="test", correlation_id="corr1",
         )
@@ -111,8 +101,8 @@ class TestCapabilityApproval:
         assert "ApprovalGranted" in types
         assert "CapabilityInvoked" in types
 
-    async def test_high_risk_needs_user(self, tmp_path):
-        k, _ = make_kernel(tmp_path)
+    async def test_high_risk_needs_user(self, isolated_kernel):
+        k, _ = isolated_kernel
         result = await k.invoke_capability(
             "write_file", {"path": "/tmp/x", "content": "hello"}, actor="test", correlation_id="corr2",
         )
@@ -128,8 +118,8 @@ class TestCapabilityApproval:
         assert "ApprovalGranted" not in types
         assert "CapabilityInvoked" not in types
 
-    async def test_full_trace_with_correlation_id(self, tmp_path):
-        k, _ = make_kernel(tmp_path)
+    async def test_full_trace_with_correlation_id(self, isolated_kernel):
+        k, _ = isolated_kernel
         cid = "trace_full"
         await k.invoke_capability("get_current_time", {}, actor="test", correlation_id=cid)
         await k.invoke_capability("list_directory", {"path": "."}, actor="test", correlation_id=cid)
@@ -140,8 +130,8 @@ class TestCapabilityApproval:
         assert trace_types.count("CapabilityInvoked") == 2
         assert trace_types.count("ApprovalGranted") == 2
 
-    async def test_approval_projection(self, tmp_path):
-        k, _ = make_kernel(tmp_path)
+    async def test_approval_projection(self, isolated_kernel):
+        k, _ = isolated_kernel
         r = await k.invoke_capability("get_current_time", {}, actor="user", correlation_id="c_apr")
         aid = r.get("approval_id") or (
             k.read_events(correlation_id="c_apr")[1].aggregate_id
@@ -153,8 +143,8 @@ class TestCapabilityApproval:
         assert row["status"] == "approved"
         assert row["action"] == "get_current_time"
 
-    async def test_pre_approved_requires_approval_id(self, tmp_path):
-        k, _ = make_kernel(tmp_path)
+    async def test_pre_approved_requires_approval_id(self, isolated_kernel):
+        k, _ = isolated_kernel
         result = await k.invoke_capability(
             "write_file",
             {"path": "/tmp/x", "content": "hi"},
@@ -164,8 +154,8 @@ class TestCapabilityApproval:
         assert result["status"] == "error"
         assert "approval_id" in result["error"]
 
-    async def test_pre_approved_rejects_mismatched_args(self, tmp_path):
-        k, _ = make_kernel(tmp_path)
+    async def test_pre_approved_rejects_mismatched_args(self, isolated_kernel):
+        k, _ = isolated_kernel
         pending = await k.invoke_capability(
             "write_file",
             {"path": "/tmp/x", "content": "hi"},
@@ -182,8 +172,8 @@ class TestCapabilityApproval:
         assert result["status"] == "error"
         assert "params" in result["error"]
 
-    async def test_pre_approved_cannot_replay(self, tmp_path):
-        k, _ = make_kernel(tmp_path)
+    async def test_pre_approved_cannot_replay(self, isolated_kernel):
+        k, _ = isolated_kernel
         pending = await k.invoke_capability(
             "write_file",
             {"path": "/tmp/x", "content": "hi"},
@@ -212,8 +202,8 @@ class TestCapabilityApproval:
         assert second["status"] == "error"
         assert "pending" in second["error"]
 
-    async def test_pre_approved_skips_new_approval(self, tmp_path):
-        k, _ = make_kernel(tmp_path)
+    async def test_pre_approved_skips_new_approval(self, isolated_kernel):
+        k, _ = isolated_kernel
         pending = await k.invoke_capability(
             "write_file", {"path": "/tmp/x", "content": "hi"}, actor="user", correlation_id="pre",
         )
@@ -234,8 +224,8 @@ class TestCapabilityApproval:
         assert "ApprovalRequested" not in types
         assert "CapabilityInvoked" in types
 
-    async def test_rebuild_approval_projection(self, tmp_path):
-        k, _ = make_kernel(tmp_path)
+    async def test_rebuild_approval_projection(self, isolated_kernel):
+        k, _ = isolated_kernel
         await k.invoke_capability("get_current_time", {}, actor="user", correlation_id="c_reb")
         await k.invoke_capability("write_file", {"path": "/x", "content": "y"}, actor="user", correlation_id="c_reb2")
 

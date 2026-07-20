@@ -1,9 +1,5 @@
 """Tests for GovernanceContextFragment — FACT-36 dormant provider activation."""
 
-import os
-
-os.environ.setdefault("LLM_API_KEY", "test-key")
-
 import pytest
 
 from app.context_runtime import RuntimeContext

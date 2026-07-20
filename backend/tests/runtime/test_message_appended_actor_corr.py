@@ -1,14 +1,8 @@
 """MessageAppended must carry role-correct actor and turn correlation_id."""
 
-import os
-
 import pytest
 
-os.environ.setdefault("LLM_API_KEY", "test-key")
-
 from app.core.agents.conversation import ConversationManager
-from app.core.runtime.kernel import Kernel
-from app.store.database import Database
 
 
 @pytest.fixture(autouse=True)
@@ -22,8 +16,8 @@ def _restore():
 
 
 @pytest.fixture
-def kernel(tmp_path):
-    k = Kernel(db=Database(db_path=str(tmp_path / "msg_actor.db")))
+def kernel(isolated_kernel):
+    k, _db = isolated_kernel
     import app.core.runtime.kernel_instance as ki
     import app.store.database as db_mod
 
@@ -109,3 +103,23 @@ def test_policy_for_chat_requested_matches_tool_loop_budget():
     assert chat.timeout_seconds == float(settings.total_tool_loop_timeout)
     assert chat.max_retries == 1
     assert policy_for_event("TimerFired") == ExecutionPolicy.default()
+
+
+def test_message_appended_updates_conversation_ts(isolated_kernel):
+    k, db = isolated_kernel
+    k.emit_event(
+        "ConversationCreated", "conversation", "cov_ts",
+        payload={"title": "TS test"},
+        actor="verify",
+    )
+    k.emit_event(
+        "MessageAppended", "conversation", "cov_ts",
+        payload={"message_id": "msg_ts", "role": "user", "content": "hello"},
+        actor="verify",
+    )
+    with db.get_db() as conn:
+        row = conn.execute(
+            "SELECT updated_at FROM conversations WHERE id = ?", ("cov_ts",)
+        ).fetchone()
+    assert row is not None
+    assert row["updated_at"] is not None

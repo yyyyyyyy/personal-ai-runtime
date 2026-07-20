@@ -9,11 +9,8 @@ INSERT. These tests therefore focus on:
      can happen during manual import, raw SQL recovery, etc.).
 """
 
-import os
 import sys
 from pathlib import Path
-
-os.environ.setdefault("LLM_API_KEY", "test-key")
 
 _BACKEND_ROOT = Path(__file__).resolve().parent.parent.parent
 if str(_BACKEND_ROOT / "backend") not in sys.path:

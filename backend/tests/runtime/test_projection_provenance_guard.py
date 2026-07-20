@@ -1,13 +1,10 @@
 """Tests for scripts/check_projection_provenance.py (Strategy A join guard)."""
 
-import os
 import subprocess
 import sys
 from pathlib import Path
 
 import pytest
-
-os.environ.setdefault("LLM_API_KEY", "test-key")
 
 BACKEND = Path(__file__).resolve().parents[2]
 SCRIPT = BACKEND / "scripts" / "check_projection_provenance.py"

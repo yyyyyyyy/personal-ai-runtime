@@ -1,9 +1,5 @@
 """Tests for RequestIDMiddleware."""
 
-import os
-
-os.environ.setdefault("LLM_API_KEY", "test-key")
-
 from starlette.testclient import TestClient
 
 

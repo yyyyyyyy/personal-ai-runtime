@@ -5,16 +5,12 @@ import pytest
 from app.core.harness.mcp_hub import ToolDef, mcp_hub
 from app.core.harness.mcp_mesh import MCPMesh
 from app.core.runtime.capability_governance import capability_governance
-from app.core.runtime.kernel import Kernel
 from app.core.runtime.taint import register_external_write_tool, taint_registry
-from app.store.database import Database
-
 
 @pytest.fixture
-def kernel(tmp_path):
-    db = Database(db_path=str(tmp_path / "mcp_mesh.db"))
-    return Kernel(db=db)
-
+def kernel(isolated_kernel):
+    k, _db = isolated_kernel
+    return k
 
 @pytest.mark.asyncio
 async def test_playwright_navigate_blocks_internal_url():
@@ -23,13 +19,11 @@ async def test_playwright_navigate_blocks_internal_url():
     assert err is not None
     assert "Blocked URL" in err
 
-
 @pytest.mark.asyncio
 async def test_playwright_navigate_allows_public_url():
     mesh = MCPMesh()
     err = await mesh._validate_tool_arguments("browser_navigate", {"url": "https://example.com"})
     assert err is None
-
 
 @pytest.mark.asyncio
 async def test_any_http_url_argument_blocked():
@@ -42,14 +36,12 @@ async def test_any_http_url_argument_blocked():
     assert err is not None
     assert "Blocked URL" in err
 
-
 @pytest.mark.asyncio
 async def test_url_named_field_with_non_http_scheme_still_checked():
     mesh = MCPMesh()
     err = await mesh._validate_tool_arguments("open", {"href": "file:///etc/passwd"})
     assert err is not None
     assert "Blocked URL" in err
-
 
 @pytest.mark.asyncio
 async def test_nested_url_argument_blocked():
@@ -60,7 +52,6 @@ async def test_nested_url_argument_blocked():
     )
     assert err is not None
     assert "Blocked URL" in err
-
 
 def test_forbidden_mesh_tools_omitted_from_llm_schema():
     from app.core.harness.mcp_hub import MCPHub
@@ -98,7 +89,6 @@ def test_forbidden_mesh_tools_omitted_from_llm_schema():
     capability_governance.clear_external_tools()
     hub.unregister_tool("ext_ok_tool")
 
-
 @pytest.mark.asyncio
 async def test_forbidden_tools_not_indexed_for_call():
     """Forbidden discoveries must not be callable via mesh.call_tool."""
@@ -111,7 +101,6 @@ async def test_forbidden_tools_not_indexed_for_call():
 
     result = await mesh.call_tool("ext_forbidden_tool", {})
     assert "Unknown external tool" in result
-
 
 @pytest.mark.asyncio
 async def test_discovery_skips_forbidden_in_tool_index():
@@ -154,7 +143,6 @@ async def test_discovery_skips_forbidden_in_tool_index():
     assert "locked" in mesh._discovered_servers
     assert mesh.is_external_tool(discovered[0].registered_name) is False
 
-
 def test_builtin_categories_opt_in_keeps_core(monkeypatch):
     """Listing an advanced category must not replace CORE."""
     import app.config as config_module
@@ -170,7 +158,6 @@ def test_builtin_categories_opt_in_keeps_core(monkeypatch):
     # Explicit empty set still means "register nothing" for tests.
     empty = MCPHub(enabled_categories=set())
     assert empty._enabled_categories == set()
-
 
 @pytest.mark.asyncio
 async def test_ensure_server_reconnects_dead_session():
@@ -201,7 +188,6 @@ async def test_ensure_server_reconnects_dead_session():
     assert conn is live
     assert conn.session is not None
 
-
 def test_transport_failure_classifier():
     from app.core.harness.mcp_mesh import _is_transport_failure
 
@@ -210,7 +196,6 @@ def test_transport_failure_classifier():
     assert _is_transport_failure(RuntimeError("session closed"))
     assert not _is_transport_failure(ValueError("bad arg"))
     assert not _is_transport_failure(RuntimeError("tool rejected by server"))
-
 
 @pytest.mark.asyncio
 async def test_call_with_reconnect_skips_app_errors():
@@ -231,7 +216,6 @@ async def test_call_with_reconnect_skips_app_errors():
         await mesh._call_with_reconnect(conn, "demo", "ok", {}, "demo_ok")
     mark.assert_not_awaited()
     assert session.call_tool.await_count == 1
-
 
 @pytest.mark.asyncio
 async def test_call_with_reconnect_retries_transport_once():
@@ -267,7 +251,6 @@ async def test_call_with_reconnect_retries_transport_once():
     assert first_session.call_tool.await_count == 1
     assert second_session.call_tool.await_count == 1
 
-
 @pytest.mark.asyncio
 async def test_connect_failure_cleans_up_partial_session():
     """initialize() failure must __aexit__ session and transport."""
@@ -300,7 +283,6 @@ async def test_connect_failure_cleans_up_partial_session():
     transport.__aexit__.assert_awaited_once()
     assert conn.session is None
     assert conn._transport is None
-
 
 @pytest.mark.asyncio
 async def test_reconnect_does_not_rediscover_forbidden_only_server():
@@ -365,7 +347,6 @@ async def test_reconnect_does_not_rediscover_forbidden_only_server():
     assert discovered == []
     assert len(mesh._discovered) == 1
 
-
 @pytest.mark.asyncio
 async def test_external_write_tool_taint_escalation(kernel, monkeypatch):
     """External needs_user tools participate in taint escalation."""
@@ -400,7 +381,6 @@ async def test_external_write_tool_taint_escalation(kernel, monkeypatch):
     mcp_hub.unregister_tool(tool_name)
     capability_governance.clear_external_tools()
     taint_registry.clear(corr)
-
 
 def test_get_server_status_single_server(monkeypatch):
     mesh = MCPMesh()

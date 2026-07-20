@@ -8,12 +8,7 @@ Validates:
     - Scheduler recovery after restart
 """
 
-import os
-
 import pytest
-
-os.environ.setdefault("LLM_API_KEY", "test-key")
-
 
 @pytest.fixture(autouse=True)
 def _reset_scheduler():

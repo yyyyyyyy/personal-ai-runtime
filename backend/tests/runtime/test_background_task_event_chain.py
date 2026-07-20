@@ -4,12 +4,7 @@ Tests use the background_tasks API module.
 """
 from __future__ import annotations
 
-import os
-
 import pytest
-
-os.environ.setdefault("LLM_API_KEY", "test-key")
-
 
 @pytest.fixture(autouse=True)
 def _reset_scheduler():

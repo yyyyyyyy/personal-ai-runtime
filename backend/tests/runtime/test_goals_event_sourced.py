@@ -7,29 +7,11 @@ Verifies:
 - No direct write SQL to `goals` table in goals.py API layer.
 """
 
-import os
-
-os.environ.setdefault("LLM_API_KEY", "test-key")
-
-
-from app.core.runtime.kernel import Kernel
-from app.store.database import Database
-
-
-def make_kernel_and_db(tmp_path):
-    db = Database(db_path=str(tmp_path / "t1.db"))
-    k = Kernel(db=db)
-    # Ensure the goals table exists (the projector writes to it, but the
-    # schema must already exist — Database.__init__ creates it).
-    return k, db
-
-
 class TestGoalsEventSourced:
     """Simulate the T1 scenario: build → modify → rebuild → verify identity."""
 
-    def test_full_lifecycle_and_rebuild(self, tmp_path):
-        k, _ = make_kernel_and_db(tmp_path)
-
+    def test_full_lifecycle_and_rebuild(self, isolated_kernel):
+        k, _db = isolated_kernel
         # ---- Build ----
         k.emit_event("WorkItemCreated", "work_item", "g1", {'work_type': 'goal', 'status': 'active', "title": "Task A", "importance": 0.9}, actor="user")
         k.emit_event("WorkItemCreated", "work_item", "g2", {'work_type': 'goal', 'status': 'active', "title": "Task B", "urgency": 0.7}, actor="user")
@@ -59,15 +41,15 @@ class TestGoalsEventSourced:
         after = k.query_state("work_items", work_type="goal")
         assert before == after, "rebuilt State must be byte-identical to pre-rebuild State"
 
-    def test_goal_deleted_removed_from_projection(self, tmp_path):
-        k, _ = make_kernel_and_db(tmp_path)
+    def test_goal_deleted_removed_from_projection(self, isolated_kernel):
+        k, _db = isolated_kernel
         k.emit_event("WorkItemCreated", "work_item", "g1", {'work_type': 'goal', 'status': 'active', "title": "X"}, actor="user")
         assert len(k.query_state("work_items", work_type="goal")) == 1
         k.emit_event("WorkItemDeleted", "work_item", "g1", {}, actor="user")
         assert len(k.query_state("work_items", work_type="goal")) == 0
 
-    def test_goal_created_projection_fields(self, tmp_path):
-        k, _ = make_kernel_and_db(tmp_path)
+    def test_goal_created_projection_fields(self, isolated_kernel):
+        k, _db = isolated_kernel
         k.emit_event(
             "WorkItemCreated",
             "work_item",

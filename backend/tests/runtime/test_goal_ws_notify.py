@@ -2,11 +2,7 @@
 
 from __future__ import annotations
 
-import os
 from unittest.mock import patch
-
-os.environ.setdefault("LLM_API_KEY", "test-key")
-
 
 def test_work_item_created_triggers_goal_changed(isolated_kernel):
     k, _db = isolated_kernel

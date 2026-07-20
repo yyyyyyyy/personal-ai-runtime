@@ -1,10 +1,6 @@
 """Tests for scenario fragment registration and collection."""
 
-import os
-
 import pytest
-
-os.environ.setdefault("LLM_API_KEY", "test-key")
 
 from app.context_runtime import RuntimeContext, fragment_registry
 

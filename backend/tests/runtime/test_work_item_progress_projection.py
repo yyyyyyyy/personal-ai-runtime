@@ -5,20 +5,12 @@ completed_children / total_children. This is pure projection (no event
 emission) so rebuild produces byte-identical state.
 """
 
-import os
-
-os.environ.setdefault("LLM_API_KEY", "test-key")
-
 import pytest
 
-
 @pytest.fixture
-def kernel(tmp_path):
-    from app.core.runtime.kernel import Kernel
-    from app.store.database import Database
-
-    return Kernel(db=Database(db_path=str(tmp_path / "v1_progress.db")))
-
+def kernel(isolated_kernel):
+    k, _db = isolated_kernel
+    return k
 
 def test_child_completion_recalculates_parent_progress(kernel):
     """Completing a child updates the parent goal's progress in the same
@@ -51,7 +43,6 @@ def test_child_completion_recalculates_parent_progress(kernel):
     parent = kernel.query_state("work_items", id="goal_p1")[0]
     assert parent["progress"] == 1.0
 
-
 def test_progress_recalculation_ignores_non_goal_parents(kernel):
     """A task's status change does not affect a parent that is itself a task."""
     # Parent task (not goal)
@@ -69,7 +60,6 @@ def test_progress_recalculation_ignores_non_goal_parents(kernel):
     parent = kernel.query_state("work_items", id="task_parent")[0]
     # Parent task's progress should remain at default (0)
     assert parent["progress"] == 0
-
 
 def test_progress_recalculation_byte_identical_after_rebuild(kernel):
     """rebuild('work_item') must produce the same progress value."""
@@ -95,7 +85,6 @@ def test_progress_recalculation_byte_identical_after_rebuild(kernel):
         f"rebuild drift: before={dict(before)} after={dict(after)}"
     )
 
-
 def test_progress_supports_legacy_parent_goal_id(kernel):
     """Children linked via parent_goal_id (legacy) also count toward goal progress."""
     kernel.emit_event("WorkItemCreated", "work_item", "goal_legacy", payload={
@@ -111,7 +100,6 @@ def test_progress_supports_legacy_parent_goal_id(kernel):
                       payload={"status": "completed"})
     parent = kernel.query_state("work_items", id="goal_legacy")[0]
     assert parent["progress"] == 1.0
-
 
 def test_no_children_progress_unchanged(kernel):
     """A goal with no children keeps its existing progress on status changes

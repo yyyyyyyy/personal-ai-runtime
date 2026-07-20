@@ -8,19 +8,12 @@ Covers paths not exercised by existing decision/forbidden tests:
 - high risk denied for non-user principals (system principal path)
 """
 
-import os
-
 import pytest
 
-os.environ.setdefault("LLM_API_KEY", "test-key")
-
-
 @pytest.fixture
-def kernel(tmp_path):
-    from app.core.runtime.kernel import Kernel
-    from app.store.database import Database
-    return Kernel(db=Database(db_path=str(tmp_path / "gate3.db")))
-
+def kernel(isolated_kernel):
+    k, _db = isolated_kernel
+    return k
 
 def test_taint_escalates_write_tool_to_high(kernel):
     """Write-class tool on a tainted correlation → risk forced to high."""
@@ -44,7 +37,6 @@ def test_taint_escalates_write_tool_to_high(kernel):
     assert decision.decision != "allow", f"Tainted write tool should NOT be auto-allowed: {decision}"
     assert decision.reason is not None, f"Tainted write tool must give a reason: {decision}"
 
-
 def test_high_risk_system_principal_auto_denied(kernel):
     """High-risk tools are auto-denied for bare system/kernel actors.
 
@@ -64,7 +56,6 @@ def test_high_risk_system_principal_auto_denied(kernel):
     assert decision.decision == "deny"
     assert "high_risk_system_auto_denied" in decision.reason
 
-
 def test_high_risk_executor_defers_for_human_approval(kernel):
     """executor/background may defer high-risk tools (plan pause → Approve)."""
     from app.core.runtime.capability_governance import capability_governance
@@ -81,7 +72,6 @@ def test_high_risk_executor_defers_for_human_approval(kernel):
         assert decision.decision == "defer", actor
         assert decision.approval_id
 
-
 def test_low_risk_system_principal_gets_auto_approved(kernel):
     """Low-risk tool for system principal → approval auto-approved → allow."""
     from app.core.runtime.capability_governance import capability_governance
@@ -95,7 +85,6 @@ def test_low_risk_system_principal_gets_auto_approved(kernel):
         kernel,
     )
     assert decision.decision == "allow"
-
 
 def test_pre_approved_rejects_missing_approval_id(kernel):
     """Gate 2: pre_approved=True without approval_id → deny."""

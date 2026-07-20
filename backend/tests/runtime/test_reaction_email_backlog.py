@@ -10,11 +10,8 @@ broadcast every cycle. These tests pin the corrected contract:
   3. Repeated evaluate_cycle does not create a duplicate nor re-broadcast.
 """
 
-import os
 import sys
 from pathlib import Path
-
-os.environ.setdefault("LLM_API_KEY", "test-key")
 
 _BACKEND_ROOT = Path(__file__).resolve().parent.parent.parent
 if str(_BACKEND_ROOT / "backend") not in sys.path:

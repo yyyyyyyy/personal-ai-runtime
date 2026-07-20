@@ -1,22 +1,8 @@
 """T4 acceptance test: Memory as derived decaying belief with rebuild support."""
 
-import os
-
-os.environ.setdefault("LLM_API_KEY", "test-key")
-
-
-from app.core.runtime.kernel import Kernel
-from app.store.database import Database
-
-
-def make_kernel(tmp_path):
-    db = Database(db_path=str(tmp_path / "t4.db"))
-    return Kernel(db=db), db
-
-
 class TestMemoryBelief:
-    def test_memory_derived_and_rebuild(self, tmp_path):
-        k, _ = make_kernel(tmp_path)
+    def test_memory_derived_and_rebuild(self, isolated_kernel):
+        k, _db = isolated_kernel
         k.emit_event("MemoryDerived", "memory", "m1", {
             "category": "preference", "content": "User prefers Rust", "confidence": 0.8,
         }, actor="extractor")
@@ -33,8 +19,8 @@ class TestMemoryBelief:
         assert by_id["m1"]["confidence"] == 0.8
         assert by_id["m2"]["content"] == "User lives in Beijing"
 
-    def test_memory_decayed_lowers_confidence(self, tmp_path):
-        k, _ = make_kernel(tmp_path)
+    def test_memory_decayed_lowers_confidence(self, isolated_kernel):
+        k, _db = isolated_kernel
         k.emit_event("MemoryDerived", "memory", "m1", {
             "category": "preference", "content": "User likes coffee", "confidence": 0.7,
         }, actor="extractor")
@@ -45,8 +31,8 @@ class TestMemoryBelief:
         assert dict(row)["confidence"] == 0.2
         assert dict(row)["decayed_at"] is not None
 
-    def test_memory_revoked_zeroes_confidence(self, tmp_path):
-        k, _ = make_kernel(tmp_path)
+    def test_memory_revoked_zeroes_confidence(self, isolated_kernel):
+        k, _db = isolated_kernel
         k.emit_event("MemoryDerived", "memory", "m1", {
             "category": "fact", "content": "User works at Company X", "confidence": 0.6,
         }, actor="extractor")
@@ -56,8 +42,8 @@ class TestMemoryBelief:
             row = conn.execute("SELECT * FROM memories WHERE id = ?", ("m1",)).fetchone()
         assert dict(row)["confidence"] == 0.0
 
-    def test_rebuild_memory_projection(self, tmp_path):
-        k, _ = make_kernel(tmp_path)
+    def test_rebuild_memory_projection(self, isolated_kernel):
+        k, _db = isolated_kernel
         k.emit_event("MemoryDerived", "memory", "m1", {
             "category": "preference", "content": "Rust", "confidence": 0.8,
         }, actor="extractor")
@@ -79,9 +65,8 @@ class TestMemoryBelief:
         assert before == after, "memory projection must be byte-identical after rebuild"
         assert len(after) == 2
 
-    def test_memory_event_persists_when_chroma_fails(self, tmp_path):
-        k, _ = make_kernel(tmp_path)
-
+    def test_memory_event_persists_when_chroma_fails(self, isolated_kernel):
+        k, _db = isolated_kernel
         class BrokenVectorStore:
             def delete_memory(self, *_args, **_kwargs):
                 raise RuntimeError("chroma unavailable")

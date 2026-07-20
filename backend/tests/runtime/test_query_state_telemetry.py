@@ -1,10 +1,7 @@
 """Kernel query_state filters for governed telemetry tables."""
 
-import os
 import sys
 from pathlib import Path
-
-os.environ.setdefault("LLM_API_KEY", "test-key")
 
 _BACKEND_ROOT = Path(__file__).resolve().parent.parent.parent
 if str(_BACKEND_ROOT / "backend") not in sys.path:
@@ -13,14 +10,11 @@ if str(_BACKEND_ROOT / "backend") not in sys.path:
 import pytest
 
 from app.core.runtime.kernel.kernel import Kernel
-from app.store.database import Database
-
 
 @pytest.fixture
-def kernel(tmp_path):
-    db = Database(db_path=str(tmp_path / "tel.db"))
-    return Kernel(db=db)
-
+def kernel(isolated_kernel):
+    k, _db = isolated_kernel
+    return k
 
 def test_llm_calls_since_days_and_offset(kernel):
     for i in range(3):
@@ -48,7 +42,6 @@ def test_llm_calls_since_days_and_offset(kernel):
 
     recent = kernel.query_state("llm_calls", since_days=7, limit=10)
     assert len(recent) == 3
-
 
 def test_llm_calls_purpose_filter(kernel):
     kernel.emit_event(
@@ -87,7 +80,6 @@ def test_llm_calls_purpose_filter(kernel):
     rows = kernel.query_state("llm_calls", purpose="memory_extract", limit=10)
     assert len(rows) == 1
     assert rows[0]["purpose"] == "memory_extract"
-
 
 def test_tool_calls_tool_name_filter(kernel):
     kernel.emit_event(

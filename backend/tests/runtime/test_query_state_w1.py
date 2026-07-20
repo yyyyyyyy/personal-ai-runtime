@@ -1,20 +1,8 @@
 """W1 tests for kernel.query_state filter extensions."""
 
-import os
-
-os.environ["LLM_API_KEY"] = "test-key"
-
-from app.core.runtime.kernel import Kernel
-from app.store.database import Database
-
-
-def _kernel(tmp_path):
-    return Kernel(db=Database(db_path=str(tmp_path / "query_state_w1.db")))
-
-
 class TestQueryStateW1:
-    def test_tasks_by_id_and_parent(self, tmp_path):
-        k = _kernel(tmp_path)
+    def test_tasks_by_id_and_parent(self, isolated_kernel):
+        k, _db = isolated_kernel
         k.emit_event("WorkItemCreated", "work_item", "g1", payload={'work_type': 'goal', "title": "Goal"})
         k.emit_event(
             "WorkItemCreated",
@@ -38,8 +26,8 @@ class TestQueryStateW1:
         assert len(roots) == 1
         assert roots[0]["id"] == "t-root"
 
-    def test_tasks_status_and_limit(self, tmp_path):
-        k = _kernel(tmp_path)
+    def test_tasks_status_and_limit(self, isolated_kernel):
+        k, _db = isolated_kernel
         k.emit_event("WorkItemCreated", "work_item", "t1", payload={'work_type': 'goal', "title": "A", "priority": 1})
         k.emit_event("WorkItemCreated", "work_item", "t2", payload={'work_type': 'goal', "title": "B", "priority": 2})
         k.emit_event("WorkItemStatusChanged", "work_item", "t1", payload={'work_type': 'goal', "status": "running"}, actor="user")
@@ -48,8 +36,8 @@ class TestQueryStateW1:
         assert len(running) == 1
         assert running[0]["id"] == "t1"
 
-    def test_approvals_by_status(self, tmp_path):
-        k = _kernel(tmp_path)
+    def test_approvals_by_status(self, isolated_kernel):
+        k, _db = isolated_kernel
         k.emit_event(
             "ApprovalRequested",
             "approval",
@@ -76,10 +64,12 @@ class TestQueryStateW1:
         one = k.query_state("approvals", id="a2")
         assert one[0]["status"] == "approved"
 
-    def test_memories_decay_filters(self, tmp_path, monkeypatch):
+    def test_memories_decay_filters(self, isolated_kernel, monkeypatch):
         # query_state filter test — SQL projection only; skip Chroma index sync.
+        from app.core.runtime.kernel import Kernel
+
         monkeypatch.setattr(Kernel, "_sync_memory_index", lambda self, event: None)
-        k = _kernel(tmp_path)
+        k, _db = isolated_kernel
         k.emit_event(
             "MemoryDerived",
             "memory",
@@ -108,3 +98,42 @@ class TestQueryStateW1:
         )
         ids = {m["id"] for m in candidates}
         assert ids == {"m1", "m2"}
+
+def test_query_state_simple_active_goal(isolated_kernel):
+    k, _db = isolated_kernel
+    k.emit_event(
+        "WorkItemCreated", "work_item", "goal_qs",
+        payload={"work_type": "goal", "status": "active", "title": "Query test"},
+        actor="verify",
+    )
+    rows = k.query_state("work_items", work_type="goal", status="active", limit=5)
+    assert len(rows) == 1
+    assert rows[0]["title"] == "Query test"
+
+
+def test_query_state_created_at_desc_order(isolated_kernel):
+    k, _db = isolated_kernel
+    k.emit_event(
+        "WorkItemCreated", "work_item", "goal_qs2_first",
+        payload={
+            "work_type": "goal",
+            "status": "active",
+            "title": "First",
+            "created_at": "2026-01-01T00:00:00+00:00",
+        },
+        actor="verify",
+    )
+    k.emit_event(
+        "WorkItemCreated", "work_item", "goal_qs2",
+        payload={
+            "work_type": "goal",
+            "status": "active",
+            "title": "Query2",
+            "created_at": "2026-01-02T00:00:00+00:00",
+        },
+        actor="verify",
+    )
+    rows = k.query_state("work_items", work_type="goal", limit=10, order="created_at_desc")
+    assert len(rows) == 2
+    assert rows[0]["title"] == "Query2"
+    assert rows[1]["title"] == "First"

@@ -2,15 +2,10 @@
 
 import pytest
 
-from app.core.runtime.kernel import Kernel
-from app.store.database import Database
-
-
 @pytest.fixture
-def kernel(tmp_path):
-    db = Database(db_path=str(tmp_path / "actions_test.db"))
-    return Kernel(db=db)
-
+def kernel(isolated_kernel):
+    k, _db = isolated_kernel
+    return k
 
 class TestActionsEventSourced:
     def test_actions_crud_and_rebuild(self, kernel):

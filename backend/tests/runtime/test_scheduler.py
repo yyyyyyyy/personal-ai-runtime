@@ -1,10 +1,6 @@
 """Tests for cron_registry — timer registration and event dispatch."""
 
-import os
-
 import pytest
-
-os.environ.setdefault("LLM_API_KEY", "test-key")
 
 EXPECTED_SCHEDULE_NAMES = {
     "deadline_alert",
@@ -76,3 +72,15 @@ def test_shutdown_scheduler_unsubscribes_triggers(tmp_path, monkeypatch):
     assert len(k._subscribers) == before + 2
     cr.shutdown_scheduler()
     assert len(k._subscribers) == before
+
+def test_next_cron_fire_returns_aware_future():
+    from datetime import UTC, datetime
+
+    from app.core.runtime.runtime_loop import RuntimeLoop
+
+    now = datetime.now(UTC)
+    result = RuntimeLoop._next_cron_fire("minute=*/15", from_ts=now)
+    assert result is not None
+    parsed = datetime.fromisoformat(result)
+    assert parsed.tzinfo is not None
+    assert parsed > now

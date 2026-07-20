@@ -1,9 +1,5 @@
 """Rebuild consistency tests for engines migrated to Kernel event writes."""
 
-import os
-
-os.environ.setdefault("LLM_API_KEY", "test-key")
-
 from app.core.agents.memory_engine import MemoryEngine
 from app.core.runtime.kernel import Kernel
 from app.core.runtime.task_engine import (
@@ -79,3 +75,27 @@ class TestEngineRebuildConsistency:
         after = snapshot_table(db, "approvals")
         assert before == after
         assert any(a["status"] == "approved" for a in after)
+
+def test_rebuild_single_work_item_aggregate(isolated_kernel):
+    k, _db = isolated_kernel
+    k.emit_event(
+        "WorkItemCreated", "work_item", "goal_rebuild_test",
+        payload={"work_type": "goal", "status": "active", "title": "Rebuild test"},
+        actor="verify",
+    )
+    result = k.rebuild("work_item")
+    assert result == 1
+    rows = k.query_state("work_items", id="goal_rebuild_test")
+    assert rows and rows[0]["title"] == "Rebuild test"
+
+
+def test_rebuild_all_reports_work_item(isolated_kernel):
+    k, _db = isolated_kernel
+    k.emit_event(
+        "WorkItemCreated", "work_item", "goal_all",
+        payload={"title": "All rebuild test"},
+        actor="verify",
+    )
+    result = k.rebuild_all()
+    assert "work_item" in result
+    assert result["work_item"] >= 1

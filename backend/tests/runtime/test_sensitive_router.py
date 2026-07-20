@@ -1,10 +1,6 @@
 """Tests for sensitive_router."""
 
-import os
-
 import pytest
-
-os.environ.setdefault("LLM_API_KEY", "test-key")
 
 from app.core.runtime.capability_governance import SensitiveRouter, sensitive_router
 
@@ -35,3 +31,9 @@ def test_sensitive_patterns_in_args(router, monkeypatch):
 
 def test_singleton_instance():
     assert isinstance(sensitive_router, SensitiveRouter)
+
+def test_elevated_risk_empty_for_non_sensitive(router, monkeypatch):
+    monkeypatch.setattr(
+        "app.core.runtime.capability_governance.settings.sensitive_ops_local", True
+    )
+    assert router.elevated_risk("read_file") == ""

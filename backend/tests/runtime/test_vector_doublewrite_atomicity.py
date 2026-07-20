@@ -10,11 +10,7 @@ commits. A ChromaDB failure leaves embedding_id NULL (repaired later)
 but never orphans an event.
 """
 
-import os
-
 import pytest
-
-os.environ.setdefault("LLM_API_KEY", "test-key")
 
 from app.core.runtime.kernel import Kernel  # noqa: E402
 from app.core.runtime.kernel.kernel import (  # noqa: E402

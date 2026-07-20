@@ -1,9 +1,5 @@
 """Tests for schema initialization."""
 
-import os
-
-os.environ.setdefault("LLM_API_KEY", "test-key")
-
 from app.core.runtime.kernel import Kernel
 from app.store.database import Database
 from app.store.schema_init import apply_projection_ddl, ensure_schema, uses_alembic

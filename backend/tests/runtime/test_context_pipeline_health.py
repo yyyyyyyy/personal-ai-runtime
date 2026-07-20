@@ -1,11 +1,5 @@
 """Tests for ContextPipeline fragment registration health surfacing."""
 
-import os
-
-os.environ.setdefault("LLM_API_KEY", "test-key")
-
-
-
 def test_health_check_ok_after_normal_construction():
     """When register_all_fragments succeeds, health_check reports ok."""
     from app.core.runtime.governance.context_pipeline import ContextPipeline

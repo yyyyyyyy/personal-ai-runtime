@@ -3,24 +3,11 @@
 Uses direct emit_event for task lifecycle.
 """
 
-import os
 import uuid
 
-os.environ.setdefault("LLM_API_KEY", "test-key")
-
-
-from app.core.runtime.kernel import Kernel
-from app.store.database import Database
-
-
-def make_kernel(tmp_path):
-    db = Database(db_path=str(tmp_path / "t5.db"))
-    return Kernel(db=db), db
-
-
 class TestTaskAgent:
-    def test_full_task_agent_lifecycle_and_rebuild(self, tmp_path):
-        k, _ = make_kernel(tmp_path)
+    def test_full_task_agent_lifecycle_and_rebuild(self, isolated_kernel):
+        k, _db = isolated_kernel
         cid = "plan_weekly_report"
         task_id = f"task_{uuid.uuid4().hex}"
         agent_id = f"agent_{uuid.uuid4().hex}"
@@ -67,9 +54,9 @@ class TestTaskAgent:
         tasks2 = k.query_state("work_items")
         assert any(tk["id"] == task_id and tk["status"] == "completed" for tk in tasks2)
 
-    def test_agent_is_ephemeral(self, tmp_path):
+    def test_agent_is_ephemeral(self, isolated_kernel):
         """Agents leave no persistent state — only events."""
-        k, _ = make_kernel(tmp_path)
+        k, _db = isolated_kernel
         cid = "ephem_test"
         task_id = f"task_{uuid.uuid4().hex}"
         agent_id = f"agent_{uuid.uuid4().hex}"
@@ -85,8 +72,8 @@ class TestTaskAgent:
         assert event_types.count("AgentSpawned") == 1
         assert event_types.count("AgentTerminated") == 1
 
-    def test_task_failed_on_error(self, tmp_path):
-        k, _ = make_kernel(tmp_path)
+    def test_task_failed_on_error(self, isolated_kernel):
+        k, _db = isolated_kernel
         cid = "fail_test"
         task_id = f"task_{uuid.uuid4().hex}"
         agent_id = f"agent_{uuid.uuid4().hex}"

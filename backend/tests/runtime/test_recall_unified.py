@@ -5,10 +5,6 @@ Recall goes through Kernel._memory_index (MemoryIndexPort), not the global
 vector_store singleton.
 """
 
-import os
-
-os.environ.setdefault("LLM_API_KEY", "test-key")
-
 from app.core.runtime import read_ports
 from app.core.runtime.kernel import Kernel
 from app.store.database import Database

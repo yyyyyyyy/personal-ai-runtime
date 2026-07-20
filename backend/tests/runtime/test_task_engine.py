@@ -1,8 +1,4 @@
 """Tests for WorkItem engine (uses work_items)."""
-import os
-
-os.environ["LLM_API_KEY"] = "test-key"
-
 from app.core.runtime.task_engine import (
     create_task,
     get_subtasks,

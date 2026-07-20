@@ -1,21 +1,14 @@
 """Tests for kernel sovereignty export/import."""
 
 import json
-import os
 import threading
 
 import pytest
 
-os.environ.setdefault("LLM_API_KEY", "test-key")
-
-from app.core.runtime.kernel import Kernel
-from app.store.database import Database
-
-
 @pytest.fixture
-def kernel(tmp_path):
-    return Kernel(db=Database(db_path=str(tmp_path / "sov.db")))
-
+def kernel(isolated_kernel):
+    k, _db = isolated_kernel
+    return k
 
 def test_export_import_roundtrip(kernel):
     k = kernel
@@ -31,14 +24,12 @@ def test_export_import_roundtrip(kernel):
     restored = k.query_state("work_items", id="g_exp")
     assert restored and restored[0]["title"] == "Export Me"
 
-
 def test_table_counts(kernel):
     k = kernel
     k.emit_event("WorkItemCreated", "work_item", "g_cnt", payload={'work_type': 'goal', "title": "Count"})
     counts = k.table_counts(("work_items", "event_log"))
     assert counts["work_items"] >= 1
     assert counts["event_log"] >= 1
-
 
 def test_export_chat_rows_and_bootstrap(kernel):
     k = kernel
@@ -62,7 +53,6 @@ def test_export_chat_rows_and_bootstrap(kernel):
     assert any(c["id"] == "c1" for c in convs)
     assert any(m["id"] == "m1" for m in msgs)
 
-
 def test_save_projection_snapshot_and_rebuild(kernel):
     k = kernel
     k.emit_event("WorkItemCreated", "work_item", "g_snap", payload={'work_type': 'goal', "title": "Snap"})
@@ -77,7 +67,6 @@ def test_save_projection_snapshot_and_rebuild(kernel):
     assert replayed >= 0
     assert k.query_state("work_items", id="g_snap")
 
-
 def test_bootstrap_chat_skips_when_events_present(kernel):
     k = kernel
     k.emit_event("ConversationCreated", "conversation", "c2", payload={'work_type': 'goal', "title": "X"})
@@ -88,7 +77,6 @@ def test_bootstrap_chat_skips_when_events_present(kernel):
         events,
     )
     assert result == {"conversations": 0, "messages": 0}
-
 
 def test_export_event_log_batched_matches_full_order(kernel):
     """Batched seq-cursor export must equal a single ordered scan."""
@@ -110,7 +98,6 @@ def test_export_event_log_batched_matches_full_order(kernel):
     assert [r["seq"] for r in batched] == [r["seq"] for r in full]
     assert [r["id"] for r in batched] == [r["id"] for r in full]
 
-
 def test_snapshot_point_in_time_and_no_checkpoint_side_effect(kernel, monkeypatch):
     """snapshot() must not write projection checkpoints during export."""
     k = kernel
@@ -130,7 +117,6 @@ def test_snapshot_point_in_time_and_no_checkpoint_side_effect(kernel, monkeypatc
     assert snap["counts"]["event_log"] == len(snap["event_log"])
     assert snap["counts"]["goals"] >= 1
     assert any(e["aggregate_id"] == "g_snap_exp" for e in snap["event_log"])
-
 
 def test_streamed_snapshot_excludes_writes_after_first_chunk(kernel):
     """All streamed sections must come from the same SQLite read snapshot."""
@@ -161,7 +147,6 @@ def test_streamed_snapshot_excludes_writes_after_first_chunk(kernel):
     assert "before-stream" in ids
     assert "after-stream-start" not in ids
 
-
 def test_streamed_snapshot_early_close_does_not_sticky_read(kernel):
     """Closing an export mid-stream must not leave a stale read txn behind."""
     k = kernel
@@ -185,9 +170,7 @@ def test_streamed_snapshot_early_close_does_not_sticky_read(kernel):
     ids = {row["aggregate_id"] for row in rows}
     assert "after-close" in ids
 
-
 # ── Atomic restore tests ──────────────────────────────────────────────────
-
 
 def test_atomic_import_rollback_on_failure(kernel, monkeypatch):
     """Import that fails mid-rebuild must leave the DB in its pre-import state."""
@@ -214,7 +197,6 @@ def test_atomic_import_rollback_on_failure(kernel, monkeypatch):
     existing = k.query_state("work_items", id="pre")
     assert existing and existing[0]["title"] == "PreExisting"
     assert k.count_events("work_item") == event_count_before
-
 
 def test_atomic_import_preserves_state_on_partial_failure(kernel, monkeypatch):
     """Count-based invariants hold after a failed import rollback."""
@@ -249,7 +231,6 @@ def test_atomic_import_preserves_state_on_partial_failure(kernel, monkeypatch):
     assert counts_after["work_items"] == counts_before["work_items"]
     assert counts_after["event_log"] == counts_before["event_log"]
 
-
 def test_atomic_import_no_rebuild_still_succeeds(kernel):
     """import_event_log_rows without rebuild_projections must work atomically."""
     k = kernel
@@ -262,7 +243,6 @@ def test_atomic_import_no_rebuild_still_succeeds(kernel):
     # so empty.  This is expected when rebuild_projections=False (the caller
     # must call rebuild_all afterwards).  Verify event_log is correct.
     assert k.count_events("work_item") >= len(rows)
-
 
 def test_import_without_rebuild_clears_old_projection_checkpoints(kernel):
     """Deferred replay must not reuse a checkpoint from the pre-import log."""
@@ -283,3 +263,13 @@ def test_import_without_rebuild_clears_old_projection_checkpoints(kernel):
             "SELECT COUNT(*) FROM projection_checkpoints"
         ).fetchone()[0]
     assert count == 0
+
+def test_export_event_log_rows_contains_emitted(kernel):
+    k = kernel
+    k.emit_event(
+        "WorkItemCreated", "work_item", "goal_export_rows",
+        payload={"title": "Export test"},
+        actor="verify",
+    )
+    exported = k.export_event_log_rows()
+    assert any(r["aggregate_id"] == "goal_export_rows" for r in exported)

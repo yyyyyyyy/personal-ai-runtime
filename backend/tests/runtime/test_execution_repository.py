@@ -6,10 +6,6 @@ without the projector chain.
 """
 from __future__ import annotations
 
-import os
-
-os.environ.setdefault("LLM_API_KEY", "test-key")
-
 import pytest
 
 from app.core.runtime.kernel import execution_repository as er

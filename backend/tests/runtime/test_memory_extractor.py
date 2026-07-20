@@ -1,9 +1,5 @@
 """Tests for automatic memory extraction."""
 
-import os
-
-os.environ.setdefault("LLM_API_KEY", "test-key")
-
 import pytest
 
 from app.core.agents.memory_engine import memory_engine

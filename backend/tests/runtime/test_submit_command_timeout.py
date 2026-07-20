@@ -1,10 +1,5 @@
 """Tests for submit_command timeout configuration."""
 
-import os
-
-os.environ.setdefault("LLM_API_KEY", "test-key")
-
-
 def test_default_timeout_values():
     """Default per-call-site timeouts are sensible."""
     from app.config import Settings

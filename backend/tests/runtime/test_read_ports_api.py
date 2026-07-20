@@ -1,33 +1,16 @@
 """Read-port helpers used by API / product layers."""
 
-import os
-import sys
-from pathlib import Path
-
-os.environ.setdefault("LLM_API_KEY", "test-key")
-
-_BACKEND_ROOT = Path(__file__).resolve().parent.parent.parent
-if str(_BACKEND_ROOT / "backend") not in sys.path:
-    sys.path.insert(0, str(_BACKEND_ROOT / "backend"))
-
 import pytest
 
 from app.core.runtime import read_ports
-from app.core.runtime.kernel.kernel import Kernel
 from app.core.runtime.reaction_registry import reset_reactions
-from app.store.database import Database
-
 
 @pytest.fixture
-def kernel(tmp_path, monkeypatch):
-    db = Database(db_path=str(tmp_path / "ports.db"))
-    k = Kernel(db=db)
-    monkeypatch.setattr("app.core.runtime.kernel_instance.kernel", k)
-    monkeypatch.setattr("app.store.database.db", db)
+def kernel(isolated_kernel):
+    k, _db = isolated_kernel
     reset_reactions()
     yield k
     reset_reactions()
-
 
 def test_query_goal_and_actions(kernel):
     kernel.emit_event(
@@ -53,7 +36,9 @@ def test_query_goal_and_actions(kernel):
     assert len(actions) == 1
     assert actions[0]["id"] == "a1"
     assert read_ports.query_goals(status="active")[0]["id"] == "g1"
-
+    top = read_ports.query_top_active_goals(limit=5)
+    assert len(top) == 1
+    assert top[0]["title"] == "Ship"
 
 def test_query_memory_and_notifications(kernel):
     kernel.emit_event(
@@ -79,7 +64,6 @@ def test_query_memory_and_notifications(kernel):
     assert notif is not None
     assert notif["title"] == "hi"
 
-
 def test_query_inbox_email(kernel):
     kernel.emit_event(
         "InboxEmailRecorded", "inbox_email", "e1",
@@ -91,7 +75,6 @@ def test_query_inbox_email(kernel):
     assert row["subject"] == "Hello"
     pending = read_ports.query_pending_inbox_emails(limit=10)
     assert any(r["id"] == "e1" for r in pending)
-
 
 def test_query_conversation_and_profile(kernel):
     kernel.emit_event(
@@ -117,7 +100,6 @@ def test_query_conversation_and_profile(kernel):
     assert profile is not None
     assert profile["category"] == "preferences"
 
-
 def test_pending_inbox_count_exact(kernel):
     for i in range(12):
         kernel.emit_event(
@@ -130,7 +112,6 @@ def test_pending_inbox_count_exact(kernel):
     listed = read_ports.query_pending_inbox_emails(limit=5)
     assert len(listed) == 5
     assert read_ports.count_pending_inbox_emails() == 12
-
 
 def test_count_active_timers_and_policies(kernel):
     kernel.emit_event(
@@ -154,7 +135,6 @@ def test_count_active_timers_and_policies(kernel):
     assert read_ports.count_active_timers() >= 1
     assert read_ports.count_active_policies() >= 1
 
-
 def test_unread_notification_count_exact_beyond_list_limit(kernel):
     """COUNT must not be capped by the list query's default LIMIT."""
     for i in range(55):
@@ -168,7 +148,6 @@ def test_unread_notification_count_exact_beyond_list_limit(kernel):
     listed = read_ports.query_notifications(unread_only=True, limit=50)
     assert len(listed) == 50
     assert read_ports.query_unread_notification_count() == 55
-
 
 def test_query_message_by_id(kernel):
     kernel.emit_event(
@@ -189,7 +168,6 @@ def test_query_message_by_id(kernel):
     assert row is not None
     assert row["content"] == "ping"
     assert row["conversation_id"] == "c-msg"
-
 
 def test_timers_and_profile_via_query_state(kernel):
     kernel.emit_event(
@@ -216,7 +194,6 @@ def test_timers_and_profile_via_query_state(kernel):
     )
     assert read_ports.query_user_profile_category("style")["category"] == "style"
 
-
 def test_pending_approval_count_exact_beyond_list_limit(kernel):
     """COUNT must not be capped by the list query's default LIMIT 50."""
     for i in range(55):
@@ -231,7 +208,6 @@ def test_pending_approval_count_exact_beyond_list_limit(kernel):
     assert len(listed) == 50
     assert read_ports.query_pending_approval_count() == 55
     assert kernel.count_state("approvals", status="pending") == 55
-
 
 def test_get_mcp_server_status_uses_public_api(monkeypatch):
     """read_ports must not depend on mcp_mesh._connections."""

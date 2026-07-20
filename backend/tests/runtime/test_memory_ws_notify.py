@@ -7,10 +7,6 @@ called for every memory index event type, including delete.
 """
 from __future__ import annotations
 
-import os
-
-os.environ.setdefault("LLM_API_KEY", "test-key")
-
 from unittest.mock import patch
 
 

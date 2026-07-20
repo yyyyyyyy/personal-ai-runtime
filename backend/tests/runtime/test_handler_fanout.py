@@ -3,13 +3,9 @@
 from __future__ import annotations
 
 import importlib
-import os
 from unittest.mock import MagicMock
 
 import pytest
-
-os.environ.setdefault("LLM_API_KEY", "test-key")
-
 
 def _reregister_handlers() -> None:
     """Re-run @subscribe after autouse runtime.reset() cleared the registry."""
@@ -123,3 +119,34 @@ async def test_chat_completed_record_turn_via_scheduler(tmp_path, monkeypatch):
     recorded = k.read_events(type="ConversationRecorded", aggregate_id="c1")
     assert len(recorded) == 1
     assert recorded[0].payload["user_message"] == "hello fanout"
+
+def test_registered_types_includes_subscribed_key():
+    from app.core.runtime.handler_registry import _registry, registered_types, subscribe
+
+    key = "TestType_registry_probe"
+
+    @subscribe(key)
+    async def handle(_ctx, _evt):
+        pass
+
+    assert key in registered_types()
+    _registry.pop(key, None)
+
+
+def test_subscribe_fanout_appends_handlers():
+    from app.core.runtime.handler_registry import _registry, get_handlers, subscribe
+
+    key = "TestFanout_registry_probe"
+
+    @subscribe(key)
+    async def handler_a(_ctx, _evt):
+        pass
+
+    @subscribe(key)
+    async def handler_b(_ctx, _evt):
+        pass
+
+    handlers = get_handlers(key)
+    assert len(handlers) == 2
+    assert {h.__name__ for h in handlers} == {"handler_a", "handler_b"}
+    _registry.pop(key, None)

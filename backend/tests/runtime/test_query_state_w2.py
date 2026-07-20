@@ -1,20 +1,8 @@
 """W2 tests for kernel.query_state goal/action filter extensions."""
 
-import os
-
-os.environ["LLM_API_KEY"] = "test-key"
-
-from app.core.runtime.kernel import Kernel
-from app.store.database import Database
-
-
-def _kernel(tmp_path):
-    return Kernel(db=Database(db_path=str(tmp_path / "query_state_w2.db")))
-
-
 class TestQueryStateW2:
-    def test_goals_stagnant_and_deadline_filters(self, tmp_path):
-        k = _kernel(tmp_path)
+    def test_goals_stagnant_and_deadline_filters(self, isolated_kernel):
+        k, _db = isolated_kernel
         k.emit_event(
             "WorkItemCreated",
             "work_item",
@@ -44,8 +32,8 @@ class TestQueryStateW2:
         due = k.query_state("work_items", work_type="goal", status="active", deadline_within_days=36500, limit=50)
         assert {g["id"] for g in due} == {"g-due"}
 
-    def test_actions_status_filter(self, tmp_path):
-        k = _kernel(tmp_path)
+    def test_actions_status_filter(self, isolated_kernel):
+        k, _db = isolated_kernel
         k.emit_event("WorkItemCreated", "work_item", "g1", payload={'work_type': 'goal', "title": "G"})
         k.emit_event(
             "WorkItemCreated",
@@ -64,8 +52,8 @@ class TestQueryStateW2:
         assert len(pending) == 1
         assert pending[0]["id"] == "a1"
 
-    def test_tasks_depends_on_filter(self, tmp_path):
-        k = _kernel(tmp_path)
+    def test_tasks_depends_on_filter(self, isolated_kernel):
+        k, _db = isolated_kernel
         k.emit_event("WorkItemCreated", "work_item", "g1", payload={'work_type': 'goal', "title": "G"})
         k.emit_event("WorkItemCreated", "work_item", "t1", payload={'work_type': 'goal', "title": "Dep"})
         k.emit_event(
