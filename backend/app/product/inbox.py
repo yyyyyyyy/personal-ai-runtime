@@ -534,3 +534,9 @@ def latest_digest() -> dict | None:
         type="inbox_digest", limit=1, order="created_at_desc",
     )
     return rows[0] if rows else None
+
+
+# Bind Runtime inbox-poll handler → Product applier (R1 inversion).
+from app.core.runtime.kernel_instance import bind_inbox_poll_applier
+
+bind_inbox_poll_applier(apply_inbox_poll_payload)

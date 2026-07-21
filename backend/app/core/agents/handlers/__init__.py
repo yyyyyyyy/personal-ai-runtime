@@ -8,6 +8,9 @@ importing this package also registers them (single bootstrap entry).
 # Import handler modules to trigger @subscribe decorator registration.
 from app.core.runtime import handlers as _runtime_handlers  # noqa: E402, F401
 
+# Product inbox binds its poll applier into the Runtime handler (R1).
+import app.product.inbox as _product_inbox  # noqa: E402, F401
+
 from . import (
     chat_completed_handlers,  # noqa: E402, F401
     chat_handler,  # noqa: E402, F401

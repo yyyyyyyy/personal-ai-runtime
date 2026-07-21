@@ -28,18 +28,17 @@ class TestLayerDepsGuard:
         assert result.returncode == 0, result.stderr or result.stdout
         assert "LAYER DEPS OK" in result.stdout
 
-    def test_inventory_lists_known_debt(self):
+    def test_inventory_lists_zero_debt_when_cleared(self):
         result = run_check("--inventory")
         assert result.returncode == 0, result.stderr or result.stdout
         assert "LAYER DEPS INVENTORY" in result.stdout
         assert "New (would fail CI): 0" in result.stdout
-        assert "runtime_to_product" in result.stdout
-        assert "store_to_runtime" in result.stdout
+        assert "Total crossings: 0" in result.stdout
 
-    def test_strict_mode_fails_while_debt_remains(self):
+    def test_strict_mode_passes_when_allowlist_empty(self):
         result = run_check("--strict")
-        assert result.returncode == 1
-        assert "STRICT FAIL" in (result.stderr or result.stdout)
+        assert result.returncode == 0, result.stderr or result.stdout
+        assert "LAYER DEPS OK" in result.stdout
 
     def test_new_runtime_to_product_not_in_allowlist_fails(self, tmp_path, monkeypatch):
         sys.path.insert(0, str(BACKEND))

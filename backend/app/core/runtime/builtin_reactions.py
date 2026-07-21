@@ -41,7 +41,7 @@ def email_backlog_50(kernel=None) -> None:
     import logging
 
     from app.core.runtime.kernel_instance import kernel as default_kernel
-    from app.product.notifications import find_notification
+    from app.core.runtime.notification_bridge import find_notification
 
     logger = logging.getLogger(__name__)
     kern = kernel or default_kernel

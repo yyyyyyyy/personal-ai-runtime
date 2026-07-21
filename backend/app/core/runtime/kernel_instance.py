@@ -47,3 +47,10 @@ def get_current_execution_id() -> str | None:
     from app.core.runtime.execution import get_current_execution_id as _get
 
     return _get()
+
+
+def bind_inbox_poll_applier(fn) -> None:
+    """Register Product inbox poll applier on RuntimeContainer (ABI)."""
+    from app.core.runtime.runtime_container import runtime
+
+    runtime.bind_inbox_poll_applier(fn)

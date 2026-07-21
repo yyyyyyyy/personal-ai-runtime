@@ -145,9 +145,14 @@ class Database:
             )
 
 
-from app.core.runtime.runtime_container import _LazyProxy, runtime  # noqa: E402
+from app.store.bound_proxy import BoundProxy
 
 if TYPE_CHECKING:
     db: Database
 else:
-    db = _LazyProxy(lambda: runtime.db)
+    db = BoundProxy()
+
+
+def bind_db_factory(factory) -> None:
+    """Wire module ``db`` to RuntimeContainer (called from runtime only)."""
+    db.bind(factory)  # type: ignore[attr-defined]

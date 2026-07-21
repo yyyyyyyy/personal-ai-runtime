@@ -15,6 +15,9 @@ from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.types import ASGIApp, Receive, Scope, Send
 
+# Bind Store module proxies before any API/Product import touches ``db``.
+import app.core.runtime.runtime_container  # noqa: F401
+
 from app.api import (
     approvals,
     background_tasks,

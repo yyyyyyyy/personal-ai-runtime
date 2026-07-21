@@ -67,6 +67,8 @@ from app.core.runtime.read_ports.memory import (
     summarize_memory_stats,
 )
 from app.core.runtime.read_ports.notifications import (
+    create_notification,
+    find_notification,
     push_notification,
     query_notification,
     query_notifications,
@@ -74,6 +76,7 @@ from app.core.runtime.read_ports.notifications import (
     register_sse_queue,
     unregister_sse_queue,
 )
+from app.core.runtime.notification_bridge import NotificationPayload
 from app.core.runtime.read_ports.profile import (
     query_user_profile,
     query_user_profile_category,
@@ -184,6 +187,9 @@ __all__ = [
     "query_notification",
     "query_notifications",
     "query_unread_notification_count",
+    "NotificationPayload",
+    "create_notification",
+    "find_notification",
     "push_notification",
     "register_sse_queue",
     "unregister_sse_queue",

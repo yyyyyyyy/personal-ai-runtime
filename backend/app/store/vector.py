@@ -260,6 +260,11 @@ class VectorStore:
             self.knowledge_collection.delete(ids=chunk_ids)
 
 
-from app.core.runtime.runtime_container import _LazyProxy, runtime  # noqa: E402
+from app.store.bound_proxy import BoundProxy
 
-vector_store = _LazyProxy(lambda: runtime.vector_store)
+vector_store = BoundProxy()
+
+
+def bind_vector_store_factory(factory) -> None:
+    """Wire module ``vector_store`` to RuntimeContainer (called from runtime only)."""
+    vector_store.bind(factory)

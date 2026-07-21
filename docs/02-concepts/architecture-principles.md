@@ -56,12 +56,14 @@
 
 **API / Product 允许的 ABI 面**：
 
-- `kernel_instance`（含 `ensure_runtime_scheduler` / `get_runtime_scheduler` / `get_current_execution_id`）
+- `kernel_instance`（含 `ensure_runtime_scheduler` / `get_runtime_scheduler` / `get_current_execution_id` / `bind_inbox_poll_applier`）
 - **Ports ABI**（包路径仍为 `read_ports`：投影读 + Work/Triggers 命令包装 + SSE/推送桥；历史包名不改以免 churn）
 - `kernel.constants`、`runtime_config`（公开 API）、`egress`
 - Product 另允许 `from app.core.runtime.kernel import Kernel`（类型提示，不含 `kernel.*` 其它子模块）
 
-已知违规记在脚本 `DEBT_ALLOWLIST`；CI 默认阻断**新增**边。查看清单：
+Store 模块单例经 `BoundProxy` 由 `RuntimeContainer` 接线（应用入口须先 import `runtime_container`）；Runtime 模块单例的 `_LazyProxy` 即同一 `BoundProxy` 实现。
+
+已知违规记在脚本 `DEBT_ALLOWLIST`；CI 默认阻断**新增**边。R1/R2 已清空。查看清单：
 
 ```bash
 make layer-deps-inventory   # 或 python -m scripts.check_layer_deps --inventory

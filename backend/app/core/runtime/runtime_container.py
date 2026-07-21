@@ -15,7 +15,9 @@ Architecture target: global singletons 15+ → 0 (all registered).
 from __future__ import annotations
 
 import threading
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Awaitable, Callable
+
+from app.store.bound_proxy import BoundProxy as _LazyProxy
 
 if TYPE_CHECKING:
     from app.chat.prompt_compiler import PromptCompiler
@@ -37,52 +39,7 @@ if TYPE_CHECKING:
     from app.store.database import Database
     from app.store.vector import VectorStore
 
-
-class _LazyProxy:
-    """Transparent forwarder to a RuntimeContainer property.
-
-    Module-level singletons are replaced by ``_LazyProxy(lambda: runtime.x)``
-    so that ``from module import singleton`` imports keep working while the
-    container remains the single source of truth. Every attribute *read* is
-    delegated to the underlying instance; writes/deletes stay on the proxy
-    itself so ``unittest.mock.patch`` can swap a method without
-    touching the shared underlying instance.
-
-    The ``__new__`` overload below tells mypy that constructing a proxy
-    yields ``Any``, so call sites like ``kernel = _LazyProxy(...)`` type-
-    check     against the real Kernel API rather than against _LazyProxy itself.
-    """
-
-    def __init__(self, factory: "Any"):
-        self.__dict__["_factory"] = factory
-
-    # NOTE: no __slots__ — the proxy keeps its own __dict__ for attributes
-    # installed by callers (notably unittest.mock.patch) so they do not leak
-    # into the shared underlying instance.
-
-    def __getattr__(self, name: str) -> Any:
-        # Only called when normal attribute lookup fails (i.e. the name is
-        # not in self.__dict__), so we forward to the underlying instance.
-        return getattr(self._factory(), name)
-
-    def __setattr__(self, name: str, value: Any) -> None:
-        # Persist on the proxy itself; do not mutate the shared instance.
-        self.__dict__[name] = value
-
-    def __delattr__(self, name: str) -> None:
-        if name in self.__dict__:
-            del self.__dict__[name]
-        else:
-            delattr(self._factory(), name)
-
-    def __bool__(self) -> bool:
-        return bool(self._factory())
-
-    def __repr__(self) -> str:
-        try:
-            return repr(self._factory())
-        except Exception as exc:
-            return f"<_LazyProxy factory-error: {exc}>"
+_InboxPollApplier = Callable[..., Awaitable[dict[str, Any]]]
 
 
 class RuntimeContainer:
@@ -91,6 +48,8 @@ class RuntimeContainer:
     def __init__(self):
         self._lock = threading.Lock()
         self._inventory: list[dict] = []
+        # Product-bound inbox poll applier (survives handler module reload).
+        self._inbox_poll_applier: _InboxPollApplier | None = None
         # kernel
         self._kernel: "Kernel | None" = None
         # governance
@@ -125,6 +84,14 @@ class RuntimeContainer:
         """Register a subsystem in the inventory if not already present."""
         if not any(e["name"] == name for e in self._inventory):
             self._inventory.append({"name": name, "module": module, "class": cls_name})
+
+    def bind_inbox_poll_applier(self, fn: _InboxPollApplier) -> None:
+        """Register Product inbox poll application (R1 inversion; survives handler reload)."""
+        self._inbox_poll_applier = fn
+
+    @property
+    def inbox_poll_applier(self) -> _InboxPollApplier | None:
+        return self._inbox_poll_applier
 
     # ── Kernel ────────────────────────────────────────────────────────
 
@@ -385,3 +352,15 @@ class RuntimeContainer:
 
 
 runtime = RuntimeContainer()
+
+
+def _bind_store_singletons() -> None:
+    """Store module proxies must not import Runtime (R2); bind from here."""
+    from app.store.database import bind_db_factory
+    from app.store.vector import bind_vector_store_factory
+
+    bind_db_factory(lambda: runtime.db)
+    bind_vector_store_factory(lambda: runtime.vector_store)
+
+
+_bind_store_singletons()

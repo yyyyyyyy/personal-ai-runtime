@@ -1,4 +1,9 @@
-"""InboxPollRequested handler — poll unread inbox under capability governance."""
+"""InboxPollRequested handler — poll unread inbox under capability governance.
+
+Product supplies the payload applier via ``bind_inbox_poll_applier`` (stored on
+``RuntimeContainer``) so this Runtime handler never imports ``app.product`` (R1)
+and reloads of this module do not drop the bind.
+"""
 
 from __future__ import annotations
 
@@ -6,6 +11,7 @@ import json
 from typing import TYPE_CHECKING
 
 from app.core.runtime.handler_registry import subscribe
+from app.core.runtime.runtime_container import runtime
 
 if TYPE_CHECKING:
     from app.core.runtime.execution import ExecutionContext
@@ -16,7 +22,19 @@ if TYPE_CHECKING:
 async def on_inbox_poll_requested(ctx: "ExecutionContext", event: "Event") -> None:
     """Poll unread inbox via Scheduler under capability governance."""
     from app.core.runtime.kernel_instance import kernel
-    from app.product.inbox import apply_inbox_poll_payload
+
+    apply = runtime.inbox_poll_applier
+    if apply is None:
+        ctx.emit(
+            "InboxPollCompleted", "inbox", f"inbox_{event.aggregate_id}",
+            payload={
+                "status": "error",
+                "error": "inbox poll applier not bound",
+                "new_count": 0,
+            },
+            caused_by=event.id,
+        )
+        return
 
     limit = event.payload.get("limit", 20)
     cap = await kernel.invoke_capability(
@@ -46,7 +64,7 @@ async def on_inbox_poll_requested(ctx: "ExecutionContext", event: "Event") -> No
     if not isinstance(result, dict):
         result = {}
 
-    summary = await apply_inbox_poll_payload(result, execution_id=ctx.execution_id)
+    summary = await apply(result, execution_id=ctx.execution_id)
     if summary.get("status") == "error":
         ctx.emit(
             "InboxPollCompleted", "inbox", f"inbox_{event.aggregate_id}",

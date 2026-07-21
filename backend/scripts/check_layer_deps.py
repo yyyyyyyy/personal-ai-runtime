@@ -12,6 +12,7 @@ Complements ``check_boundary.py`` (storage GOLDEN RULE). This script enforces
 
 Known crossings are allowlisted so CI blocks *new* edges only.
 Shrink DEBT_ALLOWLIST as edges are removed (target: empty for R1/R2).
+R1/R2 are currently empty; keep the allowlist mechanism for regressions.
 
 Limitations (same class as check_boundary): does not see ``importlib`` /
 dynamic imports or relative imports (``from .foo import …``).
@@ -76,15 +77,8 @@ PRODUCT_ABI_PACKAGE_NAMES: frozenset[str] = frozenset({
 
 DebtKey = tuple[str, str, str]
 
-DEBT_ALLOWLIST: frozenset[DebtKey] = frozenset({
-    # R1 — Runtime → Product
-    ("core/runtime/notification_bridge.py", "runtime_to_product", "app.product.notifications"),
-    ("core/runtime/builtin_reactions.py", "runtime_to_product", "app.product.notifications"),
-    ("core/runtime/handlers/inbox_poll_handlers.py", "runtime_to_product", "app.product.inbox"),
-    # R2 — Store → Runtime
-    ("store/database.py", "store_to_runtime", "app.core.runtime.runtime_container"),
-    ("store/vector.py", "store_to_runtime", "app.core.runtime.runtime_container"),
-})
+DEBT_ALLOWLIST: frozenset[DebtKey] = frozenset()
+# R1/R2 cleared: Product binds into Runtime; Store BoundProxy wired from container.
 
 
 def _import_targets(node: ast.AST) -> list[tuple[str, bool]]:

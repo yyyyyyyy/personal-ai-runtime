@@ -47,7 +47,44 @@ def query_unread_notification_count() -> int:
         raise
 
 
-# ── Delivery / SSE bridge (API + Product ABI)
+# ── Persistence + delivery / SSE bridge (API + Product ABI)
+
+
+def find_notification(
+    notif_type: str,
+    title: str | None = None,
+    *,
+    dedup_key: str | None = None,
+    kernel: Any = None,
+) -> Any:
+    from app.core.runtime.notification_bridge import find_notification as _find
+
+    return _find(notif_type, title, dedup_key=dedup_key, kernel=kernel)
+
+
+def create_notification(
+    notif_type: str,
+    title: str,
+    content: str,
+    *,
+    related_id: str | None = None,
+    related_type: str | None = None,
+    dedup_key: str | None = None,
+    actor: str = "system",
+    kernel: Any = None,
+) -> Any:
+    from app.core.runtime.notification_bridge import create_notification as _create
+
+    return _create(
+        notif_type,
+        title,
+        content,
+        related_id=related_id,
+        related_type=related_type,
+        dedup_key=dedup_key,
+        actor=actor,
+        kernel=kernel,
+    )
 
 
 def push_notification(
