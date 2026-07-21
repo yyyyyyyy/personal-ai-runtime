@@ -92,7 +92,7 @@ flowchart LR
     E -->|3 sync memory index| C[(ChromaDB)]
     E -->|4 dispatch| D[_dispatch]
     D -->|sync subscribers| Sub[projector / handler]
-    D -->|async fire-and-forget| Bus[AgentBus]
+    D -->|async fire-and-forget| SchDisp[Scheduler<br/>set_async_dispatcher]
     D -->|resolve futures| Fut[submit_command waiters]
 ```
 
@@ -118,7 +118,7 @@ sequenceDiagram
     FE->>API: POST (SSE)
     API->>K: submit_command("ChatRequested")
     K->>K: emit_event + project
-    K-->>Sch: AgentBus 投递 WorkItem
+    K-->>Sch: set_async_dispatcher<br/>投递 ScheduledExecution
     Sch->>H: 执行 handler（execution_scope）
     H->>H: PromptCompiler.compile<br/>（ContextPipeline）
     H->>B: Brain.chat_stream

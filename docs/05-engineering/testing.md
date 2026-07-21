@@ -7,12 +7,12 @@
 ```mermaid
 flowchart TB
     subgraph L1[层 1 · 单元/集成]
-        Pytest[backend/tests/<br/>~80 文件]
+        Pytest[backend/tests/<br/>~146 文件]
         FE[frontend vitest]
     end
 
     subgraph L2[层 2 · 架构不变量]
-        Scripts[backend/scripts/<br/>16 个 verify 脚本]
+        Scripts[backend/scripts/<br/>15 个 verify 脚本]
     end
 
     subgraph L3[层 3 · 端到端]
@@ -35,7 +35,7 @@ flowchart TB
 | `api/` | API 覆盖冒烟（`test_api_coverage.py`） |
 | `integration/` | FastAPI TestClient + Kernel：approval flow、auth、b2/b3 审计、dashboard、goals/knowledge/settings/system/timeline/trigger API |
 | `product/` | 基于 Kernel 的产品层：dashboard、encrypted_sync、inbox、notifications |
-| `runtime/` | kernel/执行/治理核心（~80 文件） |
+| `runtime/` | kernel/执行/治理核心（~102 文件） |
 
 顶层还有：`test_context_policy.py`、`test_context_assembler.py`、`test_core_tier_fragments.py`、`test_pipeline_integration.py`、`test_prompt_artifact.py`、`test_policy_coverage.py`、`test_fragment_registry_audit.py`、`test_fragment_read_boundary.py`、`test_mail_fragment_collect.py`、`test_version.py`。
 
@@ -53,13 +53,13 @@ flowchart TB
 
 - **事件溯源与重建**：`test_event_sourcing.py`、`test_engine_rebuild.py`、`test_memory_belief.py`、`test_conversation_recorded.py`、`test_actions_event_sourced.py`、`test_goals_event_sourced.py`
 - **边界与归属守卫**：`test_boundary_guard.py`、`test_execution_ownership_guard.py`、`test_projection_provenance_guard.py`、`test_projection_schema_contract.py`
-- **执行模型（Execution 契约 §1–5）**：`test_execution_model.py`、`test_execution_events.py`、`test_principal.py`（含 ExecutionContext）、`test_execution_recovery.py`、`test_execution_shadow_compare.py`、`test_execution_ownership.py`
-- **Scheduler / timer / reaction / 隔离**：`test_scheduler.py`、`test_scheduler_deadline.py`、`test_scheduler_extended.py`、`test_d1_concurrent_isolation.py`、`test_runtime_loop_nonblocking.py`
+- **执行模型**：`test_execution_model.py`、`test_execution_repository.py`、`test_execution_ownership.py`、`test_principal.py`（含 ExecutionContext）；崩溃恢复与 shadow-compare 主要由层 2 verify / soak（`soak_recovery.py`）覆盖，不设同名独立 pytest 文件
+- **Scheduler / timer / reaction / 隔离**：`test_scheduler.py`、`test_scheduler_deadline.py`、`test_scheduler_extended.py`、`test_d1_concurrent_isolation.py`、`test_runtime_loop_nonblocking.py`、`test_handler_fanout.py`
 - **能力治理与策略（T2/A3/C3）**：`test_capability_approval.py`、`test_capability_decision.py`、`test_capability_forbidden.py`、`test_c3_mcp_policy_eventsourcing.py`、`test_runtime_config.py`、`test_taint.py`、`test_sensitive_router.py`
 - **出口与连接器**：`test_egress.py`、`test_connector.py`、`test_fetch_ssrf.py`、`test_url_safety.py`、`test_web_search_html.py`
 - **MCP / filesystem / shell / email server**：`test_filesystem_server.py`、`test_shell_server.py`、`test_email_server.py`、`test_mcp_config.py`、`test_mcp_mesh.py`
-- **记忆 / 通知 / 后台**：`test_memory_extractor.py`、`test_memory_ws_notify.py`、`test_notification_bridge.py`、`test_notification_channel.py`、`test_sse_queue_registry.py`、`test_background_worker_extended.py`、`test_background_task_event_chain.py`
-- **Product / 主权 / fragment**：`tests/product/`（dashboard / inbox / notifications / encrypted_sync）、`test_sovereignty_basic.py`、`test_governance_fragment.py`、`test_scenario_fragments.py`、`test_mail_fragment_collect.py`、`test_fragment_read_boundary.py`、`test_fragment_registry_audit.py`、`test_runtime_container.py`、`test_knowledge_fragment.py`
+- **记忆 / 通知 / 后台**：`test_memory_extractor.py`、`test_memory_ws_notify.py`、`test_notification_bridge.py`、`test_notification_channel.py`、`test_sse_queue_registry.py`、`test_background_task_event_chain.py`
+- **Product / 主权 / fragment**：`tests/product/`（dashboard / inbox / notifications / encrypted_sync）、`test_sovereignty_basic.py`、`test_governance_fragment.py`、`test_scenario_fragments.py`、`test_mail_fragment_collect.py`、`test_fragment_read_boundary.py`、`test_fragment_registry_audit.py`、`test_runtime_container.py`；知识库 fragment 见顶层 `test_knowledge_fragment.py`
 
 ### 运行
 
@@ -174,7 +174,7 @@ vitest，**不需要 Electron 已安装**。读 `main.js` 源码，字符串 `to
 | 脚本 | 场景 |
 |---|---|
 | [`soak_recovery.py`](../../scripts/soak_recovery.py) | 四阶段崩溃/重启模拟：spawn soak agent + 阻塞 handler → 入队 N 个 work item → scheduler 接手 → 停 scheduler 并强 emit `ExecutionStarted`（模拟崩溃）→ 验证 item 卡在 running → 新 Scheduler `_recover()` → 验证 `ExecutionRetried(reason=interrupted)` 全存在、无 item 卡 running、shadow-compare 0 mismatch、`rebuild("execution")` 后 `handler_executions` 字节一致 |
-| [`soak_trigger.py`](../../scripts/soak_trigger.py) | 累积执行：注册 no-op handler，每 7 批用 30% 失败率演练重试 + shadow compare；发 N 个 `SoakTrigger` 事件走真实 `emit → AgentBus → Scheduler → _persist_emit_verify` 循环 |
+| [`soak_trigger.py`](../../scripts/soak_trigger.py) | 累积执行：注册 no-op handler，每 7 批用 30% 失败率演练重试 + shadow compare；发 N 个 `SoakTrigger` 事件走真实 `emit → Scheduler.enqueue → handler_executions + Execution*` 循环 |
 | [`soak_stats.py`](../../scripts/soak_stats.py) | 只读报告：`handler_executions` 状态分布、完成数（基线 100）、`ExecutionRetried(interrupted)` 计数、事件类型分布 |
 | [`soak_dogfood_report.py`](../../scripts/soak_dogfood_report.py) | **dogfood 自检**：对当前 `personal_ai.db` 输出只读计数报告，核对 chat/memory/work/approval/inbox 是否真的被日用。不进 CI |
 

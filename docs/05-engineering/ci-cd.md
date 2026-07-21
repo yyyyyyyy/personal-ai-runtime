@@ -6,7 +6,7 @@
 
 ### `workflows/ci.yml`
 
-push/PR 到 `main` 时触发，四个 job：
+push/PR 到 `main` 时触发，六个 job：
 
 **`secrets-scan` job**：`gitleaks/gitleaks-action@v3`，配置 [`.gitleaks.toml`](../../.gitleaks.toml)，`fetch-depth: 0`。
 
@@ -32,6 +32,8 @@ push/PR 到 `main` 时触发，四个 job：
 
 1. `npm ci --ignore-scripts`，跳过 Electron binary 下载等 smoke 不需要的安装脚本。
 2. `make desktop-test`，运行现有 vitest Electron main-process smoke；测试只解析和检查源码，不打包 Electron，因此无需执行重量级 desktop build。
+
+**`real-backend-e2e` job**（Python 3.12 + Node 20）：安装 backend lock 与 frontend 依赖后，跑 `npm run test:e2e:real`（真后端 Playwright）；失败时上传 `frontend/test-results/` traces。
 
 ### `workflows/release.yml`
 

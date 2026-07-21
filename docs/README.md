@@ -48,7 +48,7 @@
 | 文档 | 内容 |
 |---|---|
 | [backend-core.md](03-subsystems/backend-core.md) | Brain 推理循环、工具派发、记忆引擎、RuntimeLoop、Scheduler |
-| [backend-api.md](03-subsystems/backend-api.md) | 17 个 router、约 70 个端点、SSE、WebSocket |
+| [backend-api.md](03-subsystems/backend-api.md) | 15 个 router、约 70 个端点、SSE、WebSocket |
 | [frontend.md](03-subsystems/frontend.md) | React 路由、API client 分层、状态管理、hooks |
 | [desktop.md](03-subsystems/desktop.md) | Electron 进程模型、后端 spawn、IPC、托盘与快捷键 |
 | [mcp-harness.md](03-subsystems/mcp-harness.md) | 内建工具注册、外部 MCP 网格生命周期 |
