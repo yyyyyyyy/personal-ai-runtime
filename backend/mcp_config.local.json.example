@@ -1,0 +1,56 @@
+{
+  "_comment": "Copy this file to mcp_config.local.json (gitignored) and edit. Entries in external_servers are merged on top of mcp_config.json by 'name'. Credentials come from .env, not this file.",
+  "external_servers": [
+    {
+      "_comment": "TAPD (Tencent Agile Product Development) — read-only query tools. Requires TAPD_ACCESS_TOKEN in .env; server stays dormant until set. Get token at https://www.tapd.cn/company/my_tokens. Set TAPD_DEFAULT_WORKSPACE_ID and TAPD_NICK_NAME in .env to omit them per-call.",
+      "name": "tapd",
+      "type": "stdio",
+      "enabled": true,
+      "startup_connect": false,
+      "command": "npx",
+      "args": ["-y", "@xihe-lab/tapd-mcp-server@latest"],
+      "required_env": ["TAPD_ACCESS_TOKEN"],
+      "optional_env": ["TAPD_DEFAULT_WORKSPACE_ID", "TAPD_NICK_NAME"],
+      "connect_timeout_seconds": 30,
+      "policy_default": "auto_allow",
+      "enabled_tools": [
+        "tapd_get_stories",
+        "tapd_get_story",
+        "tapd_get_story_count",
+        "tapd_get_story_categories",
+        "tapd_get_story_changes",
+        "tapd_get_bugs",
+        "tapd_get_bug",
+        "tapd_get_bug_count",
+        "tapd_get_bug_changes",
+        "tapd_get_tasks",
+        "tapd_get_task",
+        "tapd_get_task_changes",
+        "tapd_get_iterations",
+        "tapd_get_iteration",
+        "tapd_get_timesheets",
+        "tapd_get_timesheet_count",
+        "tapd_get_comments",
+        "tapd_get_current_user",
+        "tapd_get_workitem_types",
+        "tapd_get_story_fields",
+        "tapd_get_bug_fields",
+        "tapd_get_modules",
+        "tapd_get_versions",
+        "tapd_get_workflows",
+        "tapd_parse_url"
+      ],
+      "ingestion_tools": [
+        "tapd_get_stories",
+        "tapd_get_story",
+        "tapd_get_bugs",
+        "tapd_get_bug",
+        "tapd_get_tasks",
+        "tapd_get_task",
+        "tapd_get_iterations",
+        "tapd_get_timesheets",
+        "tapd_get_current_user"
+      ]
+    }
+  ]
+}

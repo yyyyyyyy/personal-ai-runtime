@@ -14,8 +14,8 @@ logger = logging.getLogger(__name__)
 
 _VALID_POLICY_DEFAULTS = frozenset({"auto_allow", "needs_user", "forbidden"})
 
-# (path_str, mtime, parsed_data)
-_mcp_config_cache: tuple[str, float, dict[str, Any]] | None = None
+# Cache key = (main_path, local_path, main_mtime, local_mtime); value = parsed data.
+_mcp_config_cache: tuple[tuple[str, str, float, float], dict[str, Any]] | None = None
 
 
 def normalize_tool_name(name: str) -> str:
@@ -94,6 +94,9 @@ class ExternalMCPServerConfig:
             "GITHUB_PERSONAL_ACCESS_TOKEN": settings.github_personal_access_token,
             "TAVILY_API_KEY": settings.tavily_api_key,
             "NOTION_TOKEN": settings.notion_token,
+            "TAPD_ACCESS_TOKEN": settings.tapd_access_token,
+            "TAPD_DEFAULT_WORKSPACE_ID": settings.tapd_default_workspace_id,
+            "TAPD_NICK_NAME": settings.tapd_nick_name,
         }
         # Minimal base env + config file overrides + credential keys from settings.
         extra = dict(self.env)
@@ -112,6 +115,9 @@ class ExternalMCPServerConfig:
             "GITHUB_PERSONAL_ACCESS_TOKEN": settings.github_personal_access_token,
             "TAVILY_API_KEY": settings.tavily_api_key,
             "NOTION_TOKEN": settings.notion_token,
+            "TAPD_ACCESS_TOKEN": settings.tapd_access_token,
+            "TAPD_DEFAULT_WORKSPACE_ID": settings.tapd_default_workspace_id,
+            "TAPD_NICK_NAME": settings.tapd_nick_name,
         }
         for key in self.required_env:
             if self.env.get(key, "").strip():
@@ -149,23 +155,83 @@ def clear_mcp_config_cache() -> None:
     _mcp_config_cache = None
 
 
+def _load_config_file(path: Path) -> dict[str, Any]:
+    """Load a single config file, returning ``{}`` on missing/invalid."""
+    if not path.is_file():
+        return {}
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError) as exc:
+        logger.warning("Failed to load MCP config %s: %s", path, exc)
+        return {}
+
+
+def _merge_external_servers(
+    main: list[dict[str, Any]],
+    local: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Merge ``external_servers`` lists; local overrides main by ``name``.
+
+    Order is preserved: main servers first (less local shadows one of them),
+    then local-only servers. This keeps builtin ordering stable while letting
+    personal MCPs (TAPD, Jira, internal tools) live in a gitignored file.
+    """
+    local_by_name = {entry.get("name"): entry for entry in local if entry.get("name")}
+    merged: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for entry in main:
+        name = entry.get("name")
+        if not name:
+            merged.append(entry)
+            continue
+        seen.add(name)
+        merged.append(local_by_name.pop(name, entry))
+    # Local-only servers (not shadowing any main entry).
+    for name, entry in local_by_name.items():
+        if name not in seen:
+            merged.append(entry)
+    return merged
+
+
 def load_mcp_config(path: str | Path | None = None) -> dict[str, Any]:
     from app.config import settings
 
     global _mcp_config_cache
 
     config_path = Path(path or settings.mcp_config_path)
-    if not config_path.is_file():
-        return {"servers": [], "external_servers": []}
+    # Local override only applies when reading the configured main config —
+    # tests passing an explicit ``path`` get pure single-file semantics.
+    use_local = path is None
+    local_path_str = (settings.mcp_local_config_path or "") if use_local else ""
+    local_path = Path(local_path_str) if local_path_str else Path()
 
-    path_key = str(config_path.resolve())
-    mtime = config_path.stat().st_mtime
+    main_data = _load_config_file(config_path)
+    local_data = _load_config_file(local_path) if local_path_str else {}
+
+    # Cache key includes both paths + mtimes so edits to either file invalidate.
+    main_mtime = config_path.stat().st_mtime if config_path.is_file() else 0.0
+    local_mtime = local_path.stat().st_mtime if local_path.is_file() else 0.0
+    cache_key = (str(config_path.resolve()), str(local_path), main_mtime, local_mtime)
     cached = _mcp_config_cache
-    if cached is not None and cached[0] == path_key and cached[1] == mtime:
-        return cached[2]
+    if cached is not None and cached[0] == cache_key:
+        return cached[1]
 
-    data = json.loads(config_path.read_text(encoding="utf-8"))
-    _mcp_config_cache = (path_key, mtime, data)
+    data = dict(main_data)
+    if local_data:
+        data["external_servers"] = _merge_external_servers(
+            main_data.get("external_servers", []),
+            local_data.get("external_servers", []),
+        )
+        # Allow local to also extend builtin ``servers`` if present.
+        local_servers = local_data.get("servers", [])
+        if local_servers:
+            data.setdefault("servers", [])
+            existing = {s.get("name") for s in data["servers"] if isinstance(s, dict)}
+            for entry in local_servers:
+                if entry.get("name") not in existing:
+                    data["servers"].append(entry)
+
+    _mcp_config_cache = (cache_key, data)
     return data
 
 

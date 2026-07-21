@@ -80,6 +80,12 @@ class Settings(BaseSettings):
 
     # --- MCP ---
     mcp_config_path: str = str(BASE_DIR / "backend" / "mcp_config.json")
+    """Main MCP config (committed). Holds shared/builtin MCP server registrations."""
+    mcp_local_config_path: str = str(BASE_DIR / "backend" / "mcp_config.local.json")
+    """Optional personal MCP config (gitignored). ``external_servers`` entries here
+    are merged on top of mcp_config.json (by ``name``), letting you add private
+    MCPs (TAPD, Jira, internal tools) without touching the shared config.
+    File does not need to exist; absence is silently ignored."""
     capability_policy_path: str = str(BASE_DIR / "backend" / "capability_policy.json")
     mcp_external_enabled: bool = True
     """Enable external MCP mesh. Set false to use builtin tools only."""
@@ -96,6 +102,14 @@ class Settings(BaseSettings):
     github_personal_access_token: str = ""
     tavily_api_key: str = ""
     notion_token: str = ""
+
+    # TAPD (Tencent Agile Product Development) — personal access token auth.
+    # Get one at https://www.tapd.cn/company/my_tokens. Empty = TAPD MCP server
+    # stays dormant (skip-connect), no errors. Workspace ID/Nickname are optional
+    # but recommended so you can omit them per-call.
+    tapd_access_token: str = ""
+    tapd_default_workspace_id: str = ""
+    tapd_nick_name: str = ""
 
     # --- Voice (TTS/STT) — requires an OpenAI-compatible audio endpoint ---
     voice_base_url: str = ""
@@ -189,6 +203,8 @@ class Settings(BaseSettings):
         else:
             self.vector_dir = str(Path(self.data_dir) / "vectors")
         self.mcp_config_path = resolve_project_path(self.mcp_config_path)
+        if self.mcp_local_config_path:
+            self.mcp_local_config_path = resolve_project_path(self.mcp_local_config_path)
         self.capability_policy_path = resolve_project_path(self.capability_policy_path)
 
 

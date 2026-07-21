@@ -57,3 +57,6 @@ backend/.coverage
 
 # MCP server runtime artifacts
 backend/.playwright-mcp/
+
+# Personal MCP config (gitignored — TAPD/Jira/internal tools go here)
+backend/mcp_config.local.json
