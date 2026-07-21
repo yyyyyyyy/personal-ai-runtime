@@ -14,34 +14,6 @@ from pydantic import BaseModel
 
 from app.core.runtime import read_ports
 from app.core.runtime.kernel_instance import kernel
-from app.core.runtime.read_ports import (
-    bump_parent_activity,
-    goal_events,
-)
-from app.core.runtime.read_ports import (
-    create_work_item as _create_work_item,
-)
-from app.core.runtime.read_ports import (
-    delete_work_item as _delete_work_item,
-)
-from app.core.runtime.read_ports import (
-    get_sub_work_items as _get_sub_work_items,
-)
-from app.core.runtime.read_ports import (
-    get_work_item as _get_work_item,
-)
-from app.core.runtime.read_ports import (
-    get_work_item_tree as _get_work_item_tree,
-)
-from app.core.runtime.read_ports import (
-    list_work_items as _list_work_items,
-)
-from app.core.runtime.read_ports import (
-    update_work_item_fields as _update_work_item_fields,
-)
-from app.core.runtime.read_ports import (
-    update_work_item_status as _update_work_item_status,
-)
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["work-items"])
@@ -114,20 +86,18 @@ def _on_action_completed(goal_id: str, action_id: str, action_title: str) -> Non
 
         completed = sum(1 for a in all_items if a.get("status") == "completed") if all_items else 0
 
-        from app.product.notifications import create_notification
-
         goal_row = read_ports.query_goal(goal_id)
         goal_title = goal_row["title"] if goal_row else "目标"
         all_done = bool(all_items) and all(a.get("status") == "completed" for a in all_items)
         if all_done:
-            create_notification(
+            read_ports.create_notification(
                 "goal_complete",
                 f"目标「{goal_title}」的所有步骤已完成",
                 f"你完成了所有行动步骤：{goal_title}。可以去目标页标记完成，或让 AI 帮你总结经验。",
             )
         else:
             total = len(all_items) if all_items else 0
-            create_notification(
+            read_ports.create_notification(
                 "goal_progress",
                 f"完成一步：{action_title}",
                 f"目标「{goal_title}」进度：{completed}/{total} 步已完成。",
@@ -160,16 +130,16 @@ async def create_work_item(body: CreateWorkItemRequest):
     if not title:
         raise HTTPException(status_code=400, detail="Title is required")
 
-    if body.parent_goal_id and not _get_work_item(body.parent_goal_id):
+    if body.parent_goal_id and not read_ports.get_work_item(body.parent_goal_id):
         raise HTTPException(status_code=404, detail="Parent goal not found")
-    if body.parent_work_id and not _get_work_item(body.parent_work_id):
+    if body.parent_work_id and not read_ports.get_work_item(body.parent_work_id):
         raise HTTPException(status_code=404, detail="Parent work item not found")
 
     status = body.status
     if body.work_type == "goal" and status == "pending":
         status = "active"
 
-    item = _create_work_item(
+    item = read_ports.create_work_item(
         title=title,
         description=body.description,
         work_type=body.work_type,
@@ -187,7 +157,7 @@ async def create_work_item(body: CreateWorkItemRequest):
     )
 
     if body.parent_goal_id and body.work_type in ("action", "task"):
-        bump_parent_activity(body.parent_goal_id)
+        read_ports.bump_parent_activity(body.parent_goal_id)
 
     return item
 
@@ -201,7 +171,7 @@ async def list_work_items(
     limit: int = 50,
 ):
     """List work items, optionally filtered by work_type / status / parent."""
-    return _list_work_items(
+    return read_ports.list_work_items(
         status=status,
         work_type=work_type,
         limit=limit,
@@ -213,7 +183,7 @@ async def list_work_items(
 @router.get("/{item_id}")
 async def get_work_item(item_id: str, include: str | None = None):
     """Get a work item. include=actions,events embeds goal children + recent events."""
-    item = _get_work_item(item_id)
+    item = read_ports.get_work_item(item_id)
     if not item:
         raise HTTPException(status_code=404, detail="Work item not found")
 
@@ -223,11 +193,11 @@ async def get_work_item(item_id: str, include: str | None = None):
             item["actions"] = read_ports.query_goal_actions(item_id)
             item["children"] = read_ports.query_work_items_by_parent_goal(item_id)
         else:
-            item["children"] = _get_sub_work_items(item_id)
+            item["children"] = read_ports.get_sub_work_items(item_id)
     if "events" in flags:
-        item["events"] = goal_events(item_id, limit=10)
+        item["events"] = read_ports.goal_events(item_id, limit=10)
     if "tree" in flags and item.get("work_type") == "goal":
-        item["tree"] = _get_work_item_tree(item_id)
+        item["tree"] = read_ports.get_work_item_tree(item_id)
     return item
 
 
@@ -238,10 +208,10 @@ async def get_children(item_id: str):
     Goals merge ``parent_goal_id`` rows with ``parent_work_id`` rows so both
     legacy action links and nested work trees are visible.
     """
-    item = _get_work_item(item_id)
+    item = read_ports.get_work_item(item_id)
     if not item:
         raise HTTPException(status_code=404, detail="Work item not found")
-    by_work = _get_sub_work_items(item_id)
+    by_work = read_ports.get_sub_work_items(item_id)
     if item.get("work_type") != "goal":
         return by_work
     by_goal = read_ports.query_work_items_by_parent_goal(item_id)
@@ -256,9 +226,9 @@ async def get_children(item_id: str):
 @router.get("/{item_id}/events")
 async def get_events(item_id: str, limit: int = 20):
     """Return recent UI-shaped events for a work item / goal."""
-    if not _get_work_item(item_id):
+    if not read_ports.get_work_item(item_id):
         raise HTTPException(status_code=404, detail="Work item not found")
-    return goal_events(item_id, limit=limit)
+    return read_ports.goal_events(item_id, limit=limit)
 
 
 @router.patch("/{item_id}")
@@ -269,7 +239,7 @@ async def update_work_item(item_id: str, body: UpdateWorkItemRequest):
     use WorkItemUpdated. Action completion bumps parent activity and fires
     notification/memory side-effects.
     """
-    item = _get_work_item(item_id)
+    item = read_ports.get_work_item(item_id)
     if not item:
         raise HTTPException(status_code=404, detail="Work item not found")
 
@@ -301,15 +271,15 @@ async def update_work_item(item_id: str, body: UpdateWorkItemRequest):
             )
             update_kwargs.pop("status", None)
             if update_kwargs:
-                _update_work_item_fields(item_id, **update_kwargs)
-            return _get_work_item(item_id)
+                read_ports.update_work_item_fields(item_id, **update_kwargs)
+            return read_ports.get_work_item(item_id)
 
     if work_type == "action" and new_status == "completed":
         need_completed_at = True
     else:
         need_completed_at = False
 
-    updated = _update_work_item_fields(item_id, **update_kwargs)
+    updated = read_ports.update_work_item_fields(item_id, **update_kwargs)
     if need_completed_at:
         kernel.emit_event(
             type="WorkItemUpdated",
@@ -318,11 +288,11 @@ async def update_work_item(item_id: str, body: UpdateWorkItemRequest):
             payload={"completed_at": datetime.now(UTC).isoformat()},
             actor="user",
         )
-        updated = _get_work_item(item_id)
+        updated = read_ports.get_work_item(item_id)
 
     parent_goal_id = item.get("parent_goal_id")
     if parent_goal_id and (new_status is not None or "title" in update_kwargs):
-        bump_parent_activity(parent_goal_id)
+        read_ports.bump_parent_activity(parent_goal_id)
         if new_status == "completed":
             _on_action_completed(parent_goal_id, item_id, item.get("title", ""))
 
@@ -336,7 +306,7 @@ async def update_status(item_id: str, body: dict):
     if not new_status:
         raise HTTPException(status_code=400, detail="status is required")
 
-    item = _get_work_item(item_id)
+    item = read_ports.get_work_item(item_id)
     if not item:
         raise HTTPException(status_code=404, detail="Work item not found")
 
@@ -365,18 +335,18 @@ async def update_status(item_id: str, body: dict):
 
         parent_goal_id = item.get("parent_goal_id")
         if parent_goal_id and new_status == "completed":
-            bump_parent_activity(parent_goal_id)
+            read_ports.bump_parent_activity(parent_goal_id)
             _on_action_completed(parent_goal_id, item_id, item.get("title", ""))
 
-        return _get_work_item(item_id)
+        return read_ports.get_work_item(item_id)
 
-    updated = _update_work_item_status(item_id, new_status)
+    updated = read_ports.update_work_item_status(item_id, new_status)
     if not updated:
         raise HTTPException(status_code=404, detail="Work item not found")
 
     parent_goal_id = item.get("parent_goal_id")
     if parent_goal_id and new_status == "completed":
-        bump_parent_activity(parent_goal_id)
+        read_ports.bump_parent_activity(parent_goal_id)
         _on_action_completed(parent_goal_id, item_id, item.get("title", ""))
 
     return updated
@@ -384,18 +354,18 @@ async def update_status(item_id: str, body: dict):
 
 @router.delete("/{item_id}")
 async def delete_work_item(item_id: str):
-    item = _get_work_item(item_id)
+    item = read_ports.get_work_item(item_id)
     if not item:
         raise HTTPException(status_code=404, detail="Work item not found")
     cascade = item.get("work_type") == "goal"
-    _delete_work_item(item_id, cascade=cascade)
+    read_ports.delete_work_item(item_id, cascade=cascade)
     return {"status": "ok"}
 
 
 @router.post("/{item_id}/decompose")
 async def decompose_work_item(item_id: str):
     """Use AI to decompose a goal into actionable step titles."""
-    item = _get_work_item(item_id)
+    item = read_ports.get_work_item(item_id)
     if not item:
         raise HTTPException(status_code=404, detail="Work item not found")
     if item.get("work_type") != "goal":

@@ -1,16 +1,16 @@
 """Tests for notification related-id handling and event-sourced writes."""
 
-from app.product.notifications import create_notification
+from app.core.runtime import read_ports
 
 
 def test_create_notification_stores_related_id_in_column(product_kernel):
     k = product_kernel
 
-    first = create_notification("alert", "提醒 A", "old content", kernel=k)
+    first = read_ports.create_notification("alert", "提醒 A", "old content", kernel=k)
     assert first["content"] == "old content"
     assert first.get("related_id") is None
 
-    second = create_notification(
+    second = read_ports.create_notification(
         "alert",
         "提醒 A",
         "new content",
@@ -30,7 +30,7 @@ def test_create_notification_stores_related_id_in_column(product_kernel):
 
 def test_create_notification_related_id_on_create(product_kernel):
     k = product_kernel
-    n = create_notification(
+    n = read_ports.create_notification(
         "goal_stagnant",
         "目标停滞: X",
         "目标已 3 天未更新",
@@ -46,7 +46,7 @@ def test_create_notification_related_id_on_create(product_kernel):
 
 def test_notification_rebuild(product_kernel):
     k = product_kernel
-    create_notification("alert", "Test alert", "Body", related_id="r1", kernel=k)
+    read_ports.create_notification("alert", "Test alert", "Body", related_id="r1", kernel=k)
     before = k.query_state("notifications")
     k.rebuild("notification")
     after = k.query_state("notifications")

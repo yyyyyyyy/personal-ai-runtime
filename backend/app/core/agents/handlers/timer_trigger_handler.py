@@ -50,9 +50,9 @@ async def _call_product(
                     continue
                 if deadline_date in target_dates:
                     days_left = (deadline_local.date() - today).days
-                    from app.product.notifications import create_notification
+                    from app.core.runtime import read_ports
 
-                    create_notification(
+                    read_ports.create_notification(
                         "alert",
                         "Deadline 预警",
                         f"目标「{goal['title']}」还有 {days_left} 天截止",

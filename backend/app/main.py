@@ -15,8 +15,6 @@ from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.types import ASGIApp, Receive, Scope, Send
 
-# First API import (approvals → kernel_instance → runtime_container) binds
-# Store BoundProxy factories before later routers touch ``db``.
 from app.api import (
     approvals,
     background_tasks,
@@ -37,6 +35,13 @@ from app.api import (
 from app.config import settings
 from app.core.logging_config import configure_logging
 from app.core.request_context import get_request_id, request_id_var
+
+# Explicit: bind Store BoundProxy factories eagerly so any later import
+# (API/Product/script) sees a bound ``db`` / ``vector_store``. BoundProxy
+# also self-binds lazily via importlib, but importing the container here
+# makes the contract obvious and survives isort/ruff import reordering.
+# Aliased to avoid shadowing the FastAPI ``app`` instance defined below.
+from app.core.runtime import runtime_container as _runtime_container  # noqa: F401
 from app.core.runtime.cron_registry import init_scheduler
 from app.core.runtime.runtime_loop import runtime_loop
 from app.core.startup_health import (
@@ -347,6 +352,13 @@ class RequestIDMiddleware:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Startup and shutdown events."""
+    # Wire the WebSocket transport sink into Runtime before any broadcast is
+    # issued. Breaks the runtime → main edge (notification_bridge no longer
+    # imports app.main).
+    from app.core.runtime.notification_bridge import set_broadcast_handler
+
+    set_broadcast_handler(broadcast_notification)
+
     app.state.startup_health = run_startup_checks()
 
     app.state._auth_warning_interval = 600  # seconds between repeated warnings

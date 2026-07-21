@@ -463,9 +463,9 @@ def generate_inbox_digest() -> dict | None:
     now = datetime.now(UTC)
     title = f"收件箱摘要 - {now.strftime('%Y-%m-%d')}"
 
-    from app.product.notifications import find_notification
+    from app.core.runtime import read_ports
 
-    existing = find_notification("inbox_digest", title)
+    existing = read_ports.find_notification("inbox_digest", title)
     if existing:
         return dict(existing)
 

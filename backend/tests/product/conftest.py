@@ -16,5 +16,4 @@ def product_kernel(isolated_kernel, monkeypatch):
     k, _db = isolated_kernel
     monkeypatch.setattr("app.product.personal_dashboard.kernel", k)
     monkeypatch.setattr("app.product.inbox.kernel", k)
-    monkeypatch.setattr("app.product.notifications.default_kernel", k, raising=False)
     return k

@@ -16,13 +16,19 @@ async def test_push_notification_broadcasts(tmp_path, monkeypatch):
     )
     Database(db_path=str(tmp_path / "notif_bridge.db"))
 
-    with patch("app.main.broadcast_notification", new=AsyncMock()) as broadcast:
+    from app.core.runtime.notification_bridge import set_broadcast_handler
+
+    broadcast = AsyncMock()
+    set_broadcast_handler(broadcast)
+    try:
         from app.core.runtime.notification_bridge import push_notification
 
         notif = push_notification("info", "Title", "Body")
         assert notif["title"] == "Title"
         await __import__("asyncio").sleep(0.05)
         broadcast.assert_awaited()
+    finally:
+        set_broadcast_handler(None)
 
 
 def test_push_notification_without_event_loop(tmp_path, monkeypatch):
@@ -52,10 +58,13 @@ async def test_broadcast_event_async_path_awaits():
     from app.core.runtime import notification_bridge as nb
 
     seen: list[dict] = []
-    with patch("app.main.broadcast_notification", new=AsyncMock(side_effect=seen.append)):
+    nb.set_broadcast_handler(AsyncMock(side_effect=seen.append))
+    try:
         nb.broadcast_event({"type": "memory_changed", "memory_id": "m1"})
         # Let the loop run the fire-and-forget task to completion.
         await __import__("asyncio").sleep(0.05)
+    finally:
+        nb.set_broadcast_handler(None)
     assert any(e.get("type") == "memory_changed" for e in seen)
     # Strong-reference set must be cleaned up once tasks finish.
     assert all(t.done() for t in nb._PENDING_BROADCASTS)
@@ -77,9 +86,12 @@ def test_broadcast_event_sync_path_runs_to_completion(tmp_path, monkeypatch):
     Database(db_path=str(tmp_path / "be_sync.db"))
 
     seen: list[dict] = []
-    with patch("app.main.broadcast_notification", new=AsyncMock(side_effect=seen.append)):
+    nb.set_broadcast_handler(AsyncMock(side_effect=seen.append))
+    try:
         with patch.object(nb.asyncio, "get_running_loop", side_effect=RuntimeError):
             nb.broadcast_event({"type": "memory_changed", "memory_id": "m_sync"})
+    finally:
+        nb.set_broadcast_handler(None)
     # The whole point of the sync branch is deterministic delivery.
     assert any(e.get("memory_id") == "m_sync" for e in seen), (
         "broadcast_event in sync context must await _broadcast to completion "
@@ -106,10 +118,7 @@ async def test_broadcast_event_uses_bound_loop_from_sync_thread(monkeypatch):
     from app.core.runtime import notification_bridge as nb
 
     seen: list[dict] = []
-    monkeypatch.setattr(
-        "app.main.broadcast_notification",
-        AsyncMock(side_effect=lambda e: seen.append(e)),
-    )
+    nb.set_broadcast_handler(AsyncMock(side_effect=lambda e: seen.append(e)))
     loop = asyncio.get_running_loop()
     nb.set_broadcast_loop(loop)
 
@@ -119,10 +128,13 @@ async def test_broadcast_event_uses_bound_loop_from_sync_thread(monkeypatch):
                 nb.broadcast_event({"type": "memory_changed", "memory_id": "bound"})
                 run_mock.assert_not_called()
 
-    await asyncio.to_thread(_from_worker)
-    await asyncio.sleep(0.05)
-    assert any(e.get("memory_id") == "bound" for e in seen)
-    nb.set_broadcast_loop(None)
+    try:
+        await asyncio.to_thread(_from_worker)
+        await asyncio.sleep(0.05)
+        assert any(e.get("memory_id") == "bound" for e in seen)
+    finally:
+        nb.set_broadcast_loop(None)
+        nb.set_broadcast_handler(None)
 
 
 @pytest.mark.asyncio

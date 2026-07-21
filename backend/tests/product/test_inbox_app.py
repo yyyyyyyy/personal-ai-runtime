@@ -218,11 +218,11 @@ def test_digest_idempotent(product_kernel):
         reason="test",
     )
 
-    from app.product.notifications import create_notification
+    from app.core.runtime import read_ports
 
     with patch(
         "app.core.runtime.notification_bridge.push_notification",
-        side_effect=lambda t, title, content: create_notification(t, title, content, kernel=k),
+        side_effect=lambda t, title, content: read_ports.create_notification(t, title, content, kernel=k),
     ) as push:
         first = generate_inbox_digest()
         second = generate_inbox_digest()

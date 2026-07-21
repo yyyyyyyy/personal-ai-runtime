@@ -50,7 +50,7 @@ async def test_run_deadline_alert_creates_notifications(mock_query):
     deadline = (datetime.now(UTC) + timedelta(days=1)).isoformat()
     mock_query.return_value = [{"id": "g1", "title": "Due Soon", "deadline": deadline}]
 
-    with patch("app.product.notifications.create_notification") as create:
+    with patch("app.core.runtime.notification_bridge.create_notification") as create:
         from app.core.agents.handlers.timer_trigger_handler import _call_product
 
         await _call_product("deadline_alert")

@@ -233,19 +233,23 @@ class TestUnwrap:
 
 
 class TestLogging:
-    def test_configure_logging_json(self, monkeypatch):
+    def test_configure_logging_json(self, monkeypatch, capsys):
         import logging
 
         monkeypatch.setenv("PAR_LOG_JSON", "1")
         server._configure_logging()
         log = logging.getLogger("runtime_gateway")
+
+        # Drive a record through the *real* handler via ``handler.handle()``.
+        # This exercises the production emit path (formatter + StreamHandler
+        # → stderr) and fails if the handler or JSON formatter was dropped,
+        # without depending on logger.propagate / pytest caplog root hooks
+        # (which ``_configure_logging`` deliberately disables).
         assert log.handlers, "runtime_gateway should have a handler after configure"
-        formatter = log.handlers[0].formatter
-        assert formatter is not None
-        # Format a record directly: Alembic's migration logging can leave the
-        # process-wide logging stack in a state where StreamHandler emission
-        # is unreliable under pytest, but the configured formatter is what
-        # PAR_LOG_JSON is meant to control.
+        handler = log.handlers[0]
+        formatter = handler.formatter
+        assert formatter is not None, "JSON formatter must be attached"
+
         record = logging.LogRecord(
             name="runtime_gateway",
             level=logging.INFO,
@@ -255,7 +259,12 @@ class TestLogging:
             args=(),
             exc_info=None,
         )
-        payload = json.loads(formatter.format(record))
+        handler.handle(record)
+
+        err = capsys.readouterr().err
+        json_lines = [ln for ln in err.splitlines() if ln.strip().startswith("{")]
+        assert json_lines, f"expected JSON log on stderr, got: {err!r}"
+        payload = json.loads(json_lines[-1])
         assert payload["message"] == "json-log-line"
         assert payload["level"] == "INFO"
         assert payload["logger"] == "runtime_gateway"

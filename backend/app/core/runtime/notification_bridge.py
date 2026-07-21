@@ -6,8 +6,8 @@ Owns notification **persistence helpers** (``create_notification`` /
 - :func:`push_notification` — persists a notification row AND broadcasts it
 - :func:`broadcast_event` — broadcast without persisting
 
-Product / API should prefer Ports ABI re-exports (``read_ports`` /
-``app.product.notifications``) rather than importing this module deeply.
+Product / API should import these via the Ports ABI (``read_ports``) rather
+than reaching into this private Runtime module.
 """
 
 from __future__ import annotations
@@ -16,7 +16,7 @@ import asyncio
 import logging
 import uuid
 from datetime import UTC, datetime
-from typing import TYPE_CHECKING, Any, TypedDict, cast
+from typing import TYPE_CHECKING, Any, Awaitable, Callable, TypedDict, cast
 
 from app.core.runtime.kernel.constants import (
     AGGREGATE_NOTIFICATION,
@@ -33,6 +33,12 @@ logger = logging.getLogger(__name__)
 # paths) can schedule broadcasts without asyncio.run on a worker thread.
 _broadcast_loop: asyncio.AbstractEventLoop | None = None
 _PENDING_BROADCASTS: set[asyncio.Task] = set()
+
+# Pluggable transport sink — set by ``app.main`` at startup so this Runtime
+# module never imports the FastAPI entry point (avoids runtime → main edge).
+# Defaults to a no-op so unit tests / scripts without a running server still
+# work; ``main.broadcast_notification`` is wired during app lifespan.
+_broadcast_handler: Callable[[dict], Awaitable[None]] | None = None
 
 
 class NotificationPayload(TypedDict, total=False):
@@ -159,6 +165,17 @@ def set_broadcast_loop(loop: asyncio.AbstractEventLoop | None) -> None:
     _broadcast_loop = loop
 
 
+def set_broadcast_handler(handler: Callable[[dict], Awaitable[None]] | None) -> None:
+    """Register (or clear) the WebSocket transport sink.
+
+    Called by ``app.main`` at startup to break the runtime → main edge.
+    When ``None`` (default), broadcasts are silently dropped — useful for
+    scripts and unit tests that don't run a FastAPI server.
+    """
+    global _broadcast_handler
+    _broadcast_handler = handler
+
+
 def push_notification(
     notif_type: str,
     title: str,
@@ -228,12 +245,14 @@ def broadcast_event(event: dict) -> None:
 
 
 async def _broadcast(event: dict) -> None:
+    handler = _broadcast_handler
+    if handler is None:
+        return
     try:
-        from app.main import broadcast_notification
-        await broadcast_notification(event)
+        await handler(event)
     except Exception:
         logger.warning(
-            "broadcast_notification failed for %s",
+            "broadcast handler failed for %s",
             event.get("type"),
             exc_info=True,
         )
@@ -274,6 +293,7 @@ async def push(correlation_id: str, payload: dict) -> None:
 
 
 def reset_sse_queues() -> None:
-    """Clear the in-memory SSE queue registry (test isolation)."""
+    """Clear in-memory SSE queue registry and transport sink (test isolation)."""
     _registry.clear()
     set_broadcast_loop(None)
+    set_broadcast_handler(None)
