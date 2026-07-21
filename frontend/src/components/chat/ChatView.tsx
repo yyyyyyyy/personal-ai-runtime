@@ -103,14 +103,20 @@ export default function ChatView({ conversationId }: Props) {
     }
   }, [pendingPrompt, setPendingPrompt, adjustTextareaHeight]);
 
-  // Stable suggestions loader. Depends only on conversationId so a memory
-  // WS invalidation (which changes recentMemories identity every time) does
-  // NOT trigger a goal fetch — preventing request storms when the Pattern
-  // Aggregator emits many MemoryDerived events in quick succession.
+  // Read memories via ref so WS `memory_changed` (which changes memData
+  // identity every time) does NOT re-create this callback or re-fetch goals —
+  // preventing request storms when the Pattern Aggregator emits many
+  // MemoryDerived events in quick succession.
+  const memDataRef = useRef(memData);
+  memDataRef.current = memData;
+  // One-shot: if the first suggestions load raced ahead of the memories
+  // query, re-run once when memData first arrives (per conversation).
+  const memHydratedRef = useRef(false);
+
   const loadSuggestions = useCallback(async () => {
     try {
       const goals = await listWorkItems("goal").catch(() => []);
-      const allMems = memData?.recent ?? [];
+      const allMems = memDataRef.current?.recent ?? [];
       const stale = goals.filter((g) => {
         if (g.status !== "active") return false;
         if (!g.last_activity_at) return true;
@@ -130,11 +136,20 @@ export default function ChatView({ conversationId }: Props) {
     } catch {
       setSuggestions(["查看今日收件箱摘要", "帮我规划今天的工作", "总结最近的对话"]);
     }
-  }, [conversationId, memData]);
+  }, [conversationId]);
 
   useEffect(() => {
+    // Conversation changed: reload chips. If memories are already cached,
+    // mark hydrated so we don't immediately double-fetch.
+    memHydratedRef.current = Boolean(memDataRef.current);
     void loadSuggestions();
   }, [loadSuggestions]);
+
+  useEffect(() => {
+    if (!memData || memHydratedRef.current) return;
+    memHydratedRef.current = true;
+    void loadSuggestions();
+  }, [memData, loadSuggestions]);
 
   // Surface a "I just remembered …" toast when the memory cache grows.
   // Uses the TOTAL memory count (not the recent slice length, which is

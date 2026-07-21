@@ -1,8 +1,10 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { getMessages, sendMessage, updateConversation, ApiError } from "../api/client";
 import type { Message, StreamEvent, SourceCitation } from "../api/client";
 import { useChatStore } from "../stores/chatStore";
 import { stripToolMarkup } from "../utils/stripToolMarkup";
+import { updateConversationTitleInCache } from "./useConversationsQuery";
 
 interface ToolResult {
   tool_name: string;
@@ -156,7 +158,7 @@ export function useChatMessages(
   const [streamingContent, setStreamingContent] = useState("");
 
   const conversations = useChatStore((s) => s.conversations);
-  const updateConversationTitle = useChatStore((s) => s.updateConversationTitle);
+  const queryClient = useQueryClient();
 
   const onLoadErrorRef = useRef(onLoadError);
   onLoadErrorRef.current = onLoadError;
@@ -230,11 +232,12 @@ export function useChatMessages(
       if (needsTitle) {
         const title =
           trimmed.length > 25 ? `讨论「${trimmed.slice(0, 25)}…」` : `讨论「${trimmed}」`;
-        updateConversation(conversationId, title)
-          .then(() => updateConversationTitle(conversationId, title))
-          .catch(() => {
-            onLoadErrorRef.current?.("更新对话标题失败", "对话");
-          });
+        // Optimistic title in cache+store immediately so a concurrent list
+        // refetch cannot restore the default "新对话" title.
+        updateConversationTitleInCache(queryClient, conversationId, title);
+        updateConversation(conversationId, title).catch(() => {
+          onLoadErrorRef.current?.("更新对话标题失败", "对话");
+        });
       }
 
       let tempContent = "";
@@ -371,7 +374,7 @@ export function useChatMessages(
         );
       }
     },
-    [isLoading, conversationId, conversations, messages, updateConversationTitle],
+    [isLoading, conversationId, conversations, messages, queryClient],
   );
 
   return {

@@ -54,7 +54,13 @@ describe("applyWsInvalidation", () => {
       notification_type: "inbox_digest",
     });
     let keys = qc.invalidateQueries.mock.calls.map((c) => c[0].queryKey);
-    expect(keys).toEqual(expect.arrayContaining([queryKeys.inbox, queryKeys.dashboard]));
+    expect(keys).toEqual(
+      expect.arrayContaining([
+        queryKeys.notifications,
+        queryKeys.inbox,
+        queryKeys.dashboard,
+      ]),
+    );
 
     qc.invalidateQueries.mockClear();
     applyWsInvalidation(qc as never, {
@@ -62,7 +68,13 @@ describe("applyWsInvalidation", () => {
       notification_type: "goal_stagnant",
     });
     keys = qc.invalidateQueries.mock.calls.map((c) => c[0].queryKey);
-    expect(keys).toEqual(expect.arrayContaining([queryKeys.goals, queryKeys.dashboard]));
+    expect(keys).toEqual(
+      expect.arrayContaining([
+        queryKeys.notifications,
+        queryKeys.goals,
+        queryKeys.dashboard,
+      ]),
+    );
   });
 
   it("ignores unknown event types", () => {

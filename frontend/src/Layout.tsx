@@ -2,15 +2,10 @@ import { useEffect, useState, Suspense } from "react";
 import { Outlet, useNavigate, useLocation } from "react-router-dom";
 import { useChatStore } from "./stores/chatStore";
 import { useErrorStore } from "./stores/errorStore";
-import {
-  listConversations,
-  deleteConversation,
-  getSystemHealth,
-  isAuthConfigured,
-  ApiError,
-  type Notification,
-} from "./api/client";
+import { deleteConversation, isAuthConfigured, ApiError, type Notification } from "./api/client";
 import { useQuickChat } from "./hooks/useQuickChat";
+import { useConversationsQuery, useConversationCacheActions } from "./hooks/useConversationsQuery";
+import { useSettingsHealthQuery } from "./hooks/useSettingsQuery";
 import Sidebar from "./components/layout/Sidebar";
 import Dialog from "./components/ui/Dialog";
 import NotificationBell from "./components/layout/NotificationBell";
@@ -25,17 +20,19 @@ export default function Layout() {
   const {
     conversations,
     activeConversationId,
-    setConversations,
     setActiveConversation,
-    removeConversation,
   } = useChatStore();
   const quickChat = useQuickChat();
+  const { remove: removeConversationCached } = useConversationCacheActions();
+
+  // Server-state: conversations + health (auth banner). WS bridge drives other keys.
+  useConversationsQuery();
+  const { data: health } = useSettingsHealthQuery();
+  const authRequired = Boolean(health?.auth_required);
 
   const { toasts, dismissToast } = useNotifications();
-  // Subscribe WS payloads → React Query cache invalidations.
   useWsInvalidationBridge();
   const { errors, dismissError, backendUnavailable, addError } = useErrorStore();
-  const [authRequired, setAuthRequired] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<{
     id: string;
     title: string;
@@ -48,10 +45,6 @@ export default function Layout() {
   const location = useLocation();
 
   useEffect(() => {
-    loadConversations();
-  }, []);
-
-  useEffect(() => {
     const match = location.pathname.match(/^\/chat\/([^/]+)/);
     const convId = match?.[1] ?? null;
     if (convId && convId !== activeConversationId) {
@@ -60,22 +53,6 @@ export default function Layout() {
       setActiveConversation(null);
     }
   }, [location.pathname, activeConversationId, setActiveConversation]);
-
-  const loadConversations = async () => {
-    try {
-      const health = await getSystemHealth();
-      setAuthRequired(health.auth_required);
-      const convs = await listConversations();
-      setConversations(convs);
-      useErrorStore.getState().setBackendUnavailable(false);
-    } catch (e) {
-      if (e instanceof ApiError && e.status === 401) {
-        addError("认证失败，请检查 AUTH_TOKEN 与 VITE_AUTH_TOKEN 是否一致", "认证");
-      } else {
-        useErrorStore.getState().setBackendUnavailable(true);
-      }
-    }
-  };
 
   const handleNewChat = () => quickChat();
 
@@ -90,7 +67,7 @@ export default function Layout() {
     setDeleteTarget(null);
     try {
       await deleteConversation(id);
-      removeConversation(id);
+      removeConversationCached(id);
       if (activeConversationId === id) {
         navigate("/");
       }
@@ -151,6 +128,7 @@ export default function Layout() {
               <div className="text-xs text-gray-400 mt-1 line-clamp-2">{t.content}</div>
             </div>
             <button
+              type="button"
               onClick={(e) => {
                 e.stopPropagation();
                 dismissToast(t.id);
@@ -174,6 +152,7 @@ export default function Layout() {
               <div className="text-xs text-gray-400 mt-1 line-clamp-2">{err.message}</div>
             </div>
             <button
+              type="button"
               onClick={(e) => {
                 e.stopPropagation();
                 dismissError(err.id);

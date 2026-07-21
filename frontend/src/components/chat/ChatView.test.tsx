@@ -31,15 +31,23 @@ vi.mock("../../stores/errorStore", () => ({
     selector({ addError: vi.fn() }),
 }));
 
-vi.mock("../../stores/chatStore", () => ({
-  useChatStore: (selector: (s: Record<string, unknown>) => unknown) =>
-    selector({
-      conversations: [],
-      updateConversationTitle: vi.fn(),
-      pendingPrompt: null,
-      setPendingPrompt: vi.fn(),
-    }),
-}));
+const chatStoreState = {
+  conversations: [] as Array<{ id: string; title: string }>,
+  updateConversationTitle: vi.fn(),
+  setConversations: vi.fn((convs: Array<{ id: string; title: string }>) => {
+    chatStoreState.conversations = convs;
+  }),
+  pendingPrompt: null as string | null,
+  setPendingPrompt: vi.fn(),
+};
+
+vi.mock("../../stores/chatStore", () => {
+  const useChatStore = Object.assign(
+    (selector: (s: typeof chatStoreState) => unknown) => selector(chatStoreState),
+    { getState: () => chatStoreState },
+  );
+  return { useChatStore };
+});
 
 // TanStack Query-backed hook — provide a controllable stub so component
 // tests can drive the memory cache (total + recent slice) and verify the

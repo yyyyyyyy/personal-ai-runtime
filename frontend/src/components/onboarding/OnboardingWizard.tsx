@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { getSystemHealth, getLlmProviders, createConversation, ApiError } from "../../api/client";
 import { useChatStore } from "../../stores/chatStore";
 import { useErrorStore } from "../../stores/errorStore";
+import { useConversationCacheActions } from "../../hooks/useConversationsQuery";
 import Button from "../ui/Button";
 import Card from "../ui/Card";
 
@@ -40,10 +41,10 @@ interface Props {
 
 export default function OnboardingWizard({ onComplete }: Props) {
   const navigate = useNavigate();
-  const addConversation = useChatStore((s) => s.addConversation);
   const setActiveConversation = useChatStore((s) => s.setActiveConversation);
   const setPendingPrompt = useChatStore((s) => s.setPendingPrompt);
   const addError = useErrorStore((s) => s.addError);
+  const { upsert } = useConversationCacheActions();
 
   const [step, setStep] = useState(0);
   const [checking, setChecking] = useState(false);
@@ -96,7 +97,7 @@ export default function OnboardingWizard({ onComplete }: Props) {
     setLaunching(true);
     try {
       const conv = await createConversation(title);
-      addConversation(conv);
+      upsert(conv);
       setActiveConversation(conv.id);
       if (promptText) setPendingPrompt(promptText);
       localStorage.setItem("onboarding_done", "1");
@@ -166,7 +167,6 @@ export default function OnboardingWizard({ onComplete }: Props) {
                 {message}
               </p>
             )}
-            {/* Show "configure in settings" button when LLM check fails */}
             {step === 1 && !messageOk && !checking && (
               <div className="mt-3 p-3 bg-amber-500/10 border border-amber-500/20 rounded-lg">
                 <p className="text-xs text-amber-300 mb-2">
@@ -187,6 +187,7 @@ export default function OnboardingWizard({ onComplete }: Props) {
             {STARTER_PROMPTS.map((sp) => (
               <button
                 key={sp.label}
+                type="button"
                 onClick={() => launchConversation(sp.prompt, sp.title)}
                 disabled={launching}
                 className="w-full flex items-center gap-3 p-3 bg-gray-800/50 hover:bg-gray-800 border border-gray-700/50 hover:border-emerald-600/40 rounded-lg text-left transition-colors disabled:opacity-50"

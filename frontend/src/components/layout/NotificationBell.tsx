@@ -1,33 +1,22 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Bell } from "lucide-react";
 import {
-  listNotifications,
   markAllNotificationsRead,
   markNotificationRead,
   type Notification,
 } from "../../api/client";
+import {
+  useNotificationsQuery,
+  useInvalidateNotifications,
+} from "../../hooks/useNotificationsQuery";
 import NotificationDetailModal from "../notifications/NotificationDetailModal";
 import { notificationPreview } from "../../utils/notificationUtils";
 
 export default function NotificationBell() {
   const [open, setOpen] = useState(false);
-  const [notifications, setNotifications] = useState<Notification[]>([]);
   const [selected, setSelected] = useState<Notification | null>(null);
-
-  const loadNotifications = async () => {
-    try {
-      const items = await listNotifications(15);
-      setNotifications(items);
-    } catch {
-      // optional
-    }
-  };
-
-  useEffect(() => {
-    loadNotifications();
-    const interval = setInterval(loadNotifications, 60000);
-    return () => clearInterval(interval);
-  }, []);
+  const { data: notifications = [], refetch } = useNotificationsQuery(15);
+  const invalidateNotifications = useInvalidateNotifications();
 
   const unread = notifications.filter((n) => !n.read).length;
 
@@ -37,9 +26,7 @@ export default function NotificationBell() {
     if (!n.read) {
       try {
         await markNotificationRead(n.id);
-        setNotifications((prev) =>
-          prev.map((item) => (item.id === n.id ? { ...item, read: 1 } : item)),
-        );
+        invalidateNotifications();
         setSelected((prev) => (prev?.id === n.id ? { ...prev, read: 1 } : prev));
       } catch {
         // still show detail
@@ -50,7 +37,7 @@ export default function NotificationBell() {
   const handleMarkAllRead = async () => {
     try {
       await markAllNotificationsRead();
-      setNotifications((prev) => prev.map((n) => ({ ...n, read: 1 })));
+      invalidateNotifications();
     } catch {
       // ignore
     }
@@ -60,9 +47,10 @@ export default function NotificationBell() {
     <>
       <div className="relative px-3 pb-2">
         <button
+          type="button"
           onClick={() => {
             setOpen(!open);
-            if (!open) loadNotifications();
+            if (!open) void refetch();
           }}
           className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-gray-400 hover:bg-gray-800/50 transition-colors"
           aria-label="通知"
@@ -96,6 +84,7 @@ export default function NotificationBell() {
               notifications.map((n) => (
                 <button
                   key={n.id}
+                  type="button"
                   onClick={() => handleOpenDetail(n)}
                   className={`w-full text-left p-3 hover:bg-gray-800 border-b border-gray-800 last:border-0 ${
                     n.read ? "opacity-60" : ""

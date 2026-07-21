@@ -4,7 +4,7 @@ import { renderWithRouter, MockApiError } from "../../test-utils";
 import OnboardingWizard from "./OnboardingWizard";
 
 const mockNavigate = vi.fn();
-const addConversation = vi.fn();
+const setConversations = vi.fn();
 const setActiveConversation = vi.fn();
 const setPendingPrompt = vi.fn();
 const { addError } = vi.hoisted(() => ({
@@ -26,10 +26,20 @@ vi.mock("../../api/client", () => ({
   ApiError: MockApiError,
 }));
 
-vi.mock("../../stores/chatStore", () => ({
-  useChatStore: (selector: (s: Record<string, unknown>) => unknown) =>
-    selector({ addConversation, setActiveConversation, setPendingPrompt }),
-}));
+const chatStoreState = {
+  conversations: [] as Array<{ id: string; title: string }>,
+  setConversations,
+  setActiveConversation,
+  setPendingPrompt,
+};
+
+vi.mock("../../stores/chatStore", () => {
+  const useChatStore = Object.assign(
+    (selector: (s: typeof chatStoreState) => unknown) => selector(chatStoreState),
+    { getState: () => chatStoreState },
+  );
+  return { useChatStore };
+});
 
 vi.mock("../../stores/errorStore", () => ({
   useErrorStore: (selector: (s: { addError: ReturnType<typeof vi.fn> }) => unknown) =>
