@@ -314,21 +314,19 @@ async def apply_inbox_poll_payload(payload: dict, *, execution_id: str | None = 
             "sender": em.get("from", ""),
         })
 
-    from app.core.runtime.notification_bridge import push_notification
-
     important_items = [item for item in stored if item["category"] == "important"]
 
     if len(important_items) == 1:
         item = important_items[0]
         title = f"重要邮件 · {item['subject'][:40]}"
         content = f"发件人 {item['sender']} 相关邮件需关注（置信度 {item['importance']:.2f}）"
-        push_notification("inbox", title, content)
+        read_ports.push_notification("inbox", title, content)
         notified = 1
     elif len(important_items) > 1:
         title = f"收到 {len(important_items)} 封重要邮件"
         senders = ", ".join(list(dict.fromkeys([item['sender'] for item in important_items]))[:3])
         content = f"来自 {senders} 等发件人的重要邮件已到达，请注意查看。"
-        push_notification("inbox", title, content)
+        read_ports.push_notification("inbox", title, content)
         notified = len(important_items)
 
     for item in important_items:
@@ -375,7 +373,7 @@ async def mark_inbox_email_status(email_id: str, status: str) -> dict | None:
     # flip local status after a failed IMAP STORE.
     old_status = row.get("status")
     if status != old_status:
-        from app.core.runtime.execution import get_current_execution_id
+        from app.core.runtime.kernel_instance import get_current_execution_id
         execution_id = get_current_execution_id()
 
         try:
@@ -415,7 +413,7 @@ async def poll_inbox(limit: int = 20, *, execution_id: str | None = None) -> dic
     """Poll unread inbox via Execution chain (InboxPollRequested → handler)."""
     import uuid
 
-    from app.core.runtime.agent_scheduler import ensure_scheduler, get_scheduler
+    from app.core.runtime.kernel_instance import ensure_runtime_scheduler, get_runtime_scheduler
 
     if execution_id:
         cap = await kernel.invoke_capability(
@@ -435,8 +433,8 @@ async def poll_inbox(limit: int = 20, *, execution_id: str | None = None) -> dic
             return {"status": "error", "error": "invalid inbox JSON", "new_count": 0}
         return await apply_inbox_poll_payload(payload, execution_id=execution_id)
 
-    await ensure_scheduler(kernel)
-    scheduler = get_scheduler(kernel)
+    await ensure_runtime_scheduler()
+    scheduler = get_runtime_scheduler()
     await scheduler.start()
     result = await kernel.submit_command(
         "InboxPollRequested",
@@ -507,9 +505,7 @@ def generate_inbox_digest() -> dict | None:
 
     content = "\n".join(lines).strip()
 
-    from app.core.runtime.notification_bridge import push_notification
-
-    notif = push_notification("inbox_digest", title, content)
+    notif = read_ports.push_notification("inbox_digest", title, content)
 
     kernel.emit_event(
         constants.EVENT_INBOX_EMAIL_FLAG_SET,

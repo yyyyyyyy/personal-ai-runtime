@@ -111,7 +111,8 @@ def effective_api_key(provider: dict[str, Any]) -> str:
     return env_key or stored
 
 
-def _is_masked(value: str | None) -> bool:
+def is_masked(value: str | None) -> bool:
+    """Return True when *value* is a UI-masked secret placeholder (not a real secret)."""
     return value == _MASKED_SECRET or (value or "").startswith("••••")
 
 
@@ -360,7 +361,7 @@ class RuntimeConfig:
                     pid = item["id"]
                     prev = existing_by_id.get(pid, {})
                     api_key = item.get("api_key", "")
-                    if _is_masked(api_key):
+                    if is_masked(api_key):
                         api_key = prev.get("api_key", "")
                     merged.append({
                         "id": pid,
@@ -382,7 +383,7 @@ class RuntimeConfig:
             raw = _load_raw()
             current = raw["email"]
             password = payload.get("password", current.get("password", ""))
-            if _is_masked(password):
+            if is_masked(password):
                 password = current.get("password", "")
 
             raw["email"] = {
@@ -465,6 +466,22 @@ class RuntimeConfig:
         except Exception:
             logger.warning("Failed to save prompt '%s' to DB", key, exc_info=True)
             raise
+
+    def configure_notification_channels(
+        self,
+        *,
+        webhook_url: str | None = None,
+        ntfy_topic: str | None = None,
+        ntfy_server: str | None = None,
+    ) -> None:
+        """Apply notification delivery settings (Product/API-facing ABI)."""
+        from app.core.runtime.notification_channel import notification_router
+
+        notification_router.configure(
+            webhook_url=webhook_url,
+            ntfy_topic=ntfy_topic,
+            ntfy_server=ntfy_server,
+        )
 
 
 if TYPE_CHECKING:

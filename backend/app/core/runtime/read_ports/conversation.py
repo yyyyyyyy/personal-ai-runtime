@@ -1,4 +1,4 @@
-"""Conversation / message projection read ports."""
+"""Conversation / message ports — projection reads and context-pipeline sources."""
 
 from __future__ import annotations
 
@@ -33,4 +33,11 @@ def query_conversations(*, limit: int = 50) -> list[dict[str, Any]]:
 def query_message(message_id: str) -> dict[str, Any] | None:
     rows = kernel().query_state("messages", id=message_id, limit=1)
     return rows[0] if rows else None
+
+
+def get_conversation_sources(conversation_id: str) -> list[dict[str, Any]]:
+    """Context-pipeline sources attached to a conversation (SSE extras)."""
+    from app.core.runtime.governance.context_pipeline import get_sources
+
+    return get_sources(conversation_id)
 

@@ -1,4 +1,8 @@
-"""Timer, policy, and background-task read ports."""
+"""Timer, policy, background-task reads, and Triggers registration ABI.
+
+Trigger helpers live here because reactions participate in the periodic
+RuntimeLoop cycle alongside timers — not because they are timer rows.
+"""
 
 from __future__ import annotations
 
@@ -68,3 +72,63 @@ def count_active_policies() -> int:
     except Exception:
         logger.exception("count_active_policies failed")
         raise
+
+
+# ── Trigger / reaction registration (API-facing ABI)
+
+
+def register_trigger_reaction(
+    *,
+    name: str,
+    every_cycle: bool = True,
+    event_types: list[str] | None = None,
+    aggregate_type: str = "",
+    count_gte: int = 0,
+    window_days: int = 1,
+    state_selector: str = "",
+    state_filters: dict[str, Any] | None = None,
+    notification_template: str = "",
+) -> dict[str, Any]:
+    """Register a metadata-only reaction for the Triggers API."""
+    from app.core.runtime.reaction_registry import (
+        Reaction,
+        ReactionThen,
+        ReactionWhen,
+        get_reaction_registry,
+    )
+
+    when = ReactionWhen(
+        every_cycle=every_cycle,
+        event_types=list(event_types or []),
+        aggregate_type=aggregate_type,
+        count_gte=count_gte,
+        window_days=window_days,
+        state_selector=state_selector,
+        state_filters=dict(state_filters or {}),
+    )
+    then = ReactionThen(notification_template=notification_template)
+    get_reaction_registry().register(Reaction(name=name, when=when, then=then))
+    return {
+        "name": name,
+        "status": "registered",
+        "note": "without a handler this reaction will not fire in evaluate_cycle",
+    }
+
+
+def list_trigger_reactions() -> list[dict[str, Any]]:
+    from app.core.runtime.reaction_registry import get_reaction_registry
+
+    return get_reaction_registry().list_reactions()
+
+
+def unregister_trigger_reaction(name: str) -> bool:
+    from app.core.runtime.reaction_registry import get_reaction_registry
+
+    return get_reaction_registry().unregister(name)
+
+
+def count_state_selectors() -> frozenset[str]:
+    """Selectors accepted by ``kernel.count_state`` / trigger count gates."""
+    from app.core.runtime.kernel.kernel_query_state import COUNT_STATE_SELECTORS
+
+    return COUNT_STATE_SELECTORS

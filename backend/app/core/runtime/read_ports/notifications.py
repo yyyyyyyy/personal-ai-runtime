@@ -1,4 +1,4 @@
-"""Notification projection read ports."""
+"""Notification ports — projection reads plus push / SSE bridge ABI."""
 
 from __future__ import annotations
 
@@ -45,3 +45,29 @@ def query_unread_notification_count() -> int:
     except Exception:
         logger.exception("query_unread_notification_count failed")
         raise
+
+
+# ── Delivery / SSE bridge (API + Product ABI)
+
+
+def push_notification(
+    notif_type: str,
+    title: str,
+    content: str,
+    **kwargs: Any,
+) -> Any:
+    from app.core.runtime.notification_bridge import push_notification as _push
+
+    return _push(notif_type, title, content, **kwargs)
+
+
+def register_sse_queue(correlation_id: str) -> Any:
+    from app.core.runtime.notification_bridge import register
+
+    return register(correlation_id)
+
+
+def unregister_sse_queue(correlation_id: str) -> None:
+    from app.core.runtime.notification_bridge import unregister
+
+    unregister(correlation_id)

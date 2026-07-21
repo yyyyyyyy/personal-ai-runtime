@@ -115,6 +115,13 @@ class ReactionRegistry:
     def register(self, reaction: Reaction) -> None:
         self._reactions[reaction.name] = reaction
 
+    def unregister(self, name: str) -> bool:
+        """Remove a reaction by name. Returns True when it was present."""
+        if name not in self._reactions:
+            return False
+        del self._reactions[name]
+        return True
+
     def _state_gate_passes(self, reaction: Reaction, kernel: "Kernel") -> bool:
         """Return False when a state threshold is configured and not met.
 

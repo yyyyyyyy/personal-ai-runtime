@@ -6,7 +6,6 @@ from fastapi import APIRouter, HTTPException
 
 from app.config import settings
 from app.core.runtime import read_ports
-from app.core.runtime.capability_governance import capability_governance
 from app.core.runtime.kernel_instance import kernel
 
 router = APIRouter(tags=["approvals"])
@@ -107,15 +106,17 @@ async def list_approvals(limit: int = 50, pending_only: bool = False, enriched: 
     if pending_only and enriched:
         return _list_pending_enriched(kernel, limit=limit)
     if pending_only:
-        rows = capability_governance.list_pending(kernel)
+        # limit<=0 means "all pending" (same as former capability_governance.list_pending)
+        fetch = limit if limit > 0 else 10_000
+        rows = read_ports.query_pending_approvals(limit=fetch)
         return rows[:limit] if limit > 0 else rows
-    return capability_governance.list_all(kernel, limit=limit)
+    return read_ports.query_approvals(limit=limit)
 
 
 @router.get("/{approval_id}")
 async def get_approval(approval_id: str):
     """Get a single approval by ID."""
-    approval = capability_governance.get_approval(kernel, approval_id)
+    approval = read_ports.query_approval(approval_id)
     if not approval:
         raise HTTPException(status_code=404, detail="Approval not found")
     return approval
@@ -130,9 +131,9 @@ async def approve(approval_id: str):
     context, the conversation is automatically resumed; otherwise the
     capability is still executed but no conversation reply is sent.
     """
-    from app.core.runtime.agent_scheduler import ensure_scheduler, get_scheduler
+    from app.core.runtime.kernel_instance import ensure_runtime_scheduler, get_runtime_scheduler
 
-    approval = capability_governance.get_approval(kernel, approval_id)
+    approval = read_ports.query_approval(approval_id)
     if not approval:
         raise HTTPException(status_code=404, detail="Approval not found")
     if approval.get("status") != "pending":
@@ -166,8 +167,8 @@ async def approve(approval_id: str):
             if chat_events:
                 conv_id = chat_events[0].aggregate_id
 
-    await ensure_scheduler(kernel)
-    scheduler = get_scheduler(kernel)
+    await ensure_runtime_scheduler()
+    scheduler = get_runtime_scheduler()
     await scheduler.start()
 
     result = await kernel.submit_command(
@@ -195,16 +196,16 @@ async def approve(approval_id: str):
 @router.post("/{approval_id}/reject")
 async def reject(approval_id: str, reason: str = ""):
     """Reject a pending approval through the standard handler pipeline."""
-    from app.core.runtime.agent_scheduler import ensure_scheduler, get_scheduler
+    from app.core.runtime.kernel_instance import ensure_runtime_scheduler, get_runtime_scheduler
 
-    approval = capability_governance.get_approval(kernel, approval_id)
+    approval = read_ports.query_approval(approval_id)
     if not approval:
         raise HTTPException(status_code=404, detail="Approval not found")
     if approval.get("status") != "pending":
         raise HTTPException(status_code=400, detail=f"Approval is already {approval.get('status')}")
 
-    await ensure_scheduler(kernel)
-    scheduler = get_scheduler(kernel)
+    await ensure_runtime_scheduler()
+    scheduler = get_runtime_scheduler()
     await scheduler.start()
 
     result = await kernel.submit_command(

@@ -220,12 +220,12 @@ async def test_email_connection(body: TestEmailRequest | None = None):
     import imaplib
     import smtplib
 
-    from app.core.runtime.runtime_config import _is_masked
+    from app.core.runtime.runtime_config import is_masked
 
     creds = runtime_config.get_email_credentials()
     user = (body.user if body and body.user else "") or creds.get("user", "")
     password = (body.password if body and body.password else "") or ""
-    if not password or _is_masked(password):
+    if not password or is_masked(password):
         password = creds.get("password", "")
     if not user or not password:
         return {"ok": False, "imap_ok": False, "smtp_ok": False, "error": "邮箱或密码未配置"}
@@ -372,13 +372,10 @@ async def get_capability_policy():
 @router.put("/notifications")
 async def update_notification_settings(body: NotificationSettings):
     """Update notification channel configuration."""
-    from app.core.runtime.notification_channel import notification_router
     from app.core.runtime.runtime_config import runtime_config
 
     runtime_config.save_prompt("notifications", body.model_dump_json())
-
-    # Apply settings immediately
-    notification_router.configure(
+    runtime_config.configure_notification_channels(
         webhook_url=body.webhook_url,
         ntfy_topic=body.ntfy_topic,
         ntfy_server=body.ntfy_server,

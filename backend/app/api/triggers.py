@@ -8,12 +8,8 @@ The path prefix is ``/api/triggers``; responses are Reaction descriptors
 from fastapi import APIRouter, HTTPException
 
 from app.api.models import CreateTriggerRequest
-from app.core.runtime.reaction_registry import (
-    Reaction,
-    ReactionThen,
-    ReactionWhen,
-    get_reaction_registry,
-)
+from app.core.runtime import read_ports
+from app.core.runtime.kernel_instance import kernel
 
 router = APIRouter(tags=["triggers"])
 
@@ -28,8 +24,6 @@ async def create_trigger(body: CreateTriggerRequest):
     if not name or not trigger_type or not condition:
         raise HTTPException(status_code=400, detail="name, trigger_type, and condition are required")
 
-    registry = get_reaction_registry()
-
     count = int(condition.get("count", 0) or 0)
     state_selector = str(condition.get("state_selector", "") or "")
     state_filters = condition.get("state_filters") or {}
@@ -37,18 +31,18 @@ async def create_trigger(body: CreateTriggerRequest):
         state_filters = {}
 
     if state_selector and count > 0:
-        from app.core.runtime.kernel.kernel_query_state import COUNT_STATE_SELECTORS
-
-        if state_selector not in COUNT_STATE_SELECTORS:
+        if not kernel.supports_count_state(state_selector):
             raise HTTPException(
                 status_code=400,
                 detail=(
                     f"state_selector {state_selector!r} is not supported for count gates; "
-                    f"use one of: {sorted(COUNT_STATE_SELECTORS)}"
+                    f"use one of: {sorted(read_ports.count_state_selectors())}"
                 ),
             )
 
-    when = ReactionWhen(
+    template = action_config.get("template", "")
+    return read_ports.register_trigger_reaction(
+        name=name,
         every_cycle=True,
         event_types=condition.get("event_type") and [condition["event_type"]] or [],
         aggregate_type=condition.get("aggregate_type", ""),
@@ -56,31 +50,18 @@ async def create_trigger(body: CreateTriggerRequest):
         window_days=condition.get("window_days", 1),
         state_selector=state_selector,
         state_filters=state_filters,
+        notification_template=template,
     )
-
-    template = action_config.get("template", "")
-    then = ReactionThen(notification_template=template)
-
-    # Metadata-only registration unless a handler is attached later.
-    registry.register(Reaction(name=name, when=when, then=then))
-    return {
-        "name": name,
-        "status": "registered",
-        "note": "without a handler this reaction will not fire in evaluate_cycle",
-    }
 
 
 @router.get("/")
 async def list_triggers():
     """List registered reactions."""
-    registry = get_reaction_registry()
-    return registry.list_reactions()
+    return read_ports.list_trigger_reactions()
 
 
 @router.delete("/{trigger_id}")
 async def delete_trigger(trigger_id: str):
-    registry = get_reaction_registry()
-    if trigger_id not in [r.name for r in registry._reactions.values()]:
+    if not read_ports.unregister_trigger_reaction(trigger_id):
         raise HTTPException(status_code=404, detail="Trigger not found")
-    del registry._reactions[trigger_id]
     return {"status": "ok"}

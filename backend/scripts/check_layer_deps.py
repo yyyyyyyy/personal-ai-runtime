@@ -48,7 +48,8 @@ API_ABI_PREFIXES: tuple[str, ...] = (
     "app.core.runtime.egress",
 )
 
-# ``from app.core.runtime import read_ports`` / ``kernel_instance`` style.
+# ``from app.core.runtime import read_ports`` / ``kernel_instance`` style
+# (package path ``read_ports`` = Ports ABI: reads + command/bridge wrappers).
 API_ABI_PACKAGE_NAMES: frozenset[str] = frozenset({
     "read_ports",
     "kernel_instance",
@@ -83,21 +84,6 @@ DEBT_ALLOWLIST: frozenset[DebtKey] = frozenset({
     # R2 — Store → Runtime
     ("store/database.py", "store_to_runtime", "app.core.runtime.runtime_container"),
     ("store/vector.py", "store_to_runtime", "app.core.runtime.runtime_container"),
-    # R3 — API deep / private Runtime
-    ("api/approvals.py", "api_deep_runtime", "app.core.runtime.capability_governance"),
-    ("api/approvals.py", "api_deep_runtime", "app.core.runtime.agent_scheduler"),
-    ("api/chat.py", "api_deep_runtime", "app.core.runtime.agent_scheduler"),
-    ("api/chat.py", "api_deep_runtime", "app.core.runtime.notification_bridge"),
-    ("api/chat.py", "api_deep_runtime", "app.core.runtime.governance.context_pipeline"),
-    ("api/work_items.py", "api_deep_runtime", "app.core.runtime.task_engine"),
-    ("api/triggers.py", "api_deep_runtime", "app.core.runtime.reaction_registry"),
-    ("api/triggers.py", "api_deep_runtime", "app.core.runtime.kernel.kernel_query_state"),
-    ("api/settings_api.py", "api_private_import", "app.core.runtime.runtime_config._is_masked"),
-    ("api/settings_api.py", "api_deep_runtime", "app.core.runtime.notification_channel"),
-    # R4 — Product deep Runtime
-    ("product/inbox.py", "product_deep_runtime", "app.core.runtime.agent_scheduler"),
-    ("product/inbox.py", "product_deep_runtime", "app.core.runtime.notification_bridge"),
-    ("product/inbox.py", "product_deep_runtime", "app.core.runtime.execution"),
 })
 
 

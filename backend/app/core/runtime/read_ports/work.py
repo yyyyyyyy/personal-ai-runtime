@@ -1,4 +1,9 @@
-"""Work-item / goal projection read ports."""
+"""Work-item / goal ports — projections and Work mutations (API ABI).
+
+Read helpers query governed ``work_items``. Mutation helpers are thin,
+lazy wrappers over ``task_engine`` so API does not import that module
+directly (avoids task_engine ↔ read_ports import cycles).
+"""
 
 from __future__ import annotations
 
@@ -168,4 +173,128 @@ def query_goals_with_deadline(*, limit: int = 500) -> list[dict[str, Any]]:
 
 def query_pending_work_items(*, limit: int = 100) -> list[dict[str, Any]]:
     return kernel().query_state("work_items", status="pending", limit=limit)
+
+
+# ── Work mutations (API-facing ABI; lazy to avoid task_engine ↔ read_ports cycles)
+
+
+def create_work_item(
+    title: str,
+    *,
+    description: str = "",
+    work_type: str = "task",
+    parent_goal_id: str | None = None,
+    parent_work_id: str | None = None,
+    priority: int = 0,
+    dependencies: list[str] | None = None,
+    executable_plan: str | None = None,
+    progress: float | None = None,
+    importance: float | None = None,
+    urgency: float | None = None,
+    deadline: str | None = None,
+    last_activity_at: str | None = None,
+    status: str = "pending",
+) -> dict[str, Any]:
+    from app.core.runtime.task_engine import create_work_item as _create
+
+    return _create(
+        title,
+        description=description,
+        work_type=work_type,
+        parent_goal_id=parent_goal_id,
+        parent_work_id=parent_work_id,
+        priority=priority,
+        dependencies=dependencies,
+        executable_plan=executable_plan,
+        progress=progress,
+        importance=importance,
+        urgency=urgency,
+        deadline=deadline,
+        last_activity_at=last_activity_at,
+        status=status,
+    )
+
+
+def update_work_item_fields(
+    item_id: str,
+    *,
+    title: str | None = None,
+    description: str | None = None,
+    status: str | None = None,
+    priority: int | None = None,
+    progress: float | None = None,
+    importance: float | None = None,
+    urgency: float | None = None,
+    deadline: str | None = None,
+    last_activity_at: str | None = None,
+    parent_work_id: str | None = None,
+) -> dict[str, Any] | None:
+    from app.core.runtime.task_engine import update_work_item_fields as _update
+
+    return _update(
+        item_id,
+        title=title,
+        description=description,
+        status=status,
+        priority=priority,
+        progress=progress,
+        importance=importance,
+        urgency=urgency,
+        deadline=deadline,
+        last_activity_at=last_activity_at,
+        parent_work_id=parent_work_id,
+    )
+
+
+def update_work_item_status(item_id: str, new_status: str) -> dict[str, Any] | None:
+    from app.core.runtime.task_engine import update_work_item_status as _update
+
+    return _update(item_id, new_status)
+
+
+def delete_work_item(item_id: str, *, cascade: bool = False) -> None:
+    from app.core.runtime.task_engine import delete_work_item as _delete
+
+    _delete(item_id, cascade=cascade)
+
+
+def get_work_item(item_id: str) -> dict[str, Any] | None:
+    """Alias of ``query_work_item`` — kept for Work API call sites."""
+    return query_work_item(item_id)
+
+
+def get_sub_work_items(parent_work_id: str) -> list[dict[str, Any]]:
+    from app.core.runtime.task_engine import get_sub_work_items as _get
+
+    return _get(parent_work_id)
+
+
+def get_work_item_tree(goal_id: str) -> list[dict[str, Any]]:
+    from app.core.runtime.task_engine import get_work_item_tree as _get
+
+    return _get(goal_id)
+
+
+def list_work_items(
+    status: str | None = None,
+    work_type: str | None = None,
+    limit: int = 50,
+    parent_work_id: str | None = None,
+    parent_goal_id: str | None = None,
+) -> list[dict[str, Any]]:
+    from app.core.runtime.task_engine import list_work_items as _list
+
+    return _list(
+        status=status,
+        work_type=work_type,
+        limit=limit,
+        parent_work_id=parent_work_id,
+        parent_goal_id=parent_goal_id,
+    )
+
+
+def bump_parent_activity(parent_id: str) -> None:
+    from app.core.runtime.task_engine import bump_parent_activity as _bump
+
+    _bump(parent_id)
 

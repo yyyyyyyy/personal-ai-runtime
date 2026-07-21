@@ -1,12 +1,20 @@
-"""Runtime Read Ports — Fragment-facing read abstractions.
+"""Runtime Ports ABI — Fragment / API / Product-facing port surface.
 
-Fragments must use these ports instead of opening DB sessions,
-importing ORM models, or calling Kernel / storage directly.
+Package path remains ``app.core.runtime.read_ports`` for stability; the role is
+broader than projection reads. Callers use these ports instead of opening DB
+sessions, importing ORM models, or reaching deep Runtime modules
+(``task_engine``, ``reaction_registry``, bridges, scheduler internals).
 
-    Fragment → Read Port → Kernel → Projection / Query Model
+    Caller → Port → Kernel / Runtime internals
 
-This package is split by domain; public names are re-exported here
-(``from app.core.runtime.read_ports import …``).
+Split by domain under this package. Includes:
+
+- **Reads** — governed projection queries (``query_*`` / ``count_*``)
+- **Commands** — Work mutations, trigger registration (lazy wrappers)
+- **Bridges** — SSE queue register/unregister, notification push
+
+Import via ``from app.core.runtime.read_ports import …`` or
+``from app.core.runtime import read_ports``.
 """
 
 from app.core.runtime.read_ports.approvals import (
@@ -24,6 +32,7 @@ from app.core.runtime.read_ports.calendar_mcp import (
     test_mcp_connection,
 )
 from app.core.runtime.read_ports.conversation import (
+    get_conversation_sources,
     query_conversation,
     query_conversation_messages,
     query_conversations,
@@ -58,9 +67,12 @@ from app.core.runtime.read_ports.memory import (
     summarize_memory_stats,
 )
 from app.core.runtime.read_ports.notifications import (
+    push_notification,
     query_notification,
     query_notifications,
     query_unread_notification_count,
+    register_sse_queue,
+    unregister_sse_queue,
 )
 from app.core.runtime.read_ports.profile import (
     query_user_profile,
@@ -78,17 +90,28 @@ from app.core.runtime.read_ports.telemetry import (
 from app.core.runtime.read_ports.timers import (
     count_active_policies,
     count_active_timers,
+    list_trigger_reactions,
     query_active_policies,
     query_active_timers,
     query_background_task,
     query_background_tasks,
     query_due_timers,
     query_timer,
+    register_trigger_reaction,
+    unregister_trigger_reaction,
+    count_state_selectors,
 )
 from app.core.runtime.read_ports.work import (
+    bump_parent_activity,
     count_active_goals,
     count_completed_goals,
     count_goals,
+    create_work_item,
+    delete_work_item,
+    get_sub_work_items,
+    get_work_item,
+    get_work_item_tree,
+    list_work_items,
     query_active_goals,
     query_completed_goals,
     query_goal,
@@ -103,6 +126,8 @@ from app.core.runtime.read_ports.work import (
     query_work_item,
     query_work_items,
     query_work_items_by_parent_goal,
+    update_work_item_fields,
+    update_work_item_status,
 )
 
 __all__ = [
@@ -125,6 +150,15 @@ __all__ = [
     "query_completed_goals",
     "query_goals_with_deadline",
     "query_pending_work_items",
+    "create_work_item",
+    "update_work_item_fields",
+    "update_work_item_status",
+    "delete_work_item",
+    "get_work_item",
+    "get_sub_work_items",
+    "get_work_item_tree",
+    "list_work_items",
+    "bump_parent_activity",
     "retrieve_memory_context",
     "retrieve_memory_with_sources",
     "query_memory",
@@ -136,6 +170,7 @@ __all__ = [
     "query_conversation",
     "query_conversations",
     "query_message",
+    "get_conversation_sources",
     "query_recent_inbox_emails",
     "search_inbox_emails",
     "query_pending_inbox_emails",
@@ -149,6 +184,9 @@ __all__ = [
     "query_notification",
     "query_notifications",
     "query_unread_notification_count",
+    "push_notification",
+    "register_sse_queue",
+    "unregister_sse_queue",
     "query_llm_calls",
     "query_tool_calls",
     "query_recent_tool_names",
@@ -170,6 +208,10 @@ __all__ = [
     "query_due_timers",
     "query_active_policies",
     "count_active_policies",
+    "register_trigger_reaction",
+    "list_trigger_reactions",
+    "unregister_trigger_reaction",
+    "count_state_selectors",
     "query_user_profile_category",
     "query_user_profile",
     "to_legacy_dict",

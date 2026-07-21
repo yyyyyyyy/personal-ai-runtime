@@ -30,10 +30,8 @@ def _drain_sse_queue(queue: asyncio.Queue) -> list[dict]:
 
 def _yield_completion_extras(result: dict, conv_id: str) -> list[str]:
     """Build SSE lines for sources and confirmation_required before done."""
-    from app.core.runtime.governance.context_pipeline import get_sources
-
     lines: list[str] = []
-    sources = get_sources(conv_id)
+    sources = read_ports.get_conversation_sources(conv_id)
     if sources:
         lines.append(f"data: {json.dumps({'type': 'sources', 'sources': sources})}\n\n")
     if result.get("pending"):
@@ -126,15 +124,13 @@ async def send_message(conv_id: str, body: SendMessageRequest):
 
     correlation_id = f"chat_{uuid.uuid4().hex[:12]}"
 
-    from app.core.runtime.agent_scheduler import ensure_scheduler
-    await ensure_scheduler(kernel)
+    from app.core.runtime.kernel_instance import ensure_runtime_scheduler, get_runtime_scheduler
 
-    from app.core.runtime.agent_scheduler import get_scheduler
-    scheduler = get_scheduler(kernel)
+    await ensure_runtime_scheduler()
+    scheduler = get_runtime_scheduler()
     await scheduler.start()
 
-    from app.core.runtime.notification_bridge import register, unregister
-    sse_queue = register(correlation_id)
+    sse_queue = read_ports.register_sse_queue(correlation_id)
 
     kernel.emit_event(
         "ChatRequested",
@@ -218,7 +214,7 @@ async def send_message(conv_id: str, body: SendMessageRequest):
             _logging.getLogger(__name__).warning("SSE stream error for %s: %s", correlation_id, exc, exc_info=True)
             yield f"data: {_json.dumps({'type': 'error', 'content': 'An internal error occurred. Please try again.'})}\n\n"
         finally:
-            unregister(correlation_id)
+            read_ports.unregister_sse_queue(correlation_id)
 
     return StreamingResponse(
         sse_stream(),
@@ -281,10 +277,10 @@ async def resolve_approval(approval_id: str, body: ResolveApprovalRequest):
     tool_name, tool_args = _load_pending_approval(approval_id)
     _reject_client_approval_mismatch(body, tool_name, tool_args)
 
-    from app.core.runtime.agent_scheduler import ensure_scheduler
-    await ensure_scheduler(kernel)
-    from app.core.runtime.agent_scheduler import get_scheduler
-    scheduler = get_scheduler(kernel)
+    from app.core.runtime.kernel_instance import ensure_runtime_scheduler, get_runtime_scheduler
+
+    await ensure_runtime_scheduler()
+    scheduler = get_runtime_scheduler()
     await scheduler.start()
 
     result = await kernel.submit_command(

@@ -52,9 +52,14 @@
 | R1 | `core/runtime` → `app.product` | 机制不得回调领域策略 |
 | R2 | `store` → `app.core.runtime` | 存储层不得装配 Runtime |
 | R3 | `api` → Runtime 私有名 / 非 ABI 深模块 | HTTP 只碰 Kernel ABI 面 |
-| R4 | `product` → Runtime 深模块 | Product 优先 `kernel` / `read_ports` / `constants` / `egress` |
+| R4 | `product` → Runtime 深模块 | Product 优先 `kernel` / Ports ABI（包名 `read_ports`）/ `constants` / `egress` |
 
-**API / Product 允许的 ABI 面**：`kernel_instance`、`read_ports`、`kernel.constants`、`runtime_config`（公开 API）、`egress`；Product 另允许 `from app.core.runtime.kernel import Kernel`（类型提示，不含 `kernel.*` 其它子模块）。
+**API / Product 允许的 ABI 面**：
+
+- `kernel_instance`（含 `ensure_runtime_scheduler` / `get_runtime_scheduler` / `get_current_execution_id`）
+- **Ports ABI**（包路径仍为 `read_ports`：投影读 + Work/Triggers 命令包装 + SSE/推送桥；历史包名不改以免 churn）
+- `kernel.constants`、`runtime_config`（公开 API）、`egress`
+- Product 另允许 `from app.core.runtime.kernel import Kernel`（类型提示，不含 `kernel.*` 其它子模块）
 
 已知违规记在脚本 `DEBT_ALLOWLIST`；CI 默认阻断**新增**边。查看清单：
 
