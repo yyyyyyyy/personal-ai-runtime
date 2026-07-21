@@ -52,7 +52,7 @@ flowchart TB
 ### runtime/ 覆盖范围（节选）
 
 - **事件溯源与重建**：`test_event_sourcing.py`、`test_engine_rebuild.py`、`test_memory_belief.py`、`test_conversation_recorded.py`、`test_actions_event_sourced.py`、`test_goals_event_sourced.py`
-- **边界与归属守卫**：`test_boundary_guard.py`、`test_execution_ownership_guard.py`、`test_projection_provenance_guard.py`、`test_projection_schema_contract.py`
+- **边界与归属守卫**：`test_boundary_guard.py`、`test_layer_deps_guard.py`、`test_execution_ownership_guard.py`、`test_projection_provenance_guard.py`、`test_projection_schema_contract.py`
 - **执行模型**：`test_execution_model.py`、`test_execution_repository.py`、`test_execution_ownership.py`、`test_principal.py`（含 ExecutionContext）；崩溃恢复与 shadow-compare 主要由层 2 verify / soak（`soak_recovery.py`）覆盖，不设同名独立 pytest 文件
 - **Scheduler / timer / reaction / 隔离**：`test_scheduler.py`、`test_scheduler_deadline.py`、`test_scheduler_extended.py`、`test_d1_concurrent_isolation.py`、`test_runtime_loop_nonblocking.py`、`test_handler_fanout.py`
 - **能力治理与策略（T2/A3/C3）**：`test_capability_approval.py`、`test_capability_decision.py`、`test_capability_forbidden.py`、`test_c3_mcp_policy_eventsourcing.py`、`test_runtime_config.py`、`test_taint.py`、`test_sensitive_router.py`
@@ -92,6 +92,7 @@ CI 报告用 `--cov-report=term-missing` 让缺失部分可见，开发者按需
 | 脚本 | 不变量 | 机制 |
 |---|---|---|
 | [`check_boundary.py`](../../backend/scripts/check_boundary.py) | Kernel 写入独占 | 静态正则扫描 User Space 的 DML/SELECT/import 违规。模式：默认（新违规失败）、`--inventory`（列全部，退出 0）、`--strict`（连 allowlist 债也失败） |
+| [`check_layer_deps.py`](../../backend/scripts/check_layer_deps.py) | Runtime/Product/Store/API 职责边 | AST 扫描跨层 import；`DEBT_ALLOWLIST` 记已知债；默认阻断新增边 |
 | [`check_execution_ownership.py`](../../backend/scripts/check_execution_ownership.py) | 每次 `invoke_capability` 必带 `execution_id` | 静态扫描，平衡括号捕获完整调用文本，检查子串 `execution_id`。同样三种模式 |
 | [`check_projection_provenance.py`](../../backend/scripts/check_projection_provenance.py) | 每条 governed 投影行有对应 `event_log` 事件 | 运行时 SQL join（接受 `--db` 或自启 Kernel 到 `data/verify_provenance.db` 并跑 bootstrap 场景） |
 

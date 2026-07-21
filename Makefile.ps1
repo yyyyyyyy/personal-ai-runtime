@@ -42,6 +42,7 @@ $StaticModules = @(
     "scripts.check_doc_table_sync",
     "scripts.check_doc_line_refs",
     "scripts.check_boundary",
+    "scripts.check_layer_deps",
     "scripts.check_execution_ownership",
     "scripts.check_concept_growth"
 )
@@ -77,6 +78,7 @@ Available tasks:
   lint                 Run ruff on backend
   typecheck            Run mypy on backend
   boundary             Kernel boundary guard
+  layer-deps           Runtime/Product/Store/API import edge guard
   backend-ci-static    Static guards (aligned with Makefile)
   backend-ci-runtime   Runtime verifies + pytest (aligned with Makefile)
   backend-ci-core      Static then runtime
@@ -126,6 +128,12 @@ PowerShell runs modules sequentially for reliable exit codes; use make/WSL for p
     }
     "boundary" {
         Invoke-BackendModule "scripts.check_boundary"
+    }
+    "layer-deps" {
+        Invoke-BackendModule "scripts.check_layer_deps"
+    }
+    "layer-deps-inventory" {
+        Invoke-BackendModule "scripts.check_layer_deps" @("--inventory")
     }
     "backend-ci-static" {
         Write-Host "Running static checks..."

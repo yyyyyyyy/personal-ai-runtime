@@ -54,6 +54,9 @@
 | `boundary` | [`check_boundary.py`](../../backend/scripts/check_boundary.py) | Kernel 边界静态扫描（新违规失败） |
 | `boundary-inventory` | 同上 `--inventory` | 列全部匹配，退出 0 |
 | `boundary-strict` | 同上 `--strict` | 连 allowlist 债也失败 |
+| `layer-deps` | [`check_layer_deps.py`](../../backend/scripts/check_layer_deps.py) | Runtime/Product/Store/API 职责边（新违规失败） |
+| `layer-deps-inventory` | 同上 `--inventory` | 列全部跨层 import，退出 0 |
+| `layer-deps-strict` | 同上 `--strict` | 连 DEBT_ALLOWLIST 债也失败 |
 | `execution-ownership` | [`check_execution_ownership.py`](../../backend/scripts/check_execution_ownership.py) | `invoke_capability` 必带 `execution_id` |
 | `execution-ownership-inventory` | 同上 `--inventory` | 列全部 |
 | `execution-ownership-strict` | 同上 `--strict` | 连 bypass 债也失败 |
@@ -93,7 +96,7 @@
 
 ## Makefile.ps1（Windows）
 
-[`Makefile.ps1`](../../Makefile.ps1) 用 `switch` on `$Task`，提供：`help`、`install`、`install-hooks`、`test-backend`、`test-frontend`、`lint`、`typecheck`、`boundary`、`backend-ci-static`、`backend-ci-runtime`、`backend-ci-core`、`docker-up`、`docker-down`。
+[`Makefile.ps1`](../../Makefile.ps1) 用 `switch` on `$Task`，提供：`help`、`install`、`install-hooks`、`test-backend`、`test-frontend`、`lint`、`typecheck`、`boundary`、`layer-deps`、`backend-ci-static`、`backend-ci-runtime`、`backend-ci-core`、`docker-up`、`docker-down`。
 
 注意差异：
 

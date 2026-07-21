@@ -1,4 +1,4 @@
-.PHONY: install setup init-db dev demo screenshots test test-backend test-backend-coverage test-frontend test-e2e test-e2e-real ci-local backend-ci-core backend-ci-static backend-ci-runtime backend-compileall backend-smoke lint typecheck dependency-sync desktop desktop-test desktop-build boundary docs-links docs-table-sync docs-line-refs policy-consistency rebuild-verify export-roundtrip-verify snapshot-verify egress-verify connector-verify alembic-verify vector-consistency-verify memory-repair-verify tool-calls-audit-verify architecture-check architecture-check-strict architecture-snapshot architecture-record dashboard dashboard-write docker-up docker-down projection-provenance conversation-rebuild goal-rebuild work-items-goal-rebuild memory-lifecycle-verify inbox-audit-verify lockfile secrets-scan
+.PHONY: install setup init-db dev demo screenshots test test-backend test-backend-coverage test-frontend test-e2e test-e2e-real ci-local backend-ci-core backend-ci-static backend-ci-runtime backend-compileall backend-smoke lint typecheck dependency-sync desktop desktop-test desktop-build boundary layer-deps layer-deps-inventory layer-deps-strict docs-links docs-table-sync docs-line-refs policy-consistency rebuild-verify export-roundtrip-verify snapshot-verify egress-verify connector-verify alembic-verify vector-consistency-verify memory-repair-verify tool-calls-audit-verify architecture-check architecture-check-strict architecture-snapshot architecture-record dashboard dashboard-write docker-up docker-down projection-provenance conversation-rebuild goal-rebuild work-items-goal-rebuild memory-lifecycle-verify inbox-audit-verify lockfile secrets-scan
 
 # Backend
 BACKEND_DIR := backend
@@ -66,7 +66,7 @@ dependency-sync:
 # Static checks — no shared DB; safe to run in parallel.
 BACKEND_CI_STATIC := dependency-sync backend-compileall lint typecheck version-sync \
 	policy-consistency docs-links docs-table-sync docs-line-refs boundary \
-	execution-ownership architecture-check
+	layer-deps execution-ownership architecture-check
 
 # Runtime verifies — ephemeral DBs / tmp paths; parallel after static wave.
 BACKEND_CI_RUNTIME := alembic-verify backend-smoke test-backend-coverage \
@@ -113,6 +113,15 @@ desktop-build:
 
 boundary:
 	cd $(BACKEND_DIR) && python3 -m scripts.check_boundary
+
+layer-deps:
+	cd $(BACKEND_DIR) && python3 -m scripts.check_layer_deps
+
+layer-deps-inventory:
+	cd $(BACKEND_DIR) && python3 -m scripts.check_layer_deps --inventory
+
+layer-deps-strict:
+	cd $(BACKEND_DIR) && python3 -m scripts.check_layer_deps --strict
 
 docs-links:
 	cd $(BACKEND_DIR) && python3 -m scripts.check_doc_links

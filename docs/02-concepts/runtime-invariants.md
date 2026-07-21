@@ -87,7 +87,7 @@
 |---|---|---|
 | INV-B1 | User Space 经 Kernel ABI 访问 governed 数据（见 [kernel-boundary.md](kernel-boundary.md)） | Strong |
 | INV-B2 | 投影行可追溯到对应 `event_log` 事件（provenance 检查） | Strong |
-| INV-B3 | Product 扩展通过 ABI / 注册点完成，不向 Runtime 增加领域原语 | Weak |
+| INV-B3 | Product 扩展通过 ABI / 注册点完成；Runtime 不回调 Product（`check_layer_deps` R1 阻断新增边） | Medium |
 | INV-B4 | Runtime 依赖装配收敛于 `RuntimeContainer`；避免游离模块级可变单例 | Weak |
 
 ---

@@ -43,6 +43,25 @@
 4. Runtime **不应**持续吸收产品策略（例如具体「收件箱积压」规则、用户档案字段语义）。这类逻辑属于 Product。
 5. Capability **基础设施**（注册表、网格、URL 安全、执行路由）属于 Runtime；**具体工具实现**（邮件发送、日历写入、Telegram 等）属于 Product，即使当前源码仍可能位于 `core/harness/builtin_tools/`。
 
+### 1.4 层依赖规则（机器强制）
+
+表级 GOLDEN RULE 见 [kernel-boundary.md](kernel-boundary.md)。下列**职责边**由 [`check_layer_deps.py`](../../backend/scripts/check_layer_deps.py) 扫描：
+
+| 规则 | 禁止边 | 说明 |
+|---|---|---|
+| R1 | `core/runtime` → `app.product` | 机制不得回调领域策略 |
+| R2 | `store` → `app.core.runtime` | 存储层不得装配 Runtime |
+| R3 | `api` → Runtime 私有名 / 非 ABI 深模块 | HTTP 只碰 Kernel ABI 面 |
+| R4 | `product` → Runtime 深模块 | Product 优先 `kernel` / `read_ports` / `constants` / `egress` |
+
+**API / Product 允许的 ABI 面**：`kernel_instance`、`read_ports`、`kernel.constants`、`runtime_config`（公开 API）、`egress`；Product 另允许 `from app.core.runtime.kernel import Kernel`（类型提示，不含 `kernel.*` 其它子模块）。
+
+已知违规记在脚本 `DEBT_ALLOWLIST`；CI 默认阻断**新增**边。查看清单：
+
+```bash
+make layer-deps-inventory   # 或 python -m scripts.check_layer_deps --inventory
+```
+
 ---
 
 ## 2. 概念纪律

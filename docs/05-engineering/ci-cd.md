@@ -14,7 +14,7 @@ push/PR 到 `main` 时触发，六个 job：
 
 1. 在安装任何包之前运行 `python -m scripts.check_dependency_sync`，确保 `pyproject.toml` 运行时依赖与权威 `requirements.txt` 完全一致，并验证 lock 中记录的依赖输入 SHA-256，拒绝新增、修改或删除依赖后的陈旧 lock。
 2. `python -m pip install --require-hashes -r requirements.lock`；锁文件同时覆盖运行时依赖和 `requirements-dev.txt` 中 exact-pinned 的 pytest/ruff/mypy/coverage 工具。
-3. 运行唯一的后端核心入口 `make backend-ci-core`：先 `backend-ci-static` 再 `backend-ci-runtime`，两波均 `make -j$(JOBS)` 并行。清单由 `BACKEND_CI_STATIC` / `BACKEND_CI_RUNTIME` 维护，`make ci-local` 复用同一入口。覆盖 compileall、ruff、mypy、pytest coverage、Alembic、API/MCP smoke、version、policy、文档、架构与全部 rebuild/export/egress/connector/vector/repair/tool-calls verify。
+3. 运行唯一的后端核心入口 `make backend-ci-core`：先 `backend-ci-static` 再 `backend-ci-runtime`，两波均 `make -j$(JOBS)` 并行。清单由 `BACKEND_CI_STATIC` / `BACKEND_CI_RUNTIME` 维护，`make ci-local` 复用同一入口。覆盖 compileall、ruff、mypy、pytest coverage、Alembic、API/MCP smoke、version、policy、文档、边界/层依赖/归属、架构与全部 rebuild/export/egress/connector/vector/repair/tool-calls verify。
 
 **`dependency-platforms` job**：在 `ubuntu-latest` / `macos-latest` / `windows-latest` 上执行依赖同步检查与 `--require-hashes` 安装，确保同一份 lock 可在三大平台安装（含 Windows 条件依赖与 Chroma 二进制包）。
 

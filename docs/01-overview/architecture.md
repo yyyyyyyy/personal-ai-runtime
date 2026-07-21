@@ -150,6 +150,7 @@ sequenceDiagram
 | 子系统 | 边界由谁强制 | 强制方式 |
 |---|---|---|
 | Kernel 写入独占 | `check_boundary.py` | 静态正则扫描 User Space 的 DML/SELECT/import 违规 |
+| 层依赖（职责边） | `check_layer_deps.py` | Runtime↛Product、Store↛Runtime、API/Product 深模块与私有 import |
 | 执行归属 | `check_execution_ownership.py` | 静态扫描所有 `invoke_capability(` 调用必须含 `execution_id` |
 | 投影溯源 | `check_projection_provenance.py` | 运行时 SQL join 验证每条投影行有对应 `event_log` 事件 |
 | 事件日志可重建 | `verify_rebuild.py` 等 12 个脚本 | 重放 `event_log` 重建全部投影并与原状态字节比对 |
