@@ -478,9 +478,9 @@ class RuntimeConfig:
         from app.core.runtime.notification_channel import notification_router
 
         notification_router.configure(
-            webhook_url=webhook_url,
-            ntfy_topic=ntfy_topic,
-            ntfy_server=ntfy_server,
+            webhook_url=webhook_url or "",
+            ntfy_topic=ntfy_topic or "",
+            ntfy_server=ntfy_server or "https://ntfy.sh",
         )
 
 

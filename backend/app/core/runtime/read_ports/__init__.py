@@ -17,6 +17,7 @@ Import via ``from app.core.runtime.read_ports import …`` or
 ``from app.core.runtime import read_ports``.
 """
 
+from app.core.runtime.notification_bridge import NotificationPayload
 from app.core.runtime.read_ports.approvals import (
     query_approval,
     query_approvals,
@@ -76,7 +77,6 @@ from app.core.runtime.read_ports.notifications import (
     register_sse_queue,
     unregister_sse_queue,
 )
-from app.core.runtime.notification_bridge import NotificationPayload
 from app.core.runtime.read_ports.profile import (
     query_user_profile,
     query_user_profile_category,
@@ -93,6 +93,7 @@ from app.core.runtime.read_ports.telemetry import (
 from app.core.runtime.read_ports.timers import (
     count_active_policies,
     count_active_timers,
+    count_state_selectors,
     list_trigger_reactions,
     query_active_policies,
     query_active_timers,
@@ -102,7 +103,6 @@ from app.core.runtime.read_ports.timers import (
     query_timer,
     register_trigger_reaction,
     unregister_trigger_reaction,
-    count_state_selectors,
 )
 from app.core.runtime.read_ports.work import (
     bump_parent_activity,

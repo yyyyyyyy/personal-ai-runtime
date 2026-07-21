@@ -12,6 +12,8 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import TYPE_CHECKING, Generator
 
+from app.store.bound_proxy import BoundProxy
+
 logger = logging.getLogger(__name__)
 # Each Database path gets its own SQLite connection per thread; the connection
 # is reused across get_db() calls within the same thread and cleaned up on close().
@@ -144,8 +146,6 @@ class Database:
                 (activity_type, payload),
             )
 
-
-from app.store.bound_proxy import BoundProxy
 
 if TYPE_CHECKING:
     db: Database

@@ -8,6 +8,8 @@ import uuid
 from pathlib import Path
 from typing import Any, TypedDict
 
+from app.store.bound_proxy import BoundProxy
+
 
 class VectorSearchResult(TypedDict):
     id: str
@@ -259,8 +261,6 @@ class VectorStore:
         if chunk_ids:
             self.knowledge_collection.delete(ids=chunk_ids)
 
-
-from app.store.bound_proxy import BoundProxy
 
 vector_store = BoundProxy()
 

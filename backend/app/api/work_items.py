@@ -14,16 +14,32 @@ from pydantic import BaseModel
 
 from app.core.runtime import read_ports
 from app.core.runtime.kernel_instance import kernel
-from app.core.runtime.read_ports import goal_events
 from app.core.runtime.read_ports import (
     bump_parent_activity,
+    goal_events,
+)
+from app.core.runtime.read_ports import (
     create_work_item as _create_work_item,
+)
+from app.core.runtime.read_ports import (
     delete_work_item as _delete_work_item,
+)
+from app.core.runtime.read_ports import (
     get_sub_work_items as _get_sub_work_items,
+)
+from app.core.runtime.read_ports import (
     get_work_item as _get_work_item,
+)
+from app.core.runtime.read_ports import (
     get_work_item_tree as _get_work_item_tree,
+)
+from app.core.runtime.read_ports import (
     list_work_items as _list_work_items,
+)
+from app.core.runtime.read_ports import (
     update_work_item_fields as _update_work_item_fields,
+)
+from app.core.runtime.read_ports import (
     update_work_item_status as _update_work_item_status,
 )
 

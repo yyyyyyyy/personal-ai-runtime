@@ -24,7 +24,7 @@ except ImportError:  # pragma: no cover
 from app.config import settings
 from app.core.runtime import read_ports
 from app.core.runtime.kernel import constants
-from app.core.runtime.kernel_instance import kernel
+from app.core.runtime.kernel_instance import bind_inbox_poll_applier, kernel
 
 logger = logging.getLogger(__name__)
 
@@ -537,6 +537,4 @@ def latest_digest() -> dict | None:
 
 
 # Bind Runtime inbox-poll handler → Product applier (R1 inversion).
-from app.core.runtime.kernel_instance import bind_inbox_poll_applier
-
 bind_inbox_poll_applier(apply_inbox_poll_payload)

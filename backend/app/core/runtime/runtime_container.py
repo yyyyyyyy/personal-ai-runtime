@@ -17,7 +17,7 @@ from __future__ import annotations
 import threading
 from typing import TYPE_CHECKING, Any, Awaitable, Callable
 
-from app.store.bound_proxy import BoundProxy as _LazyProxy
+from app.store.bound_proxy import BoundProxy as _LazyProxy  # noqa: F401
 
 if TYPE_CHECKING:
     from app.chat.prompt_compiler import PromptCompiler
