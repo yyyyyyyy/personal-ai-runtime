@@ -373,15 +373,30 @@ def _on_claim_revised(event: Event, conn) -> None:
 
 # --- User Profile projection --------------------------------------------------
 
+_OWNED_TABLES["user_profile"] = ["user_profile"]
+
+
 @projector("UserProfileUpdated")
 def _on_user_profile_updated(event: Event, conn) -> None:
     p = event.payload
     category = p["category"]
+    # Preserve created_at across updates (INSERT OR REPLACE would wipe it).
     conn.execute(
-        """INSERT OR REPLACE INTO user_profile
-           (id, category, data_json, confidence, updated_at)
-           VALUES (?, ?, ?, ?, ?)""",
-        (category, category, p["data_json"], p["confidence"], event.ts),
+        """INSERT INTO user_profile
+           (id, category, data_json, confidence, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?)
+           ON CONFLICT(id) DO UPDATE SET
+             data_json = excluded.data_json,
+             confidence = excluded.confidence,
+             updated_at = excluded.updated_at""",
+        (
+            category,
+            category,
+            p["data_json"],
+            p["confidence"],
+            event.ts,
+            event.ts,
+        ),
     )
 
 

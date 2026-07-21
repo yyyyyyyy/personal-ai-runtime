@@ -127,7 +127,9 @@ BASELINE = {
     "event_types": 50,
     "query_state_selectors": 18,  # includes telemetry aggregate selectors
     "fragments": 10,
-    "governed_tables": 14,
+    # 16: reclassified background_tasks + user_profile from APP_STORAGE
+    # (already event-sourced projections; not new concepts).
+    "governed_tables": 16,
     "projector_files": 6,              # telemetry in projectors_governance
     "god_object_max_loc": 648,  # Kernel mixin sum (kernel + query_state + sovereignty)
     "dead_code_files": 0,

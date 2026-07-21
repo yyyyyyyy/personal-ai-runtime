@@ -38,6 +38,8 @@ GOVERNED_TABLES = frozenset({
     "inbox_emails",
     "tool_calls",
     "llm_calls",
+    "background_tasks",   # BackgroundTask* 投影（Work 领域 subtype）
+    "user_profile",       # UserProfileUpdated 投影
 })
 ```
 
@@ -48,14 +50,12 @@ GOVERNED_TABLES = frozenset({
 ```python
 APP_STORAGE_TABLES = frozenset({
     "activity_log",
-    "background_tasks",
-    "user_profile",
     "app_settings",
     "memory_index_repairs",
 })
 ```
 
-[`table_registry.py`](../../backend/app/store/table_registry.py) 的注释解释了为何每张表**不**做事件溯源。
+[`table_registry.py`](../../backend/app/store/table_registry.py) 的注释解释了为何每张 APP_STORAGE 表**不**做事件溯源。`background_tasks` / `user_profile` 已升格为 GOVERNED（本就由事件投影驱动）。
 
 ## Schema 契约
 

@@ -1,12 +1,16 @@
 #!/usr/bin/env python
 """Projection provenance guard — join-based traceability to event_log (Strategy A).
 
-Verifies that rows in goals, approvals, and handler_executions can be traced
-to the Event Log without schema changes or projector edits:
+Verifies that rows in governed projections can be traced to the Event Log
+without schema changes or projector edits:
 
-  - goals / approvals: at least one event_log row for (aggregate_type, aggregate_id)
+  - goals / approvals / conversations / memories / user_profile: at least one
+    event_log row for (aggregate_type, aggregate_id)
+  - background_tasks: event_log row for aggregate background_task with
+    aggregate_id equal to task id or bg_<task_id>
   - handler_executions: ExecutionRequested exists for the row id; when event_id is
     non-empty, (event_id, event_seq) must match an event_log row (trigger event)
+  - messages / inbox_emails: typed event linkage as below
 
 Philosophy: INV-P7 is enforced by CI join checks, not by source_event_* columns.
 """
@@ -28,16 +32,21 @@ prepare_script_env()
 
 from app.core.runtime.kernel.constants import (  # noqa: E402
     AGGREGATE_APPROVAL,
+    AGGREGATE_BACKGROUND_TASK,
     AGGREGATE_CONVERSATION,
     AGGREGATE_EXECUTION,
     AGGREGATE_INBOX_EMAIL,
     AGGREGATE_MEMORY,
     AGGREGATE_WORK_ITEM,
+    EVENT_BG_TASK_CREATED,
     EVENT_EXECUTION_REQUESTED,
     EVENT_INBOX_EMAIL_RECORDED,
 )
 
 Violation = tuple[str, str, str]  # (table, row_id, reason)
+
+# Aggregate type for UserProfileUpdated (emit uses string literal "user_profile").
+AGGREGATE_USER_PROFILE = "user_profile"
 
 
 def check_provenance(conn: Any) -> list[Violation]:
@@ -212,6 +221,43 @@ def check_provenance(conn: Any) -> list[Violation]:
                  f"no {EVENT_INBOX_EMAIL_RECORDED!r} event in event_log"),
             )
 
+    # background_tasks — row id is task_id; event aggregate_id is usually bg_<task_id>.
+    for row in conn.execute("SELECT id FROM background_tasks").fetchall():
+        task_id = row["id"]
+        found = conn.execute(
+            """SELECT 1 FROM event_log
+               WHERE aggregate_type = ?
+                 AND (aggregate_id = ? OR aggregate_id = ?)
+               LIMIT 1""",
+            (AGGREGATE_BACKGROUND_TASK, task_id, f"bg_{task_id}"),
+        ).fetchone()
+        if not found:
+            violations.append(
+                (
+                    "background_tasks",
+                    task_id,
+                    f"no event_log row for aggregate_type={AGGREGATE_BACKGROUND_TASK!r}",
+                ),
+            )
+
+    # user_profile — row id / category == event aggregate_id.
+    for row in conn.execute("SELECT id FROM user_profile").fetchall():
+        profile_id = row["id"]
+        found = conn.execute(
+            """SELECT 1 FROM event_log
+               WHERE aggregate_type = ? AND aggregate_id = ?
+               LIMIT 1""",
+            (AGGREGATE_USER_PROFILE, profile_id),
+        ).fetchone()
+        if not found:
+            violations.append(
+                (
+                    "user_profile",
+                    profile_id,
+                    f"no event_log row for aggregate_type={AGGREGATE_USER_PROFILE!r}",
+                ),
+            )
+
     return violations
 
 
@@ -338,6 +384,32 @@ def bootstrap_sample_scenario(kernel: Any) -> None:
         caused_by=msg.id,
     )
 
+    # background_tasks + user_profile provenance (GOVERNED projections)
+    kernel.emit_event(
+        EVENT_BG_TASK_CREATED,
+        AGGREGATE_BACKGROUND_TASK,
+        "bg_prov_bg_1",
+        payload={
+            "task_id": "prov_bg_1",
+            "user_request": "provenance background task",
+            "plan_json": None,
+            "status": "pending",
+            "progress": 0.0,
+        },
+        actor="verify",
+    )
+    kernel.emit_event(
+        "UserProfileUpdated",
+        AGGREGATE_USER_PROFILE,
+        "preferences",
+        payload={
+            "category": "preferences",
+            "data_json": '{"theme":"dark"}',
+            "confidence": 0.9,
+        },
+        actor="verify",
+    )
+
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
@@ -376,7 +448,8 @@ def main(argv: list[str] | None = None) -> int:
 
     print(
         "PROJECTION PROVENANCE OK — work_items, approvals, handler_executions, "
-        "conversations, messages, memories, inbox_emails traceable to event_log"
+        "conversations, messages, memories, inbox_emails, background_tasks, "
+        "user_profile traceable to event_log"
     )
     return 0
 

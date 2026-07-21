@@ -92,7 +92,7 @@ State 是 Event Log 的纯投影，可随时清空并从日志重放重建。Ker
 
 - **同步投影**：投影在 `emit_event` 事务内同步完成，而非异步 fan-out。优势是一致性；代价是 emit 延迟包含投影开销。
 - **异步派发器在事件日志之上**：Scheduler 通过 `kernel.set_async_dispatcher()`（[`kernel.py`](../../backend/app/core/runtime/kernel/kernel.py)）注册一个 fire-and-forget 派发器，在 `emit_event` 提交后把每个事件投递给 [`agent_scheduler.py`](../../backend/app/core/runtime/agent_scheduler.py) 的 `_dispatch_to_scheduler`，后者按 [`handler_registry.get_handler(event.type)`](../../backend/app/core/runtime/handler_registry.py) 路由——匹配则 `enqueue` 一个 WorkItem 给 Scheduler 执行，不匹配则跳过。这不是独立消息代理，event_log 才是唯一真相。
-- **混合存储**：并非所有表都是 governed 投影。`activity_log`、`app_settings`、`memory_index_repairs` 等是 APP_STORAGE，可直访（见 [kernel-boundary.md](kernel-boundary.md)）。
+- **混合存储**：并非所有表都是 governed 投影。`activity_log`、`app_settings`、`memory_index_repairs` 是 APP_STORAGE，可直访（见 [kernel-boundary.md](kernel-boundary.md)）。`background_tasks` / `user_profile` 为 GOVERNED 事件投影。
 
 ## 相关验证脚本
 

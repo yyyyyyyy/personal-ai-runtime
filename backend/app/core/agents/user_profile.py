@@ -2,8 +2,7 @@
 
 User profile writes go through Kernel events (UserProfileUpdated) so changes
 are recorded in the event_log and remain auditable. The `user_profile` table is
-APP_STORAGE — not a core governance projection — but the write path is unified
-through the Kernel.
+a GOVERNED projection (projectors_core); reads go through query_state / read_ports.
 
 Boundary vs Memory:
 - UserProfile = structured category bags (preferences / values / …) for settings-like facts.

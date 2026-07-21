@@ -118,11 +118,12 @@ connectors, timeline, knowledge, work_items
 
 ## 直接访问 DB 的端点
 
-绝大多数 router 通过 Kernel ABI。例外（直访 `db.get_db()` 或文件，但都在 APP_STORAGE 范围）：
+绝大多数 router 通过 Kernel ABI。例外（直访 APP_STORAGE / 文件，或经 product 写非 governed 存储）：
 
 - [`knowledge.py`](../../backend/app/product/knowledge.py) — 文档注册表 + Chroma；[`api/knowledge.py`](../../backend/app/api/knowledge.py) 仅做 HTTP 适配
 - [`connectors.py`](../../backend/app/api/connectors.py) 的 install/uninstall — 写 [`mcp_config.json`](../../backend/mcp_config.json)
-- [`inbox.py`](../../backend/app/api/inbox.py) 内部 `product/inbox.py` — 直访 `inbox_emails`（APP_STORAGE）
+
+`inbox_emails` 是 GOVERNED 投影：[`product/inbox.py`](../../backend/app/product/inbox.py) 写经 `emit_event`，读经 `read_ports`。
 
 ## 请求/响应模型
 

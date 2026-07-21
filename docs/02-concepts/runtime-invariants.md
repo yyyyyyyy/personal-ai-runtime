@@ -55,7 +55,7 @@
 | INV-W2 | 调度状态转换通过 Execution* 事件，而非旁路 UPDATE | Strong |
 | INV-W3 | 中断的调度执行可从投影恢复并重试 | Strong |
 | INV-W4 | 领域 Work（`work_items`）与调度 Work（`handler_executions`）分离存储、统一原语 | Medium |
-| INV-W5 | 后台异步任务应落在统一 Work 模型上，而不是平行任务表 | Weak |
+| INV-W5 | 后台异步任务投影（`background_tasks`）应逐步收敛到统一领域 Work（`work_items`），而非长期平行任务表 | Weak |
 
 执行车道语义见 [execution-model.md](execution-model.md)。
 

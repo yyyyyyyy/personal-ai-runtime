@@ -99,3 +99,41 @@ def test_rebuild_all_reports_work_item(isolated_kernel):
     result = k.rebuild_all()
     assert "work_item" in result
     assert result["work_item"] >= 1
+
+
+def test_user_profile_rebuild_preserves_rows_and_created_at(isolated_kernel):
+    """user_profile is GOVERNED + owned; rebuild must replay and keep created_at."""
+    k, db = isolated_kernel
+    k.emit_event(
+        "UserProfileUpdated",
+        "user_profile",
+        "preferences",
+        payload={
+            "category": "preferences",
+            "data_json": '{"theme":"dark"}',
+            "confidence": 0.8,
+        },
+        actor="verify",
+    )
+    k.emit_event(
+        "UserProfileUpdated",
+        "user_profile",
+        "preferences",
+        payload={
+            "category": "preferences",
+            "data_json": '{"theme":"light"}',
+            "confidence": 0.9,
+        },
+        actor="verify",
+    )
+    before = snapshot_table(db, "user_profile")
+    assert len(before) == 1
+    assert before[0]["created_at"]
+    created_at = before[0]["created_at"]
+    assert before[0]["data_json"] == '{"theme":"light"}'
+
+    assert k.rebuild("user_profile") == 2
+    after = snapshot_table(db, "user_profile")
+    assert before == after
+    assert after[0]["created_at"] == created_at
+    assert "user_profile" in k.rebuild_all()

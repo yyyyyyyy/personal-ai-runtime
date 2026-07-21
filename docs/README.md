@@ -57,7 +57,7 @@
 
 | 文档 | 内容 |
 |---|---|
-| [data-model.md](04-data/data-model.md) | 14 张 governed 表 + 5 张 app 表、ChromaDB collections |
+| [data-model.md](04-data/data-model.md) | 16 张 governed 表 + 3 张 app 表、ChromaDB collections |
 | [configuration.md](04-data/configuration.md) | `.env`、`config.py`、运行时 DB 配置、能力策略 JSON、MCP 配置 |
 
 ### 05 · 工程

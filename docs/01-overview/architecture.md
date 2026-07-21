@@ -58,7 +58,7 @@ flowchart TB
     end
 
     subgraph AppStorage[App Storage]
-        App[APP_STORAGE Tables<br/>activity_log / app_settings / memory_index_repairs / ...]
+        App[APP_STORAGE Tables<br/>activity_log / app_settings / memory_index_repairs]
         DB[(SQLite)]
     end
 

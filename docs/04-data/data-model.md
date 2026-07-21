@@ -19,8 +19,8 @@ SQLite 启用 WAL + `synchronous=NORMAL`（[`backend/app/store/database.py`](../
 
 | 类别 | 表数 | 写入权 |
 |---|---|---|
-| GOVERNED_TABLES | 14 | 仅 Kernel（事件溯源投影） |
-| APP_STORAGE_TABLES | 5 | 任意模块直访 |
+| GOVERNED_TABLES | 16 | 仅 Kernel（事件溯源投影） |
+| APP_STORAGE_TABLES | 3 | 任意模块直访 |
 
 ## GOVERNED 表（事件溯源投影）
 
@@ -146,13 +146,32 @@ frozenset({"id", "capability", "risk_level", "status", "created_at", "updated_at
 
 Governed 投影，分别由 `CapabilityInvoked/Failed/Denied` 与 `LLMCallRecorded` 事件驱动。
 
+### `background_tasks`
+
+```python
+frozenset({
+    "id", "user_request", "plan_json", "status", "progress",
+    "created_at", "completed_at",
+})
+```
+
+由 [`projectors_execution.py`](../../backend/app/core/runtime/kernel/projectors_execution.py) 从 `BackgroundTask*` 事件投影。WORK 领域 subtype 物化；与 `work_items` 分表是 INV-W5 待收敛项，不是 APP_STORAGE。
+
+### `user_profile`
+
+```python
+frozenset({
+    "id", "category", "data_json", "confidence", "created_at", "updated_at",
+})
+```
+
+由 [`projectors_core.py`](../../backend/app/core/runtime/kernel/projectors_core.py) 从 `UserProfileUpdated` 事件投影。结构化画像类别袋；经 `query_state("user_profile")` / read_ports 读取。
+
 ## APP_STORAGE 表（可直访）
 
 | 表 | 用途 | 为何不事件溯源 |
 |---|---|---|
 | `activity_log` | 人类可读活动日志 | event_log 投影派生 |
-| `background_tasks` | 后台任务队列状态 | worker scratch view，生命周期由 `BackgroundTask*` 事件治理 |
-| `user_profile` | 本地偏好 | 无审计价值，导出 event_log 足够主权 |
 | `app_settings` | UI 偏好、LLM/Email 连接配置 | 本地运营配置 |
 | `memory_index_repairs` | ChromaDB 索引修复队列 | 权威记录是 `MemoryDerived/Updated` 事件；由 RuntimeLoop 重试 |
 

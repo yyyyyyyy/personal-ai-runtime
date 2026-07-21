@@ -72,6 +72,17 @@ GOVERNED_SCHEMA: dict[str, frozenset[str]] = {
         "id", "provider", "model", "prompt_tokens", "completion_tokens",
         "latency_ms", "cost", "success", "error_message", "purpose", "created_at",
     }),
+    # Derived solely from BackgroundTask* events via projectors_execution.py.
+    # Work subtype projection (separate table from work_items; INV-W5 may later
+    # unify into domain Work).
+    "background_tasks": frozenset({
+        "id", "user_request", "plan_json", "status", "progress",
+        "created_at", "completed_at",
+    }),
+    # Derived solely from UserProfileUpdated events via projectors_core.py.
+    "user_profile": frozenset({
+        "id", "category", "data_json", "confidence", "created_at", "updated_at",
+    }),
 }
 
 # Expected columns for application storage tables.
@@ -87,17 +98,6 @@ APP_STORAGE_SCHEMA: dict[str, frozenset[str]] = {
     # Human-readable activity log; derived from event_log via projection.
     "activity_log": frozenset({
         "id", "type", "payload", "timestamp",
-    }),
-    # Background task queue state; lifecycle is governed by BackgroundTask*
-    # events in event_log. This table is a worker-scratch view.
-    "background_tasks": frozenset({
-        "id", "user_request", "plan_json", "status", "progress",
-        "created_at", "completed_at",
-    }),
-    # User profile / app settings — local-only preferences. No audit value;
-    # exporting event_log is sufficient for data sovereignty.
-    "user_profile": frozenset({
-        "id", "category", "data_json", "confidence", "created_at", "updated_at",
     }),
     # App settings (UI preferences, LLM/Email connection config). Local-only
     # operational config; not a governed fact.
