@@ -61,7 +61,7 @@
 - `kernel.constants`、`runtime_config`（公开 API）、`egress`
 - Product 另允许 `from app.core.runtime.kernel import Kernel`（类型提示，不含 `kernel.*` 其它子模块）
 
-Store 模块单例经 `BoundProxy` 由 `RuntimeContainer` 接线（`main` 中首个 API 导入链 `approvals → kernel_instance → runtime_container` 完成绑定）；Runtime 模块单例的 `_LazyProxy` 即同一 `BoundProxy` 实现。
+Store 模块单例经 `BoundProxy` 由 `RuntimeContainer` 接线；若脚本先碰到 `db`/`vector_store`，代理会在首次访问时用 `importlib` 惰性加载 Container（无静态 `store → runtime` import，R2 AST 仍干净）。Runtime 模块单例的 `_LazyProxy` 即同一 `BoundProxy` 实现。
 
 已知违规记在脚本 `DEBT_ALLOWLIST`；CI 默认阻断**新增**边。R1/R2 已清空。查看清单：
 
