@@ -111,7 +111,6 @@ connectors, timeline, knowledge, work_items
 | 文件 | 模块 | 职责 |
 |---|---|---|
 | [`inbox.py`](../../backend/app/product/inbox.py) | `poll_inbox`/`generate_inbox_digest`/`list_inbox_emails`/`mark_inbox_email_status`/`latest_digest`/`apply_inbox_poll_payload` | 邮件应用层：经 `kernel.invoke_capability("check_inbox")` 或 `submit_command("InboxPollRequested")` 拉邮件；LLM 分类；同步已读；emit `InboxEmailRecorded`（投影由 [`projectors_inbox.py`](../../backend/app/core/runtime/kernel/projectors_inbox.py) 写入 `inbox_emails`）；为 important 邮件推通知；每日摘要幂等 |
-| [`notifications.py`](../../backend/app/product/notifications.py) | `create_notification`/`find_notification` | 经 Kernel event log 写；按 `(type, title)` 幂等；`related_id` 写入投影列 |
 | 数据主权（`Kernel.snapshot`/`restore`/`erase`） | Kernel 内置方法（[`kernel_sovereignty.py`](../../backend/app/core/runtime/kernel/kernel_sovereignty.py)） | 数据主权：`snapshot()`/`restore()`/`erase()`；删 SQLite + vector 目录并重建；export_all/import_all 由 `/api/system/*` 路由直接调用 Kernel |
 | [`encrypted_sync.py`](../../backend/app/product/encrypted_sync.py) | `encrypt_snapshot`/`decrypt_snapshot` + `EncryptedSyncError` | AES-GCM + PBKDF2-HMAC-SHA256（600k 迭代）；blob 布局 `[16B salt][12B nonce][ciphertext + 16B tag]` base64；`BLOB_FORMAT = "encrypted_snapshot_v1"`；最小密码 8 字符 |
 | [`personal_dashboard.py`](../../backend/app/product/personal_dashboard.py) | `generate_dashboard` + 5 个 `_widget_*` | 一致性测试床：每个 widget 仅用 Kernel ABI（`query_state`/`read_events`/`recall_memory`），零 SQL、零文件、零 ChromaDB 直访 |
