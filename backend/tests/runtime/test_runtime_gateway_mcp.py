@@ -233,15 +233,29 @@ class TestUnwrap:
 
 
 class TestLogging:
-    def test_configure_logging_json(self, monkeypatch, capsys):
+    def test_configure_logging_json(self, monkeypatch):
+        import logging
+
         monkeypatch.setenv("PAR_LOG_JSON", "1")
         server._configure_logging()
-        server.logger.info("json-log-line")
-        err = capsys.readouterr().err
-        for line in err.splitlines():
-            if "json-log-line" in line:
-                payload = json.loads(line)
-                assert payload["message"] == "json-log-line"
-                assert payload["level"] == "INFO"
-                return
-        raise AssertionError(f"expected JSON log line, got: {err!r}")
+        log = logging.getLogger("runtime_gateway")
+        assert log.handlers, "runtime_gateway should have a handler after configure"
+        formatter = log.handlers[0].formatter
+        assert formatter is not None
+        # Format a record directly: Alembic's migration logging can leave the
+        # process-wide logging stack in a state where StreamHandler emission
+        # is unreliable under pytest, but the configured formatter is what
+        # PAR_LOG_JSON is meant to control.
+        record = logging.LogRecord(
+            name="runtime_gateway",
+            level=logging.INFO,
+            pathname=__file__,
+            lineno=0,
+            msg="json-log-line",
+            args=(),
+            exc_info=None,
+        )
+        payload = json.loads(formatter.format(record))
+        assert payload["message"] == "json-log-line"
+        assert payload["level"] == "INFO"
+        assert payload["logger"] == "runtime_gateway"

@@ -8,7 +8,6 @@ from app.store.schema_init import apply_projection_ddl, ensure_schema, uses_alem
 def test_uses_alembic_matches_settings_path(tmp_path, monkeypatch):
     prod_path = str(tmp_path / "prod.db")
     monkeypatch.setattr("app.config.settings.sqlite_path", prod_path)
-    monkeypatch.setattr("app.store.schema_init.settings.sqlite_path", prod_path)
     assert uses_alembic(prod_path) is True
     assert uses_alembic(str(tmp_path / "custom.db")) is False
 
@@ -63,7 +62,6 @@ def test_ensure_schema_alembic_path_includes_projection_tables(tmp_path, monkeyp
     """Production DB (Alembic path) must get projector-owned tables after migrations."""
     prod_path = str(tmp_path / "prod.db")
     monkeypatch.setattr("app.config.settings.sqlite_path", prod_path)
-    monkeypatch.setattr("app.store.schema_init.settings.sqlite_path", prod_path)
 
     ensure_schema(Database(db_path=prod_path))
 

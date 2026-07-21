@@ -60,7 +60,6 @@ def test_projection_columns_match_contract_alembic_path(tmp_path, monkeypatch):
     """Alembic production path must satisfy the same column contract as raw DDL."""
     prod_path = str(tmp_path / "prod_schema.db")
     monkeypatch.setattr("app.config.settings.sqlite_path", prod_path)
-    monkeypatch.setattr("app.store.schema_init.settings.sqlite_path", prod_path)
 
     from app.store.schema_init import ensure_schema
 
