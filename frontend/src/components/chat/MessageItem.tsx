@@ -113,6 +113,28 @@ function SourceBadge({ source }: { source: SourceCitation }) {
   );
 }
 
+function ThinkingPlaceholder() {
+  return (
+    <div className="flex items-center gap-2 text-sm text-gray-400 py-0.5">
+      <span className="inline-flex gap-1">
+        <span
+          className="w-1.5 h-1.5 bg-emerald-400 rounded-full animate-bounce"
+          style={{ animationDelay: "0ms" }}
+        />
+        <span
+          className="w-1.5 h-1.5 bg-emerald-400 rounded-full animate-bounce"
+          style={{ animationDelay: "150ms" }}
+        />
+        <span
+          className="w-1.5 h-1.5 bg-emerald-400 rounded-full animate-bounce"
+          style={{ animationDelay: "300ms" }}
+        />
+      </span>
+      <span className="animate-pulse">思考中…</span>
+    </div>
+  );
+}
+
 export default function MessageItem({ message }: Props) {
   const isUser = message.role === "user";
   const isAssistant = message.role === "assistant";
@@ -138,6 +160,12 @@ export default function MessageItem({ message }: Props) {
     return null;
   }
 
+  // When the assistant turn has started (isStreaming) but produced no
+  // visible text or tool calls yet — typically during LLM reasoning or
+  // before the first token arrives — render an explicit "thinking" state
+  // so the user sees the turn is in flight, not stalled or finished.
+  const isThinking = isAssistant && message.isStreaming && !displayContent.trim() && !hasTools;
+
   return (
     <div className={`flex gap-3 ${isUser ? "justify-end" : "justify-start"}`}>
       {isAssistant && (
@@ -161,6 +189,9 @@ export default function MessageItem({ message }: Props) {
             defaultExpanded={message.expandTools ?? false}
           />
         )}
+
+        {/* Thinking placeholder: assistant turn in flight, no tokens yet */}
+        {isThinking && <ThinkingPlaceholder />}
 
         {/* Message content */}
         {displayContent && (

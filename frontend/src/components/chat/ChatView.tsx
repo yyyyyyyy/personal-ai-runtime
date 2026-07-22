@@ -356,8 +356,10 @@ export default function ChatView({ conversationId }: Props) {
             <span>🧠</span>
             <span className="flex-1 truncate">{memoryNotice}</span>
             <button
+              type="button"
               onClick={() => setMemoryNotice(null)}
               className="text-indigo-500 hover:text-indigo-300 shrink-0"
+              aria-label="关闭"
             >
               ×
             </button>
@@ -425,7 +427,11 @@ export default function ChatView({ conversationId }: Props) {
               <button
                 onClick={handleSend}
                 disabled={isLoading || !input.trim() || !!pendingConfirmation}
-                className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:bg-gray-700 disabled:text-gray-500 rounded-lg text-sm font-medium transition-colors shrink-0"
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors shrink-0 ${
+                  isLoading
+                    ? "bg-emerald-600/30 text-emerald-300 cursor-not-allowed"
+                    : "bg-emerald-600 hover:bg-emerald-700 disabled:bg-gray-700 disabled:text-gray-500"
+                }`}
               >
                 {isLoading ? (
                   <span className="flex items-center gap-2">
