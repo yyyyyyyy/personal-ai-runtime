@@ -17,11 +17,7 @@ import { useNotifications } from "./hooks/useNotifications";
 import { useWsInvalidationBridge } from "./hooks/useWsInvalidationBridge";
 
 export default function Layout() {
-  const {
-    conversations,
-    activeConversationId,
-    setActiveConversation,
-  } = useChatStore();
+  const { conversations, activeConversationId, setActiveConversation } = useChatStore();
   const quickChat = useQuickChat();
   const { remove: removeConversationCached } = useConversationCacheActions();
 

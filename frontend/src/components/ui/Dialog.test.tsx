@@ -36,9 +36,7 @@ describe("Dialog", () => {
   it("Escape uses the latest onCancel after rerender", () => {
     const first = vi.fn();
     const second = vi.fn();
-    const { rerender } = render(
-      <Dialog open title="删除" onConfirm={vi.fn()} onCancel={first} />,
-    );
+    const { rerender } = render(<Dialog open title="删除" onConfirm={vi.fn()} onCancel={first} />);
     rerender(<Dialog open title="删除" onConfirm={vi.fn()} onCancel={second} />);
     fireEvent.keyDown(window, { key: "Escape" });
     expect(second).toHaveBeenCalledOnce();

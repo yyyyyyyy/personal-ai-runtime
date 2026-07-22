@@ -55,11 +55,7 @@ describe("applyWsInvalidation", () => {
     });
     let keys = qc.invalidateQueries.mock.calls.map((c) => c[0].queryKey);
     expect(keys).toEqual(
-      expect.arrayContaining([
-        queryKeys.notifications,
-        queryKeys.inbox,
-        queryKeys.dashboard,
-      ]),
+      expect.arrayContaining([queryKeys.notifications, queryKeys.inbox, queryKeys.dashboard]),
     );
 
     qc.invalidateQueries.mockClear();
@@ -69,11 +65,7 @@ describe("applyWsInvalidation", () => {
     });
     keys = qc.invalidateQueries.mock.calls.map((c) => c[0].queryKey);
     expect(keys).toEqual(
-      expect.arrayContaining([
-        queryKeys.notifications,
-        queryKeys.goals,
-        queryKeys.dashboard,
-      ]),
+      expect.arrayContaining([queryKeys.notifications, queryKeys.goals, queryKeys.dashboard]),
     );
   });
 

@@ -34,11 +34,7 @@ export function removeConversationFromCache(qc: QueryClient, id: string): void {
 }
 
 /** Patch title in store + cache. */
-export function updateConversationTitleInCache(
-  qc: QueryClient,
-  id: string,
-  title: string,
-): void {
+export function updateConversationTitleInCache(qc: QueryClient, id: string, title: string): void {
   useChatStore.getState().updateConversationTitle(id, title);
   qc.setQueryData<Conversation[]>(queryKeys.conversations, (prev) =>
     (prev ?? cacheList(qc)).map((c) => (c.id === id ? { ...c, title } : c)),
@@ -95,8 +91,7 @@ export function useConversationCacheActions() {
     () => ({
       upsert: (conv: Conversation) => upsertConversation(qc, conv),
       remove: (id: string) => removeConversationFromCache(qc, id),
-      updateTitle: (id: string, title: string) =>
-        updateConversationTitleInCache(qc, id, title),
+      updateTitle: (id: string, title: string) => updateConversationTitleInCache(qc, id, title),
     }),
     [qc],
   );
