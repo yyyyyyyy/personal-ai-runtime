@@ -32,8 +32,6 @@ EVENT_LABELS: dict[str, str] = {
     "InboxDigestGenerated": "AI 生成了邮件摘要",
     "TimerFired": "定时任务触发",
     "PatternAggregated": "AI 分析了活动模式",
-    "WorkItemCreated": "创建了工作项",
-    "WorkItemStatusChanged": "工作项状态变更",
     "NotificationCreated": "AI 给出了提醒",
     "WorldModelSnapshotted": "AI 记录了世界认知",
     # Legacy aliases (pre-rename); keep labels if old rows still exist
@@ -73,8 +71,6 @@ def _translate_event(event) -> dict:
         description = f'{label}: {payload.get("capability_name", "")}'
     elif event_type == "InboxEmailReceived":
         description = f'{label}: {payload.get("subject", "")}'
-    elif event_type == "WorkItemCreated":
-        description = f'{label}: {payload.get("title", "")}'
     elif event_type == "NotificationCreated":
         description = f'{label}: {payload.get("title", "")}'
 
@@ -113,8 +109,6 @@ EVENT_ICONS: dict[str, str] = {
     "InboxEmailReceived": "mail",
     "TimerFired": "clock",
     "NotificationCreated": "bell",
-    "WorkItemCreated": "play",
-    "WorkItemStatusChanged": "check-circle",
 }
 
 
