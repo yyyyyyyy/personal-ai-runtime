@@ -1,4 +1,4 @@
-﻿"""Execution projectors — materialise handler_executions from Execution events (ADR-0007).
+"""Execution projectors — materialise handler_executions from Execution events (ADR-0007).
 
 handler_executions is a projection of the Execution aggregate event stream.
 ExecutionRequested is the sole aggregate creation event (no ExecutionCreated).
