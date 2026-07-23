@@ -84,11 +84,11 @@ class Kernel(QueryStateMixin, SovereigntyMixin):
         in the system flows through here, which is what makes the Event Log the
         authoritative truth.
         """
-        event = Event(
+        event = Event.create(
             type=type,
             aggregate_type=aggregate_type,
             aggregate_id=aggregate_id,
-            payload=payload or {},
+            payload=payload,
             actor=actor,
             caused_by=caused_by,
             correlation_id=correlation_id,

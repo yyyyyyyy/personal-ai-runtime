@@ -138,3 +138,42 @@ CHAT_EVENT_TYPES = frozenset({
     EVENT_CONVERSATION_DELETED,
     EVENT_MESSAGE_APPENDED,
 })
+
+# ── Event payload schema versions (Architecture Contract) ───────────────────
+# Every durable emit stamps ``schema_version`` from this registry.
+# Bump an override when that event type's payload *shape* changes in a
+# backward-incompatible way; then re-record
+# ``scripts/baselines/event_schema_versions.json`` via
+# ``python -m scripts.check_event_schema --record``
+# (use ``--allow-downgrade`` only for intentional rollback).
+
+PAYLOAD_SCHEMA_VERSION_KEY = "schema_version"
+EVENT_SCHEMA_VERSION_DEFAULT = 1
+
+# type string → version. Omit entries that still use the default.
+EVENT_SCHEMA_VERSION_OVERRIDES: dict[str, int] = {}
+
+
+def declared_event_types() -> frozenset[str]:
+    """Return all ``EVENT_* = \"...\"`` string values declared in this module."""
+    return frozenset(
+        v for k, v in globals().items()
+        if k.startswith("EVENT_") and isinstance(v, str)
+    )
+
+
+def event_schema_version(event_type: str) -> int:
+    """Return the current payload schema version for ``event_type``."""
+    return int(
+        EVENT_SCHEMA_VERSION_OVERRIDES.get(event_type, EVENT_SCHEMA_VERSION_DEFAULT)
+    )
+
+
+def stamp_event_payload(
+    event_type: str,
+    payload: dict[str, object] | None,
+) -> dict[str, object]:
+    """Return a copy of ``payload`` with ``schema_version`` set from the registry."""
+    stamped = dict(payload or {})
+    stamped[PAYLOAD_SCHEMA_VERSION_KEY] = event_schema_version(event_type)
+    return stamped

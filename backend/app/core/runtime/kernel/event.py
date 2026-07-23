@@ -29,7 +29,7 @@ class Event:
         aggregate_type which kind of aggregate this belongs to (e.g. "goal")
         aggregate_id   concrete aggregate instance (e.g. "goal-123")
         actor          who triggered it (user / agent:xxx / kernel / scheduler)
-        payload        event data
+        payload        event data (includes schema_version stamped on emit)
         caused_by      direct causal predecessor event id (one hop)
         correlation_id trace id shared by all events of one intent
         ts             wall-clock timestamp (display only; order by seq)
@@ -59,6 +59,31 @@ class Event:
             id=self.id,
             seq=seq,
             ts=self.ts,
+        )
+
+    @classmethod
+    def create(
+        cls,
+        *,
+        type: str,
+        aggregate_type: str,
+        aggregate_id: str,
+        payload: dict[str, Any] | None = None,
+        actor: str = "system",
+        caused_by: str | None = None,
+        correlation_id: str | None = None,
+    ) -> "Event":
+        """Build an Event with ``schema_version`` stamped into the payload."""
+        from app.core.runtime.kernel.constants import stamp_event_payload
+
+        return cls(
+            type=type,
+            aggregate_type=aggregate_type,
+            aggregate_id=aggregate_id,
+            payload=stamp_event_payload(type, payload),
+            actor=actor,
+            caused_by=caused_by,
+            correlation_id=correlation_id,
         )
 
     @classmethod
