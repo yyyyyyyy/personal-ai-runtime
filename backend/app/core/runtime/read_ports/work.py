@@ -298,3 +298,138 @@ def bump_parent_activity(parent_id: str) -> None:
 
     _bump(parent_id)
 
+
+def notify_goal_action_completed(
+    goal_id: str,
+    action_id: str,
+    action_title: str,
+) -> None:
+    """Notify + memory side-effects when a goal's child action completes.
+
+    Shared by the Work API status transitions and ExecuteRequested completion
+    so plan execution does not skip product side-effects.
+    """
+    import logging
+
+    logger = logging.getLogger(__name__)
+    try:
+        all_items = query_work_items_by_parent_goal(goal_id, limit=500)
+
+        # Ensure the just-completed action is counted even if a concurrent
+        # read races the projector (emit is sync, but belt-and-suspenders).
+        for item in all_items:
+            if item["id"] == action_id:
+                item["status"] = "completed"
+
+        completed = (
+            sum(1 for a in all_items if a.get("status") == "completed")
+            if all_items
+            else 0
+        )
+
+        goal_row = query_goal(goal_id)
+        goal_title = goal_row["title"] if goal_row else "目标"
+        all_done = bool(all_items) and all(
+            a.get("status") == "completed" for a in all_items
+        )
+        if all_done:
+            from app.core.runtime.read_ports.notifications import create_notification
+
+            create_notification(
+                "goal_complete",
+                f"目标「{goal_title}」的所有步骤已完成",
+                f"你完成了所有行动步骤：{goal_title}。可以去目标页标记完成，或让 AI 帮你总结经验。",
+            )
+        else:
+            from app.core.runtime.read_ports.notifications import create_notification
+
+            total = len(all_items) if all_items else 0
+            create_notification(
+                "goal_progress",
+                f"完成一步：{action_title}",
+                f"目标「{goal_title}」进度：{completed}/{total} 步已完成。",
+            )
+
+        from app.core.agents.memory_engine import memory_engine
+
+        memory_engine.store_memory(
+            category="event",
+            content=f"完成了行动步骤：{action_title}（目标：{goal_title}）",
+            source=f"action:{action_id}",
+            actor="system",
+        )
+    except Exception:
+        logger.warning(
+            "Failed to store audited action memory for action_id=%s",
+            action_id,
+            exc_info=True,
+        )
+
+
+_TERMINAL_EXECUTE_STATUSES = frozenset({"completed", "cancelled"})
+_BLOCKED_EXECUTE_STATUSES = frozenset({"running", "waiting_approval"})
+
+
+def request_work_item_execute(item_id: str) -> dict[str, Any]:
+    """Start a work item's ``executable_plan`` (Ports command ABI).
+
+    Emits ``WorkItemStatusChanged(running)`` then ``ExecuteRequested``.
+    The Scheduler dispatches the handler asynchronously; completion updates
+    the work-item status via ``WorkItemStatusChanged`` from the handler.
+    """
+    import json
+
+    from app.core.runtime.kernel.constants import (
+        AGGREGATE_WORK_ITEM,
+        EVENT_EXECUTE_REQUESTED,
+        EVENT_WORK_ITEM_STATUS_CHANGED,
+    )
+
+    item = query_work_item(item_id)
+    if item is None:
+        raise KeyError(item_id)
+
+    if item.get("work_type") == "goal":
+        raise ValueError("Goals cannot be executed; run child actions instead")
+
+    plan_raw = item.get("executable_plan")
+    if not isinstance(plan_raw, str) or not plan_raw.strip():
+        raise ValueError("Work item has no executable_plan")
+    try:
+        plan_obj = json.loads(plan_raw)
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"invalid executable_plan JSON: {exc}") from exc
+    if not isinstance(plan_obj, dict) or not isinstance(plan_obj.get("steps"), list):
+        raise ValueError("executable_plan must be an object with a steps list")
+    if not any(isinstance(s, dict) for s in plan_obj["steps"]):
+        raise ValueError("executable_plan has no steps")
+
+    status = item.get("status") or "pending"
+    if status in _TERMINAL_EXECUTE_STATUSES:
+        raise ValueError(f"Work item already terminal ({status})")
+    if status in _BLOCKED_EXECUTE_STATUSES:
+        raise ValueError(
+            f"Work item is {status}; wait for completion or resolve approval"
+        )
+
+    k = kernel()
+    k.emit_event(
+        EVENT_WORK_ITEM_STATUS_CHANGED,
+        AGGREGATE_WORK_ITEM,
+        item_id,
+        payload={"status": "running"},
+        actor="user",
+    )
+    k.emit_event(
+        EVENT_EXECUTE_REQUESTED,
+        "action",
+        f"exec_{item_id}",
+        payload={"action_id": item_id},
+        actor="user",
+    )
+
+    updated = query_work_item(item_id)
+    if updated is None:
+        raise RuntimeError("Work item missing after execute request")
+    return updated
+

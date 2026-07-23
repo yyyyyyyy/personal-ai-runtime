@@ -6,7 +6,6 @@ optional include= flags.
 from __future__ import annotations
 
 import json
-import logging
 from datetime import UTC, datetime
 
 from fastapi import APIRouter, HTTPException
@@ -15,7 +14,6 @@ from pydantic import BaseModel
 from app.core.runtime import read_ports
 from app.core.runtime.kernel_instance import kernel
 
-logger = logging.getLogger(__name__)
 router = APIRouter(tags=["work-items"])
 
 VALID_WORK_TYPES = frozenset({"task", "action", "background", "goal"})
@@ -75,47 +73,7 @@ def _validate_score(name: str, value: object) -> float:
 
 def _on_action_completed(goal_id: str, action_id: str, action_title: str) -> None:
     """Notify + memory side-effects when a goal's child action completes."""
-    try:
-        all_items = read_ports.query_work_items_by_parent_goal(goal_id, limit=500)
-
-        # Ensure the just-completed action is counted even if a concurrent
-        # read races the projector (emit is sync, but belt-and-suspenders).
-        for item in all_items:
-            if item["id"] == action_id:
-                item["status"] = "completed"
-
-        completed = sum(1 for a in all_items if a.get("status") == "completed") if all_items else 0
-
-        goal_row = read_ports.query_goal(goal_id)
-        goal_title = goal_row["title"] if goal_row else "目标"
-        all_done = bool(all_items) and all(a.get("status") == "completed" for a in all_items)
-        if all_done:
-            read_ports.create_notification(
-                "goal_complete",
-                f"目标「{goal_title}」的所有步骤已完成",
-                f"你完成了所有行动步骤：{goal_title}。可以去目标页标记完成，或让 AI 帮你总结经验。",
-            )
-        else:
-            total = len(all_items) if all_items else 0
-            read_ports.create_notification(
-                "goal_progress",
-                f"完成一步：{action_title}",
-                f"目标「{goal_title}」进度：{completed}/{total} 步已完成。",
-            )
-
-        from app.core.agents.memory_engine import memory_engine
-
-        memory_engine.store_memory(
-            category="event",
-            content=f"完成了行动步骤：{action_title}（目标：{goal_title}）",
-            source=f"action:{action_id}",
-            actor="system",
-        )
-    except Exception:
-        logger.warning(
-            "Failed to store audited action memory for action_id=%s", action_id,
-            exc_info=True,
-        )
+    read_ports.notify_goal_action_completed(goal_id, action_id, action_title)
 
 
 @router.post("/")
@@ -360,6 +318,25 @@ async def delete_work_item(item_id: str):
     cascade = item.get("work_type") == "goal"
     read_ports.delete_work_item(item_id, cascade=cascade)
     return {"status": "ok"}
+
+
+@router.post("/{item_id}/execute")
+async def execute_work_item(item_id: str):
+    """Start the work item's executable_plan via ExecuteRequested."""
+    try:
+        return read_ports.request_work_item_execute(item_id)
+    except KeyError:
+        raise HTTPException(status_code=404, detail="Work item not found") from None
+    except ValueError as exc:
+        msg = str(exc)
+        code = (
+            409
+            if ("already terminal" in msg or "wait for completion" in msg)
+            else 400
+        )
+        raise HTTPException(status_code=code, detail=msg) from exc
+    except RuntimeError as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
 
 
 @router.post("/{item_id}/decompose")

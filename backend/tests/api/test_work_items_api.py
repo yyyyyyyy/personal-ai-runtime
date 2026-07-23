@@ -276,3 +276,56 @@ def test_list_filters_by_parent_goal_id(client):
     assert "A1" in titles
     assert "Other" not in titles
 
+
+def test_execute_work_item_starts_plan(client):
+    """POST /{id}/execute marks the item running and accepts a valid plan."""
+    create = client.post("/api/work-items/", json={
+        "title": "Run plan",
+        "work_type": "action",
+        "executable_plan": '{"steps":[{"tool":"echo","params":{"text":"hi"}}]}',
+    })
+    assert create.status_code == 200, create.text
+    item_id = create.json()["id"]
+
+    r = client.post(f"/api/work-items/{item_id}/execute")
+    assert r.status_code == 200, r.text
+    assert r.json()["status"] == "running"
+
+
+def test_execute_rejects_missing_plan(client):
+    create = client.post("/api/work-items/", json={
+        "title": "No plan",
+        "work_type": "task",
+    })
+    item_id = create.json()["id"]
+    r = client.post(f"/api/work-items/{item_id}/execute")
+    assert r.status_code == 400
+
+
+def test_execute_rejects_goal(client):
+    create = client.post("/api/work-items/", json={
+        "title": "Goal",
+        "work_type": "goal",
+        "executable_plan": '{"steps":[{"tool":"echo","params":{}}]}',
+    })
+    item_id = create.json()["id"]
+    r = client.post(f"/api/work-items/{item_id}/execute")
+    assert r.status_code == 400
+
+
+def test_execute_rejects_second_start(client):
+    create = client.post("/api/work-items/", json={
+        "title": "Once",
+        "work_type": "action",
+        "executable_plan": '{"steps":[{"tool":"echo","params":{}}]}',
+    })
+    item_id = create.json()["id"]
+    assert client.post(f"/api/work-items/{item_id}/execute").status_code == 200
+    r = client.post(f"/api/work-items/{item_id}/execute")
+    assert r.status_code == 409
+
+
+def test_execute_not_found(client):
+    r = client.post("/api/work-items/missing/execute")
+    assert r.status_code == 404
+
