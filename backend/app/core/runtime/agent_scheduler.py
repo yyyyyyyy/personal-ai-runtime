@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from collections.abc import Callable
 from typing import TYPE_CHECKING
 
 from app.core.runtime.execution_events import (
@@ -202,6 +203,14 @@ class Scheduler:
         emit_fn()
         _shadow_compare(self._kernel, item)
 
+    def _forget_active(self, execution_id: str) -> Callable[[asyncio.Task], None]:
+        """Return a done-callback that drops an in-flight task from ``_active``."""
+
+        def _cb(_task: asyncio.Task) -> None:
+            self._active.pop(execution_id, None)
+
+        return _cb
+
     # --- enqueue ---------------------------------------------------------
 
     def enqueue(
@@ -345,9 +354,7 @@ class Scheduler:
                     for item in batch:
                         task = asyncio.create_task(self._process_work_item(item))
                         self._active[item.id] = (item, task)
-                        task.add_done_callback(
-                            lambda t, eid=item.id: self._active.pop(eid, None)
-                        )
+                        task.add_done_callback(self._forget_active(item.id))
                         tasks.append(task)
                     await asyncio.gather(*tasks, return_exceptions=True)
 
@@ -608,9 +615,7 @@ class Scheduler:
             for item in items:
                 task = asyncio.create_task(self._process_work_item(item))
                 self._active[item.id] = (item, task)
-                task.add_done_callback(
-                    lambda t, eid=item.id: self._active.pop(eid, None)
-                )
+                task.add_done_callback(self._forget_active(item.id))
                 tasks.append(task)
             await asyncio.gather(*tasks, return_exceptions=True)
 
