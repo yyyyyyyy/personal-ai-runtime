@@ -40,7 +40,7 @@ def parse_declared_event_types(text: str | None = None) -> list[str]:
     return types
 
 
-def load_overrides() -> dict[str, int]:
+def load_overrides() -> dict[str, object]:
     from app.core.runtime.kernel.constants import (
         EVENT_SCHEMA_VERSION_DEFAULT,
         EVENT_SCHEMA_VERSION_OVERRIDES,
