@@ -155,7 +155,10 @@ def _on_background_task_completed(event: Event, conn) -> None:
     task_id = p.get("task_id") or event.aggregate_id.removeprefix("bg_")
     status = p.get("status", "completed")
     progress = float(p.get("progress", 1.0 if status == "completed" else 0.0))
-    completed_at = p.get("completed_at", event.ts if status in ("completed", "failed") else None)
+    completed_at = p.get(
+        "completed_at",
+        event.ts if status in ("completed", "failed", "cancelled") else None,
+    )
     conn.execute(
         """UPDATE background_tasks
            SET status = ?, progress = ?, completed_at = ?

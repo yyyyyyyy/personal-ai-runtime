@@ -185,6 +185,24 @@ def take_plan_resume(
     return PlanResume.from_row(row)
 
 
+def clear_plan_resumes_for_background_task(
+    task_id: str,
+    *,
+    db: Any | None = None,
+    kernel: Any | None = None,
+) -> int:
+    """Drop durable resumes for a background task (cancel / cleanup)."""
+    if not task_id:
+        return 0
+    database = _resolve_db(db if db is not None else _db_from_kernel(kernel))
+    with database.get_db() as conn:
+        cur = conn.execute(
+            "DELETE FROM plan_resumes WHERE kind = ? AND task_id = ?",
+            ("background", task_id),
+        )
+        return int(cur.rowcount or 0)
+
+
 def clear_plan_resumes(*, db: Any | None = None) -> None:
     """Delete all resume rows (test helper)."""
     database = _resolve_db(db)

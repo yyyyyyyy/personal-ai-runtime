@@ -91,6 +91,7 @@ from app.core.runtime.read_ports.telemetry import (
     summarize_tool_calls,
 )
 from app.core.runtime.read_ports.timers import (
+    cancel_background_task,
     count_active_policies,
     count_active_timers,
     count_state_selectors,
@@ -208,6 +209,7 @@ __all__ = [
     "test_mcp_connection",
     "query_background_task",
     "query_background_tasks",
+    "cancel_background_task",
     "query_active_timers",
     "count_active_timers",
     "query_timer",

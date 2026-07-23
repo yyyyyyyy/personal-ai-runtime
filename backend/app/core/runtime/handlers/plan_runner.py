@@ -31,7 +31,7 @@ class StepResult:
 @dataclass
 class PlanRunOutcome:
     results: list[StepResult] = field(default_factory=list)
-    stopped_reason: str = "completed"  # completed | failed | pending | empty
+    stopped_reason: str = "completed"  # completed | failed | pending | empty | cancelled
     previous_output: dict[str, Any] | None = None
     pending_approval_id: str | None = None
     # Step index to continue from AFTER the pending tool is approved+executed.
@@ -67,12 +67,14 @@ async def run_plan_steps(
     resume_from: int = 0,
     previous_output: dict[str, Any] | None = None,
     resume_factory: Callable[[PlanRunOutcome], PlanResume] | None = None,
+    cancel_check: Callable[[], bool] | None = None,
 ) -> PlanRunOutcome:
     """Run plan steps from ``resume_from``, stopping on failure or pending approval.
 
     Missing ``tool`` on a step is a hard failure (no silent default tool).
     When ``resume_factory`` is set, pending approvals register resume *before*
     returning so a fast Approve cannot race an empty registry.
+    ``cancel_check`` is polled between steps for cooperative cancellation.
     """
     if not steps:
         return PlanRunOutcome(stopped_reason="empty")
@@ -88,6 +90,13 @@ async def run_plan_steps(
     output = dict(previous_output) if previous_output else None
 
     for i in range(start, len(steps)):
+        if cancel_check is not None and cancel_check():
+            return PlanRunOutcome(
+                results=results,
+                stopped_reason="cancelled",
+                previous_output=output,
+            )
+
         step = steps[i]
         tool_name = str(step.get("tool") or "").strip()
         if not tool_name:
@@ -114,6 +123,13 @@ async def run_plan_steps(
             execution_id=execution_id,
             correlation_id=correlation_id,
         )
+
+        if cancel_check is not None and cancel_check():
+            return PlanRunOutcome(
+                results=results,
+                stopped_reason="cancelled",
+                previous_output=output,
+            )
 
         if cap.get("status") == "success":
             step_result = str(cap.get("result", ""))

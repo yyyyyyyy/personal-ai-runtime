@@ -63,6 +63,12 @@ class RuntimeLoop:
         if self._running:
             return
         self._running = True
+        recovered = self._recover_interrupted_background_tasks()
+        if recovered:
+            logger.info(
+                "RuntimeLoop: re-queued %d interrupted background task(s)",
+                recovered,
+            )
         self._loop_task = asyncio.create_task(self._loop())
         try:
             from app.core.runtime.notification_bridge import set_broadcast_loop
@@ -92,6 +98,14 @@ class RuntimeLoop:
                 pass
             finally:
                 self._loop_task = None
+        # Cancel fire-and-forget background dispatches so start() recovery
+        # cannot double-submit alongside a surviving coroutine.
+        pending_bg = list(self._bg_tasks)
+        for task in pending_bg:
+            task.cancel()
+        if pending_bg:
+            await asyncio.gather(*pending_bg, return_exceptions=True)
+        self._bg_tasks.clear()
         logger.info("RuntimeLoop stopped")
 
     def mark_dirty(self) -> None:
@@ -292,6 +306,53 @@ class RuntimeLoop:
 
     # --- Backward compat (kept for the staleness reaction path) ----------------
 
+    def _recover_interrupted_background_tasks(self) -> int:
+        """Reset durable ``running`` background tasks to ``pending`` after restart.
+
+        RuntimeLoop marks rows ``running`` before fire-and-forget dispatch.
+        Process death / shutdown cancel leaves them stuck: maintenance only
+        polls ``pending``, and Lane A ``Scheduler._recover`` does **not**
+        touch ``background_tasks``. Re-queue via status event so the next
+        maintenance tick can dispatch again (at-least-once).
+
+        ``waiting_approval`` is left alone (plan_resume + approval still apply).
+        """
+        from app.core.runtime.kernel.constants import (
+            AGGREGATE_BACKGROUND_TASK,
+            EVENT_BG_TASK_STATUS_CHANGED,
+        )
+
+        try:
+            rows = read_ports.query_background_tasks(
+                status="running", limit=100, order="created_at_asc",
+            )
+        except Exception:
+            logger.exception("Background task recovery scan failed")
+            return 0
+
+        recovered = 0
+        for row in rows:
+            task_id = row["id"]
+            try:
+                kernel.emit_event(
+                    EVENT_BG_TASK_STATUS_CHANGED,
+                    AGGREGATE_BACKGROUND_TASK,
+                    f"bg_{task_id}",
+                    payload={
+                        "task_id": task_id,
+                        "status": "pending",
+                        "progress": float(row.get("progress") or 0),
+                        "recovery": "interrupted",
+                    },
+                    actor="kernel",
+                )
+                recovered += 1
+            except Exception:
+                logger.exception(
+                    "Failed to re-queue interrupted background task %s", task_id
+                )
+        return recovered
+
     async def _process_background_tasks(self) -> None:
         """Process pending background tasks.
 
@@ -303,6 +364,7 @@ class RuntimeLoop:
         from app.core.runtime.agent_scheduler import ensure_scheduler, get_scheduler
         from app.core.runtime.kernel.constants import (
             AGGREGATE_BACKGROUND_TASK,
+            EVENT_BG_TASK_COMPLETED,
             EVENT_BG_TASK_STATUS_CHANGED,
         )
 
@@ -332,13 +394,28 @@ class RuntimeLoop:
                         timeout=settings.submit_command_timeout_background_task,
                     )
                 except asyncio.CancelledError:
-                    # Task was cancelled (e.g. on shutdown). Re-raise so the
-                    # caller (create_task machinery) sees the cancellation;
-                    # the background_tasks row stays in 'running' and will be
-                    # recovered by Scheduler._recover() on next startup.
+                    # Shutdown cancel: leave row as running; start() recovery
+                    # re-queues it as pending on next process boot.
                     raise
                 except Exception:
                     logger.exception("Background task %s failed", t_id)
+                    try:
+                        kernel.emit_event(
+                            EVENT_BG_TASK_COMPLETED,
+                            AGGREGATE_BACKGROUND_TASK,
+                            f"bg_{t_id}",
+                            payload={
+                                "task_id": t_id,
+                                "status": "failed",
+                                "progress": 0.0,
+                                "error": "dispatch_failed",
+                            },
+                            actor="background",
+                        )
+                    except Exception:
+                        logger.exception(
+                            "Failed to mark background task %s as failed", t_id
+                        )
 
             self._spawn_background_task(_dispatch_bg(task_id, plan_json))
 

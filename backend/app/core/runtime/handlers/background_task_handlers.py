@@ -24,6 +24,10 @@ logger = logging.getLogger(__name__)
 @subscribe("BackgroundTaskRequested")
 async def on_bg_task_requested(ctx: "ExecutionContext", event: "Event") -> None:
     """Execute a background task's steps via Scheduler."""
+    from app.core.runtime.execution import (
+        clear_background_task_cancel,
+        is_background_task_cancelled,
+    )
     from app.core.runtime.kernel.constants import (
         AGGREGATE_BACKGROUND_TASK,
         EVENT_BG_TASK_COMPLETED,
@@ -52,6 +56,33 @@ async def on_bg_task_requested(ctx: "ExecutionContext", event: "Event") -> None:
             payload=payload,
             caused_by=event.id,
         )
+
+    def is_cancelled() -> bool:
+        if is_background_task_cancelled(task_id):
+            return True
+        rows = kernel.query_state("background_tasks", id=task_id, limit=1)
+        return bool(rows and rows[0].get("status") == "cancelled")
+
+    def emit_cancelled(*, progress: float = 0.0, results: list | None = None) -> None:
+        clear_background_task_cancel(task_id)
+        payload: dict[str, object] = {
+            "task_id": task_id,
+            "status": "cancelled",
+            "progress": progress,
+        }
+        if results is not None:
+            payload["results"] = results
+        ctx.emit(
+            EVENT_BG_TASK_COMPLETED,
+            AGGREGATE_BACKGROUND_TASK,
+            aggregate_id,
+            payload=payload,
+            caused_by=event.id,
+        )
+
+    if is_cancelled():
+        emit_cancelled()
+        return
 
     try:
         steps = parse_plan_steps(plan_json)
@@ -102,6 +133,10 @@ async def on_bg_task_requested(ctx: "ExecutionContext", event: "Event") -> None:
             plan_json=plan_str,
         )
 
+    if is_cancelled():
+        emit_cancelled()
+        return
+
     emit_status("running", 0.1)
 
     try:
@@ -114,8 +149,12 @@ async def on_bg_task_requested(ctx: "ExecutionContext", event: "Event") -> None:
             resume_from=resume_from,
             previous_output=previous_output,
             resume_factory=_resume_factory,
+            cancel_check=is_cancelled,
         )
     except Exception:
+        if is_cancelled():
+            emit_cancelled()
+            return
         logger.exception("BackgroundTaskRequested handler failed for task %s", task_id)
         ctx.emit(
             EVENT_BG_TASK_COMPLETED,
@@ -123,6 +162,14 @@ async def on_bg_task_requested(ctx: "ExecutionContext", event: "Event") -> None:
             aggregate_id,
             payload={"task_id": task_id, "status": "failed", "progress": 0.0},
             caused_by=event.id,
+        )
+        return
+
+    if outcome.stopped_reason == "cancelled" or is_cancelled():
+        progress = 0.1 + (0.8 * max(outcome.completed_steps, 0) / max(len(steps), 1))
+        emit_cancelled(
+            progress=progress,
+            results=[r.preview() for r in outcome.results],
         )
         return
 

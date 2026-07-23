@@ -76,3 +76,16 @@ async def get_background_task(task_id: str):
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
     return task
+
+
+@router.post("/{task_id}/cancel")
+async def cancel_background_task(task_id: str):
+    """Cancel a pending/running/waiting_approval background task."""
+    try:
+        return read_ports.cancel_background_task(task_id)
+    except KeyError:
+        raise HTTPException(status_code=404, detail="Task not found") from None
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except RuntimeError as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc

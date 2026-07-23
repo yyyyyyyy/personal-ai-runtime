@@ -98,6 +98,8 @@ class Scheduler:
         self._worker_task: asyncio.Task | None = None
         self._pending: list["ScheduledExecution"] = []
         self._tick_interval: float = 0.05
+        # In-flight handler tasks keyed by ScheduledExecution.id (for cancel).
+        self._active: dict[str, tuple["ScheduledExecution", asyncio.Task]] = {}
 
         self._recover()
 
@@ -231,7 +233,14 @@ class Scheduler:
                 self._pending = self._pending[_MAX_CONCURRENT:]
 
                 if batch:
-                    tasks = [self._process_work_item(item) for item in batch]
+                    tasks: list[asyncio.Task] = []
+                    for item in batch:
+                        task = asyncio.create_task(self._process_work_item(item))
+                        self._active[item.id] = (item, task)
+                        task.add_done_callback(
+                            lambda t, eid=item.id: self._active.pop(eid, None)
+                        )
+                        tasks.append(task)
                     await asyncio.gather(*tasks, return_exceptions=True)
 
                 await asyncio.sleep(self._tick_interval)
@@ -243,6 +252,21 @@ class Scheduler:
 
     async def _process_work_item(self, item: "ScheduledExecution") -> None:
         """Process one ScheduledExecution through its state machine."""
+        from app.core.runtime.execution import (
+            clear_execution_cancel,
+            is_execution_cancelled,
+        )
+
+        if is_execution_cancelled(item.id):
+            clear_execution_cancel(item.id)
+            item.error = "cancelled"
+            item.transition_to("failed")
+            self._emit_verify(
+                item,
+                lambda: emit_execution_failed(self._kernel, item, terminal=True),
+            )
+            return
+
         item.transition_to("running")
         self._emit_verify(
             item,
@@ -271,12 +295,31 @@ class Scheduler:
             )
             if item.status == "failed":
                 return
+            if is_execution_cancelled(item.id):
+                clear_execution_cancel(item.id)
+                item.error = "cancelled"
+                item.transition_to("failed")
+                self._emit_verify(
+                    item,
+                    lambda: emit_execution_failed(self._kernel, item, terminal=True),
+                )
+                return
             item.error = None
             item.transition_to("completed")
             self._emit_verify(
                 item,
                 lambda: emit_execution_completed(self._kernel, item),
             )
+        except asyncio.CancelledError:
+            clear_execution_cancel(item.id)
+            item.error = "cancelled"
+            if item.status == "running":
+                item.transition_to("failed")
+                self._emit_verify(
+                    item,
+                    lambda: emit_execution_failed(self._kernel, item, terminal=True),
+                )
+            raise
         except asyncio.TimeoutError:
             item.error = f"Timeout after {item.policy.timeout_seconds}s"
             await self._maybe_retry(item)
@@ -323,6 +366,13 @@ class Scheduler:
 
     async def _maybe_retry(self, item: "ScheduledExecution") -> None:
         """Retry if within limits, else mark failed."""
+        if item.error == "cancelled":
+            item.transition_to("failed")
+            self._emit_verify(
+                item,
+                lambda: emit_execution_failed(self._kernel, item, terminal=True),
+            )
+            return
         if item.can_retry():
             item.retry_count += 1
             item.transition_to("retrying")
@@ -362,12 +412,78 @@ class Scheduler:
     def pending_count(self) -> int:
         return len(self._pending)
 
+    def request_cancel(self, execution_id: str) -> bool:
+        """Request cancel for a ScheduledExecution (pending or in-flight).
+
+        Pending items are removed from the queue and failed as cancelled.
+        In-flight asyncio tasks are cancelled; ``_process_work_item`` records
+        ``ExecutionFailed(error=cancelled)`` without retry.
+        """
+        from app.core.runtime.execution import request_cancel_execution
+
+        if not execution_id:
+            return False
+        request_cancel_execution(execution_id)
+        found = False
+        kept: list[ScheduledExecution] = []
+        for item in self._pending:
+            if item.id == execution_id:
+                found = True
+                item.error = "cancelled"
+                item.transition_to("failed")
+                self._emit_verify(
+                    item,
+                    lambda it=item: emit_execution_failed(
+                        self._kernel, it, terminal=True,
+                    ),
+                )
+            else:
+                kept.append(item)
+        self._pending = kept
+        active = self._active.get(execution_id)
+        if active is not None:
+            _item, task = active
+            if not task.done():
+                found = True
+                task.cancel()
+        return found
+
+    def cancel_background_task_executions(self, task_id: str) -> int:
+        """Cancel pending/in-flight handlers whose event payload matches task_id."""
+        if not task_id:
+            return 0
+        targets: list[str] = []
+        for item in self._pending:
+            event = getattr(item, "_event", None)
+            if (
+                event is not None
+                and getattr(event, "type", None) == "BackgroundTaskRequested"
+                and (getattr(event, "payload", None) or {}).get("task_id") == task_id
+            ):
+                targets.append(item.id)
+        for item, _task in self._active.values():
+            event = getattr(item, "_event", None)
+            if (
+                event is not None
+                and getattr(event, "type", None) == "BackgroundTaskRequested"
+                and (getattr(event, "payload", None) or {}).get("task_id") == task_id
+            ):
+                targets.append(item.id)
+        return sum(1 for eid in targets if self.request_cancel(eid))
+
     async def flush(self) -> None:
         """Process ALL pending ScheduledExecutions immediately. For test use only."""
         while self._pending:
             items = self._pending[:]
             self._pending = []
-            tasks = [self._process_work_item(item) for item in items]
+            tasks: list[asyncio.Task] = []
+            for item in items:
+                task = asyncio.create_task(self._process_work_item(item))
+                self._active[item.id] = (item, task)
+                task.add_done_callback(
+                    lambda t, eid=item.id: self._active.pop(eid, None)
+                )
+                tasks.append(task)
             await asyncio.gather(*tasks, return_exceptions=True)
 
     def status_counts(self) -> dict[str, int]:
@@ -388,8 +504,10 @@ def get_scheduler(kernel: "Kernel") -> Scheduler:
 
 def reset_scheduler() -> None:
     """Reset the scheduler singleton. For test use only."""
+    from app.core.runtime.execution import clear_all_cancels
     from app.core.runtime.runtime_container import runtime
 
+    clear_all_cancels()
     runtime._scheduler = None
 
 
