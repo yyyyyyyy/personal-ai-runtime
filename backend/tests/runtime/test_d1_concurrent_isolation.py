@@ -4,7 +4,7 @@ Validates:
   1. Parallel invoke_capability — taint does not cross between concurrent invocations
   2. Parallel WorkItem enqueue — events are isolated by actor
   3. Execution contextvars — execution_id does not leak across concurrent handlers
-  4. Scheduler batch — _MAX_CONCURRENT=8 limit is respected
+  4. Scheduler batch — scheduler_max_concurrent limit is respected
 """
 
 import asyncio
@@ -171,11 +171,12 @@ async def test_execution_scope_nesting(kernel):
 # ── 4. Scheduler batch limit ──────────────────────────────────────────
 
 def test_scheduler_max_concurrent_batch(kernel):
-    """Scheduler respects _MAX_CONCURRENT=8 batch limit."""
-    from app.core.runtime.agent_scheduler import _MAX_CONCURRENT, get_scheduler
+    """Scheduler respects scheduler_max_concurrent batch limit."""
+    from app.core.runtime.agent_scheduler import _max_concurrent, get_scheduler
     from app.core.runtime.scheduled_execution import ExecutionPolicy, ScheduledExecution
 
-    assert _MAX_CONCURRENT == 8
+    limit = _max_concurrent()
+    assert limit == 8
 
     items = []
     for i in range(12):
@@ -193,10 +194,10 @@ def test_scheduler_max_concurrent_batch(kernel):
     scheduler = get_scheduler(kernel)
     scheduler._pending.extend(items)
 
-    batch = scheduler._pending[:_MAX_CONCURRENT]
-    remainder = scheduler._pending[_MAX_CONCURRENT:]
+    batch = scheduler._pending[:limit]
+    remainder = scheduler._pending[limit:]
 
-    assert len(batch) == _MAX_CONCURRENT
+    assert len(batch) == limit
     assert len(remainder) == 4
 
     scheduler._pending.clear()

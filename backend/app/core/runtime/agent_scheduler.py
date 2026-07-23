@@ -78,10 +78,27 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-_MAX_CONCURRENT = 8  # max ScheduledExecutions processed per tick
-
 # Neutral runtime identity (not an Agent concept).
 _RUNTIME_INSTANCE_ID = "runtime:primary"
+
+# Durable reject reason when Lane A pending queue is at capacity.
+QUEUE_FULL_ERROR = "queue_full"
+
+
+class SchedulerQueueFull(RuntimeError):
+    """Raised when enqueue would exceed ``scheduler_max_pending``."""
+
+
+def _max_concurrent() -> int:
+    from app.config import settings
+
+    return max(1, int(settings.scheduler_max_concurrent))
+
+
+def _max_pending() -> int:
+    from app.config import settings
+
+    return max(1, int(settings.scheduler_max_pending))
 
 
 class Scheduler:
@@ -160,7 +177,11 @@ class Scheduler:
                 return
         self._running = True
         self._worker_task = asyncio.create_task(self._scheduler_loop())
-        logger.info("Scheduler started (max_concurrent=%d)", _MAX_CONCURRENT)
+        logger.info(
+            "Scheduler started (max_concurrent=%d, max_pending=%d)",
+            _max_concurrent(),
+            _max_pending(),
+        )
 
     async def stop(self) -> None:
         self._running = False
@@ -191,13 +212,40 @@ class Scheduler:
         *,
         policy=None,
     ) -> list["ScheduledExecution"]:
-        """Create one ScheduledExecution per registered handler (fan-out)."""
+        """Create one ScheduledExecution per registered handler (fan-out).
+
+        Raises ``SchedulerQueueFull`` when the pending queue cannot accept the
+        full fan-out. Rejected units are recorded as
+        ``ExecutionFailed(error=queue_full)`` and are not added to ``_pending``.
+        """
         from .handler_registry import get_handlers
         from .scheduled_execution import ScheduledExecution, policy_for_event
 
         handlers = get_handlers(event.type)
         if not handlers:
             return []
+
+        max_pending = _max_pending()
+        if len(self._pending) + len(handlers) > max_pending:
+            self._reject_enqueue_backpressure(
+                handlers,
+                instance_id=instance_id,
+                actor=actor,
+                event=event,
+                policy=policy,
+            )
+            self._unblock_submit_command(event)
+            logger.warning(
+                "Scheduler backpressure: pending=%d/%d, rejected %s (%d handler(s))",
+                len(self._pending),
+                max_pending,
+                event.type,
+                len(handlers),
+            )
+            raise SchedulerQueueFull(
+                f"Scheduler pending queue full "
+                f"({len(self._pending)}/{max_pending}); rejected {event.type}"
+            )
 
         items: list[ScheduledExecution] = []
         for handler in handlers:
@@ -223,14 +271,74 @@ class Scheduler:
             items.append(item)
         return items
 
+    def _reject_enqueue_backpressure(
+        self,
+        handlers,
+        *,
+        instance_id: str,
+        actor: str,
+        event: "Event",
+        policy=None,
+    ) -> list["ScheduledExecution"]:
+        """Record durable failed executions without growing ``_pending``."""
+        from .scheduled_execution import ScheduledExecution, policy_for_event
+
+        rejected: list[ScheduledExecution] = []
+        for handler in handlers:
+            item = ScheduledExecution(
+                event_seq=int(event.seq) if event.seq else 0,
+                event_id=event.id,
+                event_type=event.type,
+                handler_name=handler.__name__,
+                instance_id=instance_id,
+                correlation_id=event.correlation_id or "",
+                policy=policy if policy is not None else policy_for_event(event.type),
+                _event=event,
+                error=QUEUE_FULL_ERROR,
+            )
+            self._emit_verify(
+                item,
+                lambda it=item: emit_execution_requested(self._kernel, it, actor),
+            )
+            item.transition_to("failed")
+            self._emit_verify(
+                item,
+                lambda it=item: emit_execution_failed(
+                    self._kernel, it, terminal=True,
+                ),
+            )
+            rejected.append(item)
+        return rejected
+
+    def _unblock_submit_command(self, event: "Event") -> None:
+        """Resolve waiting ``submit_command`` so queue_full is not a timeout."""
+        from app.core.runtime.kernel.event_dispatch import (
+            default_completion_type,
+            resolve_pending_command,
+        )
+
+        event_type = getattr(event, "type", "") or ""
+        if not event_type.endswith("Requested"):
+            return
+        resolve_pending_command(
+            self._kernel,
+            correlation_id=getattr(event, "correlation_id", None) or "",
+            completion_type=default_completion_type(event_type),
+            payload={"status": "error", "error": QUEUE_FULL_ERROR},
+            aggregate_type=getattr(event, "aggregate_type", None) or "command",
+            aggregate_id=getattr(event, "aggregate_id", None) or "rejected",
+            caused_by=getattr(event, "id", None),
+        )
+
     # --- scheduling loop -------------------------------------------------
 
     async def _scheduler_loop(self) -> None:
         """Main scheduling loop — process pending ScheduledExecutions."""
         while self._running:
             try:
-                batch = self._pending[:_MAX_CONCURRENT]
-                self._pending = self._pending[_MAX_CONCURRENT:]
+                limit = _max_concurrent()
+                batch = self._pending[:limit]
+                self._pending = self._pending[limit:]
 
                 if batch:
                     tasks: list[asyncio.Task] = []
@@ -382,7 +490,7 @@ class Scheduler:
                     self._kernel, item, reason=item.error or "", status="retrying",
                 ),
             )
-            # Re-enqueue after delay
+            # Re-enqueue after delay (or fail if pending queue is full).
             await asyncio.sleep(item.policy.retry_delay_seconds)
             item.transition_to("pending")
             self._emit_verify(
@@ -391,11 +499,25 @@ class Scheduler:
                     self._kernel, item, reason=item.error or "", status="pending",
                 ),
             )
-            self._pending.append(item)
-            logger.info(
-                "Scheduler: retrying %s (attempt %d/%d)",
-                item.handler_name, item.retry_count, item.policy.max_retries,
-            )
+            if len(self._pending) >= _max_pending():
+                item.error = QUEUE_FULL_ERROR
+                item.transition_to("failed")
+                self._emit_verify(
+                    item,
+                    lambda: emit_execution_failed(
+                        self._kernel, item, terminal=True,
+                    ),
+                )
+                logger.warning(
+                    "Scheduler: retry dropped for %s (queue full)",
+                    item.handler_name,
+                )
+            else:
+                self._pending.append(item)
+                logger.info(
+                    "Scheduler: retrying %s (attempt %d/%d)",
+                    item.handler_name, item.retry_count, item.policy.max_retries,
+                )
         else:
             item.transition_to("failed")
             self._emit_verify(
@@ -411,6 +533,12 @@ class Scheduler:
 
     def pending_count(self) -> int:
         return len(self._pending)
+
+    def max_pending(self) -> int:
+        return _max_pending()
+
+    def is_queue_full(self) -> bool:
+        return len(self._pending) >= _max_pending()
 
     def request_cancel(self, execution_id: str) -> bool:
         """Request cancel for a ScheduledExecution (pending or in-flight).
@@ -536,7 +664,13 @@ async def ensure_scheduler(kernel) -> None:
     async def _dispatch_to_scheduler(event):
         if not get_handlers(event.type):
             return
-        sch.enqueue(_RUNTIME_INSTANCE_ID, _RUNTIME_INSTANCE_ID, event)
+        try:
+            sch.enqueue(_RUNTIME_INSTANCE_ID, _RUNTIME_INSTANCE_ID, event)
+        except SchedulerQueueFull:
+            logger.warning(
+                "Scheduler backpressure: rejected enqueue for %s",
+                getattr(event, "type", "?"),
+            )
 
     kernel.set_async_dispatcher(_dispatch_to_scheduler)
     _started = True

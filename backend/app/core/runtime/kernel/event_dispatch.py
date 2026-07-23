@@ -47,6 +47,48 @@ def default_completion_type(event_type: str) -> str:
     return event_type + "Completed"
 
 
+def resolve_pending_command(
+    kernel: Any,
+    *,
+    correlation_id: str,
+    completion_type: str,
+    payload: dict[str, object],
+    aggregate_type: str = "command",
+    aggregate_id: str = "rejected",
+    caused_by: str | None = None,
+) -> bool:
+    """Resolve a waiting ``submit_command`` Future without emitting a domain event.
+
+    Used when Lane A rejects dispatch under backpressure so callers get
+    ``{"status": "error", "error": "queue_full"}`` instead of timing out.
+    Returns True when a pending Future was resolved.
+    """
+    if not correlation_id or not completion_type:
+        return False
+    key = (correlation_id, completion_type)
+    with kernel._commands_lock:
+        future = kernel._pending_commands.get(key)
+    if future is None:
+        return False
+
+    from .event import Event
+
+    synthetic = Event(
+        type=completion_type,
+        aggregate_type=aggregate_type,
+        aggregate_id=aggregate_id,
+        payload=payload,
+        actor="scheduler",
+        caused_by=caused_by,
+        correlation_id=correlation_id,
+    )
+    if not _resolve_future_threadsafe(future, synthetic):
+        return False
+    with kernel._commands_lock:
+        kernel._pending_commands.pop(key, None)
+    return True
+
+
 async def submit_command(
     kernel: Any,
     type: str,

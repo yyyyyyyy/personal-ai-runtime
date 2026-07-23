@@ -126,6 +126,14 @@ class Settings(BaseSettings):
     execution_shadow_compare: bool = False
     """When True, Scheduler verifies handler_executions projection after each emit (debug)."""
 
+    # --- Lane A Scheduler backpressure ---
+    scheduler_max_concurrent: int = 8
+    """Max ScheduledExecutions started per scheduler tick."""
+    scheduler_max_pending: int = 256
+    """Hard cap on in-memory pending ScheduledExecutions. New enqueue beyond
+    this limit is rejected (ExecutionFailed error=queue_full). Crash recovery
+    may temporarily exceed the cap while draining durable pending rows."""
+
     # --- Filesystem (agent coding) ---
     filesystem_allowed_dirs: str = ""
     """Comma-separated allowed roots for read/write tools. Default: project root. Requires backend restart."""
