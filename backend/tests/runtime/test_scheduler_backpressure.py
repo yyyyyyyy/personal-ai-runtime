@@ -6,11 +6,6 @@ import importlib
 
 import pytest
 
-from app.core.runtime.agent_scheduler import (
-    QUEUE_FULL_ERROR,
-    Scheduler,
-    SchedulerQueueFull,
-)
 from app.core.runtime.handler_registry import reset_handlers, subscribe
 from app.core.runtime.kernel.event import Event
 from app.core.runtime.kernel.kernel import Kernel
@@ -31,6 +26,13 @@ def _reregister_handlers() -> None:
         importlib.reload(mod)
 
 
+def _asch():
+    """Fresh agent_scheduler module (survives conftest importlib.reload)."""
+    import app.core.runtime.agent_scheduler as mod
+
+    return mod
+
+
 @pytest.fixture
 def sch(tmp_path, monkeypatch):
     monkeypatch.setattr(
@@ -44,7 +46,7 @@ def sch(tmp_path, monkeypatch):
         return None
 
     k = Kernel(db=Database(str(tmp_path / "bp.db")))
-    s = Scheduler(k)
+    s = _asch().Scheduler(k)
     s._pending.clear()
     yield s
     reset_handlers()
@@ -74,12 +76,14 @@ def test_enqueue_rejects_when_full(sch):
     assert sch.is_queue_full()
     assert sch.pending_count() == 2
 
-    with pytest.raises(SchedulerQueueFull):
+    with pytest.raises(_asch().SchedulerQueueFull):
         sch.enqueue("runtime:primary", "runtime:primary", _event(3))
 
     assert sch.pending_count() == 2
     failed = sch._kernel.read_scheduled_executions(status="failed")
-    assert any(getattr(row, "error", None) == QUEUE_FULL_ERROR for row in failed)
+    assert any(
+        getattr(row, "error", None) == _asch().QUEUE_FULL_ERROR for row in failed
+    )
 
 
 @pytest.mark.asyncio
@@ -108,7 +112,7 @@ async def test_retry_fails_when_queue_full(sch, monkeypatch):
 
     await sch._maybe_retry(item)
     assert item.status == "failed"
-    assert item.error == QUEUE_FULL_ERROR
+    assert item.error == _asch().QUEUE_FULL_ERROR
     assert filler in sch._pending
     assert item not in sch._pending
 
@@ -127,8 +131,9 @@ async def test_queue_full_unblocks_submit_command(tmp_path, monkeypatch):
     async def cmd_handler(_ctx, _event):
         return None
 
+    asch = _asch()
     k = Kernel(db=Database(str(tmp_path / "cmd_bp.db")))
-    s = Scheduler(k)
+    s = asch.Scheduler(k)
     s._pending.clear()
 
     filler = Event(
@@ -154,11 +159,11 @@ async def test_queue_full_unblocks_submit_command(tmp_path, monkeypatch):
         correlation_id=corr,
     ).with_seq(2)
 
-    with pytest.raises(SchedulerQueueFull):
+    with pytest.raises(asch.SchedulerQueueFull):
         s.enqueue("runtime:primary", "runtime:primary", blocked)
 
     await asyncio.wait_for(fut, timeout=1.0)
-    assert fut.result().payload["error"] == QUEUE_FULL_ERROR
+    assert fut.result().payload["error"] == asch.QUEUE_FULL_ERROR
     assert fut.result().payload["status"] == "error"
 
     reset_handlers()
