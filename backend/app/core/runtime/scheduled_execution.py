@@ -21,9 +21,6 @@ ScheduledExecutionStatus = Literal[
     "retrying",
 ]
 
-# Backward-compatible alias for status type name used in some docs/tests.
-WorkItemStatus = ScheduledExecutionStatus
-
 # Lane A only — deliberately narrower than domain ``task_engine.TaskStatus``.
 _LANE_A_TRANSITIONS: dict[str, frozenset[str]] = {
     "pending": frozenset({"running", "failed"}),
@@ -151,7 +148,3 @@ class ScheduledExecution:
             completed_at=row.get("completed_at") or None,
             error=row.get("error") or None,
         )
-
-
-# Deprecated alias — domain ``work_items`` is unrelated; do not use for new code.
-WorkItem = ScheduledExecution

@@ -106,10 +106,3 @@ def test_constants_match_projection_vocabulary():
     assert er.STATUS_PENDING == "pending"
     assert er.STATUS_RETRYING == "retrying"
     assert set(er.RECOVERABLE_STATUSES) == {"pending", "retrying"}
-
-
-def test_deprecated_work_item_repository_shim_still_exports():
-    from app.core.runtime.kernel import work_item_repository as wir
-
-    assert wir.read_scheduled_executions is er.read_scheduled_executions
-    assert wir.read_work_items is er.read_scheduled_executions

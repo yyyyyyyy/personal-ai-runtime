@@ -123,7 +123,8 @@ def count_dead_code_files() -> int:
 BASELINE = {
     # read_ports/ domain-scoped package — same Read Port concept.
     # Aligned to measured tree after domain split (handlers/governance/egress/read_ports).
-    "runtime_files": 66,
+    # 64: removed Lane A WorkItem shim modules (work_item.py, work_item_repository.py).
+    "runtime_files": 64,
     "event_types": 50,
     "query_state_selectors": 18,  # includes telemetry aggregate selectors
     "fragments": 10,
@@ -131,7 +132,7 @@ BASELINE = {
     # (already event-sourced projections; not new concepts).
     "governed_tables": 16,
     "projector_files": 6,              # telemetry in projectors_governance
-    "god_object_max_loc": 648,  # Kernel mixin sum (kernel + query_state + sovereignty)
+    "god_object_max_loc": 636,  # Kernel mixin sum after removing WorkItem ABI aliases
     "dead_code_files": 0,
 }
 

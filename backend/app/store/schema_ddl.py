@@ -307,6 +307,19 @@ CREATE INDEX IF NOT EXISTS idx_memory_repairs_status
     ON memory_index_repairs (status, retry_count);
 """
 
+PLAN_RESUMES_SCHEMA = """
+CREATE TABLE IF NOT EXISTS plan_resumes (
+    approval_id          TEXT PRIMARY KEY,
+    kind                 TEXT NOT NULL,
+    resume_from          INTEGER NOT NULL,
+    previous_output_json TEXT,
+    action_id            TEXT DEFAULT '',
+    task_id              TEXT DEFAULT '',
+    plan_json            TEXT DEFAULT '',
+    created_at           TEXT NOT NULL
+);
+"""
+
 # Ordered list of all schemas for full database initialization.
 ALL_SCHEMAS = [
     CONVERSATIONS_SCHEMA,
@@ -328,4 +341,5 @@ ALL_SCHEMAS = [
     TIMER_EVENTS_SCHEMA,
     POLICY_EVENTS_SCHEMA,
     MEMORY_INDEX_REPAIRS_SCHEMA,
+    PLAN_RESUMES_SCHEMA,
 ]

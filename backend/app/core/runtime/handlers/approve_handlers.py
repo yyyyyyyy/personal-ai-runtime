@@ -92,7 +92,7 @@ async def on_approve_requested(ctx: "ExecutionContext", event: "Event") -> None:
         return
 
     if decision == "deny":
-        take_plan_resume(approval_id)  # drop any queued plan resume
+        take_plan_resume(approval_id, kernel=kernel)  # drop any queued plan resume
         kernel.deny_approval(approval_id, action=tool_name, actor="user", reason="user_denied")
         ctx.emit(
             "ApproveCompleted", "approval", f"approve_{approval_id}",
@@ -142,7 +142,7 @@ async def on_approve_requested(ctx: "ExecutionContext", event: "Event") -> None:
     # After the approved tool runs, continue any paused execute/background plan.
     plan_resumed = False
     if cap_result["status"] == "success":
-        resume = peek_plan_resume(approval_id)
+        resume = peek_plan_resume(approval_id, kernel=kernel)
         if resume is not None:
             # Fold the just-approved step output into previous_output for
             # depends_on_output on subsequent steps.
@@ -150,19 +150,19 @@ async def on_approve_requested(ctx: "ExecutionContext", event: "Event") -> None:
             updated = resume.with_step_output(approved_step, result_str)
             try:
                 if _dispatch_plan_resume(ctx, event, updated):
-                    take_plan_resume(approval_id)
+                    take_plan_resume(approval_id, kernel=kernel)
                     plan_resumed = True
                 else:
                     # Invalid resume record — drop it.
-                    take_plan_resume(approval_id)
+                    take_plan_resume(approval_id, kernel=kernel)
             except Exception:
                 logger.exception(
                     "Approve: failed to dispatch plan resume for %s", approval_id
                 )
                 # Keep updated resume so a retry/manual re-dispatch can succeed.
-                register_plan_resume(approval_id, updated)
+                register_plan_resume(approval_id, updated, kernel=kernel)
     else:
-        take_plan_resume(approval_id)
+        take_plan_resume(approval_id, kernel=kernel)
 
     ctx.emit(
         "ApproveCompleted", "approval", f"approve_{approval_id}",

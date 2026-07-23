@@ -96,8 +96,3 @@ def count_scheduled_executions_by_status(db: Any) -> dict[str, int]:
             "SELECT status, COUNT(*) AS c FROM handler_executions GROUP BY status"
         ).fetchall()
     return {str(r["status"]): int(r["c"]) for r in rows}
-
-
-# Backward-compatible aliases used by Kernel ABI wrappers.
-read_work_items = read_scheduled_executions
-recover_work_items = recover_scheduled_executions

@@ -90,7 +90,7 @@ def expire_stale_approvals(kernel) -> int:
         from app.core.runtime.plan_resume import take_plan_resume
 
         for approval_id, action in expired_ids:
-            take_plan_resume(approval_id)
+            take_plan_resume(approval_id, kernel=kernel)
             kernel.emit_event(
                 type="ApprovalDenied",
                 aggregate_type="approval",

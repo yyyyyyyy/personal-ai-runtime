@@ -10,17 +10,22 @@ from app.core.runtime.handlers.plan_runner import parse_plan_steps, run_plan_ste
 from app.core.runtime.plan_resume import (
     PlanResume,
     clear_plan_resumes,
+    configure_plan_resume_db,
     peek_plan_resume,
     register_plan_resume,
     take_plan_resume,
 )
+from app.store.database import Database
 
 
 @pytest.fixture(autouse=True)
-def _clear_resumes():
+def _clear_resumes(tmp_path):
+    db = Database(db_path=str(tmp_path / "plan_resume.db"))
+    configure_plan_resume_db(db)
     clear_plan_resumes()
-    yield
+    yield db
     clear_plan_resumes()
+    configure_plan_resume_db(None)
 
 
 def test_parse_plan_steps_rejects_bad_json():
@@ -227,3 +232,36 @@ async def test_approve_keeps_resume_when_dispatch_fails(monkeypatch):
     kept = peek_plan_resume("apr_keep")
     assert kept is not None
     assert kept.previous_output == {"step_0_output": "ok"}
+
+
+def test_plan_resume_survives_process_restart(tmp_path):
+    """APP_STORAGE rows remain after dropping the in-process db binding.
+
+    Simulates restart: register on DB file A, re-open the same path with a
+    fresh Database + clear override, then peek must still resolve.
+    """
+    db_path = str(tmp_path / "durable_resume.db")
+    db1 = Database(db_path=db_path)
+    configure_plan_resume_db(db1)
+    register_plan_resume(
+        "apr_dur",
+        PlanResume(
+            kind="background",
+            resume_from=2,
+            task_id="bg_1",
+            plan_json='{"steps":[]}',
+            previous_output={"step_0_output": "x"},
+        ),
+    )
+    configure_plan_resume_db(None)
+
+    db2 = Database(db_path=db_path)
+    configure_plan_resume_db(db2)
+    got = peek_plan_resume("apr_dur")
+    assert got is not None
+    assert got.kind == "background"
+    assert got.resume_from == 2
+    assert got.task_id == "bg_1"
+    assert got.previous_output == {"step_0_output": "x"}
+    assert take_plan_resume("apr_dur") is not None
+    assert peek_plan_resume("apr_dur") is None

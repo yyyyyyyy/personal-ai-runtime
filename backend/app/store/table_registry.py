@@ -112,6 +112,13 @@ APP_STORAGE_SCHEMA: dict[str, frozenset[str]] = {
         "id", "aggregate_id", "event_type", "event_seq", "error",
         "retry_count", "status", "created_at", "last_retry_at",
     }),
+    # Operational continuation for plan steps paused on approval. The
+    # approval row remains the governance authority; this table only keeps
+    # resume coordinates across process restarts (see plan_resume.py).
+    "plan_resumes": frozenset({
+        "approval_id", "kind", "resume_from", "previous_output_json",
+        "action_id", "task_id", "plan_json", "created_at",
+    }),
 }
 
 # Kernel-owned projections (event-sourced read models + event log).

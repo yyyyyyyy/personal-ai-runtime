@@ -15,12 +15,12 @@ SQLite 启用 WAL + `synchronous=NORMAL`（[`backend/app/store/database.py`](../
 
 ## 表分类总览
 
-全部 19 张表必须归入 GOVERNED 或 APP_STORAGE（[`backend/app/store/table_registry.py`](../../backend/app/store/table_registry.py)）。
+全部 20 张表必须归入 GOVERNED 或 APP_STORAGE（[`backend/app/store/table_registry.py`](../../backend/app/store/table_registry.py)）。
 
 | 类别 | 表数 | 写入权 |
 |---|---|---|
 | GOVERNED_TABLES | 16 | 仅 Kernel（事件溯源投影） |
-| APP_STORAGE_TABLES | 3 | 任意模块直访 |
+| APP_STORAGE_TABLES | 4 | 任意模块直访 |
 
 ## GOVERNED 表（事件溯源投影）
 
@@ -174,6 +174,7 @@ frozenset({
 | `activity_log` | 人类可读活动日志 | event_log 投影派生 |
 | `app_settings` | UI 偏好、LLM/Email 连接配置 | 本地运营配置 |
 | `memory_index_repairs` | ChromaDB 索引修复队列 | 权威记录是 `MemoryDerived/Updated` 事件；由 RuntimeLoop 重试 |
+| `plan_resumes` | 审批暂停后的计划续跑坐标 | 运营续跑态；审批行仍是治理权威；跨进程恢复即可 |
 
 ## ChromaDB Collections
 

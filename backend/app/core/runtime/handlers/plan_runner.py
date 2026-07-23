@@ -141,7 +141,11 @@ async def run_plan_steps(
                 next_resume_from=i + 1,
             )
             if resume_factory is not None and approval_id:
-                register_plan_resume(approval_id, resume_factory(outcome))
+                register_plan_resume(
+                    approval_id,
+                    resume_factory(outcome),
+                    kernel=kernel,
+                )
             return outcome
 
         # failed / denied / error

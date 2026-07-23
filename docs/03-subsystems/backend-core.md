@@ -157,18 +157,18 @@ Handlers（[`handlers/`](../../backend/app/core/agents/handlers/)）：
 
 - `__init__` 调 `_recover()` 扫描中断的 `handler_executions`，重放为 `ExecutionRetried(reason=interrupted)`。
 - 循环每 50ms tick，每 tick 处理至多 `_MAX_CONCURRENT=8` 个 item。
-- `enqueue(instance_id, actor, event, policy)` → 查 handler → 创建 WorkItem → emit `ExecutionRequested`。
+- `enqueue(instance_id, actor, event, policy)` → 查 handler → 创建 ScheduledExecution → emit `ExecutionRequested`。
 - `_process_work_item` 在 `execution_scope(item.id)` 内跑 handler，使能力调用正确归属。
 - `_emit_verify` 每次写后跑 `verify_persist_matches_projection`（影子比对）。
 - `ExecutionPolicy(timeout=30s, max_retries=3, retry_delay=5s)`。
 - `get_scheduler(kernel)` 是单例工厂。
 
-### WorkItem 与 ExecutionContext
+### ScheduledExecution 与 ExecutionContext
 
-- [`work_item.py`](../../backend/app/core/runtime/work_item.py) — 原子执行单元，状态机 `pending → running → completed | failed → retrying → running`，持久化于 `handler_executions`。`to_row`/`from_row` 用于序列化。
+- [`scheduled_execution.py`](../../backend/app/core/runtime/scheduled_execution.py) — Lane A 原子执行单元，状态机 `pending → running → completed | failed → retrying → running`，持久化于 `handler_executions`。`to_row`/`from_row` 用于序列化。
 - [`execution.py`](../../backend/app/core/runtime/execution.py) — 最小 handler 上下文（`instance_id`、`actor`、`correlation_id`、`_kernel`、`principal`、`execution_id`），暴露 `emit()`。
 - [`handler_registry.py`](../../backend/app/core/runtime/handler_registry.py) — 事件类型 → async handler 映射，`@subscribe("EventType")` 装饰器注册。
-- 影子比对（Execution 契约 §2）内联在 [`agent_scheduler.py`](../../backend/app/core/runtime/agent_scheduler.py) 的 `_emit_verify` → `_shadow_compare`：每次 emit 后比对 `WorkItem.to_row()` 与 `handler_executions` 投影。
+- 影子比对（Execution 契约 §2）内联在 [`agent_scheduler.py`](../../backend/app/core/runtime/agent_scheduler.py) 的 `_emit_verify` → `_shadow_compare`：每次 emit 后比对 `ScheduledExecution.to_row()` 与 `handler_executions` 投影。
 
 ### SSE 队列
 
@@ -176,7 +176,7 @@ Handlers（[`handlers/`](../../backend/app/core/agents/handlers/)）：
 
 ## 异步派发器
 
-Scheduler 通过 `kernel.set_async_dispatcher()`（[`kernel.py`](../../backend/app/core/runtime/kernel/kernel.py)）注册一个 fire-and-forget 派发器：`emit_event` 事务提交后，每个事件被投递给 [`agent_scheduler.py`](../../backend/app/core/runtime/agent_scheduler.py) 的 `_dispatch_to_scheduler`。后者用 [`handler_registry.get_handler(event.type)`](../../backend/app/core/runtime/handler_registry.py) 查表——匹配则 `enqueue` 一个 WorkItem 给 Scheduler 执行（`pending → running → completed`，持久化于 `handler_executions` 以支持崩溃恢复），不匹配则跳过。event_log 是唯一真相，派发器只是其上的内存路由层。
+Scheduler 通过 `kernel.set_async_dispatcher()`（[`kernel.py`](../../backend/app/core/runtime/kernel/kernel.py)）注册一个 fire-and-forget 派发器：`emit_event` 事务提交后，每个事件被投递给 [`agent_scheduler.py`](../../backend/app/core/runtime/agent_scheduler.py) 的 `_dispatch_to_scheduler`。后者用 [`handler_registry.get_handler(event.type)`](../../backend/app/core/runtime/handler_registry.py) 查表——匹配则 `enqueue` 一个 ScheduledExecution 给 Scheduler 执行（`pending → running → completed`，持久化于 `handler_executions` 以支持崩溃恢复），不匹配则跳过。event_log 是唯一真相，派发器只是其上的内存路由层。
 
 ## 其他核心组件
 

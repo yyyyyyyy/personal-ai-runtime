@@ -173,13 +173,13 @@ async def test_execution_scope_nesting(kernel):
 def test_scheduler_max_concurrent_batch(kernel):
     """Scheduler respects _MAX_CONCURRENT=8 batch limit."""
     from app.core.runtime.agent_scheduler import _MAX_CONCURRENT, get_scheduler
-    from app.core.runtime.scheduled_execution import ExecutionPolicy, WorkItem
+    from app.core.runtime.scheduled_execution import ExecutionPolicy, ScheduledExecution
 
     assert _MAX_CONCURRENT == 8
 
     items = []
     for i in range(12):
-        item = WorkItem(
+        item = ScheduledExecution(
             id=f"wi_batch_{i}",
             instance_id=f"agent_test_{i % 3}",
             event_type="WorkItemCreated",
