@@ -2,6 +2,9 @@
 
 Owns app_settings(category='knowledge_docs') and Chroma knowledge collection.
 API routes must call this module instead of importing ``app.store`` directly.
+
+Classified as a **non-sovereignty attachment** (Path B): not event-sourced Truth.
+See ``app.store.table_registry.NON_SOVEREIGN_ATTACHMENTS['knowledge']``.
 """
 
 from __future__ import annotations

@@ -172,7 +172,7 @@ frozenset({
 | 表 | 用途 | 为何不事件溯源 |
 |---|---|---|
 | `activity_log` | 人类可读活动日志 | event_log 投影派生 |
-| `app_settings` | UI 偏好、LLM/Email 连接配置 | 本地运营配置 |
+| `app_settings` | UI 偏好、LLM/Email 连接配置、以及 knowledge_docs 文档注册表 JSON | 本地运营配置；知识库亦登记为非主权附件（见「非主权附件」章） |
 | `memory_index_repairs` | ChromaDB 索引修复队列 | 权威记录是 `MemoryDerived/Updated` 事件；由 RuntimeLoop 重试 |
 | `plan_resumes` | 审批暂停后的计划续跑坐标 | 运营续跑态；审批行仍是治理权威；跨进程恢复即可 |
 
@@ -180,10 +180,16 @@ frozenset({
 
 `VectorStore`（[`backend/app/store/vector.py`](../../backend/app/store/vector.py)）单例管理两个 collection：
 
-| Collection | 内容 | 写入者 |
-|---|---|---|
-| `memories` | 记忆向量 | Kernel（`_sync_memory_index`） |
-| `knowledge` | 知识库文档块向量 | `knowledge` API（上传时分块向量化） |
+| Collection | 内容 | 写入者 | 主权 |
+|---|---|---|---|
+| `memories` | 记忆向量 | Kernel（`_sync_memory_index`） | State 派生（INV-S3） |
+| `knowledge` | 知识库文档块向量 | `product/knowledge.py`（上传时分块） | 非主权附件（Path B） |
+
+## 非主权附件
+
+登记于 [`table_registry.py`](../../backend/app/store/table_registry.py) 的 `NON_SOVEREIGN_ATTACHMENTS`。**不能**仅靠 `event_log` 重建；不得当作第二真相源（INV-S4）。
+
+当前登记：`knowledge`（`app_settings` 中 category=`knowledge_docs` + Chroma collection `knowledge`）。写路径在 `product/knowledge.py`；`AppConfigChanged` 仅审计。
 
 ## Schema 初始化
 
