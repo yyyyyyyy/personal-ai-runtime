@@ -105,12 +105,12 @@ def execution_scope(execution_id: str) -> Iterator[None]:
 # ── Cooperative cancellation (in-process; not a new Event type) ───────────
 #
 # Cancelled Lane A runs terminate via ExecutionFailed(error="cancelled").
-# Cancelled background tasks terminate via BackgroundTaskCompleted(status=
-# "cancelled"). Flags are process-local: after restart, durable row status
-# is authoritative (running→pending recovery, or already cancelled).
+# Cancelled background work items terminate via WorkItemStatusChanged(status=
+# "cancelled") from the cancel API; handlers observe ``exec_{work_item_id}``.
+# Flags are process-local: after restart, durable row status is authoritative
+# (running→pending recovery, or already cancelled).
 
 _cancelled_executions: set[str] = set()
-_cancelled_background_tasks: set[str] = set()
 
 
 def request_cancel_execution(execution_id: str) -> None:
@@ -118,31 +118,17 @@ def request_cancel_execution(execution_id: str) -> None:
         _cancelled_executions.add(execution_id)
 
 
-def request_cancel_background_task(task_id: str) -> None:
-    if task_id:
-        _cancelled_background_tasks.add(task_id)
-
-
 def is_execution_cancelled(execution_id: str) -> bool:
     return bool(execution_id) and execution_id in _cancelled_executions
-
-
-def is_background_task_cancelled(task_id: str) -> bool:
-    return bool(task_id) and task_id in _cancelled_background_tasks
 
 
 def clear_execution_cancel(execution_id: str) -> None:
     _cancelled_executions.discard(execution_id)
 
 
-def clear_background_task_cancel(task_id: str) -> None:
-    _cancelled_background_tasks.discard(task_id)
-
-
 def clear_all_cancels() -> None:
     """Test helper."""
     _cancelled_executions.clear()
-    _cancelled_background_tasks.clear()
 
 
 # ── ExecutionContext (folded from execution_context.py) ──────────────────

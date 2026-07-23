@@ -1,7 +1,9 @@
-"""Execution projectors — materialise handler_executions from Execution events (ADR-0007).
+﻿"""Execution projectors — materialise handler_executions from Execution events (ADR-0007).
 
 handler_executions is a projection of the Execution aggregate event stream.
 ExecutionRequested is the sole aggregate creation event (no ExecutionCreated).
+
+Background work is projected into ``work_items`` via WorkItem* events (INV-W5).
 """
 
 from __future__ import annotations
@@ -9,17 +11,12 @@ from __future__ import annotations
 import json
 
 from .constants import (
-    AGGREGATE_BACKGROUND_TASK,
     AGGREGATE_EXECUTION,
-    EVENT_BG_TASK_COMPLETED,
-    EVENT_BG_TASK_CREATED,
-    EVENT_BG_TASK_STATUS_CHANGED,
 )
 from .event import Event
 from .projectors_registry import _OWNED_TABLES, projector
 
 _OWNED_TABLES[AGGREGATE_EXECUTION] = ["handler_executions"]
-_OWNED_TABLES[AGGREGATE_BACKGROUND_TASK] = ["background_tasks"]
 
 
 def _policy_json(policy: dict) -> str:
@@ -82,7 +79,6 @@ def _on_execution_retried(event: Event, conn) -> None:
     )
 
 
-
 @projector("ExecutionCompleted")
 def _on_execution_completed(event: Event, conn) -> None:
     p = event.payload
@@ -107,61 +103,4 @@ def _on_execution_failed(event: Event, conn) -> None:
             int(p.get("attempt", 0)),
             event.aggregate_id,
         ),
-    )
-
-
-# --- Background tasks (folded here to keep runtime_files zero-sum) ----------
-
-
-@projector(EVENT_BG_TASK_CREATED)
-def _on_background_task_created(event: Event, conn) -> None:
-    p = event.payload
-    task_id = p.get("task_id") or event.aggregate_id.removeprefix("bg_")
-    conn.execute(
-        """INSERT OR REPLACE INTO background_tasks
-           (id, user_request, plan_json, status, progress, created_at, completed_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?)""",
-        (
-            task_id,
-            p.get("user_request", ""),
-            p.get("plan_json"),
-            p.get("status", "pending"),
-            float(p.get("progress", 0)),
-            p.get("created_at", event.ts),
-            p.get("completed_at"),
-        ),
-    )
-
-
-@projector(EVENT_BG_TASK_STATUS_CHANGED)
-def _on_background_task_status_changed(event: Event, conn) -> None:
-    p = event.payload
-    task_id = p.get("task_id") or event.aggregate_id.removeprefix("bg_")
-    fields = ["status = ?", "progress = ?"]
-    params: list[object] = [p.get("status", "pending"), float(p.get("progress", 0))]
-    if "completed_at" in p:
-        fields.append("completed_at = ?")
-        params.append(p["completed_at"])
-    params.append(task_id)
-    conn.execute(
-        f"UPDATE background_tasks SET {', '.join(fields)} WHERE id = ?",
-        params,
-    )
-
-
-@projector(EVENT_BG_TASK_COMPLETED)
-def _on_background_task_completed(event: Event, conn) -> None:
-    p = event.payload
-    task_id = p.get("task_id") or event.aggregate_id.removeprefix("bg_")
-    status = p.get("status", "completed")
-    progress = float(p.get("progress", 1.0 if status == "completed" else 0.0))
-    completed_at = p.get(
-        "completed_at",
-        event.ts if status in ("completed", "failed", "cancelled") else None,
-    )
-    conn.execute(
-        """UPDATE background_tasks
-           SET status = ?, progress = ?, completed_at = ?
-           WHERE id = ?""",
-        (status, progress, completed_at, task_id),
     )

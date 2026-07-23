@@ -1,8 +1,7 @@
 """Durable resume registry for plan steps paused on approval.
 
-When Execute/Background hits ``pending``, the approval_id is mapped to the
-remaining plan so ``ApproveRequested`` can re-dispatch after the approved
-tool runs.
+When Execute hits ``pending``, the approval_id is mapped to the remaining
+plan so ``ApproveRequested`` can re-dispatch after the approved tool runs.
 
 Lives outside ``handlers/`` so expiry / governance can clear entries without
 importing the handler package (side-effect ``@subscribe`` registration).
@@ -21,7 +20,7 @@ from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from typing import Any, Literal
 
-ResumeKind = Literal["execute", "background"]
+ResumeKind = Literal["execute"]
 
 logger = logging.getLogger(__name__)
 
@@ -66,8 +65,12 @@ class PlanResume:
             prev = {}
         if not isinstance(prev, dict):
             prev = {}
+        kind = row["kind"]
+        if kind != "execute":
+            # Legacy kind=background rows were cleaned by alembic; treat as execute.
+            kind = "execute"
         return cls(
-            kind=row["kind"],  # type: ignore[arg-type]
+            kind=kind,  # type: ignore[arg-type]
             resume_from=int(row["resume_from"]),
             previous_output=prev or None,
             action_id=row["action_id"] or "",
@@ -185,20 +188,20 @@ def take_plan_resume(
     return PlanResume.from_row(row)
 
 
-def clear_plan_resumes_for_background_task(
-    task_id: str,
+def clear_plan_resumes_for_work_item(
+    work_item_id: str,
     *,
     db: Any | None = None,
     kernel: Any | None = None,
 ) -> int:
-    """Drop durable resumes for a background task (cancel / cleanup)."""
-    if not task_id:
+    """Drop durable resumes for a work item (cancel / cleanup)."""
+    if not work_item_id:
         return 0
     database = _resolve_db(db if db is not None else _db_from_kernel(kernel))
     with database.get_db() as conn:
         cur = conn.execute(
-            "DELETE FROM plan_resumes WHERE kind = ? AND task_id = ?",
-            ("background", task_id),
+            "DELETE FROM plan_resumes WHERE kind = ? AND action_id = ?",
+            ("execute", work_item_id),
         )
         return int(cur.rowcount or 0)
 

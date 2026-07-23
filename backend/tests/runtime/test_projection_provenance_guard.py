@@ -53,12 +53,8 @@ class TestProjectionProvenanceGuard:
         finally:
             sys.path.pop(0)
 
-    def test_orphan_goal_not_scanned_by_provenance(self, provenance_db):
-        """work_items goal orphans are out of scope for check_provenance.
-
-        Orphan detection for goal rows lives in verify_work_items_goal_rebuild;
-        this test pins that check_provenance does not claim them.
-        """
+    def test_orphan_goal_fails_provenance(self, provenance_db):
+        """All work_items rows (including goals) must trace to event_log."""
         sys.path.insert(0, str(BACKEND))
         try:
             from scripts.check_projection_provenance import check_provenance
@@ -72,7 +68,7 @@ class TestProjectionProvenanceGuard:
                                NULL, NULL, '2026-01-01', '2026-01-01', '2026-01-01')"""
                 )
                 violations = check_provenance(conn)
-            assert not any(
+            assert any(
                 v[0] == "work_items" and v[1] == "orphan_goal" for v in violations
             )
         finally:
@@ -153,20 +149,21 @@ class TestProjectionProvenanceGuard:
         finally:
             sys.path.pop(0)
 
-    def test_orphan_background_task_fails(self, provenance_db):
+    def test_orphan_background_work_item_fails(self, provenance_db):
         sys.path.insert(0, str(BACKEND))
         try:
             from scripts.check_projection_provenance import check_provenance
 
             with provenance_db.get_db() as conn:
                 conn.execute(
-                    """INSERT INTO background_tasks
-                       (id, user_request, plan_json, status, progress, created_at)
-                       VALUES ('orphan_bg', 'x', NULL, 'pending', 0, '2026-01-01')"""
+                    """INSERT INTO work_items
+                       (id, title, work_type, status, progress, created_at, updated_at)
+                       VALUES ('orphan_bg', 'x', 'background', 'pending', 0,
+                               '2026-01-01', '2026-01-01')"""
                 )
                 violations = check_provenance(conn)
             assert any(
-                v[0] == "background_tasks" and v[1] == "orphan_bg" for v in violations
+                v[0] == "work_items" and v[1] == "orphan_bg" for v in violations
             )
         finally:
             sys.path.pop(0)

@@ -29,7 +29,7 @@ def _dispatch_plan_resume(
     event: "Event",
     resume: PlanResume,
 ) -> bool:
-    """Re-enqueue the remainder of an execute/background plan after approval.
+    """Re-enqueue the remainder of an execute plan after approval.
 
     Returns True when a resume event was emitted.
     """
@@ -46,27 +46,8 @@ def _dispatch_plan_resume(
             caused_by=event.id,
         )
         return True
-    if resume.kind == "background" and resume.task_id:
-        from app.core.runtime.kernel.constants import (
-            AGGREGATE_BACKGROUND_TASK,
-            EVENT_BG_TASK_REQUESTED,
-        )
-
-        ctx.emit(
-            EVENT_BG_TASK_REQUESTED,
-            AGGREGATE_BACKGROUND_TASK,
-            f"bg_{resume.task_id}",
-            payload={
-                "task_id": resume.task_id,
-                "plan_json": resume.plan_json or "{}",
-                "resume_from": resume.resume_from,
-                "previous_output": resume.previous_output or {},
-            },
-            caused_by=event.id,
-        )
-        return True
     logger.error(
-        "Approve: plan resume missing action_id/task_id (kind=%s)", resume.kind
+        "Approve: plan resume missing action_id (kind=%s)", resume.kind
     )
     return False
 

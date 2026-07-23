@@ -42,7 +42,7 @@ def _ordered_projection_tables() -> list[str]:
         all_tables.update(tables)
     # FK: messages.conversation_id → conversations.id
     # FK (in data): handler_executions may reference event_log seqs (by convention)
-    child_before_parent = ["messages", "handler_executions", "background_tasks", "timer_events"]
+    child_before_parent = ["messages", "handler_executions", "timer_events"]
     ordered = []
     for child in child_before_parent:
         if child in all_tables:

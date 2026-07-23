@@ -1,9 +1,8 @@
 """Background Tasks API — manage long-running background tasks.
 
-Background tasks are a **Work subtype** (see Runtime
-Algebra). New runtime code should treat them as Work with a background
-lifecycle, not a separate conceptual layer. This HTTP surface remains for
-operators / SPA; avoid introducing parallel task engines.
+Background tasks are a **Work subtype** stored as
+``work_items(work_type='background')``. This HTTP surface remains for
+operators / SPA compatibility; new clients should prefer ``/api/work-items``.
 """
 import json
 import uuid
@@ -14,8 +13,8 @@ from fastapi import APIRouter, HTTPException
 from app.api.models import CreateBackgroundTaskRequest
 from app.core.runtime import read_ports
 from app.core.runtime.kernel.constants import (
-    AGGREGATE_BACKGROUND_TASK,
-    EVENT_BG_TASK_CREATED,
+    AGGREGATE_WORK_ITEM,
+    EVENT_WORK_ITEM_CREATED,
 )
 from app.core.runtime.kernel_instance import kernel
 
@@ -23,38 +22,43 @@ router = APIRouter(tags=["background_tasks"])
 
 
 def _create_bg_task(user_request: str, plan: dict | None = None) -> dict:
-    """Create a background task via Kernel emit_event."""
+    """Create a background work item via Kernel emit_event."""
     task_id = str(uuid.uuid4())
     now = datetime.now(UTC).isoformat()
     plan_json = json.dumps(plan) if plan else None
 
     kernel.emit_event(
-        EVENT_BG_TASK_CREATED,
-        AGGREGATE_BACKGROUND_TASK,
-        f"bg_{task_id}",
+        EVENT_WORK_ITEM_CREATED,
+        AGGREGATE_WORK_ITEM,
+        task_id,
         payload={
-            "task_id": task_id,
-            "user_request": user_request,
-            "plan_json": plan_json,
+            "title": user_request,
+            "description": "",
+            "work_type": "background",
+            "parent_work_id": None,
+            "parent_goal_id": None,
             "status": "pending",
+            "priority": 0,
+            "dependencies_json": None,
+            "executable_plan": plan_json,
             "progress": 0.0,
             "created_at": now,
         },
         actor="user",
     )
 
-    rows = read_ports.query_background_task(task_id)
+    rows = read_ports.query_background_work_item(task_id)
     if not rows:
         raise RuntimeError(f"Background task {task_id} not found after creation")
     return rows
 
 
 def _get_bg_task(task_id: str) -> dict | None:
-    return read_ports.query_background_task(task_id)
+    return read_ports.query_background_work_item(task_id)
 
 
 def _list_bg_tasks(limit: int = 50) -> list[dict]:
-    return read_ports.query_background_tasks(limit=limit)
+    return read_ports.query_background_work_items(limit=limit)
 
 
 @router.post("/")
@@ -80,9 +84,9 @@ async def get_background_task(task_id: str):
 
 @router.post("/{task_id}/cancel")
 async def cancel_background_task(task_id: str):
-    """Cancel a pending/running/waiting_approval background task."""
+    """Cancel a pending/running/waiting_approval background work item."""
     try:
-        return read_ports.cancel_background_task(task_id)
+        return read_ports.cancel_background_work_item(task_id)
     except KeyError:
         raise HTTPException(status_code=404, detail="Task not found") from None
     except ValueError as exc:

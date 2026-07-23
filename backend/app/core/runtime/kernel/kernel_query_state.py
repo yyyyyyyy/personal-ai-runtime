@@ -46,8 +46,6 @@ class QueryStateMixin:  # type: ignore[attr-defined]  # mixed into Kernel which 
             return self._as_rows(self._query_inbox_emails(filters))
         if selector == "timer_events":
             return self._as_rows(self._query_timer_events(filters))
-        if selector == "background_tasks":
-            return self._as_rows(self._query_background_tasks(filters))
         if selector == "user_profile":
             return self._as_rows(self._query_user_profile(filters))
         if selector == "tool_calls":
@@ -147,9 +145,6 @@ class QueryStateMixin:  # type: ignore[attr-defined]  # mixed into Kernel which 
 
     def _query_timer_events(self, filters: dict[str, Any]) -> list[dict] | int:
         return qb.query_timer_events(self._db, filters)
-
-    def _query_background_tasks(self, filters: dict[str, Any]) -> list[dict]:
-        return qb.query_background_tasks(self._db, filters)
 
     def _query_user_profile(self, filters: dict[str, Any]) -> list[dict]:
         return qb.query_user_profile(self._db, filters)

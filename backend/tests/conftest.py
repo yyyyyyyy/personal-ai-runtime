@@ -231,11 +231,10 @@ def _build_test_app(tmp_path, monkeypatch, *, auth_token: str = ""):
     import app.core.agents.handlers.chat_handler as _ch
     import app.core.agents.handlers.timer_trigger_handler as _th
     import app.core.runtime.handlers.approve_handlers as _ap
-    import app.core.runtime.handlers.background_task_handlers as _bg
     import app.core.runtime.handlers.execute_handlers as _ex
     import app.core.runtime.handlers.inbox_poll_handlers as _inbox
 
-    for _mod in (_ch, _cch, _ap, _ex, _bg, _inbox, _th):
+    for _mod in (_ch, _cch, _ap, _ex, _inbox, _th):
         importlib.reload(_mod)
     import app.core.agents.handlers as _handlers
     import app.core.runtime.handlers as _rt_handlers

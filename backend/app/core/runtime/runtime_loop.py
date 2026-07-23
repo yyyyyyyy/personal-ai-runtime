@@ -307,24 +307,28 @@ class RuntimeLoop:
     # --- Backward compat (kept for the staleness reaction path) ----------------
 
     def _recover_interrupted_background_tasks(self) -> int:
-        """Reset durable ``running`` background tasks to ``pending`` after restart.
+        """Reset durable ``running`` background work items to ``pending`` after restart.
 
         RuntimeLoop marks rows ``running`` before fire-and-forget dispatch.
         Process death / shutdown cancel leaves them stuck: maintenance only
         polls ``pending``, and Lane A ``Scheduler._recover`` does **not**
-        touch ``background_tasks``. Re-queue via status event so the next
-        maintenance tick can dispatch again (at-least-once).
+        touch ``work_items(work_type=background)``. Re-queue via status event
+        so the next maintenance tick can dispatch again (at-least-once).
 
         ``waiting_approval`` is left alone (plan_resume + approval still apply).
         """
         from app.core.runtime.kernel.constants import (
-            AGGREGATE_BACKGROUND_TASK,
-            EVENT_BG_TASK_STATUS_CHANGED,
+            AGGREGATE_WORK_ITEM,
+            EVENT_WORK_ITEM_STATUS_CHANGED,
+            EVENT_WORK_ITEM_UPDATED,
         )
 
         try:
-            rows = read_ports.query_background_tasks(
-                status="running", limit=100, order="created_at_asc",
+            rows = read_ports.query_work_items(
+                work_type="background",
+                status="running",
+                limit=100,
+                order="created_at_asc",
             )
         except Exception:
             logger.exception("Background task recovery scan failed")
@@ -332,29 +336,33 @@ class RuntimeLoop:
 
         recovered = 0
         for row in rows:
-            task_id = row["id"]
+            work_id = row["id"]
             try:
                 kernel.emit_event(
-                    EVENT_BG_TASK_STATUS_CHANGED,
-                    AGGREGATE_BACKGROUND_TASK,
-                    f"bg_{task_id}",
+                    EVENT_WORK_ITEM_STATUS_CHANGED,
+                    AGGREGATE_WORK_ITEM,
+                    work_id,
+                    payload={"status": "pending"},
+                    actor="kernel",
+                )
+                kernel.emit_event(
+                    EVENT_WORK_ITEM_UPDATED,
+                    AGGREGATE_WORK_ITEM,
+                    work_id,
                     payload={
-                        "task_id": task_id,
-                        "status": "pending",
                         "progress": float(row.get("progress") or 0),
-                        "recovery": "interrupted",
                     },
                     actor="kernel",
                 )
                 recovered += 1
             except Exception:
                 logger.exception(
-                    "Failed to re-queue interrupted background task %s", task_id
+                    "Failed to re-queue interrupted background work item %s", work_id
                 )
         return recovered
 
     async def _process_background_tasks(self) -> None:
-        """Process pending background tasks.
+        """Process pending background work items via ExecuteRequested.
 
         Dispatch is fire-and-forget: the submit_command call (which may take
         up to 300s) runs in a background task so it never blocks the
@@ -363,33 +371,45 @@ class RuntimeLoop:
         """
         from app.core.runtime.agent_scheduler import ensure_scheduler, get_scheduler
         from app.core.runtime.kernel.constants import (
-            AGGREGATE_BACKGROUND_TASK,
-            EVENT_BG_TASK_COMPLETED,
-            EVENT_BG_TASK_STATUS_CHANGED,
+            AGGREGATE_WORK_ITEM,
+            EVENT_EXECUTE_REQUESTED,
+            EVENT_WORK_ITEM_STATUS_CHANGED,
+            EVENT_WORK_ITEM_UPDATED,
         )
 
-        rows = read_ports.query_background_tasks(
-            status="pending", limit=1, order="created_at_asc",
+        rows = read_ports.query_work_items(
+            work_type="background",
+            status="pending",
+            limit=1,
+            order="created_at_asc",
         )
         for row in rows:
-            task_id = row["id"]
-            plan_json = row.get("plan_json", "{}")
+            work_id = row["id"]
             kernel.emit_event(
-                EVENT_BG_TASK_STATUS_CHANGED, AGGREGATE_BACKGROUND_TASK,
-                f"bg_{task_id}",
-                payload={"task_id": task_id, "status": "running", "progress": 0.1},
+                EVENT_WORK_ITEM_STATUS_CHANGED,
+                AGGREGATE_WORK_ITEM,
+                work_id,
+                payload={"status": "running"},
+                actor="background",
+            )
+            kernel.emit_event(
+                EVENT_WORK_ITEM_UPDATED,
+                AGGREGATE_WORK_ITEM,
+                work_id,
+                payload={"progress": 0.1},
                 actor="background",
             )
             await ensure_scheduler(kernel)
             sch = get_scheduler(kernel)
             await sch.start()
 
-            async def _dispatch_bg(t_id: str, pj: str) -> None:
+            async def _dispatch_bg(w_id: str) -> None:
                 try:
                     await kernel.submit_command(
-                        "BackgroundTaskRequested", AGGREGATE_BACKGROUND_TASK,
-                        f"bg_{t_id}",
-                        payload={"task_id": t_id, "plan_json": pj, "replan_count": 0},
+                        EVENT_EXECUTE_REQUESTED,
+                        "action",
+                        f"exec_{w_id}",
+                        payload={"action_id": w_id},
                         actor="background",
                         timeout=settings.submit_command_timeout_background_task,
                     )
@@ -398,26 +418,21 @@ class RuntimeLoop:
                     # re-queues it as pending on next process boot.
                     raise
                 except Exception:
-                    logger.exception("Background task %s failed", t_id)
+                    logger.exception("Background work item %s failed", w_id)
                     try:
                         kernel.emit_event(
-                            EVENT_BG_TASK_COMPLETED,
-                            AGGREGATE_BACKGROUND_TASK,
-                            f"bg_{t_id}",
-                            payload={
-                                "task_id": t_id,
-                                "status": "failed",
-                                "progress": 0.0,
-                                "error": "dispatch_failed",
-                            },
+                            EVENT_WORK_ITEM_STATUS_CHANGED,
+                            AGGREGATE_WORK_ITEM,
+                            w_id,
+                            payload={"status": "failed"},
                             actor="background",
                         )
                     except Exception:
                         logger.exception(
-                            "Failed to mark background task %s as failed", t_id
+                            "Failed to mark background work item %s as failed", w_id
                         )
 
-            self._spawn_background_task(_dispatch_bg(task_id, plan_json))
+            self._spawn_background_task(_dispatch_bg(work_id))
 
     def _spawn_background_task(self, coro: Coroutine[Any, Any, None]) -> None:
         """Create a tracked fire-and-forget task.

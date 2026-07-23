@@ -6,8 +6,6 @@ without schema changes or projector edits:
 
   - goals / approvals / conversations / memories / user_profile: at least one
     event_log row for (aggregate_type, aggregate_id)
-  - background_tasks: event_log row for aggregate background_task with
-    aggregate_id equal to task id or bg_<task_id>
   - handler_executions: ExecutionRequested exists for the row id; when event_id is
     non-empty, (event_id, event_seq) must match an event_log row (trigger event)
   - messages / inbox_emails: typed event linkage as below
@@ -32,13 +30,11 @@ prepare_script_env()
 
 from app.core.runtime.kernel.constants import (  # noqa: E402
     AGGREGATE_APPROVAL,
-    AGGREGATE_BACKGROUND_TASK,
     AGGREGATE_CONVERSATION,
     AGGREGATE_EXECUTION,
     AGGREGATE_INBOX_EMAIL,
     AGGREGATE_MEMORY,
     AGGREGATE_WORK_ITEM,
-    EVENT_BG_TASK_CREATED,
     EVENT_EXECUTION_REQUESTED,
     EVENT_INBOX_EMAIL_RECORDED,
 )
@@ -164,20 +160,25 @@ def check_provenance(conn: Any) -> list[Violation]:
                 ),
             )
 
-    for row in conn.execute("SELECT id, parent_goal_id as goal_id FROM work_items WHERE work_type = 'action'").fetchall():
-        action_id = row["id"]
-        goal_id = row["goal_id"] or ""
+    for row in conn.execute("SELECT id FROM work_items").fetchall():
+        work_id = row["id"]
         found = conn.execute(
             """SELECT 1 FROM event_log
                WHERE aggregate_type = ? AND aggregate_id = ?
                LIMIT 1""",
-            (AGGREGATE_WORK_ITEM, action_id),
+            (AGGREGATE_WORK_ITEM, work_id),
         ).fetchone()
         if not found:
             violations.append(
-                ("work_items", action_id,
+                ("work_items", work_id,
                  f"no event_log row for aggregate_type={'work_item'!r}"),
             )
+
+    for row in conn.execute(
+        "SELECT id, parent_goal_id as goal_id FROM work_items WHERE work_type = 'action'"
+    ).fetchall():
+        action_id = row["id"]
+        goal_id = row["goal_id"] or ""
         if goal_id:
             gf = conn.execute(
                 """SELECT 1 FROM event_log
@@ -219,25 +220,6 @@ def check_provenance(conn: Any) -> list[Violation]:
             violations.append(
                 ("inbox_emails", inbox_id,
                  f"no {EVENT_INBOX_EMAIL_RECORDED!r} event in event_log"),
-            )
-
-    # background_tasks — row id is task_id; event aggregate_id is usually bg_<task_id>.
-    for row in conn.execute("SELECT id FROM background_tasks").fetchall():
-        task_id = row["id"]
-        found = conn.execute(
-            """SELECT 1 FROM event_log
-               WHERE aggregate_type = ?
-                 AND (aggregate_id = ? OR aggregate_id = ?)
-               LIMIT 1""",
-            (AGGREGATE_BACKGROUND_TASK, task_id, f"bg_{task_id}"),
-        ).fetchone()
-        if not found:
-            violations.append(
-                (
-                    "background_tasks",
-                    task_id,
-                    f"no event_log row for aggregate_type={AGGREGATE_BACKGROUND_TASK!r}",
-                ),
             )
 
     # user_profile — row id / category == event aggregate_id.
@@ -384,20 +366,7 @@ def bootstrap_sample_scenario(kernel: Any) -> None:
         caused_by=msg.id,
     )
 
-    # background_tasks + user_profile provenance (GOVERNED projections)
-    kernel.emit_event(
-        EVENT_BG_TASK_CREATED,
-        AGGREGATE_BACKGROUND_TASK,
-        "bg_prov_bg_1",
-        payload={
-            "task_id": "prov_bg_1",
-            "user_request": "provenance background task",
-            "plan_json": None,
-            "status": "pending",
-            "progress": 0.0,
-        },
-        actor="verify",
-    )
+    # user_profile provenance (GOVERNED projection)
     kernel.emit_event(
         "UserProfileUpdated",
         AGGREGATE_USER_PROFILE,
@@ -448,7 +417,7 @@ def main(argv: list[str] | None = None) -> int:
 
     print(
         "PROJECTION PROVENANCE OK — work_items, approvals, handler_executions, "
-        "conversations, messages, memories, inbox_emails, background_tasks, "
+        "conversations, messages, memories, inbox_emails, "
         "user_profile traceable to event_log"
     )
     return 0

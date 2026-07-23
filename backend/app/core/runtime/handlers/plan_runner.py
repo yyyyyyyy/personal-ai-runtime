@@ -1,4 +1,4 @@
-"""Shared plan-step runner for Execute / BackgroundTask handlers."""
+"""Shared plan-step runner for ExecuteRequested handlers."""
 
 from __future__ import annotations
 

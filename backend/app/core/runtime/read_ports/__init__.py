@@ -91,15 +91,12 @@ from app.core.runtime.read_ports.telemetry import (
     summarize_tool_calls,
 )
 from app.core.runtime.read_ports.timers import (
-    cancel_background_task,
     count_active_policies,
     count_active_timers,
     count_state_selectors,
     list_trigger_reactions,
     query_active_policies,
     query_active_timers,
-    query_background_task,
-    query_background_tasks,
     query_due_timers,
     query_timer,
     register_trigger_reaction,
@@ -107,6 +104,7 @@ from app.core.runtime.read_ports.timers import (
 )
 from app.core.runtime.read_ports.work import (
     bump_parent_activity,
+    cancel_background_work_item,
     count_active_goals,
     count_completed_goals,
     count_goals,
@@ -118,6 +116,8 @@ from app.core.runtime.read_ports.work import (
     list_work_items,
     notify_goal_action_completed,
     query_active_goals,
+    query_background_work_item,
+    query_background_work_items,
     query_completed_goals,
     query_goal,
     query_goal_actions,
@@ -134,6 +134,7 @@ from app.core.runtime.read_ports.work import (
     request_work_item_execute,
     update_work_item_fields,
     update_work_item_status,
+    work_item_as_background_task,
 )
 
 __all__ = [
@@ -211,9 +212,10 @@ __all__ = [
     "get_mcp_server_status",
     "get_mcp_server_tools",
     "test_mcp_connection",
-    "query_background_task",
-    "query_background_tasks",
-    "cancel_background_task",
+    "query_background_work_item",
+    "query_background_work_items",
+    "cancel_background_work_item",
+    "work_item_as_background_task",
     "query_active_timers",
     "count_active_timers",
     "query_timer",

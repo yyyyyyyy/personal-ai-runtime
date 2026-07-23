@@ -583,25 +583,27 @@ class Scheduler:
                 task.cancel()
         return found
 
-    def cancel_background_task_executions(self, task_id: str) -> int:
-        """Cancel pending/in-flight handlers whose event payload matches task_id."""
-        if not task_id:
+    def cancel_executions_for(self, action_id: str) -> int:
+        """Cancel pending/in-flight ExecuteRequested handlers for ``action_id``."""
+        if not action_id:
             return 0
         targets: list[str] = []
         for item in self._pending:
             event = getattr(item, "_event", None)
             if (
                 event is not None
-                and getattr(event, "type", None) == "BackgroundTaskRequested"
-                and (getattr(event, "payload", None) or {}).get("task_id") == task_id
+                and getattr(event, "type", None) == "ExecuteRequested"
+                and (getattr(event, "payload", None) or {}).get("action_id")
+                == action_id
             ):
                 targets.append(item.id)
         for item, _task in self._active.values():
             event = getattr(item, "_event", None)
             if (
                 event is not None
-                and getattr(event, "type", None) == "BackgroundTaskRequested"
-                and (getattr(event, "payload", None) or {}).get("task_id") == task_id
+                and getattr(event, "type", None) == "ExecuteRequested"
+                and (getattr(event, "payload", None) or {}).get("action_id")
+                == action_id
             ):
                 targets.append(item.id)
         return sum(1 for eid in targets if self.request_cancel(eid))

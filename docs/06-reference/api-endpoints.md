@@ -51,11 +51,14 @@
 
 ## background_tasks — `/api/tasks/background`（[`api/background_tasks.py`](../../backend/app/api/background_tasks.py)）
 
-| 方法 | 路径 | 行 | 请求 | 响应 | 副作用 |
-|---|---|---|---|---|---|
-| POST | `/` | `11-19` | `CreateBackgroundTaskRequest{user_request, plan?}` | task dict / 400 | background_worker 创建 |
-| GET | `/` | `22-24` | query `limit=50` | list | 无 |
-| GET | `/{task_id}` | `27-32` | path | task / 404 | 无 |
+兼容 shim：创建/列表/取消均映射到 `work_items(work_type=background)`（INV-W5）。
+
+| 方法 | 路径 | 请求 | 响应 | 副作用 |
+|---|---|---|---|---|
+| POST | `/` | `CreateBackgroundTaskRequest{user_request, plan?}` | task dict / 400 | `WorkItemCreated(work_type=background)` |
+| GET | `/` | query `limit=50` | list | 无 |
+| GET | `/{task_id}` | path | task / 404 | 无 |
+| POST | `/{task_id}/cancel` | path | task / 404 / 409 | `WorkItemStatusChanged(cancelled)` + cooperative cancel |
 
 ## approvals — `/api/approvals`（[`api/approvals.py`](../../backend/app/api/approvals.py)）
 

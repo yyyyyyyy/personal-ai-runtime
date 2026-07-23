@@ -96,7 +96,8 @@ def test_background_task_dispatch_does_not_block_maintenance(kernel, monkeypatch
     real_emit = kernel.emit_event
 
     def patched_emit(type, agt, agid, payload=None, actor="system", **kw):
-        if agt == "background_task":
+        # Avoid side effects during status/progress stamps in the dispatch path.
+        if type in ("WorkItemStatusChanged", "WorkItemUpdated"):
             return None
         return real_emit(type, agt, agid, payload=payload, actor=actor, **kw)
 
@@ -113,8 +114,13 @@ def test_background_task_dispatch_does_not_block_maintenance(kernel, monkeypatch
     monkeypatch.setattr(rl_mod, "kernel", kernel)
     monkeypatch.setattr("app.core.runtime.kernel_instance.kernel", kernel)
     monkeypatch.setattr(
-        "app.core.runtime.read_ports.query_background_tasks",
-        lambda **kw: [{"id": "bg1", "plan_json": "{}"}],
+        "app.core.runtime.read_ports.query_work_items",
+        lambda **kw: [{
+            "id": "bg1",
+            "work_type": "background",
+            "executable_plan": "{}",
+            "status": "pending",
+        }],
     )
     monkeypatch.setattr(
         "app.core.runtime.agent_scheduler.ensure_scheduler", mock_ensure,

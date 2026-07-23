@@ -146,17 +146,6 @@ frozenset({"id", "capability", "risk_level", "status", "created_at", "updated_at
 
 Governed 投影，分别由 `CapabilityInvoked/Failed/Denied` 与 `LLMCallRecorded` 事件驱动。
 
-### `background_tasks`
-
-```python
-frozenset({
-    "id", "user_request", "plan_json", "status", "progress",
-    "created_at", "completed_at",
-})
-```
-
-由 [`projectors_execution.py`](../../backend/app/core/runtime/kernel/projectors_execution.py) 从 `BackgroundTask*` 事件投影。WORK 领域 subtype 物化；与 `work_items` 分表是 INV-W5 待收敛项，不是 APP_STORAGE。
-
 ### `user_profile`
 
 ```python

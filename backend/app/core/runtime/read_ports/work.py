@@ -368,6 +368,102 @@ def notify_goal_action_completed(
 
 _TERMINAL_EXECUTE_STATUSES = frozenset({"completed", "cancelled"})
 _BLOCKED_EXECUTE_STATUSES = frozenset({"running", "waiting_approval"})
+_TERMINAL_BACKGROUND_STATUSES = frozenset({"completed", "failed", "cancelled"})
+
+
+def work_item_as_background_task(row: dict[str, Any] | None) -> dict[str, Any] | None:
+    """Map a ``work_items`` row to the legacy background-task response shape."""
+    if row is None:
+        return None
+    return {
+        "id": row["id"],
+        "user_request": row.get("title") or "",
+        "plan_json": row.get("executable_plan"),
+        "status": row.get("status") or "pending",
+        "progress": float(row.get("progress") or 0),
+        "created_at": row.get("created_at"),
+        "completed_at": row.get("completed_at"),
+    }
+
+
+def query_background_work_item(item_id: str) -> dict[str, Any] | None:
+    """Fetch a background work item as a legacy background-task dict."""
+    row = query_work_item(item_id)
+    if row is None or row.get("work_type") != "background":
+        return None
+    return work_item_as_background_task(row)
+
+
+def query_background_work_items(
+    *,
+    status: str | None = None,
+    limit: int = 50,
+    order: str | None = None,
+) -> list[dict[str, Any]]:
+    """List background work items in the legacy background-task response shape."""
+    filters: dict[str, Any] = {
+        "work_type": "background",
+        "limit": limit,
+    }
+    if status:
+        filters["status"] = status
+    if order:
+        filters["order"] = order
+    return [
+        mapped
+        for row in query_work_items(**filters)
+        if (mapped := work_item_as_background_task(row)) is not None
+    ]
+
+
+def cancel_background_work_item(item_id: str) -> dict[str, Any]:
+    """Cancel a non-terminal background work item (Ports command ABI).
+
+    Sets the cooperative cancel flag for ``exec_{item_id}``, cancels matching
+    Lane A ``ExecuteRequested`` handlers when the Scheduler is alive, clears
+    plan resumes, and emits ``WorkItemStatusChanged(cancelled)``.
+    """
+    from app.core.runtime.execution import request_cancel_execution
+    from app.core.runtime.kernel.constants import (
+        AGGREGATE_WORK_ITEM,
+        EVENT_WORK_ITEM_STATUS_CHANGED,
+    )
+    from app.core.runtime.plan_resume import clear_plan_resumes_for_work_item
+
+    item = query_work_item(item_id)
+    if item is None or item.get("work_type") != "background":
+        raise KeyError(item_id)
+
+    status = item.get("status") or ""
+    if status in _TERMINAL_BACKGROUND_STATUSES:
+        raise ValueError(f"Task already terminal ({status})")
+
+    exec_id = f"exec_{item_id}"
+    request_cancel_execution(exec_id)
+
+    try:
+        from app.core.runtime.agent_scheduler import get_scheduler
+        from app.core.runtime.runtime_container import runtime
+
+        if runtime._scheduler is not None:
+            get_scheduler(kernel()).cancel_executions_for(item_id)
+    except Exception:
+        logger.debug("Scheduler cancel for background work item skipped", exc_info=True)
+
+    clear_plan_resumes_for_work_item(item_id, kernel=kernel())
+
+    kernel().emit_event(
+        EVENT_WORK_ITEM_STATUS_CHANGED,
+        AGGREGATE_WORK_ITEM,
+        item_id,
+        payload={"status": "cancelled"},
+        actor="user",
+    )
+
+    updated = query_background_work_item(item_id)
+    if updated is None:
+        raise RuntimeError("Task missing after cancel")
+    return updated
 
 
 def request_work_item_execute(item_id: str) -> dict[str, Any]:

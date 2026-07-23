@@ -96,7 +96,7 @@ TRANSPORT  — 瞬时推送通道（不入 event_log、容许丢失）
 
 领域 Work 与调度 Work 同属 WORK 原语的两个 subtype：前者是用户可见的业务对象，后者是运行时执行记录。二者不可合并到同一张表（会把 progress/importance 与 retry_count/policy_json 混杂），也不可拆成两个原语（都会引入平行生命周期叙事）。
 
-**统一要求**：后台异步任务应表达为 WORK（领域 subtype），而不是平行的第二套任务表。`background_tasks` 已是 GOVERNED 投影（`BackgroundTask*` → projector），属 WORK 的领域 subtype 物化；与 `work_items` 分表是待收敛的存储缺口（INV-W5），不是第二套原语，也不是 APP_STORAGE。
+**统一要求**：后台异步任务应表达为 WORK（领域 subtype），而不是平行的第二套任务表。`work_items(work_type=background)` 是唯一物化；RuntimeLoop 经 `ExecuteRequested` 自动派发。INV-W5 已收敛。
 
 **不变量**：
 
@@ -174,7 +174,7 @@ TRANSPORT  — 瞬时推送通道（不入 event_log、容许丢失）
 | Task | `WorkItemCreated(work_type=task) → work_items` | 统一到领域 Work |
 | Action | `WorkItemCreated(work_type=action) → work_items` | 统一到领域 Work |
 | ScheduledExecution | `Work` 的调度 subtype | `handler_executions` |
-| BackgroundTask | `Work` 的领域 subtype | GOVERNED `background_tasks` 投影；与 `work_items` 分表待收敛（INV-W5） |
+| Background | `Work` 的领域 subtype | `work_items(work_type=background)`；经 `ExecuteRequested` 执行（INV-W5 已收敛） |
 | Memory | `State(memories) + recall Capability` + `Event(Memory*)` | 认知语义保留独立事件类型 |
 | Approval | `Capability.gate` + `State(approvals)` | — |
 | Notification | `Event(NotificationCreated)` + Transport 投递 | — |

@@ -246,10 +246,9 @@ def test_plan_resume_survives_process_restart(tmp_path):
     register_plan_resume(
         "apr_dur",
         PlanResume(
-            kind="background",
+            kind="execute",
             resume_from=2,
-            task_id="bg_1",
-            plan_json='{"steps":[]}',
+            action_id="bg_1",
             previous_output={"step_0_output": "x"},
         ),
     )
@@ -259,9 +258,9 @@ def test_plan_resume_survives_process_restart(tmp_path):
     configure_plan_resume_db(db2)
     got = peek_plan_resume("apr_dur")
     assert got is not None
-    assert got.kind == "background"
+    assert got.kind == "execute"
     assert got.resume_from == 2
-    assert got.task_id == "bg_1"
+    assert got.action_id == "bg_1"
     assert got.previous_output == {"step_0_output": "x"}
     assert take_plan_resume("apr_dur") is not None
     assert peek_plan_resume("apr_dur") is None

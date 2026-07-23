@@ -48,11 +48,6 @@ EVENT_APPROVE_COMPLETED = "ApproveCompleted"
 EVENT_EXECUTE_REQUESTED = "ExecuteRequested"
 EVENT_EXECUTE_COMPLETED = "ExecuteCompleted"
 
-EVENT_BG_TASK_REQUESTED = "BackgroundTaskRequested"
-EVENT_BG_TASK_COMPLETED = "BackgroundTaskCompleted"  # also covers failed (status="failed")
-EVENT_BG_TASK_CREATED = "BackgroundTaskCreated"
-EVENT_BG_TASK_STATUS_CHANGED = "BackgroundTaskStatusChanged"
-
 EVENT_INBOX_POLL_REQUESTED = "InboxPollRequested"
 EVENT_INBOX_POLL_COMPLETED = "InboxPollCompleted"
 EVENT_INBOX_EMAIL_RECORDED = "InboxEmailRecorded"
@@ -105,7 +100,6 @@ AGGREGATE_EXECUTION = "execution"
 AGGREGATE_TIMER = "timer"
 AGGREGATE_POLICY = "policy"
 AGGREGATE_GRANT = "grant"
-AGGREGATE_BACKGROUND_TASK = "background_task"
 AGGREGATE_INBOX_EMAIL = "inbox_email"
 
 # ── Timer aggregate ─────────────────────────────────────────────────────────

@@ -72,13 +72,6 @@ GOVERNED_SCHEMA: dict[str, frozenset[str]] = {
         "id", "provider", "model", "prompt_tokens", "completion_tokens",
         "latency_ms", "cost", "success", "error_message", "purpose", "created_at",
     }),
-    # Derived solely from BackgroundTask* events via projectors_execution.py.
-    # Work subtype projection (separate table from work_items; INV-W5 may later
-    # unify into domain Work).
-    "background_tasks": frozenset({
-        "id", "user_request", "plan_json", "status", "progress",
-        "created_at", "completed_at",
-    }),
     # Derived solely from UserProfileUpdated events via projectors_core.py.
     "user_profile": frozenset({
         "id", "category", "data_json", "confidence", "created_at", "updated_at",

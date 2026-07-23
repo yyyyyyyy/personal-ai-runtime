@@ -20,7 +20,7 @@ from app.store.database import Database
 
 def test_declared_event_types_match_constants_count():
     types = declared_event_types()
-    assert len(types) == 50
+    assert len(types) == 46
     assert EVENT_WORK_ITEM_CREATED in types
     assert "schema_version" not in types
 

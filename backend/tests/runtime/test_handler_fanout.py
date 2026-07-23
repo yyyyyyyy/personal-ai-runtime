@@ -13,11 +13,10 @@ def _reregister_handlers() -> None:
     import app.core.agents.handlers.chat_handler as ch
     import app.core.agents.handlers.timer_trigger_handler as th
     import app.core.runtime.handlers.approve_handlers as ap
-    import app.core.runtime.handlers.background_task_handlers as bg
     import app.core.runtime.handlers.execute_handlers as ex
     import app.core.runtime.handlers.inbox_poll_handlers as inbox
 
-    for mod in (ch, cch, ap, ex, bg, inbox, th):
+    for mod in (ch, cch, ap, ex, inbox, th):
         importlib.reload(mod)
 
 

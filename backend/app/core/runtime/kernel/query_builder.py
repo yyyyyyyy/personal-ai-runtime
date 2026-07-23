@@ -763,35 +763,6 @@ def query_policy_events(db, filters: dict[str, Any]) -> list[dict] | int:
         ).fetchall()
     return [dict(r) for r in rows]
 
-def query_background_tasks(db, filters: dict[str, Any]) -> list[dict]:
-    task_id = filters.get("id")
-    status = filters.get("status")
-    limit = filters.get("limit", 50)
-    order = filters.get("order", "created_at_desc")
-
-    order_clause = "created_at DESC" if order == "created_at_desc" else "created_at ASC"
-
-    with db.get_db() as conn:
-        if task_id:
-            row = conn.execute(
-                "SELECT * FROM background_tasks WHERE id = ?", (task_id,)
-            ).fetchone()
-            return [dict(row)] if row else []
-
-        clauses: list[str] = []
-        params: list[Any] = []
-        if status is not None:
-            clauses.append("status = ?")
-            params.append(status)
-
-        where = f" WHERE {' AND '.join(clauses)}" if clauses else ""
-        params.append(limit)
-        rows = conn.execute(
-            f"SELECT * FROM background_tasks{where} ORDER BY {order_clause} LIMIT ?",
-            params,
-        ).fetchall()
-    return [dict(r) for r in rows]
-
 def query_user_profile(db, filters: dict[str, Any]) -> list[dict]:
     category = filters.get("id")
     # ``limit`` is optional: omit for a full category listing (small table).
