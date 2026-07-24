@@ -128,10 +128,7 @@ export function useApprovalFlow(conversationId: string) {
   );
 
   const deny = useCallback(
-    async (
-      setMessages: SetMessages,
-      onError?: (msg: string, source: string) => void,
-    ) => {
+    async (setMessages: SetMessages, onError?: (msg: string, source: string) => void) => {
       if (!pendingConfirmation) return;
       const pc = pendingConfirmation;
       setPendingConfirmation(null);
@@ -199,13 +196,7 @@ export function useApprovalFlow(conversationId: string) {
         )
           .then((res) => {
             if (setMessages) {
-              applyResolveToMessages(
-                setMessages,
-                assistantMsgId,
-                toolName,
-                toolCallId,
-                res,
-              );
+              applyResolveToMessages(setMessages, assistantMsgId, toolName, toolCallId, res);
             }
           })
           .catch((err) => {

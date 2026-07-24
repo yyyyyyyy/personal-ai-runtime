@@ -88,14 +88,7 @@ export default function ApprovalsPage() {
       if (canContinue) {
         // P3: 对话来源 — 走 chat resolve，触发 one-shot 续写后跳转对话
         const args = parseParams(item.params) || {};
-        await resolveApproval(
-          item.id,
-          "approve",
-          item.action || "",
-          args,
-          convId,
-          toolCallId,
-        );
+        await resolveApproval(item.id, "approve", item.action || "", args, convId, toolCallId);
         invalidateApprovals();
         navigate(`/chat/${convId}`);
         return;

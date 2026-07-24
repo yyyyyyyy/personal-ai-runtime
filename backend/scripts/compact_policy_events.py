@@ -180,11 +180,11 @@ def plan_compaction(raw: list[dict]) -> tuple[list[dict], dict]:
         if row["type"] in _POLICY_TYPES:
             if agg in skip_aggs:
                 continue
-            syn = replacement_at.get(seq)
-            if syn is None:
+            syn_rows = replacement_at.get(seq)
+            if syn_rows is None:
                 skip_aggs.add(agg)
                 continue
-            for s in syn:
+            for s in syn_rows:
                 s = dict(s)
                 s["seq"] = next_seq
                 next_seq += 1
