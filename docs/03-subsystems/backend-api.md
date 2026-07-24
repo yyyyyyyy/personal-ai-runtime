@@ -12,7 +12,7 @@
 
 ```
 chat, dashboard, system, settings_api, memory, notifications,
-telemetry_api, approvals, background_tasks, triggers, inbox,
+telemetry_api, approvals, background_tasks(兼容,见下), triggers, inbox,
 connectors, timeline, knowledge, work_items
 ```
 
@@ -53,7 +53,7 @@ connectors, timeline, knowledge, work_items
 | chat | `/api/chat` | 会话 CRUD、`POST /conversations/{id}/messages`（**SSE**）、`POST /chat/approvals/{id}/resolve` | Kernel 事件 + LLM + 工具执行 |
 | memory | `/api/memory` | memories CRUD、search、ratify/reject/contest、portrait、graph | Kernel 事件 + Chroma |
 | work_items | `/api/work-items` | 统一 goal/task/action CRUD、`include=`、`decompose` | Kernel 事件 + LLM |
-| background_tasks | `/api/tasks/background` | 后台任务（shim → `work_items(work_type=background)`） | Kernel `WorkItem*` 事件 |
+| background_tasks | `/api/tasks/background` | **已弃用（INV-W5）**，仅为兼容旧前端保留；后台任务底层栈已删除，请直连 `GET /api/work-items?work_type=background` 与 `POST /api/work-items/{id}/execute` | Kernel `WorkItem*` 事件 |
 | approvals | `/api/approvals` | 列表、`/{id}/approve`、`/{id}/reject` | `submit_command("ApproveRequested")` + 工具执行 |
 | inbox | `/api/inbox` | 列表、`/poll`（IMAP）、`/digest`、状态更新 | 网络出口 + Kernel 事件 |
 | triggers | `/api/triggers` | CRUD、`/evaluate` | Kernel 事件 |

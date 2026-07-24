@@ -45,6 +45,7 @@
 | INV-C3 | 授权走 3-gate：forbidden → pre-approved → risk assessment | Strong |
 | INV-C4 | 每次调用产生可审计 Capability* 事件 | Strong |
 | INV-C5 | 外部摄入类工具污染当前 correlation（taint），后续高风险写入受约束 | Medium |
+| INV-C6 | Policy 注册幂等：同 capability 在 active 且 risk 未变时不得重复 emit；MCP mesh stop/start 不得 revoke+recreate（`clear_external_tools` 默认不持久化） | Strong |
 
 ---
 

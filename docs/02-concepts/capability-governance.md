@@ -63,7 +63,7 @@ flowchart TB
 
    > **权威性**：`policy_events` 是 3-gate 治理查询的唯一事实来源；`ToolDef.requires_confirmation`（[`mcp_hub.py`](../../backend/app/core/harness/mcp_hub.py)）仅是缺少策略行时的兜底默认。两者一致性由 [`scripts/check_capability_policy_consistency.py`](../../backend/scripts/check_capability_policy_consistency.py) 在 CI 中强制。
 
-2. **外部 MCP 工具** — `register_external_tool(name, risk)` 在工具发现时发出 `PolicyCreated`/`Updated`；`clear_external_tools()` 发出 `PolicyRevoked`。MCP 工具的默认风险由 [`backend/mcp_config.json`](../../backend/mcp_config.json) 的 `policy_default` 字段决定。
+2. **外部 MCP 工具** — `register_external_tool(name, risk)` 在工具发现时幂等 upsert（INV-C6：同 capability 同 risk 不重复 emit）；`clear_external_tools()` **默认只清内存**（进程生命周期，不写 Event），避免 MCP stop/start 洪水式 `PolicyUpdated(revoked)`+`PolicyCreated`。真正撤销用 `clear_external_tools(persist=True)` 或 `revoke_external_tools(names)`。MCP 默认风险由 [`backend/mcp_config.json`](../../backend/mcp_config.json) 的 `policy_default` 决定。
 
 风险查询结果按 `(name, mcp_default_high)` 缓存，任何策略变更事件失效重算。
 

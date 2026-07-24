@@ -51,7 +51,7 @@
 
 ## background_tasks — `/api/tasks/background`（[`api/background_tasks.py`](../../backend/app/api/background_tasks.py)）
 
-兼容 shim：创建/列表/取消均映射到 `work_items(work_type=background)`（INV-W5）。
+**已弃用（INV-W5）**：后台任务底层栈（handlers / projectors / DB 表）已删除；此 router 仅保留 HTTP 兼容层，内部直接 emit `WorkItemCreated(work_type=background)` 并经 `read_ports` 查询 `work_items`。新前端请改用 `POST /api/work-items`（`work_type=background`）+ `POST /api/work-items/{id}/execute`。
 
 | 方法 | 路径 | 请求 | 响应 | 副作用 |
 |---|---|---|---|---|

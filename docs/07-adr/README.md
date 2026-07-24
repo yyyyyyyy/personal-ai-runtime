@@ -10,3 +10,4 @@
 | [ADR-R012](ADR-R012-god-subsystem-budgets.md) | God façade 与子系统 LOC 分项预算（G2） |
 | [ADR-R013](ADR-R013-knowledge-path-b.md) | Knowledge 保持 Path B（核实后决策门） |
 | [ADR-R014](ADR-R014-handler-executions-soft-prune.md) | handler_executions 终端态 soft-prune（维护特权） |
+| [ADR-R015](ADR-R015-policy-register-idempotent.md) | Policy 注册幂等：MCP stop/start 不 revoke+recreate |
