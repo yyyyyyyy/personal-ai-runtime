@@ -237,6 +237,21 @@ def test_default_cwd_is_project_root():
     assert str(Path(BASE_DIR).resolve()) in result["output"] or result["exit_code"] == 0
 
 
+@pytest.mark.skipif(not sys.platform.startswith("win"), reason="Windows command mapping")
+def test_windows_python3_alias_uses_current_interpreter(tmp_path, monkeypatch):
+    monkeypatch.setattr(
+        "app.core.harness.builtin_tools.shell.settings.shell_allowed_cwd",
+        str(tmp_path),
+    )
+    script = tmp_path / "probe.py"
+    script.write_text("print('ok')\n", encoding="utf-8")
+
+    result = json.loads(ShellServer().execute(f"python3 {script.name}", cwd=str(tmp_path)))
+
+    assert result["exit_code"] == 0
+    assert result["output"].strip() == "ok"
+
+
 def test_find_exec_blocked():
     """find -exec must not bypass the command whitelist (``+`` form needs no ``;``)."""
     err = _error(shell_server.execute("find . -exec echo pwned {} +"))

@@ -5,8 +5,8 @@ and ``from app.core.harness import mcp_builtin_registration as reg`` keep workin
 """
 
 from app.core.harness.builtin_registration import (  # noqa: F401
-    BuiltinToolSpec,
     _CATEGORY_BUILDERS,
+    BuiltinToolSpec,
     _calendar_specs,
     _clipboard_ocr_specs,
     _computer_use_specs,

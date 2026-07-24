@@ -5,6 +5,7 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
+
 @pytest.mark.asyncio
 async def test_push_notification_broadcasts(tmp_path, monkeypatch):
     monkeypatch.setenv("LLM_API_KEY", "test-key")
@@ -60,14 +61,15 @@ async def test_broadcast_event_async_path_awaits():
     seen: list[dict] = []
     nb.set_broadcast_handler(AsyncMock(side_effect=seen.append))
     try:
-        nb.broadcast_event({"type": "memory_changed", "memory_id": "m1"})
-        # Let the loop run the fire-and-forget task to completion.
-        await __import__("asyncio").sleep(0.05)
+        task = nb.broadcast_event({"type": "memory_changed", "memory_id": "m1"})
+        assert task is not None
+        await task
+        await asyncio.sleep(0)
     finally:
         nb.set_broadcast_handler(None)
     assert any(e.get("type") == "memory_changed" for e in seen)
-    # Strong-reference set must be cleaned up once tasks finish.
-    assert all(t.done() for t in nb._PENDING_BROADCASTS)
+    # The task created for this event must be discarded after completion.
+    assert task not in nb._PENDING_BROADCASTS
 
 
 def test_broadcast_event_sync_path_runs_to_completion(tmp_path, monkeypatch):

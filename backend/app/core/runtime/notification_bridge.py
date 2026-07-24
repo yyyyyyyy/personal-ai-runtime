@@ -204,7 +204,7 @@ def push_notification(
     return payload
 
 
-def broadcast_event(event: dict) -> None:
+def broadcast_event(event: dict) -> asyncio.Task[None] | None:
     """Broadcast an arbitrary event payload to WebSocket clients.
 
     Pure transport — does NOT persist any row. See module docstring for the
@@ -219,7 +219,7 @@ def broadcast_event(event: dict) -> None:
         task = loop.create_task(_broadcast(event))
         _PENDING_BROADCASTS.add(task)
         task.add_done_callback(_PENDING_BROADCASTS.discard)
-        return
+        return task
 
     bound = _broadcast_loop
     if bound is not None and bound.is_running():
@@ -232,7 +232,7 @@ def broadcast_event(event: dict) -> None:
                 event.get("type"),
                 exc_info=True,
             )
-        return
+        return None
 
     try:
         asyncio.run(_broadcast(event))
@@ -242,6 +242,7 @@ def broadcast_event(event: dict) -> None:
             event.get("type"),
             exc_info=True,
         )
+    return None
 
 
 async def _broadcast(event: dict) -> None:

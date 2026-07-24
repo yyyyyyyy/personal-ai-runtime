@@ -34,6 +34,9 @@ def _is_blocked_ip(addr: ipaddress.IPv4Address | ipaddress.IPv6Address) -> bool:
     IPv4-mapped IPv6 (``::ffff:x.x.x.x``) is checked via the embedded IPv4
     address as well — some platforms report misleading flags on the mapped form.
     """
+    mapped = getattr(addr, "ipv4_mapped", None)
+    if mapped is not None:
+        return _is_blocked_ip(mapped)
     if (
         addr.is_private
         or addr.is_loopback
@@ -43,9 +46,6 @@ def _is_blocked_ip(addr: ipaddress.IPv4Address | ipaddress.IPv6Address) -> bool:
         or addr.is_unspecified
     ):
         return True
-    mapped = getattr(addr, "ipv4_mapped", None)
-    if mapped is not None:
-        return _is_blocked_ip(mapped)
     return False
 
 

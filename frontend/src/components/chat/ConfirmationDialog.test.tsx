@@ -20,9 +20,7 @@ describe("ConfirmationDialog", () => {
     // Human-readable label
     expect(screen.getByText(/确认写入文件/)).toBeInTheDocument();
     // C2 / ADR-R011: durable tool-loop not promised across restart
-    expect(
-      screen.getByText(/完整多步工具循环不会在服务重启后自动恢复/),
-    ).toBeInTheDocument();
+    expect(screen.getByText(/完整多步工具循环不会在服务重启后自动恢复/)).toBeInTheDocument();
     // Argument details are expandable — expand them
     const summary = screen.getByText("查看详细参数");
     fireEvent.click(summary);

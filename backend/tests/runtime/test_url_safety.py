@@ -81,8 +81,9 @@ def test_pin_url_to_ipv6_loopback_rejected_by_resolver():
 
 def test_ipv4_mapped_loopback_and_link_local_blocked():
     """IPv4-mapped IPv6 must honor the embedded IPv4 block rules."""
-    from app.core.harness.url_safety import _is_blocked_ip, _resolve_and_check
     import ipaddress
+
+    from app.core.harness.url_safety import _is_blocked_ip, _resolve_and_check
 
     assert _is_blocked_ip(ipaddress.ip_address("::ffff:127.0.0.1"))
     assert _is_blocked_ip(ipaddress.ip_address("::ffff:169.254.169.254"))

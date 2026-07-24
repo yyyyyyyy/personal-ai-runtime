@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import re
 import shlex
 import subprocess
@@ -268,6 +269,23 @@ class ShellServer:
                     return f"Blocked URL in command: {exc}"
         return None
 
+    @staticmethod
+    def _platform_argv(argv: list[str]) -> list[str]:
+        """Map portable whitelisted commands to Windows executables.
+
+        The public shell ABI accepts common POSIX command names.  ``pwd`` is a
+        cmd.exe builtin and ``python3`` is commonly absent on Windows, so map
+        only these fixed, already-validated commands without invoking a shell
+        for user-provided input.
+        """
+        if not sys.platform.startswith("win"):
+            return argv
+        if argv[0] == "pwd":
+            return [os.environ.get("COMSPEC", "cmd.exe"), "/d", "/c", "cd"]
+        if argv[0] in {"python", "python3"}:
+            return [sys.executable, *argv[1:]]
+        return argv
+
     def execute(self, command: str, cwd: str = "", timeout_seconds: int = 30) -> str:
         """Execute whitelisted commands without invoking a shell.
 
@@ -315,6 +333,7 @@ class ShellServer:
         err = self._validate_argv(parsed)
         if err:
             return json.dumps({"error": err})
+        executable_argv = self._platform_argv(parsed)
 
         # Constrain cwd to the allowed directories; default to BASE_DIR when
         # unset so commands cannot run in an arbitrary location.
@@ -325,7 +344,7 @@ class ShellServer:
 
         try:
             result = subprocess.run(
-                parsed,
+                executable_argv,
                 shell=False,
                 capture_output=True,
                 text=True,
