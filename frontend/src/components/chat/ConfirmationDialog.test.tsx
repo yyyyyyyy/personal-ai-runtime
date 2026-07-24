@@ -21,6 +21,7 @@ describe("ConfirmationDialog", () => {
     expect(screen.getByText(/确认写入文件/)).toBeInTheDocument();
     // C2 / ADR-R011: durable tool-loop not promised across restart
     expect(screen.getByText(/完整多步工具循环不会在服务重启后自动恢复/)).toBeInTheDocument();
+    expect(screen.getByText(/确认后将执行工具并自动续写一次回复/)).toBeInTheDocument();
     // Argument details are expandable — expand them
     const summary = screen.getByText("查看详细参数");
     fireEvent.click(summary);

@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   Check,
   X,
@@ -10,8 +11,15 @@ import {
   Mail,
   Calendar,
   Send,
+  MessageSquare,
 } from "lucide-react";
-import { approveApproval, rejectApproval, ApiError, type EnrichedApproval } from "../api/client";
+import {
+  approveApproval,
+  rejectApproval,
+  resolveApproval,
+  ApiError,
+  type EnrichedApproval,
+} from "../api/client";
 import { useErrorStore } from "../stores/errorStore";
 import { useApprovalsQuery, useInvalidateApprovals } from "../hooks/useApprovalsQuery";
 import Button from "../components/ui/Button";
@@ -41,7 +49,17 @@ const FLOW_TONE: Record<string, "info" | "success" | "warning" | "default" | "da
   未知: "default",
 };
 
+function parseParams(params?: string): Record<string, unknown> | null {
+  try {
+    if (!params) return null;
+    return JSON.parse(params);
+  } catch {
+    return { raw: params };
+  }
+}
+
 export default function ApprovalsPage() {
+  const navigate = useNavigate();
   const {
     data: approvals = [],
     isLoading: loading,
@@ -60,18 +78,41 @@ export default function ApprovalsPage() {
     }
   }, [error, addError]);
 
-  const handleApprove = async (id: string) => {
-    setResolving((prev) => new Set(prev).add(id));
+  const handleApprove = async (item: EnrichedApproval) => {
+    setResolving((prev) => new Set(prev).add(item.id));
     try {
-      await approveApproval(id);
+      const convId = item.conversation_id || "";
+      const toolCallId = item.tool_call_id || "";
+      const canContinue = Boolean(convId && toolCallId && item.action);
+
+      if (canContinue) {
+        // P3: 对话来源 — 走 chat resolve，触发 one-shot 续写后跳转对话
+        const args = parseParams(item.params) || {};
+        await resolveApproval(
+          item.id,
+          "approve",
+          item.action || "",
+          args,
+          convId,
+          toolCallId,
+        );
+        invalidateApprovals();
+        navigate(`/chat/${convId}`);
+        return;
+      }
+
+      await approveApproval(item.id);
       invalidateApprovals();
+      if (convId) {
+        navigate(`/chat/${convId}`);
+      }
     } catch (err) {
       const msg = err instanceof ApiError ? err.message : "审批操作失败";
       addError(msg, "审批");
     } finally {
       setResolving((prev) => {
         const n = new Set(prev);
-        n.delete(id);
+        n.delete(item.id);
         return n;
       });
     }
@@ -113,20 +154,13 @@ export default function ApprovalsPage() {
     return ACTION_META[action || ""] || { label: action || "未知操作", icon: FileText };
   };
 
-  const parseParams = (params?: string) => {
-    try {
-      if (!params) return null;
-      return JSON.parse(params);
-    } catch {
-      return { raw: params };
-    }
-  };
-
   const paramsSummary = (params?: string) => {
     const p = parseParams(params);
     if (!p) return "—";
-    if (p.path) return p.path;
-    if (p.command) return p.command.length > 80 ? p.command.slice(0, 80) + "..." : p.command;
+    if (typeof p.path === "string") return p.path;
+    if (typeof p.command === "string") {
+      return p.command.length > 80 ? p.command.slice(0, 80) + "..." : p.command;
+    }
     return JSON.stringify(p).slice(0, 80);
   };
 
@@ -140,7 +174,7 @@ export default function ApprovalsPage() {
             <h2 className="text-2xl font-semibold text-gray-100">审批管理</h2>
             <p className="text-sm text-gray-500 mt-1">管理所有需要人工确认的高风险操作</p>
             <p className="text-xs text-gray-600 mt-1">
-              批准后执行工具并可能生成一次回复续写；完整多步工具循环不会在服务重启后自动恢复。
+              对话来源的审批可「批准并续写」：执行工具、生成一次回复续写并打开对话；完整多步工具循环不会在服务重启后自动恢复。
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -177,7 +211,7 @@ export default function ApprovalsPage() {
                 key={item.id}
                 item={item}
                 resolving={resolving.has(item.id)}
-                onApprove={() => handleApprove(item.id)}
+                onApprove={() => handleApprove(item)}
                 onReject={() => handleReject(item.id)}
                 getActionMeta={getActionMeta}
                 paramsSummary={paramsSummary}
@@ -219,16 +253,15 @@ function ApprovalCard({
   const isExpiringSoon = item.expires_at
     ? new Date(item.expires_at).getTime() - Date.now() < 3600000
     : false;
+  const canContinue = Boolean(item.conversation_id && item.tool_call_id);
 
   return (
     <Card className="p-4 hover:border-gray-700 transition-colors">
       <div className="flex items-start gap-4">
-        {/* 操作图标 */}
         <div className="w-10 h-10 rounded-lg bg-gray-800 flex items-center justify-center shrink-0 mt-0.5">
           <ActionIcon size={20} className="text-gray-400" />
         </div>
 
-        {/* 主内容区 */}
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap mb-1">
             <span className="text-sm font-medium text-gray-200">{meta.label}</span>
@@ -241,17 +274,14 @@ function ApprovalCard({
             )}
           </div>
 
-          {/* 流程来源 */}
           <div className="text-xs text-gray-400 mb-1">
             来源：<span className="text-gray-300">{item.flow_label || "—"}</span>
           </div>
 
-          {/* 参数 */}
           <div className="text-xs text-gray-500 font-mono bg-gray-950 rounded px-2 py-1 mt-1 mb-2 truncate max-w-full">
             {paramsSummary(item.params)}
           </div>
 
-          {/* 底部元信息 */}
           <div className="flex items-center gap-4 text-xs text-gray-600 flex-wrap">
             <span className="flex items-center gap-1">
               <Clock size={12} />
@@ -273,16 +303,15 @@ function ApprovalCard({
           </div>
         </div>
 
-        {/* 操作按钮 */}
         <div className="flex items-center gap-2 shrink-0 self-center">
           <button
             onClick={onApprove}
             disabled={resolving}
             className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm font-medium bg-emerald-600/20 text-emerald-400 hover:bg-emerald-600/40 disabled:opacity-50 transition-colors"
-            title="批准此操作"
+            title={canContinue ? "批准、续写回复并打开对话" : "批准此操作"}
           >
-            <Check size={14} />
-            批准
+            {canContinue ? <MessageSquare size={14} /> : <Check size={14} />}
+            {canContinue ? "批准并续写" : "批准"}
           </button>
           <button
             onClick={onReject}

@@ -122,7 +122,7 @@ export default function ConfirmationDialog({ toolCall, onConfirm, onDeny }: Prop
           )}
 
           <p className="text-xs text-gray-500 mb-2">
-            批准后将执行该工具并生成一次回复续写；完整多步工具循环不会在服务重启后自动恢复，必要时请新开一轮对话。
+            确认后将执行工具并自动续写一次回复；完整多步工具循环不会在服务重启后自动恢复，必要时请新开一轮对话。
           </p>
 
           {description && (

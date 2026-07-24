@@ -14,6 +14,8 @@ interface PendingConfirmation {
   assistantMsgId: string;
 }
 
+type SetMessages = React.Dispatch<React.SetStateAction<DisplayMessage[]>>;
+
 // Session-level trust key for localStorage so trust survives page refresh
 const TRUST_KEY_PREFIX = "par_trust_session_";
 
@@ -34,15 +36,46 @@ function _saveTrustedTools(convId: string, tools: Set<string>) {
   }
 }
 
+function applyResolveToMessages(
+  setMessages: SetMessages,
+  assistantMsgId: string,
+  toolName: string,
+  toolCallId: string,
+  res: { result?: string; assistant_message?: string },
+  options?: { denied?: boolean },
+) {
+  setMessages((prev) => {
+    const updated = prev.map((m) => {
+      if (m.id !== assistantMsgId) return m;
+      const existing = m.toolResults || [];
+      const content = options?.denied
+        ? JSON.stringify({ status: "denied", reason: "User denied the operation" })
+        : res.result;
+      return {
+        ...m,
+        isStreaming: false,
+        toolResults: content
+          ? [...existing, { tool_name: toolName, tool_call_id: toolCallId, content }]
+          : existing,
+      };
+    });
+    if (res.assistant_message) {
+      updated.push({
+        id: `assistant-followup-${Date.now()}`,
+        role: "assistant",
+        content: stripToolMarkup(res.assistant_message),
+        isStreaming: false,
+      });
+    }
+    return updated;
+  });
+}
+
 export function useApprovalFlow(conversationId: string) {
   const [pendingConfirmation, setPendingConfirmation] = useState<PendingConfirmation | null>(null);
-  // 会话级信任缓存：记录当前对话中被信任的工具名（持久化到 sessionStorage）
   const trustedToolsRef = useRef<Set<string>>(_loadTrustedTools(conversationId));
-  // 正在处理中的 approval_id 去重集合：防止并发重复提交
   const inflightApprovalsRef = useRef<Set<string>>(new Set());
 
-  // ChatPage 在会话切换时可能复用同一 ChatView 实例；必须按 conversationId 重载信任集，
-  // 否则 A 会话「本会话信任」会泄漏到 B，导致误自动批准。
   useEffect(() => {
     trustedToolsRef.current = _loadTrustedTools(conversationId);
     inflightApprovalsRef.current = new Set();
@@ -51,7 +84,7 @@ export function useApprovalFlow(conversationId: string) {
 
   const confirm = useCallback(
     async (
-      setMessages: React.Dispatch<React.SetStateAction<DisplayMessage[]>>,
+      setMessages: SetMessages,
       onError?: (msg: string, source: string) => void,
       trustSession?: boolean,
     ) => {
@@ -73,37 +106,13 @@ export function useApprovalFlow(conversationId: string) {
           conversationId,
           pc.toolCall.id,
         );
-        setMessages((prev) => {
-          const updated = prev.map((m) => {
-            if (m.id === pc.assistantMsgId) {
-              const existing = m.toolResults || [];
-              return {
-                ...m,
-                isStreaming: false,
-                toolResults: res.result
-                  ? [
-                      ...existing,
-                      {
-                        tool_name: pc.toolCall.function_name,
-                        tool_call_id: pc.toolCall.id,
-                        content: res.result,
-                      },
-                    ]
-                  : existing,
-              };
-            }
-            return m;
-          });
-          if (res.assistant_message) {
-            updated.push({
-              id: `assistant-followup-${Date.now()}`,
-              role: "assistant",
-              content: stripToolMarkup(res.assistant_message),
-              isStreaming: false,
-            });
-          }
-          return updated;
-        });
+        applyResolveToMessages(
+          setMessages,
+          pc.assistantMsgId,
+          pc.toolCall.function_name,
+          pc.toolCall.id,
+          res,
+        );
       } catch (err) {
         setPendingConfirmation(pc);
         const msg =
@@ -120,7 +129,7 @@ export function useApprovalFlow(conversationId: string) {
 
   const deny = useCallback(
     async (
-      setMessages: React.Dispatch<React.SetStateAction<DisplayMessage[]>>,
+      setMessages: SetMessages,
       onError?: (msg: string, source: string) => void,
     ) => {
       if (!pendingConfirmation) return;
@@ -136,38 +145,14 @@ export function useApprovalFlow(conversationId: string) {
           conversationId,
           pc.toolCall.id,
         );
-        setMessages((prev) => {
-          const updated = prev.map((m) => {
-            if (m.id === pc.assistantMsgId) {
-              const existing = m.toolResults || [];
-              return {
-                ...m,
-                isStreaming: false,
-                toolResults: [
-                  ...existing,
-                  {
-                    tool_name: pc.toolCall.function_name,
-                    tool_call_id: pc.toolCall.id,
-                    content: JSON.stringify({
-                      status: "denied",
-                      reason: "User denied the operation",
-                    }),
-                  },
-                ],
-              };
-            }
-            return m;
-          });
-          if (res.assistant_message) {
-            updated.push({
-              id: `assistant-followup-${Date.now()}`,
-              role: "assistant",
-              content: stripToolMarkup(res.assistant_message),
-              isStreaming: false,
-            });
-          }
-          return updated;
-        });
+        applyResolveToMessages(
+          setMessages,
+          pc.assistantMsgId,
+          pc.toolCall.function_name,
+          pc.toolCall.id,
+          res,
+          { denied: true },
+        );
       } catch (err) {
         setPendingConfirmation(pc);
         const msg =
@@ -191,29 +176,57 @@ export function useApprovalFlow(conversationId: string) {
         tool_args?: Record<string, unknown>;
         tool_call_id?: string;
       },
+      setMessages?: SetMessages,
     ) => {
       const toolName = event.tool_name || "";
       const approvalId = event.approval_id || "";
+      const toolCallId = event.tool_call_id || "";
 
-      // 会话级信任缓存：如果此工具已被信任，自动确认（不弹窗）
+      // 会话级信任：自动批准并写回 tool result + 续写（P3）
       if (toolName && trustedToolsRef.current.has(toolName) && approvalId) {
-        // 去重：同一个 approval_id 已在自动处理中，不再重复提交
         if (inflightApprovalsRef.current.has(approvalId)) {
           return;
         }
         inflightApprovalsRef.current.add(approvalId);
 
-        // 触发自动确认
         resolveApproval(
           approvalId,
           "approve",
           toolName,
           event.tool_args || {},
           conversationId,
-          event.tool_call_id || "",
+          toolCallId,
         )
-          .catch(() => {
-            // 自动确认失败则回退到手动（仅当 409 冲突时 backend 已拒绝，不再弹窗）
+          .then((res) => {
+            if (setMessages) {
+              applyResolveToMessages(
+                setMessages,
+                assistantMsgId,
+                toolName,
+                toolCallId,
+                res,
+              );
+            }
+          })
+          .catch((err) => {
+            // 409 = approval already resolved elsewhere (e.g. Approvals page
+            // or a duplicate event). Backend has already acted, so silence
+            // rather than surface a stale confirmation dialog the user
+            // cannot usefully act on. Other errors fall back to manual.
+            const status = err instanceof ApiError ? err.status : 0;
+            if (status === 409) {
+              return;
+            }
+            setPendingConfirmation({
+              toolCall: {
+                index: 0,
+                id: toolCallId,
+                function_name: toolName,
+                arguments: JSON.stringify(event.tool_args || {}),
+              },
+              approvalId,
+              assistantMsgId,
+            });
           })
           .finally(() => {
             inflightApprovalsRef.current.delete(approvalId);
@@ -224,11 +237,11 @@ export function useApprovalFlow(conversationId: string) {
       setPendingConfirmation({
         toolCall: {
           index: 0,
-          id: event.tool_call_id || "",
+          id: toolCallId,
           function_name: toolName,
           arguments: JSON.stringify(event.tool_args || {}),
         },
-        approvalId: approvalId,
+        approvalId,
         assistantMsgId,
       });
     },

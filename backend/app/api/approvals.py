@@ -48,6 +48,66 @@ def _label_flow(corr_id: str, task_id: str | None, task_map: dict[str, str]) -> 
     return corr_id or ""
 
 
+def _conversation_context_for_correlation(
+    kernel, corr_id: str, action: str | None,
+) -> tuple[str | None, str | None]:
+    """Resolve (conversation_id, tool_call_id) for a chat-originated approval.
+
+    Used so the Approvals page can call the chat resolve endpoint and trigger
+    one-shot continuation (ADR-R011 / P3).
+    """
+    if not corr_id or not corr_id.startswith("chat_"):
+        return None, None
+
+    chat_events = kernel.read_events(
+        correlation_id=corr_id,
+        aggregate_type="conversation",
+        limit=1,
+        order="asc",
+    )
+    if not chat_events:
+        return None, None
+    conv_id = chat_events[0].aggregate_id
+
+    tool_call_id: str | None = None
+    if action:
+        try:
+            messages = kernel.query_state(
+                "messages", conversation_id=conv_id, limit=50,
+            )
+        except Exception:
+            messages = []
+        # Newest-first: find an assistant tool_call for this action
+        # that still lacks a matching tool-result message.
+        answered: set[str] = set()
+        pending_candidates: list[str] = []
+        for msg in (messages if isinstance(messages, list) else []):
+            role = msg.get("role")
+            if role == "tool" and msg.get("tool_call_id"):
+                answered.add(str(msg["tool_call_id"]))
+            elif role == "assistant":
+                raw = msg.get("tool_calls")
+                if isinstance(raw, str):
+                    try:
+                        raw = json.loads(raw)
+                    except json.JSONDecodeError:
+                        raw = None
+                if not isinstance(raw, list):
+                    continue
+                for tc in raw:
+                    if not isinstance(tc, dict):
+                        continue
+                    fn = (tc.get("function") or {}).get("name") or tc.get("name")
+                    tc_id = tc.get("id")
+                    if fn == action and tc_id:
+                        pending_candidates.append(str(tc_id))
+        for tc_id in pending_candidates:
+            if tc_id not in answered:
+                tool_call_id = tc_id
+                break
+    return conv_id, tool_call_id
+
+
 def _list_pending_enriched(kernel, limit: int | None = None) -> list[dict]:
     """List pending approvals with flow context enriched from event_log.
 
@@ -82,11 +142,16 @@ def _list_pending_enriched(kernel, limit: int | None = None) -> list[dict]:
     enriched = []
     for a in pending:
         corr_id = correlation_map.get(a["id"], "")
+        conv_id, tool_call_id = _conversation_context_for_correlation(
+            kernel, corr_id, a.get("action"),
+        )
         enriched.append({
             **a,
             "correlation_id": corr_id,
             "flow_type": _classify_flow(corr_id, a.get("task_id"), task_map),
             "flow_label": _label_flow(corr_id, a.get("task_id"), task_map),
+            "conversation_id": conv_id,
+            "tool_call_id": tool_call_id,
         })
     return enriched
 
@@ -102,6 +167,8 @@ async def list_approvals(limit: int = 50, pending_only: bool = False, enriched: 
       - flow_type: "对话" | "任务" | "定时任务" | "测试" | "系统" | "未知"
       - flow_label: human-readable source label
       - correlation_id: event correlation identifier
+      - conversation_id: chat conversation id when flow is 对话 (else null)
+      - tool_call_id: unanswered tool call id for chat continuation (else null)
     """
     if pending_only and enriched:
         return _list_pending_enriched(kernel, limit=limit)

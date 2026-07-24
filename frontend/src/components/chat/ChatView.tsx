@@ -196,7 +196,7 @@ export default function ChatView({ conversationId }: Props) {
     await sendMessageBase(
       trimmed,
       (assistantMsgId, event: StreamEvent) => {
-        setFromEvent(assistantMsgId, event);
+        setFromEvent(assistantMsgId, event, setMessages);
       },
       (error) => {
         addError(error, "对话");
@@ -204,7 +204,7 @@ export default function ChatView({ conversationId }: Props) {
     );
     // No setTimeout here — memory refresh arrives via WS `memory_changed`,
     // which invalidates the TanStack Query cache automatically.
-  }, [input, isLoading, pendingConfirmation, sendMessageBase, setFromEvent, addError, memData]);
+  }, [input, isLoading, pendingConfirmation, sendMessageBase, setFromEvent, setMessages, addError, memData]);
 
   const handleConfirm = useCallback(
     async (trustSession?: boolean) => {

@@ -255,6 +255,10 @@ export interface EnrichedApproval extends Approval {
   flow_label: string;
   /** 事件关联标识 */
   correlation_id: string;
+  /** 对话来源时的 conversation id（可续写） */
+  conversation_id?: string | null;
+  /** 对话来源时未应答的 tool_call_id（可续写） */
+  tool_call_id?: string | null;
   /** 发起者 */
   proposed_by?: string;
   /** 关联任务ID */

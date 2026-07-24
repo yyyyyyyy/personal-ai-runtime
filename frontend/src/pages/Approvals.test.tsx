@@ -4,27 +4,43 @@ import { renderWithRouter, MockApiError } from "../test-utils";
 import ApprovalsPage from "./Approvals";
 import type { EnrichedApproval } from "../api/client";
 
-const { addError } = vi.hoisted(() => ({
+const { addError, mockNavigate } = vi.hoisted(() => ({
   addError: vi.fn(),
+  mockNavigate: vi.fn(),
 }));
 
 vi.mock("../api/client", () => ({
   listEnrichedPendingApprovals: vi.fn(),
   approveApproval: vi.fn(),
   rejectApproval: vi.fn(),
+  resolveApproval: vi.fn(),
   ApiError: MockApiError,
 }));
+
+vi.mock("react-router-dom", async () => {
+  const actual = await vi.importActual<typeof import("react-router-dom")>("react-router-dom");
+  return {
+    ...actual,
+    useNavigate: () => mockNavigate,
+  };
+});
 
 vi.mock("../stores/errorStore", () => ({
   useErrorStore: (selector: (s: { addError: ReturnType<typeof vi.fn> }) => unknown) =>
     selector({ addError }),
 }));
 
-import { listEnrichedPendingApprovals, approveApproval, rejectApproval } from "../api/client";
+import {
+  listEnrichedPendingApprovals,
+  approveApproval,
+  rejectApproval,
+  resolveApproval,
+} from "../api/client";
 
 const mockList = vi.mocked(listEnrichedPendingApprovals);
 const mockApprove = vi.mocked(approveApproval);
 const mockReject = vi.mocked(rejectApproval);
+const mockResolve = vi.mocked(resolveApproval);
 
 const sampleApproval: EnrichedApproval = {
   id: "ap-1",
@@ -35,6 +51,13 @@ const sampleApproval: EnrichedApproval = {
   flow_type: "对话",
   flow_label: "测试对话",
   correlation_id: "corr-1",
+};
+
+const chatContinuable: EnrichedApproval = {
+  ...sampleApproval,
+  id: "ap-2",
+  conversation_id: "conv-9",
+  tool_call_id: "tc-9",
 };
 
 describe("ApprovalsPage", () => {
@@ -94,6 +117,26 @@ describe("ApprovalsPage", () => {
     renderWithRouter(<ApprovalsPage />);
     await waitFor(() => {
       expect(addError).toHaveBeenCalledWith("加载失败", "审批");
+    });
+  });
+
+  it("uses resolveApproval and navigates for chat-continuable approvals", async () => {
+    mockList.mockResolvedValueOnce([chatContinuable]).mockResolvedValue([]);
+    mockResolve.mockResolvedValue({ status: "ok", assistant_message: "done" });
+    renderWithRouter(<ApprovalsPage />);
+    await waitFor(() => expect(screen.getByText("批准并续写")).toBeInTheDocument());
+    fireEvent.click(screen.getByText("批准并续写"));
+    await waitFor(() => {
+      expect(mockResolve).toHaveBeenCalledWith(
+        "ap-2",
+        "approve",
+        "write_file",
+        { path: "/tmp/test.txt" },
+        "conv-9",
+        "tc-9",
+      );
+      expect(mockApprove).not.toHaveBeenCalled();
+      expect(mockNavigate).toHaveBeenCalledWith("/chat/conv-9");
     });
   });
 });
