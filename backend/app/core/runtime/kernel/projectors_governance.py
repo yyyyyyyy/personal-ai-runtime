@@ -46,10 +46,21 @@ def _on_policy_created(event: Event, conn) -> None:
 @projector("PolicyUpdated")
 def _on_policy_updated(event: Event, conn) -> None:
     p = event.payload
-    if p.get("status") == "revoked":
+    status = p.get("status")
+    if status == "revoked":
         conn.execute(
             "UPDATE policy_events SET status = 'revoked', updated_at = ? WHERE id = ?",
             (event.ts, event.aggregate_id),
+        )
+        _invalidate_risk_cache()
+        return
+    if status == "active":
+        # Reactivation after intentional revoke (INV-C6): restore active + risk.
+        risk = p.get("risk_level", "low")
+        conn.execute(
+            "UPDATE policy_events SET status = 'active', risk_level = ?, "
+            "updated_at = ? WHERE id = ?",
+            (risk, event.ts, event.aggregate_id),
         )
         _invalidate_risk_cache()
         return

@@ -79,7 +79,7 @@ class CapabilityGovernance:
     # ── Seed (startup) ─────────────────────────────────────────────
 
     def seed_from_json(self, kernel: Kernel) -> None:
-        """Emit PolicyCreated events from capability_policy.json seed."""
+        """Idempotently seed PolicyCreated from capability_policy.json."""
         from pathlib import Path
 
         from app.config import settings
@@ -91,32 +91,58 @@ class CapabilityGovernance:
         data = json.loads(path.read_text(encoding="utf-8"))
 
         for name in data.get("forbidden", []):
-            self._ensure_policy(kernel, name, "forbidden")
+            self._upsert_policy(kernel, name, "forbidden")
         for name in data.get("needs_user", []):
-            self._ensure_policy(kernel, name, "high")
+            self._upsert_policy(kernel, name, "high")
         for name in data.get("auto_allow", []):
-            self._ensure_policy(kernel, name, "low")
+            self._upsert_policy(kernel, name, "low")
+
+    def _upsert_policy(self, kernel: Kernel, capability: str, risk: str) -> None:
+        """Ensure a policy row matches ``risk`` without duplicate creates.
+
+        Emit rules (INV-C6):
+        - no row → ``PolicyCreated`` (at most once per capability lifetime
+          until intentional revoke+reactivate)
+        - active + same risk → no-op
+        - active + different risk → ``PolicyUpdated`` (risk only)
+        - revoked → ``PolicyUpdated(status=active, risk_level=...)``
+        """
+        existing_rows = kernel.query_state(
+            "policy_events", capability=capability, limit=1,
+        )
+        aggregate_id = f"policy_{capability}"
+        if not existing_rows:
+            kernel.emit_event(
+                "PolicyCreated", "policy", aggregate_id,
+                payload={"capability": capability, "risk_level": risk},
+                actor="kernel",
+            )
+            return
+
+        existing = existing_rows[0]
+        if existing.get("status") == "revoked":
+            kernel.emit_event(
+                "PolicyUpdated", "policy", aggregate_id,
+                payload={
+                    "capability": capability,
+                    "status": "active",
+                    "risk_level": risk,
+                },
+                actor="kernel",
+            )
+            return
+
+        if existing.get("risk_level") != risk:
+            # Reconcile: seed JSON / MCP discovery tightened or loosened risk.
+            kernel.emit_event(
+                "PolicyUpdated", "policy", aggregate_id,
+                payload={"capability": capability, "risk_level": risk},
+                actor="kernel",
+            )
 
     def _ensure_policy(self, kernel: Kernel, capability: str, risk: str) -> None:
-        existing = kernel.query_state("policy_events", capability=capability, limit=1)
-        if existing:
-            # Reconcile: if the seed JSON risk tier changed since the DB was
-            # last seeded, emit PolicyUpdated so the projection tracks the
-            # current policy file. Without this, tightening a capability in
-            # capability_policy.json has no effect on already-initialised
-            # databases (the stale low-risk row wins every risk_for lookup).
-            if existing[0].get("risk_level") != risk:
-                kernel.emit_event(
-                    "PolicyUpdated", "policy", f"policy_{capability}",
-                    payload={"capability": capability, "risk_level": risk},
-                    actor="kernel",
-                )
-            return
-        kernel.emit_event(
-            "PolicyCreated", "policy", f"policy_{capability}",
-            payload={"capability": capability, "risk_level": risk},
-            actor="kernel",
-        )
+        """Backward-compatible alias of :meth:`_upsert_policy`."""
+        self._upsert_policy(kernel, capability, risk)
 
     # ── Risk lookup ────────────────────────────────────────────────
 
@@ -162,32 +188,14 @@ class CapabilityGovernance:
     # ── External MCP tools ─────────────────────────────────────────
 
     def register_external_tool(self, name: str, *, risk: str) -> None:
-        """Register an external MCP tool policy via event-sourced persistence."""
+        """Register an external MCP tool policy via event-sourced persistence.
+
+        Idempotent across process restarts: an already-active row with the
+        same risk emits nothing. See :meth:`_upsert_policy` / INV-C6.
+        """
         self._risk_cache.clear()
         if self._kernel is not None:
-            existing_rows = self._kernel.query_state("policy_events", capability=name, limit=1)
-            if existing_rows:
-                existing = existing_rows[0]
-                if existing.get("status") == "revoked":
-                    self._kernel.emit_event(
-                        "PolicyCreated", "policy", f"policy_{name}",
-                        payload={"capability": name, "risk_level": risk},
-                        actor="kernel",
-                    )
-                else:
-                    existing_risk = existing.get("risk_level")
-                    if existing_risk != risk:
-                        self._kernel.emit_event(
-                            "PolicyUpdated", "policy", f"policy_{name}",
-                            payload={"capability": name, "risk_level": risk},
-                            actor="kernel",
-                        )
-            else:
-                self._kernel.emit_event(
-                    "PolicyCreated", "policy", f"policy_{name}",
-                    payload={"capability": name, "risk_level": risk},
-                    actor="kernel",
-                )
+            self._upsert_policy(self._kernel, name, risk)
         self._external_auto_allow.discard(name)
         self._external_needs_user.discard(name)
         self._external_forbidden.discard(name)
@@ -198,19 +206,57 @@ class CapabilityGovernance:
         else:
             self._external_auto_allow.add(name)
 
-    def clear_external_tools(self) -> None:
-        """Revoke all external tool policies and clear in-memory cache."""
+    def clear_external_tools(self, *, persist: bool = False) -> None:
+        """Clear in-memory external-tool cache.
+
+        By default (**persist=False**) this is a *process-lifecycle* clear:
+        MCP mesh stop/restart must not revoke durable policies — otherwise
+        every reconnect emits PolicyUpdated(revoked)+PolicyCreated and
+        floods ``event_log`` (observed: ~74% of events were this cycle).
+
+        Pass ``persist=True`` only for intentional durable revoke (tests,
+        admin wipe). Prefer :meth:`revoke_external_tools` for selective
+        removal when a tool disappears from MCP discovery.
+        """
         self._risk_cache.clear()
-        all_names = self._external_auto_allow | self._external_needs_user | self._external_forbidden
-        if self._kernel is not None and all_names:
-            for name in all_names:
-                self._kernel.emit_event(
-                    "PolicyUpdated", "policy", f"policy_{name}",
-                    payload={"capability": name, "status": "revoked"}, actor="kernel",
-                )
+        all_names = (
+            self._external_auto_allow
+            | self._external_needs_user
+            | self._external_forbidden
+        )
+        if persist and self._kernel is not None and all_names:
+            self.revoke_external_tools(all_names)
         self._external_auto_allow.clear()
         self._external_needs_user.clear()
         self._external_forbidden.clear()
+
+    def revoke_external_tools(self, names: set[str] | frozenset[str] | list[str]) -> int:
+        """Durably revoke the given external tool policies.
+
+        Emits ``PolicyUpdated(status=revoked)`` only for capabilities that
+        currently have an *active* projection row. Returns emit count.
+        """
+        if self._kernel is None:
+            return 0
+        emitted = 0
+        for name in names:
+            rows = self._kernel.query_state(
+                "policy_events", capability=name, status="active", limit=1,
+            )
+            if not rows:
+                continue
+            self._kernel.emit_event(
+                "PolicyUpdated", "policy", f"policy_{name}",
+                payload={"capability": name, "status": "revoked"},
+                actor="kernel",
+            )
+            emitted += 1
+            self._external_auto_allow.discard(name)
+            self._external_needs_user.discard(name)
+            self._external_forbidden.discard(name)
+        if emitted:
+            self._risk_cache.clear()
+        return emitted
 
     def all_registered_tools(self, kernel: Kernel | None = None) -> set[str]:
         result: set[str] = self._external_auto_allow | self._external_needs_user | self._external_forbidden

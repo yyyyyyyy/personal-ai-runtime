@@ -11,6 +11,7 @@ from __future__ import annotations
 import json
 import logging
 import shutil
+import sqlite3
 import uuid
 from datetime import UTC, datetime
 from pathlib import Path
@@ -150,12 +151,21 @@ def _import_event_log_rows_locked(
             )
 
         max_seq = max((int(r["seq"]) for r in rows), default=0)
-        conn.execute("DELETE FROM sqlite_sequence WHERE name = 'event_log'")
-        if max_seq > 0:
-            conn.execute(
-                "INSERT INTO sqlite_sequence (name, seq) VALUES ('event_log', ?)",
-                (max_seq,),
-            )
+        # sqlite_sequence only exists when AUTOINCREMENT has been used at
+        # least once; some fresh / restored DBs omit it entirely. Only
+        # swallow the "no such table" case — a locked DB or disk-full must
+        # still surface so the import transaction rolls back.
+        try:
+            conn.execute("DELETE FROM sqlite_sequence WHERE name = 'event_log'")
+            if max_seq > 0:
+                conn.execute(
+                    "INSERT INTO sqlite_sequence (name, seq) VALUES ('event_log', ?)",
+                    (max_seq,),
+                )
+        except sqlite3.OperationalError as exc:
+            if "no such table: sqlite_sequence" not in str(exc):
+                raise
+            logger.debug("sqlite_sequence absent; relying on explicit seq values")
         _ensure_event_log_guards(kernel, conn)
 
         if rebuild_projections:
