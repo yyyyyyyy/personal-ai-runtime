@@ -78,6 +78,12 @@
 | [api-endpoints.md](06-reference/api-endpoints.md) | 全端点签名表（方法 / 路径 / 请求 / 响应 / 副作用） |
 | [makefile-targets.md](06-reference/makefile-targets.md) | 全 Makefile 目标清单与说明 |
 
+### 07 · ADR
+
+| 文档 | 内容 |
+|---|---|
+| [07-adr/README.md](07-adr/README.md) | 架构决策记录索引（尽调整改落地） |
+
 ---
 
 ## 文档约定

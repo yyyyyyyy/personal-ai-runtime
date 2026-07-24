@@ -19,6 +19,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import uuid
 from typing import Any, Coroutine
 
 from app.config import settings
@@ -177,7 +178,7 @@ class RuntimeLoop:
                 )
                 if schedule_type == "cron" and cron_expr:
                     next_fire = self._next_cron_fire(cron_expr, now)
-                    new_tid = f"t_{__import__('uuid').uuid4().hex[:12]}"
+                    new_tid = f"t_{uuid.uuid4().hex[:12]}"
                     kernel.emit_event(
                         "TimerCreated", "timer", new_tid,
                         payload={
@@ -289,9 +290,26 @@ class RuntimeLoop:
         except Exception:
             logger.exception("Memory index repair worker failed")
 
+        try:
+            await asyncio.to_thread(self._prune_handler_executions)
+        except Exception:
+            logger.exception("handler_executions prune failed")
+
     def _drain_memory_index_repairs(self) -> None:
         """Delegate durable repair drain to Kernel ABI (no private ``_db``)."""
         kernel.drain_memory_index_repairs()
+
+    def _prune_handler_executions(self) -> None:
+        """Soft-prune terminal Lane A projection rows past retention."""
+        from app.config import settings
+        from app.core.runtime.kernel import sovereignty_ops as ops
+
+        n = ops.prune_handler_executions(
+            kernel,
+            retention_days=settings.handler_executions_retention_days,
+        )
+        if n:
+            logger.info("Pruned %d stale handler_executions row(s)", n)
 
     async def _check_reactions(self) -> None:
         """Evaluate registered Reactions.

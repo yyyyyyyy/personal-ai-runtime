@@ -121,6 +121,10 @@ export default function ConfirmationDialog({ toolCall, onConfirm, onDeny }: Prop
             <p className={`text-xs ${descClass} mb-2 italic`}>{riskExplanation}</p>
           )}
 
+          <p className="text-xs text-gray-500 mb-2">
+            批准后将执行该工具并生成一次回复续写；完整多步工具循环不会在服务重启后自动恢复，必要时请新开一轮对话。
+          </p>
+
           {description && (
             <p className={`${descClass} text-sm mb-3 whitespace-pre-wrap`}>{description}</p>
           )}

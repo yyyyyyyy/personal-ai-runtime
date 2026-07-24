@@ -760,3 +760,27 @@ def erase(kernel) -> dict:
         "status": "destroyed",
         "message": "All local data removed. Restart the server to reinitialize.",
     }
+
+
+def prune_handler_executions(kernel, *, retention_days: int) -> int:
+    """Soft-prune terminal handler_executions older than ``retention_days``.
+
+    Kernel-space maintenance privilege (INV-S1a / ADR-R014) — same DML
+    allowlist class as rebuild/erase. Does **not** delete ``event_log`` rows;
+    a full rebuild can recreate projections until event compaction exists
+    (Non-goal).
+    """
+    if retention_days <= 0:
+        return 0
+    from datetime import UTC, datetime, timedelta
+
+    cutoff = (datetime.now(UTC) - timedelta(days=retention_days)).isoformat()
+    with kernel._db.get_db() as conn:
+        cur = conn.execute(
+            """DELETE FROM handler_executions
+               WHERE status IN ('completed', 'failed')
+                 AND completed_at != ''
+                 AND completed_at < ?""",
+            (cutoff,),
+        )
+        return int(cur.rowcount or 0)

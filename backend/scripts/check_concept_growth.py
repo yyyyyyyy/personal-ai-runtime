@@ -75,20 +75,25 @@ def count_projector_files() -> int:
     return len(list(kernel_dir.glob("projectors_*.py")))
 
 
+def _loc(*paths: Path) -> int:
+    total = 0
+    for p in paths:
+        if p.exists():
+            total += len(p.read_text(encoding="utf-8").splitlines())
+    return total
+
+
 def count_god_object_max_loc() -> int:
     """Return the max LOC of known God Object candidates.
 
     Measures Kernel (core + query/sovereignty mixins), Brain (core + mixin), and
     MCPHub. Returns the LOC of the largest one.
+
+    SQL / sovereignty / MCP registry bulk are tracked separately via
+    ``SUBSYSTEM_LOC_BUDGETS`` (G2) so they cannot escape the façade budget by
+    file-split alone without updating the locked file lists below.
     """
     kernel_dir = ROOT / "backend" / "app" / "core" / "runtime" / "kernel"
-
-    def _loc(*paths: Path) -> int:
-        total = 0
-        for p in paths:
-            if p.exists():
-                total += len(p.read_text(encoding="utf-8").splitlines())
-        return total
 
     kernel_loc = _loc(
         kernel_dir / "kernel.py",
@@ -103,6 +108,53 @@ def count_god_object_max_loc() -> int:
         ROOT / "backend" / "app" / "core" / "harness" / "mcp_hub.py",
     )
     return max(kernel_loc, brain_loc, hub_loc)
+
+
+# Locked subsystem file sets (G2). Adding a sibling file without updating this
+# map is an intentional budget change — update BASELINE docs §4.4 subsystem note.
+SUBSYSTEM_LOC_FILES: dict[str, tuple[Path, ...]] = {
+    "read_model_sql": (
+        ROOT / "backend/app/core/runtime/kernel/query_builder.py",
+    ),
+    "sovereignty": (
+        ROOT / "backend/app/core/runtime/kernel/sovereignty_ops.py",
+    ),
+    "mcp_registry": (
+        ROOT / "backend/app/core/harness/mcp_builtin_registration.py",
+        ROOT / "backend/app/core/harness/builtin_registration/__init__.py",
+        ROOT / "backend/app/core/harness/builtin_registration/common.py",
+        ROOT / "backend/app/core/harness/builtin_registration/register.py",
+        ROOT / "backend/app/core/harness/builtin_registration/specs_core.py",
+        ROOT / "backend/app/core/harness/builtin_registration/specs_domain.py",
+    ),
+}
+
+SUBSYSTEM_LOC_BUDGETS: dict[str, int] = {
+    "read_model_sql": 900,
+    "sovereignty": 850,
+    "mcp_registry": 1200,
+}
+
+
+def measure_subsystem_locs() -> dict[str, int]:
+    return {
+        name: _loc(*paths) for name, paths in SUBSYSTEM_LOC_FILES.items()
+    }
+
+
+def check_subsystem_budgets(verbose: bool = True) -> int:
+    """Fail when locked subsystem LOC exceeds G2 budgets."""
+    current = measure_subsystem_locs()
+    violations = 0
+    for name, limit in SUBSYSTEM_LOC_BUDGETS.items():
+        cur = current.get(name, 0)
+        if cur > limit:
+            violations += 1
+            if verbose:
+                print(f"  [FAIL] subsystem {name}: {cur} > {limit}")
+        elif verbose:
+            print(f"  [OK] subsystem {name}: {cur} (<= {limit})")
+    return 1 if violations else 0
 
 
 # Tracked unused files (zero runtime callers).
@@ -134,6 +186,62 @@ BASELINE = {
     "god_object_max_loc": 631,  # after INV-W5 projector/event cleanup
     "dead_code_files": 0,
 }
+
+# Doc §4.4 row label → BASELINE key (CI is the single authority).
+_DOC_SECTION_4_4_KEYS: dict[str, str] = {
+    "runtime_files": "runtime_files",
+    "event_types": "event_types",
+    "query_state_selectors": "query_state_selectors",
+    "fragments": "fragments",
+    "governed_tables": "governed_tables",
+    "projector_files": "projector_files",
+    "god_object_max_loc": "god_object_max_loc",
+}
+
+
+def check_docs_baseline_sync(verbose: bool = True) -> int:
+    """Fail when docs/02-concepts/runtime-algebra.md §4.4 drifts from BASELINE.
+
+    Parses the markdown table column ``对应 BASELINE 键`` and the limit column.
+    """
+    doc = ROOT / "docs" / "02-concepts" / "runtime-algebra.md"
+    text = doc.read_text(encoding="utf-8")
+    # Rows like: | `core/runtime/` 文件数 | 63 | `runtime_files` |
+    row_re = re.compile(
+        r"^\|\s*[^|]+\|\s*(\d+)\s*\|\s*`([a-z_]+)`\s*\|",
+        re.MULTILINE,
+    )
+    section = text.split("### 4.4", 1)
+    if len(section) < 2:
+        if verbose:
+            print("  [FAIL] docs missing ### 4.4 section")
+        return 1
+    body = section[1].split("\n---", 1)[0].split("\n## ", 1)[0]
+    found: dict[str, int] = {}
+    for m in row_re.finditer(body):
+        limit, key = int(m.group(1)), m.group(2)
+        if key in _DOC_SECTION_4_4_KEYS:
+            found[key] = limit
+    violations = 0
+    for key, expected in BASELINE.items():
+        if key == "dead_code_files":
+            continue
+        if key not in found:
+            violations += 1
+            if verbose:
+                print(f"  [FAIL] docs §4.4 missing BASELINE key `{key}`")
+            continue
+        if found[key] != expected:
+            violations += 1
+            if verbose:
+                print(
+                    f"  [FAIL] docs §4.4 `{key}`={found[key]} "
+                    f"!= BASELINE {expected}"
+                )
+    if verbose and not violations:
+        print("  [OK] docs §4.4 synced with BASELINE")
+    return 1 if violations else 0
+
 
 
 def measure_all() -> dict[str, int]:
@@ -244,4 +352,10 @@ if __name__ == "__main__":
         _record_snapshot()
     else:
         strict = "--strict" in sys.argv
-        sys.exit(check(strict=strict))
+        code = check(strict=strict)
+        if code == 0:
+            code = check_docs_baseline_sync(verbose=True)
+        if code == 0:
+            code = check_subsystem_budgets(verbose=True)
+        sys.exit(code)
+

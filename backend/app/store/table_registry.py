@@ -140,8 +140,38 @@ NON_SOVEREIGN_ATTACHMENTS: dict[str, dict[str, str]] = {
         "write_path": "product/knowledge.py direct; AppConfigChanged is audit-only",
         "notes": (
             "Not in GOVERNED_TABLES; not in MEMORY_INDEX_EVENT_TYPES; "
-            "Kernel.snapshot/export does not restore documents from event_log alone."
+            "Kernel.snapshot/export does not restore documents from event_log alone. "
+            "Decision: ADR-R013 Path B+."
         ),
+    },
+}
+
+# Philosophy / Truth-Layer exceptions (must stay explicit — Fitness registry).
+# Each entry is a deliberate fracture of "everything is Event/State".
+PHILOSOPHY_EXCEPTIONS: dict[str, dict[str, str]] = {
+    "transport_chat_delta": {
+        "rule": "ChatTextDelta / SSE / WS are TRANSPORT — not event_log",
+        "evidence": "constants.EVENT_CHAT_TEXT_DELTA",
+    },
+    "memory_vector_index": {
+        "rule": "Chroma memory index is eventually consistent derived State",
+        "evidence": "kernel.emit_event post-commit sync + memory_index_repairs",
+    },
+    "knowledge_path_b": {
+        "rule": "Knowledge docs are non-sovereign attachments (INV-S4)",
+        "evidence": "NON_SOVEREIGN_ATTACHMENTS['knowledge']; ADR-R013",
+    },
+    "app_storage": {
+        "rule": "APP_STORAGE is operational — not governed Truth",
+        "evidence": "APP_STORAGE_SCHEMA",
+    },
+    "single_process_control_plane": {
+        "rule": "No distributed lease / multi-worker (Non-goal)",
+        "evidence": "INV-W6; ADR-R009",
+    },
+    "handler_executions_soft_prune": {
+        "rule": "Terminal handler_executions may be DELETE'd without Event (INV-S1a)",
+        "evidence": "sovereignty_ops.prune_handler_executions; ADR-R014",
     },
 }
 

@@ -141,11 +141,12 @@ async def mcp_status():
 
 @router.post("/export")
 async def export_all_data(body: ExportRequest | None = None):
-    """Export complete personal data snapshot as streamed JSON.
+    """Export governed personal data snapshot as streamed JSON.
 
-    Body is identical to ``kernel.snapshot()`` wire format so import/restore
-    stay compatible. Streaming avoids buffering the full serialized document
-    in the ASGI response layer.
+    Includes ``event_log`` and governed projections rebuildable from it.
+    Does **not** include non-sovereign Knowledge attachments (documents /
+    Chroma ``knowledge`` collection) — see INV-S4 / Path B. Use Knowledge
+    APIs separately if those files must be backed up.
     """
     payload = body or ExportRequest()
     if payload.confirm != EXPORT_CONFIRM:

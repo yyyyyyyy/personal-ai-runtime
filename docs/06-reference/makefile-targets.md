@@ -60,6 +60,10 @@
 | `execution-ownership` | [`check_execution_ownership.py`](../../backend/scripts/check_execution_ownership.py) | `invoke_capability` 必带 `execution_id` |
 | `execution-ownership-inventory` | 同上 `--inventory` | 列全部 |
 | `execution-ownership-strict` | 同上 `--strict` | 连 bypass 债也失败 |
+| `architecture-check` | [`check_concept_growth.py`](../../backend/scripts/check_concept_growth.py) | 概念压缩 BASELINE + docs §4.4 同步 + G2 子系统 LOC |
+| `non-sovereign-attachments` | [`check_non_sovereign_attachments.py`](../../backend/scripts/check_non_sovereign_attachments.py) | Knowledge Path B + PHILOSOPHY_EXCEPTIONS 登记 |
+| `single-process-control-plane` | [`check_single_process_control_plane.py`](../../backend/scripts/check_single_process_control_plane.py) | INV-W6：禁止第二控制面 worker 入口 |
+| `dynamic-imports` | [`check_dynamic_imports.py`](../../backend/scripts/check_dynamic_imports.py) | importlib 旁路 AST 守卫的 allowlist |
 | `projection-provenance` | [`check_projection_provenance.py`](../../backend/scripts/check_projection_provenance.py) | 投影行有对应 event_log 事件 |
 | `docs-links` | [`check_doc_links.py`](../../backend/scripts/check_doc_links.py) | 文档相对链接与路径存在 |
 | `docs-table-sync` | [`check_doc_table_sync.py`](../../backend/scripts/check_doc_table_sync.py) | 文档表清单与 registry 同步 |

@@ -133,6 +133,10 @@ class Settings(BaseSettings):
     """Hard cap on in-memory pending ScheduledExecutions. New enqueue beyond
     this limit is rejected (ExecutionFailed error=queue_full). Crash recovery
     may temporarily exceed the cap while draining durable pending rows."""
+    handler_executions_retention_days: int = 30
+    """Soft-prune terminal ``handler_executions`` projection rows older than
+    this many days (completed/failed). Event log is unchanged; a full rebuild
+    can recreate rows until event compaction exists (Non-goal). 0 disables."""
 
     # --- Filesystem (agent coding) ---
     filesystem_allowed_dirs: str = ""

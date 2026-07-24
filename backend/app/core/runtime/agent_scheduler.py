@@ -427,13 +427,16 @@ class Scheduler:
             )
         except asyncio.CancelledError:
             clear_execution_cancel(item.id)
-            item.error = "cancelled"
-            if item.status == "running":
-                item.transition_to("failed")
-                self._emit_verify(
-                    item,
-                    lambda: emit_execution_failed(self._kernel, item, terminal=True),
-                )
+            # Durable cancel may already have projected ExecutionFailed in
+            # request_cancel (D1); do not double-emit or rewind status.
+            if item.status != "failed":
+                item.error = "cancelled"
+                if item.status == "running":
+                    item.transition_to("failed")
+                    self._emit_verify(
+                        item,
+                        lambda: emit_execution_failed(self._kernel, item, terminal=True),
+                    )
             raise
         except asyncio.TimeoutError:
             item.error = f"Timeout after {item.policy.timeout_seconds}s"
@@ -551,8 +554,9 @@ class Scheduler:
         """Request cancel for a ScheduledExecution (pending or in-flight).
 
         Pending items are removed from the queue and failed as cancelled.
-        In-flight asyncio tasks are cancelled; ``_process_work_item`` records
-        ``ExecutionFailed(error=cancelled)`` without retry.
+        In-flight asyncio tasks are cancelled; durable ``ExecutionFailed`` is
+        emitted **before** ``task.cancel()`` so a process death mid-cancel
+        cannot resurrect the row via ``_recover`` (running→pending).
         """
         from app.core.runtime.execution import request_cancel_execution
 
@@ -577,7 +581,18 @@ class Scheduler:
         self._pending = kept
         active = self._active.get(execution_id)
         if active is not None:
-            _item, task = active
+            item, task = active
+            # Durable cancel first (D1): projection must leave recoverable set.
+            if item.status in ("running", "pending", "retrying"):
+                item.error = "cancelled"
+                if item.status != "failed":
+                    item.transition_to("failed")
+                self._emit_verify(
+                    item,
+                    lambda it=item: emit_execution_failed(
+                        self._kernel, it, terminal=True,
+                    ),
+                )
             if not task.done():
                 found = True
                 task.cancel()

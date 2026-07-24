@@ -102,13 +102,16 @@ def execution_scope(execution_id: str) -> Iterator[None]:
         _current_execution_id.reset(token)
 
 
-# ── Cooperative cancellation (in-process; not a new Event type) ───────────
+# ── Cooperative cancellation ───────────────────────────────────────────────
 #
 # Cancelled Lane A runs terminate via ExecutionFailed(error="cancelled").
 # Cancelled background work items terminate via WorkItemStatusChanged(status=
 # "cancelled") from the cancel API; handlers observe ``exec_{work_item_id}``.
-# Flags are process-local: after restart, durable row status is authoritative
-# (running→pending recovery, or already cancelled).
+#
+# Process-local flags accelerate cooperative checks mid-flight. Durable
+# authority is the projection: Scheduler.request_cancel emits ExecutionFailed
+# for pending **and** in-flight items before task.cancel() (ADR-R010), so
+# restart recovery (running→pending) cannot resurrect a cancelled execution.
 
 _cancelled_executions: set[str] = set()
 

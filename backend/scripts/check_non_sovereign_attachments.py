@@ -116,6 +116,28 @@ def check(*, verbose: bool = True) -> int:
             f"{len(NON_SOVEREIGN_ATTACHMENTS)} registered "
             f"({', '.join(sorted(NON_SOVEREIGN_ATTACHMENTS))})"
         )
+
+    # Philosophy exception registry must stay non-empty (Fitness).
+    from app.store.table_registry import PHILOSOPHY_EXCEPTIONS
+
+    required_exc = {
+        "transport_chat_delta",
+        "memory_vector_index",
+        "knowledge_path_b",
+        "app_storage",
+        "single_process_control_plane",
+        "handler_executions_soft_prune",
+    }
+    missing_exc = sorted(required_exc - set(PHILOSOPHY_EXCEPTIONS))
+    if missing_exc:
+        violations += 1
+        if verbose:
+            print(f"  [FAIL] PHILOSOPHY_EXCEPTIONS missing: {missing_exc}")
+    elif verbose:
+        print(
+            f"PHILOSOPHY EXCEPTIONS OK — {len(PHILOSOPHY_EXCEPTIONS)} registered"
+        )
+
     return 1 if violations else 0
 
 

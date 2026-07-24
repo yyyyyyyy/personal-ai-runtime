@@ -29,6 +29,7 @@
 | ID | 陈述 | 强度 |
 |---|---|---|
 | INV-S1 | governed 投影表仅由 projector 在 Kernel 写路径上更新 | Strong |
+| INV-S1a | **维护特权例外**：终端态 `handler_executions` 可由 Kernel-space soft-prune `DELETE`（不经 Event）；不删 `event_log`；`rebuild_all` 可重建被删行（见 [ADR-R014](../07-adr/ADR-R014-handler-executions-soft-prune.md)） | Medium |
 | INV-S2 | User Space 不得对 governed 表执行 DML 或 SELECT（`check_boundary.py`） | Strong |
 | INV-S3 | ChromaDB memory index 是 State 的派生索引；失败不得回滚已提交事件，应进入可重试修复路径 | Medium |
 | INV-S4 | APP_STORAGE 表可直访，但不得被误当作 governed 真相源 | Weak |
@@ -56,6 +57,7 @@
 | INV-W3 | 中断的调度执行可从投影恢复并重试 | Strong |
 | INV-W4 | 领域 Work（`work_items`）与调度 Work（`handler_executions`）分离存储、统一原语 | Medium |
 | INV-W5 | 后台异步任务以 `work_items(work_type=background)` 表达，经 `ExecuteRequested` 执行；不再保留平行 `background_tasks` 表 | Strong（已收敛） |
+| INV-W6 | 控制面为**单进程**；不提供分布式 lease / 多 worker Scheduler（Non-goal；见 [execution-model.md](execution-model.md)） | Strong（文档 + CI 守卫） |
 
 执行车道语义见 [execution-model.md](execution-model.md)。
 

@@ -139,6 +139,9 @@ export default function ApprovalsPage() {
           <div>
             <h2 className="text-2xl font-semibold text-gray-100">审批管理</h2>
             <p className="text-sm text-gray-500 mt-1">管理所有需要人工确认的高风险操作</p>
+            <p className="text-xs text-gray-600 mt-1">
+              批准后执行工具并可能生成一次回复续写；完整多步工具循环不会在服务重启后自动恢复。
+            </p>
           </div>
           <div className="flex items-center gap-2">
             {approvals.length > 0 && <Badge tone="warning">{approvals.length} 条待处理</Badge>}

@@ -96,6 +96,10 @@ flowchart LR
 |---|---|---|
 | `memory_extractor` | `ollama` | `MEMORY_EXTRACTOR`（`ollama` 本地 或 `cloud`） |
 | `sensitive_ops_local` | `True` | `SENSITIVE_OPS_LOCAL` |
+| `execution_shadow_compare` | `False` | `EXECUTION_SHADOW_COMPARE` |
+| `scheduler_max_concurrent` | `8` | `SCHEDULER_MAX_CONCURRENT` |
+| `scheduler_max_pending` | `256` | `SCHEDULER_MAX_PENDING` |
+| `handler_executions_retention_days` | `30` | `HANDLER_EXECUTIONS_RETENTION_DAYS`（`0` 禁用软清理） |
 
 ### 文件系统（agent coding）
 
